@@ -1,0 +1,74 @@
+[
+{
+  "directory": "C:/Users/Daniel/Code/evident/build-x64",
+  "command": "C:\\PROGRA~2\\MICROS~2\\18\\BUILDT~1\\VC\\Tools\\MSVC\\1450~1.357\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -IC:\\Users\\Daniel\\Code\\evident\\include /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++latest -MDd /FoCMakeFiles\\evident_frontend.dir\\src\\Source.cpp.obj /FdCMakeFiles\\evident_frontend.dir\\evident_frontend.pdb /FS -c C:\\Users\\Daniel\\Code\\evident\\src\\Source.cpp",
+  "file": "C:/Users/Daniel/Code/evident/src/Source.cpp",
+  "output": "C:/Users/Daniel/Code/evident/build-x64/CMakeFiles/evident_frontend.dir/src/Source.cpp.obj"
+},
+{
+  "directory": "C:/Users/Daniel/Code/evident/build-x64",
+  "command": "C:\\PROGRA~2\\MICROS~2\\18\\BUILDT~1\\VC\\Tools\\MSVC\\1450~1.357\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -IC:\\Users\\Daniel\\Code\\evident\\include /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++latest -MDd /FoCMakeFiles\\evident_frontend.dir\\src\\Diagnostic.cpp.obj /FdCMakeFiles\\evident_frontend.dir\\evident_frontend.pdb /FS -c C:\\Users\\Daniel\\Code\\evident\\src\\Diagnostic.cpp",
+  "file": "C:/Users/Daniel/Code/evident/src/Diagnostic.cpp",
+  "output": "C:/Users/Daniel/Code/evident/build-x64/CMakeFiles/evident_frontend.dir/src/Diagnostic.cpp.obj"
+},
+{
+  "directory": "C:/Users/Daniel/Code/evident/build-x64",
+  "command": "C:\\PROGRA~2\\MICROS~2\\18\\BUILDT~1\\VC\\Tools\\MSVC\\1450~1.357\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -IC:\\Users\\Daniel\\Code\\evident\\include /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++latest -MDd /FoCMakeFiles\\evident_frontend.dir\\src\\Token.cpp.obj /FdCMakeFiles\\evident_frontend.dir\\evident_frontend.pdb /FS -c C:\\Users\\Daniel\\Code\\evident\\src\\Token.cpp",
+  "file": "C:/Users/Daniel/Code/evident/src/Token.cpp",
+  "output": "C:/Users/Daniel/Code/evident/build-x64/CMakeFiles/evident_frontend.dir/src/Token.cpp.obj"
+},
+{
+  "directory": "C:/Users/Daniel/Code/evident/build-x64",
+  "command": "C:\\PROGRA~2\\MICROS~2\\18\\BUILDT~1\\VC\\Tools\\MSVC\\1450~1.357\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -IC:\\Users\\Daniel\\Code\\evident\\include /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++latest -MDd /FoCMakeFiles\\evident_frontend.dir\\src\\Lexer.cpp.obj /FdCMakeFiles\\evident_frontend.dir\\evident_frontend.pdb /FS -c C:\\Users\\Daniel\\Code\\evident\\src\\Lexer.cpp",
+  "file": "C:/Users/Daniel/Code/evident/src/Lexer.cpp",
+  "output": "C:/Users/Daniel/Code/evident/build-x64/CMakeFiles/evident_frontend.dir/src/Lexer.cpp.obj"
+},
+{
+  "directory": "C:/Users/Daniel/Code/evident/build-x64",
+  "command": "C:\\PROGRA~2\\MICROS~2\\18\\BUILDT~1\\VC\\Tools\\MSVC\\1450~1.357\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -IC:\\Users\\Daniel\\Code\\evident\\include /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++latest -MDd /FoCMakeFiles\\evident_frontend.dir\\src\\Ast.cpp.obj /FdCMakeFiles\\evident_frontend.dir\\evident_frontend.pdb /FS -c C:\\Users\\Daniel\\Code\\evident\\src\\Ast.cpp",
+  "file": "C:/Users/Daniel/Code/evident/src/Ast.cpp",
+  "output": "C:/Users/Daniel/Code/evident/build-x64/CMakeFiles/evident_frontend.dir/src/Ast.cpp.obj"
+},
+{
+  "directory": "C:/Users/Daniel/Code/evident/build-x64",
+  "command": "C:\\PROGRA~2\\MICROS~2\\18\\BUILDT~1\\VC\\Tools\\MSVC\\1450~1.357\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -IC:\\Users\\Daniel\\Code\\evident\\include /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++latest -MDd /FoCMakeFiles\\evident_frontend.dir\\src\\Parser.cpp.obj /FdCMakeFiles\\evident_frontend.dir\\evident_frontend.pdb /FS -c C:\\Users\\Daniel\\Code\\evident\\src\\Parser.cpp",
+  "file": "C:/Users/Daniel/Code/evident/src/Parser.cpp",
+  "output": "C:/Users/Daniel/Code/evident/build-x64/CMakeFiles/evident_frontend.dir/src/Parser.cpp.obj"
+},
+{
+  "directory": "C:/Users/Daniel/Code/evident/build-x64",
+  "command": "C:\\PROGRA~2\\MICROS~2\\18\\BUILDT~1\\VC\\Tools\\MSVC\\1450~1.357\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -IC:\\Users\\Daniel\\Code\\evident\\include /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++latest -MDd /FoCMakeFiles\\evident_frontend.dir\\src\\Semantic.cpp.obj /FdCMakeFiles\\evident_frontend.dir\\evident_frontend.pdb /FS -c C:\\Users\\Daniel\\Code\\evident\\src\\Semantic.cpp",
+  "file": "C:/Users/Daniel/Code/evident/src/Semantic.cpp",
+  "output": "C:/Users/Daniel/Code/evident/build-x64/CMakeFiles/evident_frontend.dir/src/Semantic.cpp.obj"
+},
+{
+  "directory": "C:/Users/Daniel/Code/evident/build-x64",
+  "command": "C:\\PROGRA~2\\MICROS~2\\18\\BUILDT~1\\VC\\Tools\\MSVC\\1450~1.357\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -IC:\\Users\\Daniel\\Code\\evident\\include /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++latest -MDd /FoCMakeFiles\\evident_frontend.dir\\src\\Hir.cpp.obj /FdCMakeFiles\\evident_frontend.dir\\evident_frontend.pdb /FS -c C:\\Users\\Daniel\\Code\\evident\\src\\Hir.cpp",
+  "file": "C:/Users/Daniel/Code/evident/src/Hir.cpp",
+  "output": "C:/Users/Daniel/Code/evident/build-x64/CMakeFiles/evident_frontend.dir/src/Hir.cpp.obj"
+},
+{
+  "directory": "C:/Users/Daniel/Code/evident/build-x64",
+  "command": "C:\\PROGRA~2\\MICROS~2\\18\\BUILDT~1\\VC\\Tools\\MSVC\\1450~1.357\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -IC:\\Users\\Daniel\\Code\\evident\\include /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++latest -MDd /FoCMakeFiles\\evident_frontend.dir\\src\\Mir.cpp.obj /FdCMakeFiles\\evident_frontend.dir\\evident_frontend.pdb /FS -c C:\\Users\\Daniel\\Code\\evident\\src\\Mir.cpp",
+  "file": "C:/Users/Daniel/Code/evident/src/Mir.cpp",
+  "output": "C:/Users/Daniel/Code/evident/build-x64/CMakeFiles/evident_frontend.dir/src/Mir.cpp.obj"
+},
+{
+  "directory": "C:/Users/Daniel/Code/evident/build-x64",
+  "command": "C:\\PROGRA~2\\MICROS~2\\18\\BUILDT~1\\VC\\Tools\\MSVC\\1450~1.357\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -IC:\\Users\\Daniel\\Code\\evident\\include /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++latest -MDd /FoCMakeFiles\\evident_frontend.dir\\src\\Backend.cpp.obj /FdCMakeFiles\\evident_frontend.dir\\evident_frontend.pdb /FS -c C:\\Users\\Daniel\\Code\\evident\\src\\Backend.cpp",
+  "file": "C:/Users/Daniel/Code/evident/src/Backend.cpp",
+  "output": "C:/Users/Daniel/Code/evident/build-x64/CMakeFiles/evident_frontend.dir/src/Backend.cpp.obj"
+},
+{
+  "directory": "C:/Users/Daniel/Code/evident/build-x64",
+  "command": "C:\\PROGRA~2\\MICROS~2\\18\\BUILDT~1\\VC\\Tools\\MSVC\\1450~1.357\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -IC:\\Users\\Daniel\\Code\\evident\\include /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++latest -MDd /FoCMakeFiles\\evident_frontend.dir\\src\\Driver.cpp.obj /FdCMakeFiles\\evident_frontend.dir\\evident_frontend.pdb /FS -c C:\\Users\\Daniel\\Code\\evident\\src\\Driver.cpp",
+  "file": "C:/Users/Daniel/Code/evident/src/Driver.cpp",
+  "output": "C:/Users/Daniel/Code/evident/build-x64/CMakeFiles/evident_frontend.dir/src/Driver.cpp.obj"
+},
+{
+  "directory": "C:/Users/Daniel/Code/evident/build-x64",
+  "command": "C:\\PROGRA~2\\MICROS~2\\18\\BUILDT~1\\VC\\Tools\\MSVC\\1450~1.357\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -IC:\\Users\\Daniel\\Code\\evident\\include /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++latest -MDd /FoCMakeFiles\\evidc.dir\\src\\main.cpp.obj /FdCMakeFiles\\evidc.dir\\ /FS -c C:\\Users\\Daniel\\Code\\evident\\src\\main.cpp",
+  "file": "C:/Users/Daniel/Code/evident/src/main.cpp",
+  "output": "C:/Users/Daniel/Code/evident/build-x64/CMakeFiles/evidc.dir/src/main.cpp.obj"
+}
+]

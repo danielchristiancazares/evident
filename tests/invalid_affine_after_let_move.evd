@@ -1,0 +1,13 @@
+public proof Receipt {
+    count: Int,
+}
+
+public fn mint() -> Receipt proves Receipt {
+    prove Receipt { count: 7 }
+}
+
+public fn boot() -> Receipt {
+    let receipt = mint();
+    let next = receipt;
+    receipt
+}

@@ -1,0 +1,8 @@
+public permit RenderPassActive
+
+public fn start_pass() -> Unit grants RenderPassActive {
+}
+
+public fn boot() -> Unit {
+    start_pass()
+}

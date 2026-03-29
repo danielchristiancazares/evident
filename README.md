@@ -39,6 +39,8 @@ Function-body syntax:
 - `match`
 - `try`
 - `fail`
+- `with`
+- `prove`
 - yielded-call matching via `succeeded(...)` / `failed(...)`
 - variant payload patterns including `{ field }`, `{ field: alias }`, and `{ .. }`
 
@@ -54,9 +56,11 @@ The compiler currently enforces:
 - unknown type references
 - leaking private types through public APIs
 - `yields` targeting a non-`reason` type
-- foreign functions using `yields` or defining bodies
+- foreign functions using `yields`, `proves`, or defining bodies
 - reason types forbidden in ordinary data positions
 - permit types forbidden in stored positions and return types
+- proof values restricted to `prove` and affine move-safe use
+- permit values restricted to direct argument or scoped `with` use
 - function body return-type checking
 - yielded calls used only via `try` or `match`
 - `try` only inside compatible `yields` contexts
@@ -70,13 +74,19 @@ The compiler currently enforces:
 
 This version does **not** yet implement:
 
-- generic function call inference
-- trait solving / method dispatch
-- typestate transition proofs
-- permit/proof minting restrictions beyond type-position checks
+- package/import-based multi-file compilation
+- generic function call support
+- trait implementations, solving, or method dispatch
+- full typestate transition proofs beyond the current permit/proof/affine enforcement
 - optimization passes
 - cross-target native backends beyond Windows x64 COFF
 - debug info or optimized native code generation
+
+## Planning
+
+- Language spec: `docs/EVIDENT_LANGUAGE_SPEC.md`
+- Finish plan: `docs/COMPILER_FINISH_PLAN.md`
+- Native backend roadmap: `docs/NATIVE_BACKEND_PLAN.md`
 
 ## Build
 

@@ -169,6 +169,34 @@ void dump_expr(std::ostream& out, const Expr& expr, std::size_t depth) {
         dump_record_fields(out, fail_expr.fields, depth + 1);
         break;
     }
+    case ExprKind::WithPermit: {
+        const auto& with_expr = static_cast<const WithPermitExpr&>(expr);
+        out << "with " << with_expr.binder_name << '\n';
+        if (with_expr.grant_call != nullptr) {
+            indent(out, depth + 1);
+            out << "grant\n";
+            dump_expr(out, *with_expr.grant_call, depth + 2);
+        }
+        if (with_expr.body != nullptr) {
+            indent(out, depth + 1);
+            out << "body\n";
+            dump_expr(out, *with_expr.body, depth + 2);
+        }
+        break;
+    }
+    case ExprKind::Prove: {
+        const auto& prove_expr = static_cast<const ProveExpr&>(expr);
+        out << "prove ";
+        for (std::size_t i = 0; i < prove_expr.path.size(); ++i) {
+            if (i > 0) {
+                out << "::";
+            }
+            out << prove_expr.path[i];
+        }
+        out << '\n';
+        dump_record_fields(out, prove_expr.fields, depth + 1);
+        break;
+    }
     }
 }
 
@@ -275,6 +303,12 @@ void dump_decl(std::ostream& out, const Decl& decl, std::size_t depth) {
             if (method.yields_type.has_value()) {
                 out << " yields " << format_type(*method.yields_type);
             }
+            if (method.grants_type.has_value()) {
+                out << " grants " << format_type(*method.grants_type);
+            }
+            if (method.proves_type.has_value()) {
+                out << " proves " << format_type(*method.proves_type);
+            }
             out << '\n';
         }
         break;
@@ -293,6 +327,12 @@ void dump_decl(std::ostream& out, const Decl& decl, std::size_t depth) {
         out << ") -> " << format_type(fn_decl.signature.return_type);
         if (fn_decl.signature.yields_type.has_value()) {
             out << " yields " << format_type(*fn_decl.signature.yields_type);
+        }
+        if (fn_decl.signature.grants_type.has_value()) {
+            out << " grants " << format_type(*fn_decl.signature.grants_type);
+        }
+        if (fn_decl.signature.proves_type.has_value()) {
+            out << " proves " << format_type(*fn_decl.signature.proves_type);
         }
         out << '\n';
         if (fn_decl.body != nullptr) {

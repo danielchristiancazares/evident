@@ -1,0 +1,34 @@
+functions:
+  - public fn start_pass -> Unit grants RenderPassActive
+      locals:
+        %0[$return] : Unit
+      block %0
+        %0[$return] = unit
+        return %0[$return]
+  - public fn submit -> Int
+      locals:
+        %0[pass] : RenderPassActive [compile-time-only]
+        %1[mesh] : Mesh
+        %2[$return] : Int
+      block %0
+        %2[$return] = 7
+        return %2[$return]
+  - public fn make_receipt -> FrameReceipt proves FrameReceipt
+      locals:
+        %0[mesh] : Mesh
+        %1[$return] : FrameReceipt [affine]
+      block %0
+        %1[$return] = construct FrameReceipt {count: 7}
+        return %1[$return]
+  - public fn boot -> FrameReceipt
+      locals:
+        %0[mesh] : Mesh
+        %1[$return] : FrameReceipt [affine]
+        %2[grant] : Unit
+        %3[pass] : RenderPassActive [compile-time-only]
+        %4[discard] : Int
+      block %0
+        %2[grant] = call start_pass()
+        %4[discard] = call submit(unit, %0[mesh])
+        %1[$return] = call make_receipt(%0[mesh])
+        return %1[$return]

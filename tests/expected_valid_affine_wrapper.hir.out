@@ -1,0 +1,25 @@
+types:
+  - public proof Receipt [affine]
+      field count: Int
+  - public struct Envelope [affine]
+      field receipt: Receipt [affine]
+functions:
+  - public fn mint() -> Receipt [affine] proves Receipt
+      block -> Receipt [affine]
+        result
+          prove Receipt : Receipt [affine]
+            init count
+              number 7 : Int
+  - public fn wrap(receipt: Receipt [affine]) -> Envelope [affine]
+      block -> Envelope [affine]
+        result
+          construct Envelope : Envelope [affine]
+            init receipt [shorthand]
+              local receipt : Receipt [affine]
+  - public fn boot() -> Envelope [affine]
+      block -> Envelope [affine]
+        let receipt: Receipt [affine]
+          call mint -> Receipt [affine]
+        result
+          call wrap -> Envelope [affine]
+            local receipt : Receipt [affine]

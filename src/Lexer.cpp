@@ -19,10 +19,15 @@ const std::unordered_map<std::string_view, TokenKind> kKeywords = {
     {"fn", TokenKind::KeywordFn},
     {"foreign", TokenKind::KeywordForeign},
     {"yields", TokenKind::KeywordYields},
+    {"grants", TokenKind::KeywordGrants},
+    {"proves", TokenKind::KeywordProves},
     {"match", TokenKind::KeywordMatch},
     {"let", TokenKind::KeywordLet},
     {"try", TokenKind::KeywordTry},
     {"fail", TokenKind::KeywordFail},
+    {"with", TokenKind::KeywordWith},
+    {"as", TokenKind::KeywordAs},
+    {"prove", TokenKind::KeywordProve},
     {"for", TokenKind::KeywordFor},
 };
 

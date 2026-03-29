@@ -105,6 +105,8 @@ struct Local {
     LocalKind kind = LocalKind::Temporary;
     std::string name;
     std::string type;
+    bool is_compile_time_only = false;
+    bool is_affine = false;
 };
 
 struct BasicBlock {
@@ -120,6 +122,8 @@ struct Function {
     std::string qualified_name;
     std::string return_type;
     std::optional<std::string> yields_type;
+    std::optional<std::string> grants_type;
+    std::optional<std::string> proves_type;
     bool is_foreign = false;
     std::vector<Local> locals;
     std::vector<BasicBlock> blocks;

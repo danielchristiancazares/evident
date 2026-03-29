@@ -1,0 +1,14 @@
+17:emit_obj_plain_call
+18:emit_obj_state_match
+19:emit_obj_try
+20:emit_obj_direct_fail
+21:emit_obj_yield_match
+22:emit_obj_permit_proof
+23:emit_asm_constant
+24:emit_obj_constant
+31:run_native_constant
+32:run_native_call_chain
+33:run_native_state_match
+34:run_native_try
+35:run_native_yield_match
+36:run_native_with_permit

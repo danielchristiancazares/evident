@@ -1,5 +1,6 @@
 #include "evident/Mir.hpp"
 
+#include <algorithm>
 #include <optional>
 #include <sstream>
 #include <unordered_map>
@@ -30,13 +31,23 @@ struct Builder {
         if (source.yields_reason_type_id.has_value()) {
             function.yields_type = hir::lookup_type(package, *source.yields_reason_type_id).qualified_name;
         }
+        if (source.grants_permit_type_id.has_value()) {
+            function.grants_type = hir::lookup_type(package, *source.grants_permit_type_id).qualified_name;
+        }
+        if (source.proves_proof_type_id.has_value()) {
+            function.proves_type = hir::lookup_type(package, *source.proves_proof_type_id).qualified_name;
+        }
         function.is_foreign = source.is_foreign;
     }
 
     [[nodiscard]] Function lower(const hir::FunctionDecl& source);
 
 private:
-    [[nodiscard]] LocalId add_local(std::string name, std::string type, LocalKind kind);
+    [[nodiscard]] LocalId add_local(std::string name,
+                                    std::string type,
+                                    LocalKind kind,
+                                    bool is_compile_time_only = false,
+                                    bool is_affine = false);
     [[nodiscard]] BlockId add_block();
     [[nodiscard]] BasicBlock& block(BlockId id);
     void append_statement(BlockId id, Statement statement);
@@ -44,18 +55,29 @@ private:
     [[nodiscard]] Operand local_operand(LocalId local_id) const;
     [[nodiscard]] Operand unit_operand() const;
     [[nodiscard]] LocalId lookup_local(const Env& env, const std::string& name) const;
-    [[nodiscard]] LocalId make_temp(std::string type, std::string prefix = "tmp");
+    [[nodiscard]] LocalId make_temp(std::string type,
+                                    typesys::UseDiscipline discipline = typesys::UseDiscipline::Copyable,
+                                    std::string prefix = "tmp");
     [[nodiscard]] MaybeBlock lower_block_expr(const hir::BlockExpr& expr, LocalId dest, BlockId current, Env& env);
     [[nodiscard]] MaybeBlock lower_expr_to(const hir::Expr& expr, LocalId dest, BlockId current, Env& env);
     [[nodiscard]] MaybeBlock lower_value(const hir::Expr& expr, BlockId current, Env& env, Operand& out);
     [[nodiscard]] MaybeBlock lower_construct_expr(const hir::ConstructExpr& expr, LocalId dest, BlockId current, Env& env);
     [[nodiscard]] MaybeBlock lower_call_rvalue(const hir::CallExpr& expr, LocalId dest, BlockId current, Env& env);
+    [[nodiscard]] MaybeBlock lower_direct_call(hir::FunctionId function_id,
+                                               const std::string& callee_name,
+                                               const std::vector<std::unique_ptr<hir::Expr>>& args,
+                                               LocalId dest,
+                                               BlockId current,
+                                               Env& env);
     [[nodiscard]] MaybeBlock lower_try_expr(const hir::TryExpr& expr, LocalId dest, BlockId current, Env& env);
     [[nodiscard]] MaybeBlock lower_match_expr(const hir::MatchExpr& expr, LocalId dest, BlockId current, Env& env);
     [[nodiscard]] MaybeBlock lower_state_match(const hir::MatchExpr& expr, LocalId dest, BlockId current, Env& env);
     [[nodiscard]] MaybeBlock lower_yield_match(const hir::MatchExpr& expr, LocalId dest, BlockId current, Env& env);
+    [[nodiscard]] MaybeBlock lower_with_permit_expr(const hir::WithPermitExpr& expr, LocalId dest, BlockId current, Env& env);
+    [[nodiscard]] MaybeBlock lower_prove_expr(const hir::ProveExpr& expr, LocalId dest, BlockId current, Env& env);
     [[nodiscard]] MaybeBlock ensure_local_operand(Operand operand,
                                                   std::string type,
+                                                  typesys::UseDiscipline discipline,
                                                   BlockId current,
                                                   LocalId& out_local);
     void bind_variant_pattern(const hir::VariantPattern& pattern,
@@ -119,14 +141,22 @@ std::string format_rvalue(const Rvalue& value, const Function& function) {
 Function Builder::lower(const hir::FunctionDecl& source) {
     Env env{nullptr, {}};
     for (const hir::Parameter& param : source.params) {
-        LocalId local = add_local(param.name, param.type.text, LocalKind::Parameter);
+        LocalId local = add_local(param.name,
+                                  param.type.text,
+                                  LocalKind::Parameter,
+                                  param.is_compile_time_only,
+                                  typesys::is_affine(param.type.discipline));
         env.locals.emplace(param.name, local);
     }
     if (source.is_foreign) {
         return std::move(function);
     }
 
-    return_local = add_local("$return", source.return_type.text, LocalKind::ReturnSlot);
+    return_local = add_local("$return",
+                             source.return_type.text,
+                             LocalKind::ReturnSlot,
+                             false,
+                             typesys::is_affine(source.return_type.discipline));
     BlockId entry = add_block();
     MaybeBlock tail = lower_block_expr(*source.body, return_local, entry, env);
     if (tail.has_value()) {
@@ -138,8 +168,19 @@ Function Builder::lower(const hir::FunctionDecl& source) {
     return std::move(function);
 }
 
-LocalId Builder::add_local(std::string name, std::string type, LocalKind kind) {
-    function.locals.push_back(Local{function.locals.size(), kind, std::move(name), std::move(type)});
+LocalId Builder::add_local(std::string name,
+                           std::string type,
+                           LocalKind kind,
+                           bool is_compile_time_only,
+                           bool is_affine) {
+    function.locals.push_back(Local{
+        function.locals.size(),
+        kind,
+        std::move(name),
+        std::move(type),
+        is_compile_time_only,
+        is_affine,
+    });
     return function.locals.back().id;
 }
 
@@ -180,8 +221,12 @@ LocalId Builder::lookup_local(const Env& env, const std::string& name) const {
     return 0;
 }
 
-LocalId Builder::make_temp(std::string type, std::string prefix) {
-    return add_local(std::move(prefix), std::move(type), LocalKind::Temporary);
+LocalId Builder::make_temp(std::string type, typesys::UseDiscipline discipline, std::string prefix) {
+    return add_local(std::move(prefix),
+                     std::move(type),
+                     LocalKind::Temporary,
+                     typesys::is_compile_time_only(discipline),
+                     typesys::is_affine(discipline));
 }
 
 Builder::MaybeBlock Builder::lower_block_expr(const hir::BlockExpr& expr,
@@ -199,7 +244,11 @@ Builder::MaybeBlock Builder::lower_block_expr(const hir::BlockExpr& expr,
         switch (stmt.kind) {
         case hir::StatementKind::Let: {
             const auto& let_stmt = static_cast<const hir::LetStmt&>(stmt);
-            LocalId local_id = add_local(let_stmt.name, let_stmt.type.text, LocalKind::Let);
+            LocalId local_id = add_local(let_stmt.name,
+                                         let_stmt.type.text,
+                                         LocalKind::Let,
+                                         false,
+                                         typesys::is_affine(let_stmt.type.discipline));
             cursor = lower_expr_to(*let_stmt.initializer, local_id, *cursor, local);
             if (cursor.has_value()) {
                 local.locals[let_stmt.name] = local_id;
@@ -209,6 +258,7 @@ Builder::MaybeBlock Builder::lower_block_expr(const hir::BlockExpr& expr,
         case hir::StatementKind::Expr: {
             const auto& expr_stmt = static_cast<const hir::ExprStmt&>(stmt);
             LocalId temp = make_temp(expr_stmt.expr->result_type.text.empty() ? "Unit" : expr_stmt.expr->result_type.text,
+                                     expr_stmt.expr->result_type.discipline,
                                      "discard");
             cursor = lower_expr_to(*expr_stmt.expr, temp, *cursor, local);
             break;
@@ -245,7 +295,7 @@ Builder::MaybeBlock Builder::lower_value(const hir::Expr& expr,
         break;
     }
 
-    LocalId temp = make_temp(expr.result_type.text.empty() ? "Unit" : expr.result_type.text);
+    LocalId temp = make_temp(expr.result_type.text.empty() ? "Unit" : expr.result_type.text, expr.result_type.discipline);
     MaybeBlock next = lower_expr_to(expr, temp, current, env);
     if (!next.has_value()) {
         return std::nullopt;
@@ -256,6 +306,7 @@ Builder::MaybeBlock Builder::lower_value(const hir::Expr& expr,
 
 Builder::MaybeBlock Builder::ensure_local_operand(Operand operand,
                                                   std::string type,
+                                                  typesys::UseDiscipline discipline,
                                                   BlockId current,
                                                   LocalId& out_local) {
     if (operand.kind == OperandKind::Local) {
@@ -263,7 +314,7 @@ Builder::MaybeBlock Builder::ensure_local_operand(Operand operand,
         return current;
     }
 
-    out_local = make_temp(std::move(type), "materialize");
+    out_local = make_temp(std::move(type), discipline, "materialize");
     Statement statement;
     statement.dest_local = out_local;
     statement.value.kind = RvalueKind::Use;
@@ -300,15 +351,30 @@ Builder::MaybeBlock Builder::lower_call_rvalue(const hir::CallExpr& expr,
                                                LocalId dest,
                                                BlockId current,
                                                Env& env) {
+    return lower_direct_call(expr.function_id, expr.callee_name, expr.args, dest, current, env);
+}
+
+Builder::MaybeBlock Builder::lower_direct_call(hir::FunctionId function_id,
+                                               const std::string& callee_name,
+                                               const std::vector<std::unique_ptr<hir::Expr>>& args,
+                                               LocalId dest,
+                                               BlockId current,
+                                               Env& env) {
     Rvalue value;
     value.kind = RvalueKind::Call;
-    value.function_id = expr.function_id;
-    value.callee_name = expr.callee_name;
+    value.function_id = function_id;
+    value.callee_name = callee_name;
+
+    const hir::FunctionDecl& callee = hir::lookup_function(hir_package, function_id);
 
     MaybeBlock cursor = current;
-    for (const auto& arg : expr.args) {
+    for (std::size_t index = 0; index < args.size(); ++index) {
+        if (index < callee.params.size() && callee.params[index].is_compile_time_only) {
+            value.args.push_back(unit_operand());
+            continue;
+        }
         Operand operand;
-        cursor = lower_value(*arg, *cursor, env, operand);
+        cursor = lower_value(*args[index], *cursor, env, operand);
         if (!cursor.has_value()) {
             return std::nullopt;
         }
@@ -333,17 +399,25 @@ Builder::MaybeBlock Builder::lower_try_expr(const hir::TryExpr& expr,
     invoke.function_id = call->function_id;
     invoke.callee_name = call->callee_name;
 
+    const hir::FunctionDecl& callee = hir::lookup_function(hir_package, call->function_id);
+
     MaybeBlock cursor = current;
-    for (const auto& arg : call->args) {
+    for (std::size_t index = 0; index < call->args.size(); ++index) {
+        if (index < callee.params.size() && callee.params[index].is_compile_time_only) {
+            invoke.args.push_back(unit_operand());
+            continue;
+        }
         Operand operand;
-        cursor = lower_value(*arg, *cursor, env, operand);
+        cursor = lower_value(*call->args[index], *cursor, env, operand);
         if (!cursor.has_value()) {
             return std::nullopt;
         }
         invoke.args.push_back(std::move(operand));
     }
 
-    LocalId failure_local = make_temp(hir::lookup_type(hir_package, *call->yields_reason_type_id).qualified_name,
+    const hir::TypeDecl& failure_type = hir::lookup_type(hir_package, *call->yields_reason_type_id);
+    LocalId failure_local = make_temp(failure_type.qualified_name,
+                                      failure_type.concrete_discipline.value_or(typesys::UseDiscipline::Copyable),
                                       "failure");
     invoke.success_local = dest;
     invoke.failure_local = failure_local;
@@ -375,7 +449,11 @@ void Builder::bind_variant_pattern(const hir::VariantPattern& pattern,
             if (field.name != binding.field_name) {
                 continue;
             }
-            LocalId local = add_local(binding.binding_name, field.type.text, LocalKind::Let);
+            LocalId local = add_local(binding.binding_name,
+                                      field.type.text,
+                                      LocalKind::Let,
+                                      false,
+                                      typesys::is_affine(field.type.discipline));
             env.locals[binding.binding_name] = local;
             Rvalue value;
             value.kind = RvalueKind::ProjectField;
@@ -400,7 +478,11 @@ Builder::MaybeBlock Builder::lower_state_match(const hir::MatchExpr& expr,
     }
 
     LocalId scrutinee_local = 0;
-    cursor = ensure_local_operand(std::move(operand), expr.scrutinee->result_type.text, *cursor, scrutinee_local);
+    cursor = ensure_local_operand(std::move(operand),
+                                  expr.scrutinee->result_type.text,
+                                  expr.scrutinee->result_type.discipline,
+                                  *cursor,
+                                  scrutinee_local);
     if (!cursor.has_value()) {
         return std::nullopt;
     }
@@ -449,18 +531,26 @@ Builder::MaybeBlock Builder::lower_yield_match(const hir::MatchExpr& expr,
     invoke.function_id = call->function_id;
     invoke.callee_name = call->callee_name;
 
+    const hir::FunctionDecl& callee = hir::lookup_function(hir_package, call->function_id);
+
     MaybeBlock cursor = current;
-    for (const auto& arg : call->args) {
+    for (std::size_t index = 0; index < call->args.size(); ++index) {
+        if (index < callee.params.size() && callee.params[index].is_compile_time_only) {
+            invoke.args.push_back(unit_operand());
+            continue;
+        }
         Operand operand;
-        cursor = lower_value(*arg, *cursor, env, operand);
+        cursor = lower_value(*call->args[index], *cursor, env, operand);
         if (!cursor.has_value()) {
             return std::nullopt;
         }
         invoke.args.push_back(std::move(operand));
     }
 
-    LocalId success_local = make_temp(call->result_type.text, "success");
-    LocalId failure_local = make_temp(hir::lookup_type(hir_package, *call->yields_reason_type_id).qualified_name,
+    LocalId success_local = make_temp(call->result_type.text, call->result_type.discipline, "success");
+    const hir::TypeDecl& yielded_reason = hir::lookup_type(hir_package, *call->yields_reason_type_id);
+    LocalId failure_local = make_temp(yielded_reason.qualified_name,
+                                      yielded_reason.concrete_discipline.value_or(typesys::UseDiscipline::Copyable),
                                       "failure");
     invoke.success_local = success_local;
     invoke.failure_local = failure_local;
@@ -489,7 +579,11 @@ Builder::MaybeBlock Builder::lower_yield_match(const hir::MatchExpr& expr,
         Env success_env{&env, {}};
         const auto& pattern = static_cast<const hir::SucceededPattern&>(*success_arm->pattern);
         if (pattern.binding_name.has_value()) {
-            LocalId binding = add_local(*pattern.binding_name, call->result_type.text, LocalKind::Let);
+            LocalId binding = add_local(*pattern.binding_name,
+                                        call->result_type.text,
+                                        LocalKind::Let,
+                                        false,
+                                        typesys::is_affine(call->result_type.discipline));
             success_env.locals[*pattern.binding_name] = binding;
             Rvalue copy;
             copy.kind = RvalueKind::Use;
@@ -544,6 +638,45 @@ Builder::MaybeBlock Builder::lower_match_expr(const hir::MatchExpr& expr,
         return lower_yield_match(expr, dest, current, env);
     }
     return lower_state_match(expr, dest, current, env);
+}
+
+Builder::MaybeBlock Builder::lower_with_permit_expr(const hir::WithPermitExpr& expr,
+                                                    LocalId dest,
+                                                    BlockId current,
+                                                    Env& env) {
+    LocalId grant_dest = make_temp("Unit", typesys::UseDiscipline::Copyable, "grant");
+    MaybeBlock cursor = lower_direct_call(expr.grant_function_id, expr.grant_name, expr.args, grant_dest, current, env);
+    if (!cursor.has_value()) {
+        return std::nullopt;
+    }
+
+    Env scoped{&env, {}};
+    const LocalId binder = add_local(expr.binder_name, expr.permit_name, LocalKind::Let, true, false);
+    scoped.locals.emplace(expr.binder_name, binder);
+    return lower_block_expr(*expr.body, dest, *cursor, scoped);
+}
+
+Builder::MaybeBlock Builder::lower_prove_expr(const hir::ProveExpr& expr,
+                                              LocalId dest,
+                                              BlockId current,
+                                              Env& env) {
+    Rvalue value;
+    value.kind = RvalueKind::Construct;
+    value.owner_type_id = expr.proof_type_id;
+    value.qualified_name = expr.qualified_name;
+
+    MaybeBlock cursor = current;
+    for (const hir::FieldInit& field : expr.fields) {
+        Operand operand;
+        cursor = lower_value(*field.value, *cursor, env, operand);
+        if (!cursor.has_value()) {
+            return std::nullopt;
+        }
+        value.fields.push_back(FieldValue{field.name, std::move(operand)});
+    }
+
+    append_statement(*cursor, Statement{StatementKind::Assign, dest, std::move(value)});
+    return cursor;
 }
 
 Builder::MaybeBlock Builder::lower_expr_to(const hir::Expr& expr,
@@ -604,7 +737,10 @@ Builder::MaybeBlock Builder::lower_expr_to(const hir::Expr& expr,
         return lower_block_expr(static_cast<const hir::BlockExpr&>(expr), dest, current, env);
     case hir::ExprKind::Fail: {
         const auto& fail = static_cast<const hir::FailExpr&>(expr);
-        LocalId reason_local = make_temp(fail.reason_name, "reason");
+        const hir::TypeDecl& reason_type = hir::lookup_type(hir_package, fail.reason_type_id);
+        LocalId reason_local = make_temp(reason_type.qualified_name,
+                                         reason_type.concrete_discipline.value_or(typesys::UseDiscipline::Copyable),
+                                         "reason");
         Rvalue reason_value;
         reason_value.kind = RvalueKind::Construct;
         reason_value.owner_type_id = fail.reason_type_id;
@@ -628,6 +764,10 @@ Builder::MaybeBlock Builder::lower_expr_to(const hir::Expr& expr,
         set_terminator(*cursor, std::move(terminator));
         return std::nullopt;
     }
+    case hir::ExprKind::WithPermit:
+        return lower_with_permit_expr(static_cast<const hir::WithPermitExpr&>(expr), dest, current, env);
+    case hir::ExprKind::Prove:
+        return lower_prove_expr(static_cast<const hir::ProveExpr&>(expr), dest, current, env);
     }
     return current;
 }
@@ -654,11 +794,24 @@ std::string dump(const Package& package) {
         if (function.yields_type.has_value()) {
             out << " yields " << *function.yields_type;
         }
+        if (function.grants_type.has_value()) {
+            out << " grants " << *function.grants_type;
+        }
+        if (function.proves_type.has_value()) {
+            out << " proves " << *function.proves_type;
+        }
         out << '\n';
         if (!function.locals.empty()) {
             out << "      locals:\n";
             for (const Local& local : function.locals) {
-                out << "        " << format_local_name(local) << " : " << local.type << '\n';
+                out << "        " << format_local_name(local) << " : " << local.type;
+                if (local.is_compile_time_only) {
+                    out << " [compile-time-only]";
+                }
+                if (local.is_affine) {
+                    out << " [affine]";
+                }
+                out << '\n';
             }
         }
         if (function.blocks.empty()) {

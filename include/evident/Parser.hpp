@@ -49,8 +49,10 @@ private:
     std::unique_ptr<ast::Stmt> parse_statement();
     std::unique_ptr<ast::Expr> parse_expr();
     std::unique_ptr<ast::Expr> parse_match_expr();
+    std::unique_ptr<ast::Expr> parse_with_expr();
     std::unique_ptr<ast::Expr> parse_try_expr();
     std::unique_ptr<ast::Expr> parse_fail_expr();
+    std::unique_ptr<ast::Expr> parse_prove_expr();
     std::unique_ptr<ast::Expr> parse_postfix_expr();
     std::unique_ptr<ast::Expr> parse_primary_expr();
     std::unique_ptr<ast::Pattern> parse_pattern();

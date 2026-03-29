@@ -1,0 +1,8 @@
+public struct Wrapper<T> {
+    value: T,
+}
+
+public fn take(wrapper: Wrapper<Int>) -> Wrapper<Int> {
+    let copy = wrapper;
+    wrapper
+}

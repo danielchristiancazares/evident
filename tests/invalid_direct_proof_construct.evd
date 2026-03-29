@@ -1,0 +1,7 @@
+public proof Receipt {
+    count: Int,
+}
+
+public fn make_receipt() -> Receipt proves Receipt {
+    Receipt { count: 1 }
+}

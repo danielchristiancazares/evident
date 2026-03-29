@@ -1,4 +1,5 @@
 #include "evident/Semantic.hpp"
+#include "evident/ResolvedType.hpp"
 
 #include <algorithm>
 #include <memory>
@@ -61,6 +62,18 @@ const ast::StateDecl* as_state(const ast::Decl* decl) {
         : nullptr;
 }
 
+const ast::ProofDecl* as_proof(const ast::Decl* decl) {
+    return decl != nullptr && decl->kind == ast::DeclKind::Proof
+        ? static_cast<const ast::ProofDecl*>(decl)
+        : nullptr;
+}
+
+const ast::PermitDecl* as_permit(const ast::Decl* decl) {
+    return decl != nullptr && decl->kind == ast::DeclKind::Permit
+        ? static_cast<const ast::PermitDecl*>(decl)
+        : nullptr;
+}
+
 
 struct TypeUseRules {
     bool require_public = false;
@@ -72,7 +85,12 @@ struct TypeUseRules {
 class Analyzer {
 public:
     explicit Analyzer(DiagnosticSink& diagnostics)
-        : diagnostics_(diagnostics) {}
+        : diagnostics_(diagnostics),
+          discipline_classifier_([this](const ast::Decl* owner_decl,
+                                        const std::vector<typesys::Type>& owner_args,
+                                        const ast::TypeRef& type_ref) {
+              return resolve_member_type(owner_decl, owner_args, type_ref);
+          }) {}
 
     void analyze(const ast::TranslationUnit& unit) {
         build_scope(unit.decls, root_, "");
@@ -80,28 +98,32 @@ public:
     }
 
 private:
-    enum class TypeFlavor {
-        Error,
-        Builtin,
-        Generic,
-        Named,
-    };
-
-    struct Type {
-        TypeFlavor flavor = TypeFlavor::Error;
-        std::string name;
-        const ast::Decl* decl = nullptr;
-        std::vector<Type> args;
-    };
+    using Type = typesys::Type;
+    using UseDiscipline = typesys::UseDiscipline;
 
     struct ExprType {
         Type value;
         const ast::ReasonDecl* yielded_reason = nullptr;
+        bool reachable = true;
+    };
+
+    using BindingId = std::size_t;
+
+    struct BindingState {
+        BindingId id = 0;
+        Type type;
+        UseDiscipline discipline = UseDiscipline::Copyable;
+        bool moved = false;
+        std::optional<SourceSpan> moved_at;
     };
 
     struct ValueEnv {
-        ValueEnv* parent = nullptr;
-        std::unordered_map<std::string, Type> values;
+        std::vector<std::unordered_map<std::string, BindingState>> scopes;
+    };
+
+    struct BranchState {
+        ValueEnv env;
+        bool reachable = true;
     };
 
     struct FunctionContext {
@@ -110,6 +132,7 @@ private:
         std::vector<std::string> generics;
         Type return_type;
         const ast::ReasonDecl* yields_reason = nullptr;
+        const ast::ProofDecl* proves_proof = nullptr;
     };
 
     struct VariantResolution {
@@ -121,6 +144,9 @@ private:
     DiagnosticSink& diagnostics_;
     Scope root_;
     std::unordered_map<const ast::Decl*, std::string> qualified_names_;
+    std::unordered_map<const ast::Decl*, const Scope*> decl_scopes_;
+    typesys::DisciplineClassifier discipline_classifier_;
+    BindingId next_binding_id_ = 1;
 
     void build_scope(const std::vector<std::unique_ptr<ast::Decl>>& decls, Scope& scope, const std::string& prefix) {
         for (const auto& decl_ptr : decls) {
@@ -133,6 +159,7 @@ private:
 
             const std::string qualified = prefix.empty() ? decl.name : prefix + "::" + decl.name;
             qualified_names_[&decl] = qualified;
+            decl_scopes_[&decl] = &scope;
 
             if (decl.kind == ast::DeclKind::Module) {
                 it->second.child_scope = std::make_unique<Scope>();
@@ -257,66 +284,50 @@ private:
     }
 
     Type error_type() const {
-        return Type{TypeFlavor::Error, "<error>", nullptr, {}};
+        return typesys::error_type();
     }
 
     Type builtin_type(std::string name, std::vector<Type> args = {}) const {
-        return Type{TypeFlavor::Builtin, std::move(name), nullptr, std::move(args)};
+        return typesys::builtin_type(std::move(name), std::move(args));
     }
 
     Type generic_type(std::string name) const {
-        return Type{TypeFlavor::Generic, std::move(name), nullptr, {}};
+        return typesys::generic_type(std::move(name));
     }
 
     Type named_type(const ast::Decl* decl, std::vector<Type> args = {}) const {
         auto it = qualified_names_.find(decl);
         const std::string name = it != qualified_names_.end() ? it->second : decl->name;
-        return Type{TypeFlavor::Named, name, decl, std::move(args)};
+        return typesys::named_type(name, decl, std::move(args));
     }
 
     bool is_error(const Type& type) const {
-        return type.flavor == TypeFlavor::Error;
+        return typesys::is_error(type);
     }
 
     bool is_never(const Type& type) const {
-        return type.flavor == TypeFlavor::Builtin && type.name == "Never" && type.args.empty();
+        return typesys::is_never(type);
+    }
+
+    bool is_permit_type(const Type& type) const {
+        return typesys::is_compile_time_only(discipline(type));
+    }
+
+    UseDiscipline discipline(const Type& type) const {
+        return discipline_classifier_.classify(type);
     }
 
     std::string type_name(const Type& type) const {
-        if (type.flavor == TypeFlavor::Error) {
-            return "<error>";
-        }
-        std::ostringstream out;
-        out << type.name;
-        if (!type.args.empty()) {
-            out << '<';
-            for (std::size_t index = 0; index < type.args.size(); ++index) {
-                if (index > 0) {
-                    out << ", ";
-                }
-                out << type_name(type.args[index]);
-            }
-            out << '>';
-        }
-        return out.str();
+        return typesys::type_name(type);
     }
 
     bool types_equal(const Type& lhs, const Type& rhs) const {
-        if (is_error(lhs) || is_error(rhs)) {
-            return true;
-        }
-        if (lhs.flavor != rhs.flavor) {
-            return false;
-        }
-        if (lhs.name != rhs.name || lhs.decl != rhs.decl || lhs.args.size() != rhs.args.size()) {
-            return false;
-        }
-        for (std::size_t index = 0; index < lhs.args.size(); ++index) {
-            if (!types_equal(lhs.args[index], rhs.args[index])) {
-                return false;
-            }
-        }
-        return true;
+        return typesys::types_equal(lhs, rhs);
+    }
+
+    ExprType make_expr(Type value, const ast::ReasonDecl* yielded_reason = nullptr) const {
+        const bool reachable = !is_never(value);
+        return ExprType{std::move(value), yielded_reason, reachable};
     }
 
     bool assignable_to(const Type& target, const Type& actual) const {
@@ -326,8 +337,32 @@ private:
         return types_equal(target, actual);
     }
 
+    const std::vector<ast::GenericParam>* generic_params_for(const ast::Decl* decl) const {
+        if (decl == nullptr) {
+            return nullptr;
+        }
+        switch (decl->kind) {
+        case ast::DeclKind::Struct:
+            return &static_cast<const ast::StructDecl*>(decl)->generic_params;
+        case ast::DeclKind::State:
+            return &static_cast<const ast::StateDecl*>(decl)->generic_params;
+        case ast::DeclKind::Trait:
+            return &static_cast<const ast::TraitDecl*>(decl)->generic_params;
+        case ast::DeclKind::Function:
+        case ast::DeclKind::ForeignFunction:
+            return &static_cast<const ast::FunctionDecl*>(decl)->signature.generic_params;
+        case ast::DeclKind::Reason:
+        case ast::DeclKind::Proof:
+        case ast::DeclKind::Permit:
+        case ast::DeclKind::Module:
+            return nullptr;
+        }
+        return nullptr;
+    }
+
     Type resolve_type(const Scope& scope,
                       const std::vector<std::string>& generics,
+                      const std::vector<std::pair<std::string, Type>>& substitutions,
                       const ast::TypeRef& type_ref) const {
         if (type_ref.path.empty()) {
             return error_type();
@@ -336,11 +371,16 @@ private:
         std::vector<Type> args;
         args.reserve(type_ref.args.size());
         for (const ast::TypeRef& arg : type_ref.args) {
-            args.push_back(resolve_type(scope, generics, arg));
+            args.push_back(resolve_type(scope, generics, substitutions, arg));
         }
 
         if (type_ref.path.size() == 1) {
             const std::string& name = type_ref.path.front();
+            for (const auto& [generic_name, actual] : substitutions) {
+                if (generic_name == name) {
+                    return actual;
+                }
+            }
             if (std::find(generics.begin(), generics.end(), name) != generics.end()) {
                 return generic_type(name);
             }
@@ -355,6 +395,126 @@ private:
             }
         }
         return error_type();
+    }
+
+    Type resolve_type(const Scope& scope,
+                      const std::vector<std::string>& generics,
+                      const ast::TypeRef& type_ref) const {
+        return resolve_type(scope, generics, {}, type_ref);
+    }
+
+    Type resolve_member_type(const ast::Decl* owner_decl,
+                             const std::vector<Type>& owner_args,
+                             const ast::TypeRef& type_ref) const {
+        std::vector<std::pair<std::string, Type>> substitutions;
+        std::vector<std::string> generics;
+        if (const auto* generic_params = generic_params_for(owner_decl); generic_params != nullptr) {
+            generics.reserve(generic_params->size());
+            substitutions.reserve(std::min(generic_params->size(), owner_args.size()));
+            for (std::size_t index = 0; index < generic_params->size(); ++index) {
+                generics.push_back((*generic_params)[index].name);
+                if (index < owner_args.size()) {
+                    substitutions.emplace_back((*generic_params)[index].name, owner_args[index]);
+                }
+            }
+        }
+        return resolve_type(*decl_scopes_.at(owner_decl), generics, substitutions, type_ref);
+    }
+
+    ValueEnv make_root_env() const {
+        ValueEnv env;
+        env.scopes.emplace_back();
+        return env;
+    }
+
+    ValueEnv push_scope(const ValueEnv& env) const {
+        ValueEnv child = env;
+        child.scopes.emplace_back();
+        return child;
+    }
+
+    const BindingState* lookup_binding(const ValueEnv& env, const std::string& name) const {
+        for (auto scope_it = env.scopes.rbegin(); scope_it != env.scopes.rend(); ++scope_it) {
+            if (const auto it = scope_it->find(name); it != scope_it->end()) {
+                return &it->second;
+            }
+        }
+        return nullptr;
+    }
+
+    BindingState* lookup_binding_mut(ValueEnv& env, const std::string& name) const {
+        for (auto scope_it = env.scopes.rbegin(); scope_it != env.scopes.rend(); ++scope_it) {
+            if (const auto it = scope_it->find(name); it != scope_it->end()) {
+                return &it->second;
+            }
+        }
+        return nullptr;
+    }
+
+    const BindingState* lookup_binding_by_id(const ValueEnv& env, BindingId id) const {
+        for (auto scope_it = env.scopes.rbegin(); scope_it != env.scopes.rend(); ++scope_it) {
+            for (const auto& [_, binding] : *scope_it) {
+                if (binding.id == id) {
+                    return &binding;
+                }
+            }
+        }
+        return nullptr;
+    }
+
+    void merge_sequential_env(ValueEnv& target, const ValueEnv& child) const {
+        for (auto& scope : target.scopes) {
+            for (auto& [_, binding] : scope) {
+                if (binding.moved) {
+                    continue;
+                }
+                const BindingState* child_binding = lookup_binding_by_id(child, binding.id);
+                if (child_binding != nullptr && child_binding->moved) {
+                    binding.moved = true;
+                    binding.moved_at = child_binding->moved_at;
+                }
+            }
+        }
+    }
+
+    void merge_branch_envs(ValueEnv& target, const std::vector<BranchState>& branches) const {
+        for (auto& scope : target.scopes) {
+            for (auto& [_, binding] : scope) {
+                if (binding.moved) {
+                    continue;
+                }
+                for (const BranchState& branch : branches) {
+                    if (!branch.reachable) {
+                        continue;
+                    }
+                    const BindingState* branch_binding = lookup_binding_by_id(branch.env, binding.id);
+                    if (branch_binding != nullptr && branch_binding->moved) {
+                        binding.moved = true;
+                        binding.moved_at = branch_binding->moved_at;
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    Type use_binding(ValueEnv& env, const std::string& name, SourceSpan span) {
+        BindingState* binding = lookup_binding_mut(env, name);
+        if (binding == nullptr) {
+            return error_type();
+        }
+        if (binding->moved) {
+            diagnostics_.error(span, "affine value '" + name + "' was already moved");
+            if (binding->moved_at.has_value()) {
+                diagnostics_.note(*binding->moved_at, "'" + name + "' was previously moved here");
+            }
+            return error_type();
+        }
+        if (typesys::is_affine(binding->discipline)) {
+            binding->moved = true;
+            binding->moved_at = span;
+        }
+        return binding->type;
     }
 
     void check_public_name(const std::string& name, SourceSpan span) {
@@ -472,6 +632,44 @@ private:
             }
             if (is_foreign) {
                 diagnostics_.error(signature.yields_type->span, "foreign functions may not use 'yields'");
+            }
+        }
+
+        if (signature.grants_type.has_value()) {
+            check_type_ref_usage(scope,
+                                 generics,
+                                 *signature.grants_type,
+                                 TypeUseRules{require_public, false, true, "grant permit"});
+            if (const Symbol* symbol = resolve_symbol(scope, generics, signature.grants_type->path); symbol != nullptr) {
+                if (symbol->kind != ast::DeclKind::Permit) {
+                    diagnostics_.error(signature.grants_type->span,
+                                      "'grants' must reference a permit type, not '"
+                                          + std::string(ast::decl_kind_name(symbol->kind)) + "'");
+                }
+            }
+            const Type return_type = resolve_type(scope, generics, signature.return_type);
+            if (!types_equal(return_type, builtin_type("Unit"))) {
+                diagnostics_.error(signature.return_type.span, "granting functions must return 'Unit'");
+            }
+            if (signature.yields_type.has_value()) {
+                diagnostics_.error(signature.grants_type->span, "granting functions may not use 'yields'");
+            }
+        }
+
+        if (signature.proves_type.has_value()) {
+            check_type_ref_usage(scope,
+                                 generics,
+                                 *signature.proves_type,
+                                 TypeUseRules{require_public, false, false, "proof authorization"});
+            if (const Symbol* symbol = resolve_symbol(scope, generics, signature.proves_type->path); symbol != nullptr) {
+                if (symbol->kind != ast::DeclKind::Proof) {
+                    diagnostics_.error(signature.proves_type->span,
+                                      "'proves' must reference a proof type, not '"
+                                          + std::string(ast::decl_kind_name(symbol->kind)) + "'");
+                }
+            }
+            if (is_foreign) {
+                diagnostics_.error(signature.proves_type->span, "foreign functions may not use 'proves'");
             }
         }
     }
@@ -614,17 +812,15 @@ private:
         }
     }
 
-    const Type* lookup_binding(const ValueEnv& env, const std::string& name) const {
-        for (const ValueEnv* current = &env; current != nullptr; current = current->parent) {
-            if (const auto it = current->values.find(name); it != current->values.end()) {
-                return &it->second;
-            }
-        }
-        return nullptr;
-    }
-
     void bind_value(ValueEnv& env, const std::string& name, Type type, SourceSpan span) {
-        if (!env.values.emplace(name, std::move(type)).second) {
+        const UseDiscipline binding_discipline = discipline(type);
+        if (!env.scopes.back().emplace(name, BindingState{
+                next_binding_id_++,
+                std::move(type),
+                binding_discipline,
+                false,
+                std::nullopt,
+            }).second) {
             diagnostics_.error(span, "duplicate local binding '" + name + "'");
         }
     }
@@ -636,6 +832,55 @@ private:
             }
         }
         return nullptr;
+    }
+
+    void check_call_arguments(const ast::FunctionDecl& function,
+                              const std::vector<std::unique_ptr<ast::Expr>>& args,
+                              const FunctionContext& context,
+                              ValueEnv& env) {
+        if (function.signature.params.size() != args.size()) {
+            diagnostics_.error(context.function.span,
+                              "function '" + function.name + "' expects "
+                                  + std::to_string(function.signature.params.size()) + " argument(s), got "
+                                  + std::to_string(args.size()));
+        }
+
+        const std::size_t arg_count = std::min(function.signature.params.size(), args.size());
+        for (std::size_t index = 0; index < arg_count; ++index) {
+            const Type param_type = resolve_type(context.scope, context.generics, function.signature.params[index].type);
+            if (is_permit_type(param_type)) {
+                const auto* path_arg = dynamic_cast<const ast::PathExpr*>(args[index].get());
+                if (path_arg == nullptr || path_arg->path.size() != 1) {
+                    diagnostics_.error(args[index]->span, "permit value may only be used as a direct function argument");
+                    continue;
+                }
+                const BindingState* binding = lookup_binding(env, path_arg->path.front());
+                if (binding == nullptr || !is_permit_type(binding->type)) {
+                    diagnostics_.error(args[index]->span,
+                                      "argument " + std::to_string(index + 1) + " to '" + function.name
+                                          + "' must be permit '" + type_name(param_type) + "'");
+                    continue;
+                }
+                if (!assignable_to(param_type, binding->type)) {
+                    diagnostics_.error(args[index]->span,
+                                      "argument " + std::to_string(index + 1) + " to '" + function.name
+                                          + "' has type '" + type_name(binding->type) + "', expected '"
+                                          + type_name(param_type) + "'");
+                }
+                continue;
+            }
+
+            ExprType arg_type = type_expr(*args[index], context, env);
+            if (arg_type.yielded_reason != nullptr) {
+                diagnostics_.error(args[index]->span, "yielded call must be handled with 'try' or 'match'");
+            }
+            if (!assignable_to(param_type, arg_type.value)) {
+                diagnostics_.error(args[index]->span,
+                                  "argument " + std::to_string(index + 1) + " to '" + function.name
+                                      + "' has type '" + type_name(arg_type.value) + "', expected '"
+                                      + type_name(param_type) + "'");
+            }
+        }
     }
 
     bool check_initializer_fields(const std::vector<ast::Field>& expected_fields,
@@ -686,105 +931,88 @@ private:
 
     ExprType type_path_expr(const ast::PathExpr& expr, const FunctionContext& context, ValueEnv& env) {
         if (expr.path.size() == 1) {
-            if (const Type* binding = lookup_binding(env, expr.path.front()); binding != nullptr) {
-                return ExprType{*binding, nullptr};
+            if (const BindingState* binding = lookup_binding(env, expr.path.front()); binding != nullptr) {
+                if (is_permit_type(binding->type)) {
+                    diagnostics_.error(expr.span, "permit value may only be used as a direct function argument");
+                    return make_expr(error_type());
+                }
+                return make_expr(use_binding(env, expr.path.front(), expr.span));
             }
         }
 
         VariantResolution state_variant = resolve_variant(context.scope, expr.path, true, false);
         if (state_variant.ambiguous) {
             diagnostics_.error(expr.span, "ambiguous variant reference '" + expr.path.back() + "'");
-            return ExprType{error_type(), nullptr};
+            return make_expr(error_type());
         }
         if (state_variant.variant != nullptr) {
             if (!state_variant.variant->fields.empty()) {
                 diagnostics_.error(expr.span,
                                   "variant '" + state_variant.variant->name + "' requires payload construction");
-                return ExprType{error_type(), nullptr};
+                return make_expr(error_type());
             }
-            return ExprType{named_type(state_variant.owner_decl), nullptr};
+            return make_expr(named_type(state_variant.owner_decl));
         }
 
         VariantResolution reason_variant = resolve_variant(context.scope, expr.path, false, true);
         if (reason_variant.ambiguous) {
             diagnostics_.error(expr.span, "ambiguous reason variant reference '" + expr.path.back() + "'");
-            return ExprType{error_type(), nullptr};
+            return make_expr(error_type());
         }
         if (reason_variant.variant != nullptr) {
             diagnostics_.error(expr.span, "reason variants may appear only in 'fail' or failed(...) patterns");
-            return ExprType{error_type(), nullptr};
+            return make_expr(error_type());
         }
 
         if (const ast::FunctionDecl* function = resolve_function(context.scope, expr.path); function != nullptr) {
             diagnostics_.error(expr.span, "function values are not first-class; call '" + function->name + "' with '(...)'");
-            return ExprType{error_type(), nullptr};
+            return make_expr(error_type());
         }
 
         if (const Symbol* symbol = resolve_symbol(context.scope, context.generics, expr.path); symbol != nullptr) {
             if (symbol->kind == ast::DeclKind::Proof) {
-                const auto* proof_decl = static_cast<const ast::ProofDecl*>(symbol->decl);
-                if (proof_decl->fields.empty()) {
-                    return ExprType{named_type(symbol->decl), nullptr};
-                }
-                diagnostics_.error(expr.span, "proof '" + proof_decl->name + "' requires field initialization");
-                return ExprType{error_type(), nullptr};
+                diagnostics_.error(expr.span, "proof values must be created with 'prove'");
+                return make_expr(error_type());
             }
             if (symbol->kind == ast::DeclKind::Struct) {
                 const auto* struct_decl = static_cast<const ast::StructDecl*>(symbol->decl);
                 if (struct_decl->fields.empty()) {
-                    return ExprType{named_type(symbol->decl), nullptr};
+                    return make_expr(named_type(symbol->decl));
                 }
                 diagnostics_.error(expr.span, "struct '" + struct_decl->name + "' requires field initialization");
-                return ExprType{error_type(), nullptr};
+                return make_expr(error_type());
             }
             diagnostics_.error(expr.span, "type name '" + expr.path.back() + "' is not a value");
-            return ExprType{error_type(), nullptr};
+            return make_expr(error_type());
         }
 
         diagnostics_.error(expr.span, "unknown value '" + expr.path.back() + "'");
-        return ExprType{error_type(), nullptr};
+        return make_expr(error_type());
     }
 
     ExprType type_call_expr(const ast::CallExpr& expr, const FunctionContext& context, ValueEnv& env) {
         const auto* callee_path = dynamic_cast<const ast::PathExpr*>(expr.callee.get());
         if (callee_path == nullptr) {
             diagnostics_.error(expr.span, "callee must be a named function");
-            return ExprType{error_type(), nullptr};
+            return make_expr(error_type());
         }
 
         const ast::FunctionDecl* function = resolve_function(context.scope, callee_path->path);
         if (function == nullptr) {
             diagnostics_.error(expr.span, "unknown function '" + (callee_path->path.empty() ? std::string{} : callee_path->path.back()) + "'");
-            return ExprType{error_type(), nullptr};
+            return make_expr(error_type());
+        }
+        if (function->signature.grants_type.has_value()) {
+            diagnostics_.error(expr.span, "function '" + function->name + "' grants a permit and must be used in a 'with' scope");
+            return make_expr(error_type());
         }
         if (!function->signature.generic_params.empty()) {
             diagnostics_.error(expr.span, "calls to generic functions are not supported yet");
-            return ExprType{error_type(), nullptr};
+            return make_expr(error_type());
         }
-        if (function->signature.params.size() != expr.args.size()) {
-            diagnostics_.error(expr.span,
-                              "function '" + function->name + "' expects "
-                                  + std::to_string(function->signature.params.size()) + " argument(s), got "
-                                  + std::to_string(expr.args.size()));
-        }
+        check_call_arguments(*function, expr.args, context, env);
 
-        const std::size_t arg_count = std::min(function->signature.params.size(), expr.args.size());
-        for (std::size_t index = 0; index < arg_count; ++index) {
-            ExprType arg_type = type_expr(*expr.args[index], context, env);
-            if (arg_type.yielded_reason != nullptr) {
-                diagnostics_.error(expr.args[index]->span, "yielded call must be handled with 'try' or 'match'");
-            }
-            const Type param_type = resolve_type(context.scope, {}, function->signature.params[index].type);
-            if (!assignable_to(param_type, arg_type.value)) {
-                diagnostics_.error(expr.args[index]->span,
-                                  "argument " + std::to_string(index + 1) + " to '" + function->name
-                                      + "' has type '" + type_name(arg_type.value) + "', expected '"
-                                      + type_name(param_type) + "'");
-            }
-        }
-
-        ExprType result;
-        result.value = resolve_type(context.scope, {}, function->signature.return_type);
+        ExprType result = make_expr(resolve_type(context.scope, {}, function->signature.return_type));
         if (function->signature.yields_type.has_value()) {
             const Type yields_type = resolve_type(context.scope, {}, *function->signature.yields_type);
             result.yielded_reason = yields_type.decl != nullptr ? static_cast<const ast::ReasonDecl*>(yields_type.decl) : nullptr;
@@ -798,19 +1026,18 @@ private:
             case ast::DeclKind::Struct: {
                 const auto* struct_decl = static_cast<const ast::StructDecl*>(symbol->decl);
                 check_initializer_fields(struct_decl->fields, expr.fields, context, env);
-                return ExprType{named_type(symbol->decl), nullptr};
+                return make_expr(named_type(symbol->decl));
             }
             case ast::DeclKind::Proof: {
-                const auto* proof_decl = static_cast<const ast::ProofDecl*>(symbol->decl);
-                check_initializer_fields(proof_decl->fields, expr.fields, context, env);
-                return ExprType{named_type(symbol->decl), nullptr};
+                diagnostics_.error(expr.span, "proof values must be created with 'prove'");
+                return make_expr(error_type());
             }
             case ast::DeclKind::Permit:
                 diagnostics_.error(expr.span, "permit values may not be constructed directly");
-                return ExprType{error_type(), nullptr};
+                return make_expr(error_type());
             case ast::DeclKind::Reason:
                 diagnostics_.error(expr.span, "reason values may not be constructed directly; use 'fail'");
-                return ExprType{error_type(), nullptr};
+                return make_expr(error_type());
             default:
                 break;
             }
@@ -819,63 +1046,132 @@ private:
         VariantResolution state_variant = resolve_variant(context.scope, expr.path, true, false);
         if (state_variant.ambiguous) {
             diagnostics_.error(expr.span, "ambiguous variant constructor '" + expr.path.back() + "'");
-            return ExprType{error_type(), nullptr};
+            return make_expr(error_type());
         }
         if (state_variant.variant != nullptr) {
             check_initializer_fields(state_variant.variant->fields, expr.fields, context, env);
-            return ExprType{named_type(state_variant.owner_decl), nullptr};
+            return make_expr(named_type(state_variant.owner_decl));
         }
 
         VariantResolution reason_variant = resolve_variant(context.scope, expr.path, false, true);
         if (reason_variant.variant != nullptr) {
             diagnostics_.error(expr.span, "reason values may not be constructed directly; use 'fail'");
-            return ExprType{error_type(), nullptr};
+            return make_expr(error_type());
         }
 
         diagnostics_.error(expr.span, "unknown constructor '" + expr.path.back() + "'");
-        return ExprType{error_type(), nullptr};
+        return make_expr(error_type());
+    }
+
+    ExprType type_with_permit_expr(const ast::WithPermitExpr& expr, const FunctionContext& context, ValueEnv& env) {
+        const auto* grant_call = dynamic_cast<const ast::CallExpr*>(expr.grant_call.get());
+        if (grant_call == nullptr) {
+            diagnostics_.error(expr.span, "'with' requires a direct grant call");
+            return make_expr(error_type());
+        }
+        const auto* callee_path = dynamic_cast<const ast::PathExpr*>(grant_call->callee.get());
+        if (callee_path == nullptr) {
+            diagnostics_.error(expr.span, "'with' requires a named grant function");
+            return make_expr(error_type());
+        }
+
+        const ast::FunctionDecl* function = resolve_function(context.scope, callee_path->path);
+        if (function == nullptr) {
+            diagnostics_.error(expr.span,
+                              "unknown function '" + (callee_path->path.empty() ? std::string{} : callee_path->path.back()) + "'");
+            return make_expr(error_type());
+        }
+        if (!function->signature.generic_params.empty()) {
+            diagnostics_.error(expr.span, "'with' may not call a generic grant function");
+            return make_expr(error_type());
+        }
+        if (!function->signature.grants_type.has_value()) {
+            diagnostics_.error(expr.span, "'with' requires a function annotated with 'grants'");
+            return make_expr(error_type());
+        }
+        if (function->signature.yields_type.has_value()) {
+            diagnostics_.error(expr.span, "'with' may not call a yielding grant function");
+            return make_expr(error_type());
+        }
+        const Type return_type = resolve_type(context.scope, context.generics, function->signature.return_type);
+        if (!types_equal(return_type, builtin_type("Unit"))) {
+            diagnostics_.error(expr.span, "'with' requires a grant function that returns 'Unit'");
+            return make_expr(error_type());
+        }
+
+        check_call_arguments(*function, grant_call->args, context, env);
+
+        ValueEnv scoped_env = push_scope(env);
+        const Type permit_type = resolve_type(context.scope, context.generics, *function->signature.grants_type);
+        bind_value(scoped_env, expr.binder_name, permit_type, expr.span);
+        ExprType result = type_block(*expr.body, context, scoped_env);
+        if (result.reachable) {
+            merge_sequential_env(env, scoped_env);
+        }
+        return result;
+    }
+
+    ExprType type_prove_expr(const ast::ProveExpr& expr, const FunctionContext& context, ValueEnv& env) {
+        const Symbol* symbol = resolve_symbol(context.scope, context.generics, expr.path);
+        if (symbol == nullptr || symbol->kind != ast::DeclKind::Proof) {
+            diagnostics_.error(expr.span, "unknown proof type '" + (expr.path.empty() ? std::string{} : expr.path.back()) + "'");
+            return make_expr(error_type());
+        }
+
+        const auto* proof_decl = static_cast<const ast::ProofDecl*>(symbol->decl);
+        if (context.proves_proof == nullptr) {
+            diagnostics_.error(expr.span, "'prove' is only valid inside a function with 'proves'");
+            return make_expr(named_type(symbol->decl));
+        }
+        if (context.proves_proof != proof_decl) {
+            diagnostics_.error(expr.span,
+                              "'prove' must create proof '" + context.proves_proof->name + "', not '"
+                                  + proof_decl->name + "'");
+        }
+        check_initializer_fields(proof_decl->fields, expr.fields, context, env);
+        return make_expr(named_type(symbol->decl));
     }
 
     ExprType type_try_expr(const ast::TryExpr& expr, const FunctionContext& context, ValueEnv& env) {
         ExprType operand = type_expr(*expr.operand, context, env);
         if (operand.yielded_reason == nullptr) {
             diagnostics_.error(expr.span, "'try' requires a yielded call");
-            return ExprType{error_type(), nullptr};
+            return make_expr(error_type());
         }
         if (context.yields_reason == nullptr) {
             diagnostics_.error(expr.span, "'try' is only valid inside a function with 'yields'");
-            return ExprType{error_type(), nullptr};
+            return make_expr(error_type());
         }
         if (operand.yielded_reason != context.yields_reason) {
             diagnostics_.error(expr.span,
                               "'try' expects yielded reason '" + context.yields_reason->name + "', got '"
                                   + operand.yielded_reason->name + "'");
-            return ExprType{error_type(), nullptr};
+            return make_expr(error_type());
         }
-        return ExprType{operand.value, nullptr};
+        return make_expr(operand.value);
     }
 
     ExprType type_fail_expr(const ast::FailExpr& expr, const FunctionContext& context, ValueEnv& env) {
         if (context.yields_reason == nullptr) {
             diagnostics_.error(expr.span, "'fail' is only valid inside a function with 'yields'");
-            return ExprType{error_type(), nullptr};
+            return make_expr(error_type());
         }
 
         VariantResolution variant = resolve_variant(context.scope, expr.path, false, true);
         if (variant.ambiguous) {
             diagnostics_.error(expr.span, "ambiguous reason variant '" + expr.path.back() + "'");
-            return ExprType{error_type(), nullptr};
+            return make_expr(error_type());
         }
         if (variant.variant == nullptr || variant.owner_decl == nullptr) {
             diagnostics_.error(expr.span, "unknown reason variant '" + expr.path.back() + "'");
-            return ExprType{error_type(), nullptr};
+            return make_expr(error_type());
         }
         if (variant.owner_decl != context.yields_reason) {
             diagnostics_.error(expr.span,
                               "'fail' must use a variant of yielded reason '" + context.yields_reason->name + "'");
         }
         check_initializer_fields(variant.variant->fields, expr.fields, context, env);
-        return ExprType{builtin_type("Never"), nullptr};
+        return make_expr(builtin_type("Never"));
     }
 
     Type unify_match_result(const Type& current, const Type& next, SourceSpan span) {
@@ -953,12 +1249,13 @@ private:
         ExprType scrutinee = type_expr(*expr.scrutinee, context, env);
         Type result_type = builtin_type("Never");
         bool has_arm = false;
+        std::vector<BranchState> arm_states;
 
         if (scrutinee.yielded_reason != nullptr) {
             bool seen_success = false;
             std::unordered_set<std::string> seen_failed;
             for (const ast::MatchArm& arm : expr.arms) {
-                ValueEnv arm_env{&env, {}};
+                ValueEnv arm_env = push_scope(env);
                 switch (arm.pattern->kind) {
                 case ast::PatternKind::Succeeded: {
                     const auto& pattern = static_cast<const ast::SucceededPattern&>(*arm.pattern);
@@ -1005,6 +1302,7 @@ private:
                 }
                 result_type = unify_match_result(result_type, arm_type.value, arm.span);
                 has_arm = true;
+                arm_states.push_back(BranchState{std::move(arm_env), arm_type.reachable});
             }
 
             if (!seen_success) {
@@ -1016,13 +1314,14 @@ private:
                                       "non-exhaustive failed(...) coverage; missing '" + variant.name + "'");
                 }
             }
-            return ExprType{has_arm ? result_type : builtin_type("Unit"), nullptr};
+            merge_branch_envs(env, arm_states);
+            return make_expr(has_arm ? result_type : builtin_type("Unit"));
         }
 
         const ast::StateDecl* state_decl = as_state(scrutinee.value.decl);
         if (state_decl == nullptr) {
             diagnostics_.error(expr.scrutinee->span, "match requires a state value or yielded call");
-            return ExprType{error_type(), nullptr};
+            return make_expr(error_type());
         }
 
         std::unordered_set<std::string> seen_variants;
@@ -1052,7 +1351,7 @@ private:
                                   "duplicate match arm for variant '" + resolution.variant->name + "'");
             }
 
-            ValueEnv arm_env{&env, {}};
+            ValueEnv arm_env = push_scope(env);
             bind_variant_pattern(pattern, *resolution.variant, context, arm_env);
             ExprType arm_type = type_expr(*arm.body, context, arm_env);
             if (arm_type.yielded_reason != nullptr) {
@@ -1060,6 +1359,7 @@ private:
             }
             result_type = unify_match_result(result_type, arm_type.value, arm.span);
             has_arm = true;
+            arm_states.push_back(BranchState{std::move(arm_env), arm_type.reachable});
         }
 
         for (const ast::Variant& variant : state_decl->variants) {
@@ -1069,11 +1369,12 @@ private:
                                       + variant.name + "'");
             }
         }
-        return ExprType{has_arm ? result_type : builtin_type("Unit"), nullptr};
+        merge_branch_envs(env, arm_states);
+        return make_expr(has_arm ? result_type : builtin_type("Unit"));
     }
 
     ExprType type_block(const ast::BlockExpr& block, const FunctionContext& context, ValueEnv& parent_env) {
-        ValueEnv local{&parent_env, {}};
+        ValueEnv local = push_scope(parent_env);
         for (const auto& stmt_ptr : block.statements) {
             const ast::Stmt& stmt = *stmt_ptr;
             switch (stmt.kind) {
@@ -1082,6 +1383,9 @@ private:
                 ExprType init_type = type_expr(*let_stmt.initializer, context, local);
                 if (init_type.yielded_reason != nullptr) {
                     diagnostics_.error(let_stmt.initializer->span, "yielded call must be handled with 'try' or 'match'");
+                }
+                if (!init_type.reachable) {
+                    return init_type;
                 }
                 bind_value(local, let_stmt.name, init_type.value, let_stmt.span);
                 break;
@@ -1092,6 +1396,9 @@ private:
                 if (expr_type.yielded_reason != nullptr) {
                     diagnostics_.error(expr_stmt.expr->span, "yielded call must be handled with 'try' or 'match'");
                 }
+                if (!expr_type.reachable) {
+                    return expr_type;
+                }
                 break;
             }
             }
@@ -1101,19 +1408,23 @@ private:
             ExprType result = type_expr(*block.result, context, local);
             if (result.yielded_reason != nullptr) {
                 diagnostics_.error(block.result->span, "yielded call must be handled with 'try' or 'match'");
-                return ExprType{error_type(), nullptr};
+                return make_expr(error_type());
+            }
+            if (result.reachable) {
+                merge_sequential_env(parent_env, local);
             }
             return result;
         }
-        return ExprType{builtin_type("Unit"), nullptr};
+        merge_sequential_env(parent_env, local);
+        return make_expr(builtin_type("Unit"));
     }
 
     ExprType type_expr(const ast::Expr& expr, const FunctionContext& context, ValueEnv& env) {
         switch (expr.kind) {
         case ast::ExprKind::NumberLiteral:
-            return ExprType{builtin_type("Int"), nullptr};
+            return make_expr(builtin_type("Int"));
         case ast::ExprKind::StringLiteral:
-            return ExprType{builtin_type("Text"), nullptr};
+            return make_expr(builtin_type("Text"));
         case ast::ExprKind::Path:
             return type_path_expr(static_cast<const ast::PathExpr&>(expr), context, env);
         case ast::ExprKind::Call:
@@ -1128,12 +1439,16 @@ private:
             return type_block(static_cast<const ast::BlockExpr&>(expr), context, env);
         case ast::ExprKind::Fail:
             return type_fail_expr(static_cast<const ast::FailExpr&>(expr), context, env);
+        case ast::ExprKind::WithPermit:
+            return type_with_permit_expr(static_cast<const ast::WithPermitExpr&>(expr), context, env);
+        case ast::ExprKind::Prove:
+            return type_prove_expr(static_cast<const ast::ProveExpr&>(expr), context, env);
         }
-        return ExprType{error_type(), nullptr};
+        return make_expr(error_type());
     }
 
     void analyze_function_body(const ast::FunctionDecl& function_decl, const Scope& scope) {
-        FunctionContext context{scope, function_decl, {}, resolve_type(scope, {}, function_decl.signature.return_type), nullptr};
+        FunctionContext context{scope, function_decl, {}, resolve_type(scope, {}, function_decl.signature.return_type), nullptr, nullptr};
         for (const ast::GenericParam& generic : function_decl.signature.generic_params) {
             context.generics.push_back(generic.name);
         }
@@ -1141,8 +1456,12 @@ private:
             const Type yields_type = resolve_type(scope, context.generics, *function_decl.signature.yields_type);
             context.yields_reason = yields_type.decl != nullptr ? static_cast<const ast::ReasonDecl*>(yields_type.decl) : nullptr;
         }
+        if (function_decl.signature.proves_type.has_value()) {
+            const Type proves_type = resolve_type(scope, context.generics, *function_decl.signature.proves_type);
+            context.proves_proof = proves_type.decl != nullptr ? static_cast<const ast::ProofDecl*>(proves_type.decl) : nullptr;
+        }
 
-        ValueEnv env{nullptr, {}};
+        ValueEnv env = make_root_env();
         for (const ast::Parameter& param : function_decl.signature.params) {
             bind_value(env, param.name, resolve_type(scope, context.generics, param.type), param.span);
         }

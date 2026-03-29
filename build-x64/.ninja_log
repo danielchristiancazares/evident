@@ -1,0 +1,15 @@
+# ninja log v7
+7	376	7964713639540537	CMakeFiles/evident_frontend.dir/src/Token.cpp.obj	2022e299dd84f980
+9	514	7964713639560541	CMakeFiles/evident_frontend.dir/src/Lexer.cpp.obj	10d84f52ca8b5fad
+11	670	7964713639580537	CMakeFiles/evident_frontend.dir/src/Ast.cpp.obj	65f4874688168b01
+2	681	7964713639490533	CMakeFiles/evident_frontend.dir/src/Source.cpp.obj	89002db8575a9de3
+13	710	7964713639600534	CMakeFiles/evident_frontend.dir/src/Parser.cpp.obj	6fefd2d4ec4c61f0
+27	754	7964713639740589	CMakeFiles/evidc.dir/src/main.cpp.obj	40bbe393ea8edd15
+5	800	7964713639520533	CMakeFiles/evident_frontend.dir/src/Diagnostic.cpp.obj	d16c63e9e4f4f0fe
+8	1076	7964744566986012	CMakeFiles/evident_frontend.dir/src/Mir.cpp.obj	922aa12382154022
+13	1082	7964744567042636	CMakeFiles/evident_frontend.dir/src/Driver.cpp.obj	89722688a7522a3f
+2	1287	7964744566925937	CMakeFiles/evident_frontend.dir/src/Semantic.cpp.obj	8413180cefcd07cc
+5	1316	7964744566965983	CMakeFiles/evident_frontend.dir/src/Hir.cpp.obj	5064a59c489adfb4
+11	2046	7964744567023290	CMakeFiles/evident_frontend.dir/src/Backend.cpp.obj	99986c66a2b39b3
+2046	2128	7964744587370866	evident_frontend.lib	49ebf3390cda674f
+2128	2380	7964744588118355	evidc.exe	a9104a4554490821

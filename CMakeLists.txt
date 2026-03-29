@@ -12,6 +12,7 @@ add_library(evident_frontend
     src/Lexer.cpp
     src/Ast.cpp
     src/Parser.cpp
+    src/ResolvedType.cpp
     src/Semantic.cpp
     src/Hir.cpp
     src/Mir.cpp
@@ -44,6 +45,16 @@ if(BUILD_TESTING)
             COMMAND ${CMAKE_COMMAND}
                 -DCOMMAND_PATH=$<TARGET_FILE:evidc>
                 -DMODE=--dump-mir
+                -DINPUT_PATH=${CMAKE_CURRENT_SOURCE_DIR}/tests/${input_file}
+                -DEXPECTED_PATH=${CMAKE_CURRENT_SOURCE_DIR}/tests/${expected_file}
+                -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/RunAndCompareOutput.cmake)
+    endfunction()
+
+    function(add_hir_compare_test name input_file expected_file)
+        add_test(NAME ${name}
+            COMMAND ${CMAKE_COMMAND}
+                -DCOMMAND_PATH=$<TARGET_FILE:evidc>
+                -DMODE=--dump-hir
                 -DINPUT_PATH=${CMAKE_CURRENT_SOURCE_DIR}/tests/${input_file}
                 -DEXPECTED_PATH=${CMAKE_CURRENT_SOURCE_DIR}/tests/${expected_file}
                 -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/RunAndCompareOutput.cmake)
@@ -114,6 +125,14 @@ if(BUILD_TESTING)
     add_mir_compare_test(compare_mir_try valid_try.evd expected_valid_try.mir.txt)
     add_mir_compare_test(compare_mir_direct_fail valid_direct_fail.evd expected_valid_direct_fail.mir.txt)
     add_mir_compare_test(compare_mir_yield_match valid_yield_match.evd expected_valid_yield_match.mir.txt)
+    add_mir_compare_test(compare_mir_permit_proof valid_permit_proof.evd expected_valid_permit_proof.mir.out)
+    add_mir_compare_test(compare_mir_affine_proof_move valid_affine_proof_move.evd expected_valid_affine_proof_move.mir.out)
+    add_hir_compare_test(compare_hir_affine_wrapper valid_affine_wrapper.evd expected_valid_affine_wrapper.hir.out)
+    add_hir_compare_test(compare_hir_affine_generic_wrapper valid_affine_generic_wrapper.evd expected_valid_affine_generic_wrapper.hir.out)
+    add_test(NAME parse_valid_copyable_generic_wrapper
+        COMMAND evidc ${CMAKE_CURRENT_SOURCE_DIR}/tests/valid_copyable_generic_wrapper.evd)
+    add_test(NAME parse_valid_affine_branch_diverge
+        COMMAND evidc ${CMAKE_CURRENT_SOURCE_DIR}/tests/valid_affine_branch_diverge.evd)
 
     add_emit_compare_test(compare_llvm_plain_call --emit-llvm valid_plain_call.evd expected_valid_plain_call.llvm.txt compare_valid_plain_call.ll)
     add_emit_compare_test(compare_llvm_state_match --emit-llvm valid_state_match.evd expected_valid_state_match.llvm.txt compare_valid_state_match.ll)
@@ -126,6 +145,7 @@ if(BUILD_TESTING)
     add_emit_exists_test(emit_obj_try --emit-obj valid_try.evd valid_try.obj)
     add_emit_exists_test(emit_obj_direct_fail --emit-obj valid_direct_fail.evd valid_direct_fail.obj)
     add_emit_exists_test(emit_obj_yield_match --emit-obj valid_yield_match.evd valid_yield_match.obj)
+    add_emit_exists_test(emit_obj_permit_proof --emit-obj valid_permit_proof.evd valid_permit_proof.obj)
     add_emit_exists_test(emit_asm_constant --emit-asm native_main_constant.evd native_main_constant.s)
     add_emit_exists_test(emit_obj_constant --emit-obj native_main_constant.evd native_main_constant.obj)
 
@@ -149,12 +169,23 @@ if(BUILD_TESTING)
         hygiene_valid_yield_match.ll
         "insertvalue { ptr, i64 } zeroinitializer, ptr %strptr"
         "%lit")
+    add_emit_pattern_test(hygiene_llvm_permit_signature_erased
+        valid_permit_proof.evd
+        hygiene_valid_permit_proof_signature.ll
+        "define i64 @evid$submit(%evid.type.Mesh %arg0)"
+        "@evid$submit(%evid.type.RenderPassActive")
+    add_emit_pattern_test(hygiene_llvm_permit_storage_erased
+        valid_permit_proof.evd
+        hygiene_valid_permit_proof_storage.ll
+        "call i8 @evid$start_pass()"
+        "%slot3 = alloca %evid.type.RenderPassActive")
 
     add_emit_exe_test(run_native_constant native_main_constant.evd 7 native_main_constant.exe)
     add_emit_exe_test(run_native_call_chain native_main_call_chain.evd 8 native_main_call_chain.exe)
     add_emit_exe_test(run_native_state_match native_main_state_match.evd 4 native_main_state_match.exe)
     add_emit_exe_test(run_native_try native_main_try.evd 11 native_main_try.exe)
     add_emit_exe_test(run_native_yield_match native_main_yield_match.evd 3 native_main_yield_match.exe)
+    add_emit_exe_test(run_native_with_permit native_main_with_permit.evd 7 native_main_with_permit.exe)
 
     add_reject_test(reject_reserved_public_names invalid_reserved_names.evd)
     add_reject_test(reject_public_private_leak invalid_private_type_leak.evd)
@@ -170,6 +201,19 @@ if(BUILD_TESTING)
     add_reject_test(reject_try_outside_yields invalid_try_outside_yields.evd)
     add_reject_test(reject_fail_wrong_reason invalid_fail_wrong_reason.evd)
     add_reject_test(reject_match_wildcard invalid_match_wildcard.evd)
+    add_reject_test(reject_direct_proof_construct invalid_direct_proof_construct.evd)
+    add_reject_test(reject_prove_without_authority invalid_prove_without_authority.evd)
+    add_reject_test(reject_prove_wrong_proof invalid_prove_wrong_proof.evd)
+    add_reject_test(reject_foreign_proves invalid_foreign_proves.evd)
+    add_reject_test(reject_grant_direct_call invalid_grant_direct_call.evd)
+    add_reject_test(reject_with_non_grant invalid_with_non_grant.evd)
+    add_reject_test(reject_permit_escape_let invalid_permit_escape_let.evd)
+    add_reject_test(reject_missing_permit_argument invalid_missing_permit_argument.evd)
+    add_reject_test(reject_affine_reuse_argument invalid_affine_reuse_argument.evd)
+    add_reject_test(reject_affine_after_let_move invalid_affine_after_let_move.evd)
+    add_reject_test(reject_affine_after_wrapper_move invalid_affine_after_wrapper_move.evd)
+    add_reject_test(reject_affine_generic_wrapper_move invalid_affine_generic_wrapper_move.evd)
+    add_reject_test(reject_affine_after_match invalid_affine_after_match.evd)
 
     add_backend_reject_test(reject_backend_missing_main valid_plain_call.evd reject_backend_missing_main.exe)
     add_backend_reject_test(reject_backend_private_main native_invalid_main_private.evd reject_backend_private_main.exe)

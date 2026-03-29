@@ -1,0 +1,7 @@
+public fn open() -> Unit {
+}
+
+public fn boot() -> Unit {
+    with open() as pass {
+    }
+}

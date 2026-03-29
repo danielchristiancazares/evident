@@ -68,6 +68,10 @@ std::string_view token_kind_name(TokenKind kind) {
         return "foreign";
     case TokenKind::KeywordYields:
         return "yields";
+    case TokenKind::KeywordGrants:
+        return "grants";
+    case TokenKind::KeywordProves:
+        return "proves";
     case TokenKind::KeywordMatch:
         return "match";
     case TokenKind::KeywordLet:
@@ -76,6 +80,12 @@ std::string_view token_kind_name(TokenKind kind) {
         return "try";
     case TokenKind::KeywordFail:
         return "fail";
+    case TokenKind::KeywordWith:
+        return "with";
+    case TokenKind::KeywordAs:
+        return "as";
+    case TokenKind::KeywordProve:
+        return "prove";
     case TokenKind::KeywordFor:
         return "for";
     case TokenKind::Unknown:

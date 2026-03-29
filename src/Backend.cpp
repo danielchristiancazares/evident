@@ -896,6 +896,9 @@ std::expected<void, std::string> validate_backend_package(BackendModel& model,
             return std::unexpected(return_type.error());
         }
         for (const hir::Parameter& param : function_decl.params) {
+            if (param.is_compile_time_only) {
+                continue;
+            }
             const std::expected<ResolvedType, std::string> param_type = resolve_materializable_type(
                 param.type.text,
                 "parameter '" + param.name + "' of function '" + function_decl.qualified_name + "'");
@@ -935,14 +938,19 @@ std::expected<void, std::string> validate_backend_package(BackendModel& model,
 
         std::unordered_map<mir::LocalId, ResolvedType> local_types;
         local_types.reserve(mir_function.locals.size());
+        std::unordered_map<mir::LocalId, bool> local_compile_time_only;
+        local_compile_time_only.reserve(mir_function.locals.size());
         for (const mir::Local& local : mir_function.locals) {
-            const std::expected<ResolvedType, std::string> resolved = resolve_materializable_type(
-                local.type,
-                "local '" + local.name + "' in function '" + hir_function.qualified_name + "'");
+            const std::expected<ResolvedType, std::string> resolved = local.is_compile_time_only
+                ? model.resolve_type_name(local.type)
+                : resolve_materializable_type(
+                    local.type,
+                    "local '" + local.name + "' in function '" + hir_function.qualified_name + "'");
             if (!resolved.has_value()) {
                 return std::unexpected(resolved.error());
             }
             local_types.emplace(local.id, *resolved);
+            local_compile_time_only.emplace(local.id, local.is_compile_time_only);
         }
 
         auto local_type = [&](mir::LocalId local_id, const std::string& context)
@@ -960,6 +968,11 @@ std::expected<void, std::string> validate_backend_package(BackendModel& model,
                                     const std::string& context) -> std::expected<void, std::string> {
             switch (operand.kind) {
             case mir::OperandKind::Local: {
+                const auto compile_time_only_it = local_compile_time_only.find(operand.local_id);
+                if (compile_time_only_it != local_compile_time_only.end() && compile_time_only_it->second) {
+                    return std::unexpected("internal backend error: compile-time-only local %"
+                                           + std::to_string(operand.local_id) + " used in " + context);
+                }
                 const std::expected<const ResolvedType*, std::string> actual_type = local_type(operand.local_id, context);
                 if (!actual_type.has_value()) {
                     return std::unexpected(actual_type.error());
@@ -1030,6 +1043,12 @@ std::expected<void, std::string> validate_backend_package(BackendModel& model,
                 if (!dest_type.has_value()) {
                     return std::unexpected(dest_type.error());
                 }
+                const auto dest_compile_time_only = local_compile_time_only.find(statement.dest_local);
+                if (dest_compile_time_only != local_compile_time_only.end() && dest_compile_time_only->second) {
+                    return std::unexpected("internal backend error: compile-time-only local %"
+                                           + std::to_string(statement.dest_local)
+                                           + " cannot be assigned in function '" + hir_function.qualified_name + "'");
+                }
 
                 switch (statement.value.kind) {
                 case mir::RvalueKind::Use: {
@@ -1069,6 +1088,14 @@ std::expected<void, std::string> validate_backend_package(BackendModel& model,
                                                + return_type->source_name + "'");
                     }
                     for (std::size_t index = 0; index < statement.value.args.size(); ++index) {
+                        if (callee.params[index].is_compile_time_only) {
+                            if (statement.value.args[index].kind != mir::OperandKind::Unit) {
+                                return std::unexpected("internal backend error: compile-time-only parameter "
+                                                       + std::to_string(index) + " of callee '"
+                                                       + callee.qualified_name + "' was not erased");
+                            }
+                            continue;
+                        }
                         const std::expected<ResolvedType, std::string> param_type = resolve_materializable_type(
                             callee.params[index].type.text,
                             "parameter " + std::to_string(index) + " of callee '" + callee.qualified_name + "'");
@@ -1297,6 +1324,14 @@ std::expected<void, std::string> validate_backend_package(BackendModel& model,
                                            + callee.qualified_name + "'");
                 }
                 for (std::size_t index = 0; index < terminator.args.size(); ++index) {
+                    if (callee.params[index].is_compile_time_only) {
+                        if (terminator.args[index].kind != mir::OperandKind::Unit) {
+                            return std::unexpected("internal backend error: compile-time-only parameter "
+                                                   + std::to_string(index) + " of callee '"
+                                                   + callee.qualified_name + "' was not erased");
+                        }
+                        continue;
+                    }
                     const std::expected<ResolvedType, std::string> param_type = resolve_materializable_type(
                         callee.params[index].type.text,
                         "parameter " + std::to_string(index) + " of callee '" + callee.qualified_name + "'");
@@ -1479,7 +1514,9 @@ std::expected<void, std::string> FunctionEmitter::prepare_locals() {
             return std::unexpected(resolved.error());
         }
         local_types_.emplace(local.id, *resolved);
-        local_slots_.emplace(local.id, "%slot" + std::to_string(local.id));
+        if (!local.is_compile_time_only) {
+            local_slots_.emplace(local.id, "%slot" + std::to_string(local.id));
+        }
     }
     return {};
 }
@@ -1513,6 +1550,12 @@ void FunctionEmitter::append_line(const std::string& text) {
 std::expected<std::string, std::string> FunctionEmitter::local_slot(mir::LocalId local_id) const {
     if (const auto it = local_slots_.find(local_id); it != local_slots_.end()) {
         return it->second;
+    }
+    for (const mir::Local& local : mir_function_.locals) {
+        if (local.id == local_id && local.is_compile_time_only) {
+            return std::unexpected("internal backend error: compile-time-only local %"
+                                   + std::to_string(local_id) + " has no runtime storage");
+        }
     }
     return std::unexpected("internal backend error: unknown local %" + std::to_string(local_id));
 }
@@ -1787,6 +1830,14 @@ std::expected<void, std::string> FunctionEmitter::emit_assign_call(mir::LocalId 
     std::vector<std::string> args;
     args.reserve(value.args.size());
     for (std::size_t index = 0; index < value.args.size(); ++index) {
+        if (callee.params[index].is_compile_time_only) {
+            if (value.args[index].kind != mir::OperandKind::Unit) {
+                return std::unexpected("internal backend error: compile-time-only parameter "
+                                       + std::to_string(index) + " of callee '" + callee.qualified_name
+                                       + "' was not erased");
+            }
+            continue;
+        }
         const std::expected<ResolvedType, std::string> param_type = model_.resolve_type_name(callee.params[index].type.text);
         if (!param_type.has_value()) {
             return std::unexpected(param_type.error());
@@ -2179,6 +2230,14 @@ std::expected<void, std::string> FunctionEmitter::emit_invoke(const mir::Termina
     std::vector<std::string> args;
     args.reserve(terminator.args.size());
     for (std::size_t index = 0; index < terminator.args.size(); ++index) {
+        if (callee.params[index].is_compile_time_only) {
+            if (terminator.args[index].kind != mir::OperandKind::Unit) {
+                return std::unexpected("internal backend error: compile-time-only parameter "
+                                       + std::to_string(index) + " of callee '" + callee.qualified_name
+                                       + "' was not erased");
+            }
+            continue;
+        }
         const std::expected<ResolvedType, std::string> param_type = model_.resolve_type_name(callee.params[index].type.text);
         if (!param_type.has_value()) {
             return std::unexpected(param_type.error());
@@ -2333,14 +2392,19 @@ std::expected<std::string, std::string> FunctionEmitter::emit() {
     std::ostringstream out;
     if (hir_function_.is_foreign) {
         out << "declare " << signature_return_type->llvm_type << " @" << model_.function_symbol(hir_function_.id) << '(';
+        bool first = true;
         for (std::size_t index = 0; index < hir_function_.params.size(); ++index) {
+            if (hir_function_.params[index].is_compile_time_only) {
+                continue;
+            }
             const std::expected<ResolvedType, std::string> param_type = model_.resolve_type_name(hir_function_.params[index].type.text);
             if (!param_type.has_value()) {
                 return std::unexpected(param_type.error());
             }
-            if (index > 0) {
+            if (!first) {
                 out << ", ";
             }
+            first = false;
             out << param_type->llvm_type;
         }
         out << ")\n";
@@ -2350,33 +2414,46 @@ std::expected<std::string, std::string> FunctionEmitter::emit() {
     const std::string linkage = hir_function_.visibility == ast::Visibility::Public ? "" : "internal ";
     out << "define " << linkage << signature_return_type->llvm_type << " @" << model_.function_symbol(hir_function_.id)
         << '(';
+    bool first = true;
+    std::size_t runtime_arg_index = 0;
     for (std::size_t index = 0; index < hir_function_.params.size(); ++index) {
+        if (hir_function_.params[index].is_compile_time_only) {
+            continue;
+        }
         const std::expected<ResolvedType, std::string> param_type = model_.resolve_type_name(hir_function_.params[index].type.text);
         if (!param_type.has_value()) {
             return std::unexpected(param_type.error());
         }
-        if (index > 0) {
+        if (!first) {
             out << ", ";
         }
-        out << param_type->llvm_type << " %arg" << index;
+        first = false;
+        out << param_type->llvm_type << " %arg" << runtime_arg_index++;
     }
     out << ") {\n";
     out << "entry:\n";
 
     for (const mir::Local& local : mir_function_.locals) {
+        if (local.is_compile_time_only) {
+            continue;
+        }
         const std::expected<const ResolvedType*, std::string> local_type_result = local_type(local.id);
         if (!local_type_result.has_value()) {
             return std::unexpected(local_type_result.error());
         }
         emit_instruction(out, *local_slot(local.id) + " = alloca " + (*local_type_result)->llvm_type);
     }
+    runtime_arg_index = 0;
     for (std::size_t index = 0; index < hir_function_.params.size(); ++index) {
+        if (hir_function_.params[index].is_compile_time_only) {
+            continue;
+        }
         const mir::LocalId local_id = mir_function_.locals[index].id;
         const std::expected<const ResolvedType*, std::string> param_type = local_type(local_id);
         if (!param_type.has_value()) {
             return std::unexpected(param_type.error());
         }
-        emit_instruction(out, "store " + (*param_type)->llvm_type + " %arg" + std::to_string(index)
+        emit_instruction(out, "store " + (*param_type)->llvm_type + " %arg" + std::to_string(runtime_arg_index++)
                               + ", ptr " + *local_slot(local_id));
     }
 

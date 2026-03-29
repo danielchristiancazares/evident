@@ -1,0 +1,17 @@
+public proof Receipt {
+    count: Int,
+}
+
+public struct Envelope {
+    receipt: Receipt,
+}
+
+public fn mint() -> Receipt proves Receipt {
+    prove Receipt { count: 7 }
+}
+
+public fn boot() -> Receipt {
+    let receipt = mint();
+    let envelope = Envelope { receipt };
+    receipt
+}

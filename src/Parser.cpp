@@ -397,7 +397,23 @@ ast::FunctionSignature Parser::parse_function_signature(std::string name) {
     if (match(TokenKind::KeywordYields)) {
         signature.yields_type = parse_type();
     }
-    signature.span = SourceSpan{begin, signature.yields_type.has_value() ? signature.yields_type->span.end : signature.return_type.span.end};
+    if (match(TokenKind::KeywordGrants)) {
+        signature.grants_type = parse_type();
+    }
+    if (match(TokenKind::KeywordProves)) {
+        signature.proves_type = parse_type();
+    }
+    std::size_t end = signature.return_type.span.end;
+    if (signature.yields_type.has_value()) {
+        end = signature.yields_type->span.end;
+    }
+    if (signature.grants_type.has_value()) {
+        end = signature.grants_type->span.end;
+    }
+    if (signature.proves_type.has_value()) {
+        end = signature.proves_type->span.end;
+    }
+    signature.span = SourceSpan{begin, end};
     return signature;
 }
 
@@ -542,6 +558,9 @@ std::unique_ptr<ast::Expr> Parser::parse_expr() {
     if (check(TokenKind::KeywordMatch)) {
         return parse_match_expr();
     }
+    if (check(TokenKind::KeywordWith)) {
+        return parse_with_expr();
+    }
     return parse_try_expr();
 }
 
@@ -586,10 +605,38 @@ std::unique_ptr<ast::Expr> Parser::parse_try_expr() {
     return parse_fail_expr();
 }
 
+std::unique_ptr<ast::Expr> Parser::parse_with_expr() {
+    const Token start = expect(TokenKind::KeywordWith, "expected 'with'");
+    auto expr = std::make_unique<ast::WithPermitExpr>();
+    expr->grant_call = parse_postfix_expr();
+    expect(TokenKind::KeywordAs, "expected 'as' after permit grant call");
+    const Token binder = expect(TokenKind::Identifier, "expected permit binder name");
+    expr->binder_name = token_text(binder);
+    expr->body = parse_block_expr();
+    expr->span = SourceSpan{start.span.begin, expr->body != nullptr ? expr->body->span.end : binder.span.end};
+    return expr;
+}
+
 std::unique_ptr<ast::Expr> Parser::parse_fail_expr() {
     if (match(TokenKind::KeywordFail)) {
         const Token start = tokens_[current_ - 1];
         auto expr = std::make_unique<ast::FailExpr>();
+        expr->path = parse_path();
+        expr->span.begin = start.span.begin;
+        expr->span.end = tokens_[current_ - 1].span.end;
+        if (check(TokenKind::LeftBrace)) {
+            expr->fields = parse_record_field_initializers();
+            expr->span.end = tokens_[current_ - 1].span.end;
+        }
+        return expr;
+    }
+    return parse_prove_expr();
+}
+
+std::unique_ptr<ast::Expr> Parser::parse_prove_expr() {
+    if (match(TokenKind::KeywordProve)) {
+        const Token start = tokens_[current_ - 1];
+        auto expr = std::make_unique<ast::ProveExpr>();
         expr->path = parse_path();
         expr->span.begin = start.span.begin;
         expr->span.end = tokens_[current_ - 1].span.end;
@@ -763,8 +810,10 @@ bool Parser::begins_expr(TokenKind kind) const noexcept {
     case TokenKind::String:
     case TokenKind::LeftBrace:
     case TokenKind::KeywordMatch:
+    case TokenKind::KeywordWith:
     case TokenKind::KeywordTry:
     case TokenKind::KeywordFail:
+    case TokenKind::KeywordProve:
         return true;
     default:
         return false;

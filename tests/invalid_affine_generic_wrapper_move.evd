@@ -1,0 +1,12 @@
+public proof Receipt {
+    count: Int,
+}
+
+public struct Wrapper<T> {
+    value: T,
+}
+
+public fn take(wrapper: Wrapper<Receipt>) -> Wrapper<Receipt> {
+    let copy = wrapper;
+    wrapper
+}

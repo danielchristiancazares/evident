@@ -1,0 +1,37 @@
+public proof Receipt {
+    count: Int,
+}
+
+public state Gate {
+    Open,
+    Shut,
+}
+
+public reason Err {
+    Nope,
+}
+
+public fn mint() -> Receipt proves Receipt {
+    prove Receipt { count: 7 }
+}
+
+public fn choose() -> Gate {
+    Open
+}
+
+public fn consume(receipt: Receipt) -> Unit {
+}
+
+public fn boot() -> Receipt yields Err {
+    let receipt = mint();
+    let gate = choose();
+    match gate {
+        Open => {
+            consume(receipt);
+            fail Nope
+        },
+        Shut => {
+        },
+    };
+    receipt
+}

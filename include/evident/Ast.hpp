@@ -37,6 +37,8 @@ enum class ExprKind {
     Match,
     Block,
     Fail,
+    WithPermit,
+    Prove,
 };
 
 enum class StmtKind {
@@ -90,6 +92,8 @@ struct FunctionSignature {
     std::vector<Parameter> params;
     TypeRef return_type;
     std::optional<TypeRef> yields_type;
+    std::optional<TypeRef> grants_type;
+    std::optional<TypeRef> proves_type;
     SourceSpan span{};
 };
 
@@ -251,6 +255,23 @@ struct FailExpr final : Expr {
 
     FailExpr()
         : Expr(ExprKind::Fail) {}
+};
+
+struct WithPermitExpr final : Expr {
+    std::unique_ptr<Expr> grant_call;
+    std::string binder_name;
+    std::unique_ptr<BlockExpr> body;
+
+    WithPermitExpr()
+        : Expr(ExprKind::WithPermit) {}
+};
+
+struct ProveExpr final : Expr {
+    std::vector<std::string> path;
+    std::vector<RecordFieldInit> fields;
+
+    ProveExpr()
+        : Expr(ExprKind::Prove) {}
 };
 
 struct Decl : Node {

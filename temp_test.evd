@@ -1,0 +1,7 @@
+public permit RenderPassActive
+public fn start_pass() -> Unit grants RenderPassActive {
+}
+public fn submit(pass: RenderPassActive) -> Int { 7 }
+public fn main() -> Int {
+  with start_pass() as pass { submit(pass) }
+}

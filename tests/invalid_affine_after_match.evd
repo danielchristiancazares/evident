@@ -1,0 +1,25 @@
+public proof Receipt {
+    count: Int,
+}
+
+public state TicketState {
+    Issued { receipt: Receipt },
+    Archived,
+}
+
+public fn mint() -> Receipt proves Receipt {
+    prove Receipt { count: 7 }
+}
+
+public fn make_ticket() -> TicketState {
+    Issued { receipt: mint() }
+}
+
+public fn boot() -> TicketState {
+    let ticket = make_ticket();
+    match ticket {
+        Issued { receipt } => Issued { receipt },
+        Archived => Archived,
+    };
+    ticket
+}

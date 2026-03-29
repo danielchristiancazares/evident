@@ -1,6 +1,7 @@
 #pragma once
 
 #include "evident/Ast.hpp"
+#include "evident/ResolvedType.hpp"
 
 #include <cstddef>
 #include <memory>
@@ -34,6 +35,8 @@ enum class ExprKind {
     Match,
     Block,
     Fail,
+    WithPermit,
+    Prove,
 };
 
 enum class StatementKind {
@@ -60,6 +63,8 @@ struct TypeRef {
     std::optional<TypeId> type_id;
     bool is_builtin = false;
     bool is_generic = false;
+    typesys::UseDiscipline discipline = typesys::UseDiscipline::Copyable;
+    std::vector<TypeRef> args;
 };
 
 struct FieldDecl {
@@ -80,6 +85,7 @@ struct TypeDecl {
     TypeKind kind = TypeKind::Struct;
     ast::Visibility visibility = ast::Visibility::Private;
     std::string qualified_name;
+    std::optional<typesys::UseDiscipline> concrete_discipline;
     std::vector<std::string> generics;
     std::vector<FieldDecl> fields;
     std::vector<VariantId> variants;
@@ -89,6 +95,7 @@ struct TypeDecl {
 struct Parameter {
     std::string name;
     TypeRef type;
+    bool is_compile_time_only = false;
 };
 
 struct Binding {
@@ -264,6 +271,28 @@ struct FailExpr final : Expr {
         : Expr(ExprKind::Fail, std::move(type)) {}
 };
 
+struct WithPermitExpr final : Expr {
+    FunctionId grant_function_id = 0;
+    TypeId permit_type_id = 0;
+    std::string grant_name;
+    std::string permit_name;
+    std::string binder_name;
+    std::vector<std::unique_ptr<Expr>> args;
+    std::unique_ptr<BlockExpr> body;
+
+    explicit WithPermitExpr(TypeRef type = {})
+        : Expr(ExprKind::WithPermit, std::move(type)) {}
+};
+
+struct ProveExpr final : Expr {
+    TypeId proof_type_id = 0;
+    std::string qualified_name;
+    std::vector<FieldInit> fields;
+
+    explicit ProveExpr(TypeRef type = {})
+        : Expr(ExprKind::Prove, std::move(type)) {}
+};
+
 struct FunctionDecl {
     FunctionId id = 0;
     ast::Visibility visibility = ast::Visibility::Private;
@@ -272,6 +301,8 @@ struct FunctionDecl {
     std::vector<Parameter> params;
     TypeRef return_type;
     std::optional<TypeId> yields_reason_type_id;
+    std::optional<TypeId> grants_permit_type_id;
+    std::optional<TypeId> proves_proof_type_id;
     bool is_foreign = false;
     std::unique_ptr<BlockExpr> body;
 };

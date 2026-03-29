@@ -1,0 +1,27 @@
+public permit RenderPassActive
+
+public struct Mesh {
+    raw: Int,
+}
+
+public proof FrameReceipt {
+    count: Int,
+}
+
+public fn start_pass() -> Unit grants RenderPassActive {
+}
+
+public fn submit(pass: RenderPassActive, mesh: Mesh) -> Int {
+    7
+}
+
+public fn make_receipt(mesh: Mesh) -> FrameReceipt proves FrameReceipt {
+    prove FrameReceipt { count: 7 }
+}
+
+public fn boot(mesh: Mesh) -> FrameReceipt {
+    with start_pass() as pass {
+        submit(pass, mesh);
+        make_receipt(mesh)
+    }
+}

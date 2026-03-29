@@ -1,0 +1,24 @@
+functions:
+  - public fn mint -> Receipt proves Receipt
+      locals:
+        %0[$return] : Receipt [affine]
+      block %0
+        %0[$return] = construct Receipt {count: 7}
+        return %0[$return]
+  - public fn pass_through -> Receipt
+      locals:
+        %0[receipt] : Receipt [affine]
+        %1[$return] : Receipt [affine]
+        %2[next] : Receipt [affine]
+      block %0
+        %2[next] = %0[receipt]
+        %1[$return] = %2[next]
+        return %1[$return]
+  - public fn boot -> Receipt
+      locals:
+        %0[$return] : Receipt [affine]
+        %1[receipt] : Receipt [affine]
+      block %0
+        %1[receipt] = call mint()
+        %0[$return] = call pass_through(%1[receipt])
+        return %0[$return]
