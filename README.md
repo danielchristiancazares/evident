@@ -8,8 +8,10 @@ Pipeline:
 2. lexing
 3. parsing of declarations, function bodies, expressions, and patterns
 4. semantic analysis and type checking
-5. HIR lowering
-6. stub backend emission
+5. typed HIR lowering
+6. MIR lowering to explicit locals / blocks / terminators
+7. LLVM IR emission
+8. optional native assembly / object / executable emission via `clang` + `lld`
 
 ## Implemented surface language
 
@@ -73,7 +75,8 @@ This version does **not** yet implement:
 - typestate transition proofs
 - permit/proof minting restrictions beyond type-position checks
 - optimization passes
-- real code generation beyond the stub backend
+- cross-target native backends beyond Windows x64 COFF
+- debug info or optimized native code generation
 
 ## Build
 
@@ -87,8 +90,15 @@ cmake --build build -j
 ```bash
 ./build/evidc --dump-ast examples/feature_mode.evd
 ./build/evidc --dump-hir examples/feature_mode.evd
+./build/evidc --dump-mir examples/feature_mode.evd
 ./build/evidc --emit-stub out.stub.txt examples/feature_mode.evd
+./build/evidc --emit-llvm out.ll examples/feature_mode.evd
+./build/evidc --emit-asm out.s examples/feature_mode.evd
+./build/evidc --emit-obj out.obj examples/feature_mode.evd
+./build/evidc --emit-exe out.exe tests/native_main_constant.evd
 ```
+
+Native emission currently targets `x86_64-pc-windows-msvc` and defaults to that triple. Executable emission requires a top-level `public fn main() -> Int` with no parameters and no `yields`.
 
 ## Tests
 
@@ -97,6 +107,7 @@ cd build && ctest --output-on-failure
 ```
 
 The test suite includes positive examples plus rejection tests for declaration errors, visibility leaks, pseudo-optionals, foreign-function violations, unknown types, non-exhaustive matches, unhandled yielded calls, invalid `try`, invalid `fail`, and wildcard patterns.
+It also includes MIR golden-output comparisons, LLVM IR golden-output comparisons, assembly/object emission smoke tests, linked executable exit-code tests, and backend entrypoint rejection tests.
 
 ## Project layout
 
@@ -109,12 +120,21 @@ include/evident/
   Ast.hpp         -- surface AST
   Parser.hpp      -- recursive-descent parser
   Semantic.hpp    -- semantic analysis / type checking
-  Hir.hpp         -- lowered summary IR + stub emitter
+  Hir.hpp         -- typed lowered IR with function bodies
+  Mir.hpp         -- CFG-style MIR with explicit locals and terminators
+  Backend.hpp     -- LLVM-backed native backend surface
   Driver.hpp      -- CLI pipeline
 src/
   *.cpp           -- implementations
+cmake/
+  RunAndCompareOutput.cmake
 examples/
   feature_mode.evd
 tests/
-  *.evd
+  *.evd / *.mir.txt
 ```
+
+
+## Native direction
+
+The current backend path is native code on Windows x64 COFF through emitted LLVM IR. A C emitter may still be useful as a bootstrap or debugging tool, but it is not the language target. See `docs/NATIVE_BACKEND_PLAN.md`.
