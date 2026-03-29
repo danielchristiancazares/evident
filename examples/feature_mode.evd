@@ -1,0 +1,51 @@
+public struct FeatureConfig {
+    endpoint: Text,
+    retries: Nat,
+}
+
+public struct FileHandle {
+    raw: Int,
+}
+
+public state FeatureMode {
+    OfflineOnly,
+    ProviderBacked { config: FeatureConfig },
+}
+
+public reason OpenFailure {
+    FileNotFound { path: Text },
+    PermissionDenied { path: Text },
+}
+
+public proof ConfigValidatedReceipt {
+    config: FeatureConfig,
+}
+
+public permit RenderPassActive
+
+public fn choose_mode(config: FeatureConfig) -> FeatureMode {
+    ProviderBacked { config }
+}
+
+public fn open_mode(mode: FeatureMode) -> FileHandle yields OpenFailure {
+    match mode {
+        OfflineOnly => fail FileNotFound { path: "offline" },
+        ProviderBacked { config } => FileHandle { raw: 1 },
+    }
+}
+
+module billing {
+    public struct Card {
+        pan: Text,
+    }
+
+    public state ChargeOutcome {
+        Settled { transaction: Text },
+        Declined { code: Text },
+        RequiresAction { action: Text },
+    }
+
+    public fn charge(card: Card, amount: Int) -> ChargeOutcome {
+        RequiresAction { action: "3ds" }
+    }
+}

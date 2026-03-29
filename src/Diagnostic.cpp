@@ -1,0 +1,86 @@
+#include "evident/Diagnostic.hpp"
+
+#include <algorithm>
+#include <iostream>
+#include <ostream>
+#include <string_view>
+
+namespace evident {
+
+namespace {
+
+std::string_view severity_name(DiagnosticSeverity severity) {
+    switch (severity) {
+    case DiagnosticSeverity::Error:
+        return "error";
+    case DiagnosticSeverity::Warning:
+        return "warning";
+    case DiagnosticSeverity::Note:
+        return "note";
+    }
+    return "error";
+}
+
+} // namespace
+
+void DiagnosticSink::error(SourceSpan span, std::string message) {
+    push(DiagnosticSeverity::Error, span, std::move(message));
+}
+
+void DiagnosticSink::warning(SourceSpan span, std::string message) {
+    push(DiagnosticSeverity::Warning, span, std::move(message));
+}
+
+void DiagnosticSink::note(SourceSpan span, std::string message) {
+    push(DiagnosticSeverity::Note, span, std::move(message));
+}
+
+bool DiagnosticSink::has_errors() const noexcept {
+    return std::any_of(items_.begin(), items_.end(), [](const Diagnostic& diagnostic) {
+        return diagnostic.severity == DiagnosticSeverity::Error;
+    });
+}
+
+const std::vector<Diagnostic>& DiagnosticSink::items() const noexcept {
+    return items_;
+}
+
+void DiagnosticSink::print(const SourceFile& source, std::ostream& out) const {
+    for (const Diagnostic& diagnostic : items_) {
+        const SourceLocation location = source.locate(diagnostic.span.begin);
+        out << source.path() << ':' << location.line << ':' << location.column << ": "
+            << severity_name(diagnostic.severity) << ": " << diagnostic.message << '\n';
+
+        const SourceLocation line_location = source.locate(diagnostic.span.begin);
+        const std::size_t line_start = source.locate(diagnostic.span.begin).offset - (line_location.column - 1);
+        std::size_t line_end = line_start;
+        while (line_end < source.text().size() && source.text()[line_end] != '\n') {
+            ++line_end;
+        }
+
+        const std::string_view line_text = source.slice(SourceSpan{line_start, line_end});
+        out << "    " << line_text << '\n';
+        out << "    ";
+        for (std::size_t i = 1; i < line_location.column; ++i) {
+            out << ' ';
+        }
+
+        std::size_t highlight_width = 1;
+        if (diagnostic.span.end > diagnostic.span.begin) {
+            highlight_width = diagnostic.span.end - diagnostic.span.begin;
+            if (line_start + highlight_width > line_end) {
+                highlight_width = std::max<std::size_t>(1, line_end - diagnostic.span.begin);
+            }
+        }
+        for (std::size_t i = 0; i < highlight_width; ++i) {
+            out << '^';
+        }
+        out << '\n';
+    }
+}
+
+void DiagnosticSink::push(DiagnosticSeverity severity, SourceSpan span, std::string message) {
+    items_.push_back(Diagnostic{severity, span, std::move(message)});
+}
+
+} // namespace evident

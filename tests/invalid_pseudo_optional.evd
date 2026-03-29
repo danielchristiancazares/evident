@@ -1,0 +1,4 @@
+public state Connection {
+    Present { id: Int },
+    Absent,
+}

@@ -1,0 +1,11 @@
+public state FeatureMode {
+    OfflineOnly,
+    ProviderBacked { config: Text },
+}
+
+public fn render(mode: FeatureMode) -> Text {
+    match mode {
+        _ => "unknown",
+        ProviderBacked { .. } => "provider",
+    }
+}

@@ -1,0 +1,28 @@
+# Build output
+build/
+out/
+cmake-build-*/
+
+# IDE / editor
+.vs/
+.vscode/
+*.suo
+*.user
+*.sln.docstates
+.idea/
+*.swp
+*~
+
+# Compiled objects
+*.o
+*.obj
+*.pch
+*.gch
+
+# OS junk
+Thumbs.db
+Desktop.ini
+.DS_Store
+
+# Repomix
+repomix-output.txt

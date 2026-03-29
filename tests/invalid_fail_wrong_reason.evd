@@ -1,0 +1,15 @@
+public reason OpenFailure {
+    FileNotFound,
+}
+
+public reason ParseFailure {
+    BadSyntax,
+}
+
+public struct FileHandle {
+    raw: Int,
+}
+
+public fn boot() -> FileHandle yields OpenFailure {
+    fail BadSyntax
+}

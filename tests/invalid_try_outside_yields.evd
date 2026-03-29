@@ -1,0 +1,13 @@
+public reason OpenFailure {
+    FileNotFound,
+}
+
+public struct FileHandle {
+    raw: Int,
+}
+
+public fn open() -> FileHandle yields OpenFailure
+
+public fn boot() -> FileHandle {
+    try open()
+}

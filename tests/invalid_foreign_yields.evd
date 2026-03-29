@@ -1,0 +1,5 @@
+public reason Error {
+    OhNo,
+}
+
+public foreign fn test() -> Int yields Error

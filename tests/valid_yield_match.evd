@@ -1,0 +1,20 @@
+public reason ParseFailure {
+    Bad,
+    MissingKey { key: Text },
+}
+
+public struct Config {
+    raw: Text,
+}
+
+public fn parse(raw: Text) -> Config yields ParseFailure {
+    fail Bad
+}
+
+public fn boot(raw: Text) -> Config {
+    match parse(raw) {
+        succeeded(config) => config,
+        failed(Bad) => Config { raw: "fallback" },
+        failed(MissingKey { key }) => Config { raw: key },
+    }
+}

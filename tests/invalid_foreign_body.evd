@@ -1,0 +1,3 @@
+public foreign fn test() -> Int {
+    1
+}

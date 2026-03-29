@@ -1,0 +1,8 @@
+public struct EmailAddress {
+    value: Text,
+}
+
+public state MaybeEmail {
+    Missing,
+    Present { value: EmailAddress },
+}

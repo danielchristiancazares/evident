@@ -1,0 +1,6 @@
+public state NotAReason {
+    A,
+    B,
+}
+
+public fn bad() -> Int yields NotAReason
