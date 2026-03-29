@@ -1,0 +1,3 @@
+public fn main() -> Int {
+    7
+}

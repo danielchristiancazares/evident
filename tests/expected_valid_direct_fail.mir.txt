@@ -1,0 +1,8 @@
+functions:
+  - public fn boot -> FileHandle yields OpenFailure
+      locals:
+        %0[$return] : FileHandle
+        %1[reason] : OpenFailure
+      block %0
+        %1[reason] = construct OpenFailure::FileNotFound {path: "missing"}
+        fail %1[reason]

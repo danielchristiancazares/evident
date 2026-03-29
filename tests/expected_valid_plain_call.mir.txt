@@ -1,0 +1,15 @@
+functions:
+  - public fn make_value -> Value
+      locals:
+        %0[raw] : Int
+        %1[$return] : Value
+      block %0
+        %1[$return] = construct Value {raw: %0[raw]}
+        return %1[$return]
+  - public fn boot -> Value
+      locals:
+        %0[raw] : Int
+        %1[$return] : Value
+      block %0
+        %1[$return] = call make_value(%0[raw])
+        return %1[$return]

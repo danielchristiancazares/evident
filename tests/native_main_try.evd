@@ -1,0 +1,18 @@
+public reason OpenFailure {
+    FileNotFound { path: Text },
+}
+
+public fn open(raw: Int) -> Int yields OpenFailure {
+    raw
+}
+
+public fn boot() -> Int yields OpenFailure {
+    try open(11)
+}
+
+public fn main() -> Int {
+    match boot() {
+        succeeded(value) => value,
+        failed(FileNotFound { path }) => 2,
+    }
+}

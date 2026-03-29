@@ -1,0 +1,7 @@
+public reason OpenFailure {
+    FileNotFound { path: Text },
+}
+
+public fn main() -> Int yields OpenFailure {
+    fail FileNotFound { path: "missing" }
+}

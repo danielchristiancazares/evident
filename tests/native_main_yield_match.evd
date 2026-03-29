@@ -1,0 +1,14 @@
+public reason ParseFailure {
+    MissingKey { key: Text },
+}
+
+public fn parse() -> Int yields ParseFailure {
+    fail MissingKey { key: "abc" }
+}
+
+public fn main() -> Int {
+    match parse() {
+        succeeded(value) => value,
+        failed(MissingKey { key }) => 3,
+    }
+}

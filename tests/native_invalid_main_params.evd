@@ -1,0 +1,3 @@
+public fn main(raw: Int) -> Int {
+    raw
+}

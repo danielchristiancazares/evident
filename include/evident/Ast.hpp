@@ -156,6 +156,50 @@ struct TryExpr final : Expr {
         : Expr(ExprKind::Try) {}
 };
 
+struct Pattern : Node {
+    PatternKind kind;
+
+    explicit Pattern(PatternKind pattern_kind)
+        : kind(pattern_kind) {}
+    ~Pattern() override = default;
+};
+
+struct VariantPattern final : Pattern {
+    enum class PayloadMode {
+        None,
+        Bindings,
+        Ignore,
+    };
+
+    struct Binding {
+        std::string field_name;
+        std::string binding_name;
+        SourceSpan span{};
+    };
+
+    std::vector<std::string> path;
+    PayloadMode payload_mode = PayloadMode::None;
+    std::vector<Binding> bindings;
+
+    VariantPattern()
+        : Pattern(PatternKind::Variant) {}
+};
+
+struct SucceededPattern final : Pattern {
+    std::optional<std::string> binding_name;
+    bool ignore = false;
+
+    SucceededPattern()
+        : Pattern(PatternKind::Succeeded) {}
+};
+
+struct FailedPattern final : Pattern {
+    std::unique_ptr<VariantPattern> variant;
+
+    FailedPattern()
+        : Pattern(PatternKind::Failed) {}
+};
+
 struct MatchArm {
     std::unique_ptr<Pattern> pattern;
     std::unique_ptr<Expr> body;
@@ -207,50 +251,6 @@ struct FailExpr final : Expr {
 
     FailExpr()
         : Expr(ExprKind::Fail) {}
-};
-
-struct Pattern : Node {
-    PatternKind kind;
-
-    explicit Pattern(PatternKind pattern_kind)
-        : kind(pattern_kind) {}
-    ~Pattern() override = default;
-};
-
-struct VariantPattern final : Pattern {
-    enum class PayloadMode {
-        None,
-        Bindings,
-        Ignore,
-    };
-
-    struct Binding {
-        std::string field_name;
-        std::string binding_name;
-        SourceSpan span{};
-    };
-
-    std::vector<std::string> path;
-    PayloadMode payload_mode = PayloadMode::None;
-    std::vector<Binding> bindings;
-
-    VariantPattern()
-        : Pattern(PatternKind::Variant) {}
-};
-
-struct SucceededPattern final : Pattern {
-    std::optional<std::string> binding_name;
-    bool ignore = false;
-
-    SucceededPattern()
-        : Pattern(PatternKind::Succeeded) {}
-};
-
-struct FailedPattern final : Pattern {
-    std::unique_ptr<VariantPattern> variant;
-
-    FailedPattern()
-        : Pattern(PatternKind::Failed) {}
 };
 
 struct Decl : Node {

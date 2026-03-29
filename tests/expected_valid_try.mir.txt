@@ -1,0 +1,19 @@
+functions:
+  - public fn open -> FileHandle yields OpenFailure
+      locals:
+        %0[raw] : Int
+        %1[$return] : FileHandle
+      block %0
+        %1[$return] = construct FileHandle {raw: %0[raw]}
+        return %1[$return]
+  - public fn boot -> FileHandle yields OpenFailure
+      locals:
+        %0[raw] : Int
+        %1[$return] : FileHandle
+        %2[failure] : OpenFailure
+      block %0
+        invoke open(%0[raw]) ok %1[$return] -> %1 fail %2[failure] -> %2
+      block %1
+        return %1[$return]
+      block %2
+        fail %2[failure]

@@ -1,0 +1,7 @@
+public struct Value {
+    raw: Int,
+}
+
+public fn main() -> Value {
+    Value { raw: 0 }
+}

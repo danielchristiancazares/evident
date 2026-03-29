@@ -1,0 +1,11 @@
+public struct Value {
+    raw: Int,
+}
+
+public fn make_value(raw: Int) -> Value {
+    Value { raw }
+}
+
+public fn boot(raw: Int) -> Value {
+    make_value(raw)
+}

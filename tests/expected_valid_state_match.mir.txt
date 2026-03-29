@@ -1,0 +1,19 @@
+functions:
+  - public fn render -> Int
+      locals:
+        %0[mode] : Mode
+        %1[$return] : Int
+        %2[retries] : Int
+      block %0
+        switch %0[mode]
+          arm Offline -> %1
+          arm Online -> %3
+      block %1
+        %1[$return] = 0
+        goto %2
+      block %2
+        return %1[$return]
+      block %3
+        %2[retries] = %0[mode].retries
+        %1[$return] = %2[retries]
+        goto %2

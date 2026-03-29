@@ -1,0 +1,11 @@
+public state Mode {
+    Offline,
+    Online { retries: Int },
+}
+
+public fn render(mode: Mode) -> Int {
+    match mode {
+        Offline => 0,
+        Online { retries } => retries,
+    }
+}

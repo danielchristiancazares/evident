@@ -1,0 +1,11 @@
+public reason OpenFailure {
+    FileNotFound { path: Text },
+}
+
+public struct FileHandle {
+    raw: Int,
+}
+
+public fn boot() -> FileHandle yields OpenFailure {
+    fail FileNotFound { path: "missing" }
+}
