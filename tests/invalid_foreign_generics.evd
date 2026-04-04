@@ -1,0 +1,3 @@
+boundary module test {
+public foreign fn foo<T>() -> Int
+}

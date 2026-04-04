@@ -1,8 +1,9 @@
+foundation module test {
 public proof Receipt {
     count: Int,
 }
 
-public struct Envelope {
+public record Envelope {
     receipt: Receipt,
 }
 
@@ -14,4 +15,5 @@ public fn boot() -> Receipt {
     let receipt = mint();
     let envelope = Envelope { receipt };
     receipt
+}
 }

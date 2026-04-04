@@ -1,6 +1,8 @@
+domain module test {
 public state NotAReason {
     A,
     B,
 }
 
-public fn bad() -> Int yields NotAReason
+public fn bad() -> Int fails NotAReason
+}

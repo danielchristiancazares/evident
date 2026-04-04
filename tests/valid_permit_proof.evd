@@ -1,6 +1,7 @@
+domain module test {
 public permit RenderPassActive
 
-public struct Mesh {
+public record Mesh {
     raw: Int,
 }
 
@@ -20,8 +21,9 @@ public fn make_receipt(mesh: Mesh) -> FrameReceipt proves FrameReceipt {
 }
 
 public fn boot(mesh: Mesh) -> FrameReceipt {
-    with start_pass() as pass {
+    grant start_pass() as pass {
         submit(pass, mesh);
         make_receipt(mesh)
     }
+}
 }

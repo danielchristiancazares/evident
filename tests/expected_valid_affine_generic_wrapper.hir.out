@@ -1,10 +1,10 @@
 types:
-  - public proof Receipt [affine]
+  - public proof test::Receipt [affine]
       field count: Int
-  - public struct Wrapper
-      field value: T
+  - public record test::Wrapper [affine]
+      field value: test::Receipt [affine]
 functions:
-  - public fn take(wrapper: Wrapper<Receipt> [affine]) -> Wrapper<Receipt> [affine]
-      block -> Wrapper<Receipt> [affine]
+  - public fn test::take(wrapper: test::Wrapper [affine]) -> test::Wrapper [affine]
+      block -> test::Wrapper [affine]
         result
-          local wrapper : Wrapper<Receipt> [affine]
+          local wrapper : test::Wrapper [affine]

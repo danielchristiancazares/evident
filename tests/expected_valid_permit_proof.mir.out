@@ -1,34 +1,34 @@
 functions:
-  - public fn start_pass -> Unit grants RenderPassActive
+  - public fn test::start_pass -> Unit grants test::RenderPassActive
       locals:
         %0[$return] : Unit
       block %0
         %0[$return] = unit
         return %0[$return]
-  - public fn submit -> Int
+  - public fn test::submit -> Int
       locals:
-        %0[pass] : RenderPassActive [compile-time-only]
-        %1[mesh] : Mesh
+        %0[pass] : test::RenderPassActive [compile-time-only]
+        %1[mesh] : test::Mesh
         %2[$return] : Int
       block %0
         %2[$return] = 7
         return %2[$return]
-  - public fn make_receipt -> FrameReceipt proves FrameReceipt
+  - public fn test::make_receipt -> test::FrameReceipt proves test::FrameReceipt
       locals:
-        %0[mesh] : Mesh
-        %1[$return] : FrameReceipt [affine]
+        %0[mesh] : test::Mesh
+        %1[$return] : test::FrameReceipt [affine]
       block %0
-        %1[$return] = construct FrameReceipt {count: 7}
+        %1[$return] = construct test::FrameReceipt {count: 7}
         return %1[$return]
-  - public fn boot -> FrameReceipt
+  - public fn test::boot -> test::FrameReceipt
       locals:
-        %0[mesh] : Mesh
-        %1[$return] : FrameReceipt [affine]
+        %0[mesh] : test::Mesh
+        %1[$return] : test::FrameReceipt [affine]
         %2[grant] : Unit
-        %3[pass] : RenderPassActive [compile-time-only]
+        %3[pass] : test::RenderPassActive [compile-time-only]
         %4[discard] : Int
       block %0
-        %2[grant] = call start_pass()
-        %4[discard] = call submit(unit, %0[mesh])
-        %1[$return] = call make_receipt(%0[mesh])
+        %2[grant] = call test::start_pass()
+        %4[discard] = call test::submit(unit, %0[mesh])
+        %1[$return] = call test::make_receipt(%0[mesh])
         return %1[$return]

@@ -1,0 +1,12 @@
+domain module outer {
+    public record R {
+        public x: Int,
+        y: Int,
+    }
+}
+
+domain module client {
+    public fn g(r: outer::R) -> Int {
+        r.y
+    }
+}

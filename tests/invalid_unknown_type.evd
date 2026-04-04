@@ -1,3 +1,5 @@
-public struct Valid {
+domain module test {
+public record Valid {
     x: DoesNotExist,
+}
 }

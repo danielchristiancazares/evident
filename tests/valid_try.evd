@@ -1,15 +1,17 @@
+domain module test {
 public reason OpenFailure {
     FileNotFound { path: Text },
 }
 
-public struct FileHandle {
+public record FileHandle {
     raw: Int,
 }
 
-public fn open(raw: Int) -> FileHandle yields OpenFailure {
+public fn open(raw: Int) -> FileHandle fails OpenFailure {
     FileHandle { raw }
 }
 
-public fn boot(raw: Int) -> FileHandle yields OpenFailure {
+public fn boot(raw: Int) -> FileHandle fails OpenFailure {
     try open(raw)
+}
 }

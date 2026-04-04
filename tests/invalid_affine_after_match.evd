@@ -1,3 +1,4 @@
+domain module test {
 public proof Receipt {
     count: Int,
 }
@@ -22,4 +23,5 @@ public fn boot() -> TicketState {
         Archived => Archived,
     };
     ticket
+}
 }

@@ -1,3 +1,5 @@
+domain module test {
 public fn main(raw: Int) -> Int {
     raw
+}
 }

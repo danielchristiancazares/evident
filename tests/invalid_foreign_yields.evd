@@ -1,5 +1,7 @@
+boundary module test {
 public reason Error {
     OhNo,
 }
 
-public foreign fn test() -> Int yields Error
+public foreign fn test() -> Int fails Error
+}

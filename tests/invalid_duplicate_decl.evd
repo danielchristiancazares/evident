@@ -1,7 +1,9 @@
-struct Foo {
+domain module test {
+record Foo {
     x: Int,
 }
 
-struct Foo {
+record Foo {
     y: Int,
+}
 }

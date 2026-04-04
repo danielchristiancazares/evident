@@ -1,7 +1,9 @@
+domain module test {
 public fn helper(raw: Int) -> Int {
     raw
 }
 
 public fn main() -> Int {
     helper(8)
+}
 }

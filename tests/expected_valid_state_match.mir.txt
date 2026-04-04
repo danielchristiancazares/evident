@@ -1,7 +1,7 @@
 functions:
-  - public fn render -> Int
+  - public fn test::render -> Int
       locals:
-        %0[mode] : Mode
+        %0[mode] : test::Mode
         %1[$return] : Int
         %2[retries] : Int
       block %0

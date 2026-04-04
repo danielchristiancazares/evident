@@ -1,7 +1,9 @@
-public struct Value {
+domain module test {
+public record Value {
     raw: Int,
 }
 
 public fn main() -> Value {
     Value { raw: 0 }
+}
 }

@@ -1,12 +1,13 @@
+domain module test {
 public reason OpenFailure {
     FileNotFound { path: Text },
 }
 
-public fn open(raw: Int) -> Int yields OpenFailure {
+public fn open(raw: Int) -> Int fails OpenFailure {
     raw
 }
 
-public fn boot() -> Int yields OpenFailure {
+public fn boot() -> Int fails OpenFailure {
     try open(11)
 }
 
@@ -15,4 +16,5 @@ public fn main() -> Int {
         succeeded(value) => value,
         failed(FileNotFound { path }) => 2,
     }
+}
 }

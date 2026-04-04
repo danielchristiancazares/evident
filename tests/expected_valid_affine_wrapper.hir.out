@@ -1,25 +1,25 @@
 types:
-  - public proof Receipt [affine]
+  - public proof test::Receipt [affine]
       field count: Int
-  - public struct Envelope [affine]
-      field receipt: Receipt [affine]
+  - public record test::Envelope [affine]
+      field receipt: test::Receipt [affine]
 functions:
-  - public fn mint() -> Receipt [affine] proves Receipt
-      block -> Receipt [affine]
+  - public fn test::mint() -> test::Receipt [affine] proves test::Receipt
+      block -> test::Receipt [affine]
         result
-          prove Receipt : Receipt [affine]
+          prove test::Receipt : test::Receipt [affine]
             init count
               number 7 : Int
-  - public fn wrap(receipt: Receipt [affine]) -> Envelope [affine]
-      block -> Envelope [affine]
+  - public fn test::wrap(receipt: test::Receipt [affine]) -> test::Envelope [affine]
+      block -> test::Envelope [affine]
         result
-          construct Envelope : Envelope [affine]
+          construct test::Envelope : test::Envelope [affine]
             init receipt [shorthand]
-              local receipt : Receipt [affine]
-  - public fn boot() -> Envelope [affine]
-      block -> Envelope [affine]
-        let receipt: Receipt [affine]
-          call mint -> Receipt [affine]
+              local receipt : test::Receipt [affine]
+  - public fn test::boot() -> test::Envelope [affine]
+      block -> test::Envelope [affine]
+        let receipt: test::Receipt [affine]
+          call test::mint -> test::Receipt [affine]
         result
-          call wrap -> Envelope [affine]
-            local receipt : Receipt [affine]
+          call test::wrap -> test::Envelope [affine]
+            local receipt : test::Receipt [affine]

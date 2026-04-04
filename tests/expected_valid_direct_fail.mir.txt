@@ -1,8 +1,8 @@
 functions:
-  - public fn boot -> FileHandle yields OpenFailure
+  - public fn test::boot -> test::FileHandle fails test::OpenFailure
       locals:
-        %0[$return] : FileHandle
-        %1[reason] : OpenFailure
+        %0[$return] : test::FileHandle
+        %1[reason] : test::OpenFailure
       block %0
-        %1[reason] = construct OpenFailure::FileNotFound {path: "missing"}
+        %1[reason] = construct test::OpenFailure::FileNotFound {path: "missing"}
         fail %1[reason]

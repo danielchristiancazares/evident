@@ -1,3 +1,4 @@
+domain module test {
 public permit RenderPassActive
 
 public fn submit(pass: RenderPassActive) -> Int {
@@ -7,4 +8,5 @@ public fn submit(pass: RenderPassActive) -> Int {
 public fn boot() -> Int {
     let count = 1;
     submit(count)
+}
 }

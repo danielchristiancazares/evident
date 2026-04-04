@@ -1,3 +1,5 @@
+domain module test {
 fn main() -> Int {
     0
+}
 }

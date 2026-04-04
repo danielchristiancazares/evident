@@ -1,18 +1,18 @@
 functions:
-  - public fn open -> FileHandle yields OpenFailure
+  - public fn test::open -> test::FileHandle fails test::OpenFailure
       locals:
         %0[raw] : Int
-        %1[$return] : FileHandle
+        %1[$return] : test::FileHandle
       block %0
-        %1[$return] = construct FileHandle {raw: %0[raw]}
+        %1[$return] = construct test::FileHandle {raw: %0[raw]}
         return %1[$return]
-  - public fn boot -> FileHandle yields OpenFailure
+  - public fn test::boot -> test::FileHandle fails test::OpenFailure
       locals:
         %0[raw] : Int
-        %1[$return] : FileHandle
-        %2[failure] : OpenFailure
+        %1[$return] : test::FileHandle
+        %2[failure] : test::OpenFailure
       block %0
-        invoke open(%0[raw]) ok %1[$return] -> %1 fail %2[failure] -> %2
+        invoke test::open(%0[raw]) ok %1[$return] -> %1 fail %2[failure] -> %2
       block %1
         return %1[$return]
       block %2

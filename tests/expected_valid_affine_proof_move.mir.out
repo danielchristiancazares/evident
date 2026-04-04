@@ -1,24 +1,24 @@
 functions:
-  - public fn mint -> Receipt proves Receipt
+  - public fn test::mint -> test::Receipt proves test::Receipt
       locals:
-        %0[$return] : Receipt [affine]
+        %0[$return] : test::Receipt [affine]
       block %0
-        %0[$return] = construct Receipt {count: 7}
+        %0[$return] = construct test::Receipt {count: 7}
         return %0[$return]
-  - public fn pass_through -> Receipt
+  - public fn test::pass_through -> test::Receipt
       locals:
-        %0[receipt] : Receipt [affine]
-        %1[$return] : Receipt [affine]
-        %2[next] : Receipt [affine]
+        %0[receipt] : test::Receipt [affine]
+        %1[$return] : test::Receipt [affine]
+        %2[next] : test::Receipt [affine]
       block %0
         %2[next] = %0[receipt]
         %1[$return] = %2[next]
         return %1[$return]
-  - public fn boot -> Receipt
+  - public fn test::boot -> test::Receipt
       locals:
-        %0[$return] : Receipt [affine]
-        %1[receipt] : Receipt [affine]
+        %0[$return] : test::Receipt [affine]
+        %1[receipt] : test::Receipt [affine]
       block %0
-        %1[receipt] = call mint()
-        %0[$return] = call pass_through(%1[receipt])
+        %1[receipt] = call test::mint()
+        %0[$return] = call test::pass_through(%1[receipt])
         return %0[$return]

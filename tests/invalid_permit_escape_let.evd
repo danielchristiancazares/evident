@@ -1,10 +1,12 @@
+domain module test {
 public permit RenderPassActive
 
 public fn start_pass() -> Unit grants RenderPassActive {
 }
 
 public fn boot() -> Unit {
-    with start_pass() as pass {
+    grant start_pass() as pass {
         let saved = pass
     }
+}
 }

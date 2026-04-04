@@ -1,8 +1,10 @@
-public struct EmailAddress {
+domain module test {
+public record EmailAddress {
     value: Text,
 }
 
 public state MaybeEmail {
     Missing,
     Present { value: EmailAddress },
+}
 }

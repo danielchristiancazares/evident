@@ -1,3 +1,4 @@
+domain module test {
 public proof Receipt {
     count: Int,
 }
@@ -22,7 +23,7 @@ public fn choose() -> Gate {
 public fn consume(receipt: Receipt) -> Unit {
 }
 
-public fn boot() -> Receipt yields Err {
+public fn boot() -> Receipt fails Err {
     let receipt = mint();
     let gate = choose();
     match gate {
@@ -34,4 +35,5 @@ public fn boot() -> Receipt yields Err {
         },
     };
     receipt
+}
 }

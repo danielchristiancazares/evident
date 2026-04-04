@@ -1,7 +1,9 @@
+domain module test {
 public proof Receipt {
     count: Int,
 }
 
 public fn make_receipt() -> Receipt {
     prove Receipt { count: 1 }
+}
 }

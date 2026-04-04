@@ -1,22 +1,22 @@
 functions:
-  - public fn parse -> Config yields ParseFailure
+  - public fn test::parse -> test::Config fails test::ParseFailure
       locals:
         %0[raw] : Text
-        %1[$return] : Config
-        %2[reason] : ParseFailure
+        %1[$return] : test::Config
+        %2[reason] : test::ParseFailure
       block %0
-        %2[reason] = construct ParseFailure::Bad {}
+        %2[reason] = construct test::ParseFailure::Bad {}
         fail %2[reason]
-  - public fn boot -> Config
+  - public fn test::boot -> test::Config
       locals:
         %0[raw] : Text
-        %1[$return] : Config
-        %2[success] : Config
-        %3[failure] : ParseFailure
-        %4[config] : Config
+        %1[$return] : test::Config
+        %2[success] : test::Config
+        %3[failure] : test::ParseFailure
+        %4[config] : test::Config
         %5[key] : Text
       block %0
-        invoke parse(%0[raw]) ok %2[success] -> %1 fail %3[failure] -> %2
+        invoke test::parse(%0[raw]) ok %2[success] -> %1 fail %3[failure] -> %2
       block %1
         %4[config] = %2[success]
         %1[$return] = %4[config]
@@ -28,9 +28,9 @@ functions:
       block %3
         return %1[$return]
       block %4
-        %1[$return] = construct Config {raw: "fallback"}
+        %1[$return] = construct test::Config {raw: "fallback"}
         goto %3
       block %5
         %5[key] = %3[failure].key
-        %1[$return] = construct Config {raw: %5[key]}
+        %1[$return] = construct test::Config {raw: %5[key]}
         goto %3

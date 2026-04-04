@@ -1,3 +1,4 @@
+domain module test {
 public proof Receipt {
     count: Int,
 }
@@ -10,4 +11,5 @@ public fn boot() -> Receipt {
     let receipt = mint();
     let next = receipt;
     receipt
+}
 }

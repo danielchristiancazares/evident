@@ -1,3 +1,4 @@
+domain module test {
 public state Mode {
     Offline,
     Online { retries: Int },
@@ -12,4 +13,5 @@ public fn render(mode: Mode) -> Int {
 
 public fn main() -> Int {
     render(Online { retries: 4 })
+}
 }

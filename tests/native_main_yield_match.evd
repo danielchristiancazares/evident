@@ -1,8 +1,9 @@
+domain module test {
 public reason ParseFailure {
     MissingKey { key: Text },
 }
 
-public fn parse() -> Int yields ParseFailure {
+public fn parse() -> Int fails ParseFailure {
     fail MissingKey { key: "abc" }
 }
 
@@ -11,4 +12,5 @@ public fn main() -> Int {
         succeeded(value) => value,
         failed(MissingKey { key }) => 3,
     }
+}
 }

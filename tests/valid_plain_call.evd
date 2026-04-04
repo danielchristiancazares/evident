@@ -1,4 +1,5 @@
-public struct Value {
+domain module test {
+public record Value {
     raw: Int,
 }
 
@@ -8,4 +9,5 @@ public fn make_value(raw: Int) -> Value {
 
 public fn boot(raw: Int) -> Value {
     make_value(raw)
+}
 }

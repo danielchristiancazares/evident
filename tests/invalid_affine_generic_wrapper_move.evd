@@ -1,12 +1,14 @@
+domain module test {
 public proof Receipt {
     count: Int,
 }
 
-public struct Wrapper<T> {
-    value: T,
+public record Wrapper {
+    value: Receipt,
 }
 
-public fn take(wrapper: Wrapper<Receipt>) -> Wrapper<Receipt> {
+public fn take(wrapper: Wrapper) -> Wrapper {
     let copy = wrapper;
     wrapper
+}
 }

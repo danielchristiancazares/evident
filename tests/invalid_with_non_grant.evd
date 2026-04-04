@@ -1,7 +1,9 @@
+domain module test {
 public fn open() -> Unit {
 }
 
 public fn boot() -> Unit {
-    with open() as pass {
+    grant open() as pass {
     }
+}
 }

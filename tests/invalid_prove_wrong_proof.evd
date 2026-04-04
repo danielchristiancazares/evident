@@ -1,3 +1,4 @@
+domain module test {
 public proof LeftReceipt {
     count: Int,
 }
@@ -8,4 +9,5 @@ public proof RightReceipt {
 
 public fn make_receipt() -> RightReceipt proves RightReceipt {
     prove LeftReceipt { count: 1 }
+}
 }

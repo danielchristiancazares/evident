@@ -1,8 +1,9 @@
+domain module test {
 public proof Receipt {
     count: Int,
 }
 
-public struct Envelope {
+public record Envelope {
     receipt: Receipt,
 }
 
@@ -17,4 +18,5 @@ public fn wrap(receipt: Receipt) -> Envelope {
 public fn boot() -> Envelope {
     let receipt = mint();
     wrap(receipt)
+}
 }

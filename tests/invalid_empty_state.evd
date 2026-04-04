@@ -1,2 +1,4 @@
+domain module test {
 public state Empty {
+}
 }

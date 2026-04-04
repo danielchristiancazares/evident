@@ -1,13 +1,14 @@
+domain module test {
 public reason ParseFailure {
     Bad,
     MissingKey { key: Text },
 }
 
-public struct Config {
+public record Config {
     raw: Text,
 }
 
-public fn parse(raw: Text) -> Config yields ParseFailure {
+public fn parse(raw: Text) -> Config fails ParseFailure {
     fail Bad
 }
 
@@ -17,4 +18,5 @@ public fn boot(raw: Text) -> Config {
         failed(Bad) => Config { raw: "fallback" },
         failed(MissingKey { key }) => Config { raw: key },
     }
+}
 }

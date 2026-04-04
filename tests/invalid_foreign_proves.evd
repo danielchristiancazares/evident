@@ -1,5 +1,7 @@
+boundary module test {
 public proof Receipt {
     count: Int,
 }
 
 public foreign fn make_receipt() -> Receipt proves Receipt
+}

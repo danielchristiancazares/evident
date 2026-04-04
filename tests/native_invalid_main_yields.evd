@@ -1,7 +1,9 @@
+domain module test {
 public reason OpenFailure {
     FileNotFound { path: Text },
 }
 
-public fn main() -> Int yields OpenFailure {
+public fn main() -> Int fails OpenFailure {
     fail FileNotFound { path: "missing" }
+}
 }
