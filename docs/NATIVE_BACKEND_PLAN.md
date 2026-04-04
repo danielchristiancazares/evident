@@ -58,8 +58,8 @@ The first native ABI/layout pass currently implements:
 
 - builtins such as `Int`, `Nat`, `Float`, `Char`, `Byte`, `CInt`, `CSize`
 - `Text` / `Bytes` as `{ ptr, len }`
-- field-order `struct` / `proof`
+- field-order `record` / `proof`
 - tagged-union `state` / `reason`
-- yielded-call boundaries via synthetic `YieldResult` wrappers
+- failing-call boundaries via synthetic yield-result wrappers in LLVM
 
-Executable emission currently requires a top-level `public fn main() -> Int` with no parameters and no `yields`. The older `--emit-stub` output remains a diagnostic path, not the production backend.
+Executable emission currently requires a public `fn main() -> Int` with no parameters and no `fails` (for example inside a `domain module`). The older `--emit-stub` output remains a diagnostic path, not the production backend.

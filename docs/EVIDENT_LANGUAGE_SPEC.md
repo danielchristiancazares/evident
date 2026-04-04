@@ -1,547 +1,1106 @@
 # Evident Language Specification
 
-Status: Living draft
+**Status:** Redesigned working draft  
+**Last updated:** 2026-03-30
 
-Last updated: 2026-03-29
+## 1. Scope
 
-## Scope
+This document defines the target surface and semantic contract for Evident.
 
-This document is the living language specification for Evident.
+This draft is a redesign. It intentionally replaces the prior ambient-authority model with explicit permit passing, removes retroactive phase backpatching, makes module kind spelling explicit everywhere, and makes construction control part of the normative core.
 
-`docs/CPP_DESIGN.md` and `docs/RUST_DESIGN.md` explain the design philosophy and show how similar constraints can be approximated in host languages. This document records the language itself: its current surface, its current semantic contract, and the active design direction for unresolved areas.
+This document is a language-and-toolchain contract, not a source-compatibility promise for any currently checked-in compiler.
 
-Unless stated otherwise, examples in this document are informative rather than normative.
+Unless a section is explicitly marked **[Deferred]**, the requirements below are normative.
 
-## Conformance Language
+## 2. Conforming Toolchain
 
-The key words `MUST`, `MUST NOT`, `REQUIRED`, `SHALL`, `SHALL NOT`, `SHOULD`, `SHOULD NOT`, `RECOMMENDED`, `NOT RECOMMENDED`, `MAY`, and `OPTIONAL` in this document are to be interpreted as described in BCP 14 (RFC 2119 and RFC 8174) when, and only when, they appear in all capitals.
+A conforming Evident toolchain consists of a compiler plus the mandatory static checks required by this document.
 
-Normative keywords in `[Current]` sections describe the checked-in language subset and implementation contract.
+This document does not distinguish whether a rejection is emitted by the parser, the type checker, or a required static analysis pass. If a program violates a **MUST** or **MUST NOT** requirement, that program is non-conforming.
 
-Normative keywords in `[Working]` sections describe the intended design direction. They do not yet define a stable compatibility promise.
+## 3. Core Contract
 
-`[Open]` and `[Deferred]` sections are informative.
+Evident is designed around categorical honesty and explicit consequence.
 
-## Status Model
+A conforming Evident design MUST preserve all of the following:
 
-- `[Current]` means implemented and expected in the checked-in compiler and test suite.
-- `[Working]` means the current design direction. It should guide new design work, but it is not yet a compatibility promise.
-- `[Open]` means still under active design discussion.
-- `[Deferred]` means intentionally outside the current subset.
+* A reader MUST be able to infer, from the surface alone, what values exist, what can fail, what has been proven, what permit is being used, and what lifecycle position each phased value occupies.
+* Invalid states MUST be designed out of the reachable program.
+* Durable runtime alternatives, failure explanations, proofs of fact, scoped authority, and lifecycle positions are different categories and MUST remain distinct in both syntax and semantics.
+* Boundary ambiguity MUST collapse in the exact boundary function that first receives it. It MUST NOT propagate into ordinary domain surfaces.
+* Authority MUST never be ambient. An authorized call MUST name the permit it uses.
+* Granting, proving, construction, and phase transition rules MUST NOT depend on hidden compiler inference or surrounding scope magic.
+* Generic abstraction MUST remain structurally blind and quarantined to `foundation` modules.
+* Public names MUST be consequence-first. Public surfaces MUST describe downstream meaning rather than mechanism or origin history.
+* Sentinel values, pseudo-optionals, wildcard bypass variants, and hidden parser-invented defaults MUST NOT be used to smuggle ambiguity into the program.
 
-## Interpretation
+## 4. Defined Terms
 
-- For implementation questions, `[Current]` behavior should match the compiler and tests.
-- For design questions, this document is the primary Evident reference.
-- The design essays are rationale, not a substitute for the language specification.
+For this document:
 
-## Defined Terms
+**Data type** means a built-in type, `record`, `state`, `proof`, concrete `phase` type, or compiler-owned collection instantiated only with data types.
 
-- **Declaration terminator**: an optional `;` that may appear after `permit` declarations, `foreign fn` declarations without bodies, non-foreign `fn` declarations without bodies, and trait method declarations.
-- **Direct function argument**: an argument expression that is syntactically a single-segment path expression in direct argument position, such as `submit(pass, mesh)` where `pass` is used directly.
-- **Instantiated type**: a type after generic parameter substitution has been applied, including recursive substitution of type arguments.
-- **Proof-bearing type**: an instantiated type whose effective discipline is affine because it is a `proof` or structurally contains proof-bearing payload.
-- **Structural generic abstraction**: a generic abstraction whose semantics do not inspect, branch on, or specialize by the meaning of its type parameters, except for mechanically propagated discipline and capability restrictions.
-- **Substrate or infrastructure module [Working]**: an explicitly designated module intended for semantically blind generic abstractions such as collections, caches, queues, middleware, serializers, and similar plumbing. No dedicated surface syntax exists yet.
-- **State**: a runtime sum type that encodes alternatives requiring control-flow branching and pattern matching.
-- **Phase [Working]**: a static lifecycle refinement over a single shared runtime layout.
-- **Proof**: transportable evidence of a fact.
-- **Permit**: scoped authority token with limited dynamic extent.
-- **Separate structs**: distinct declarations used when a transition changes representation.
+**Contract type** means a `reason` or `permit`.
 
-## Core Contract
+**Affine-bearing type** means a data type whose discipline is affine because it is a `proof`, a concrete `phase` type, or structurally contains one.
 
-- Evident programs SHOULD be semantically evident. A reader SHOULD be able to infer what exists, what is allowed, and what has been proven from the type structure itself.
-- Invalid states SHOULD be designed out of the reachable program.
-- Domain semantics SHOULD prefer concrete named types and first-class language constructs over generic indirection.
-- Authority and proof are different categories and MUST remain distinct in both syntax and semantics.
-- Control-flow obligations MUST be explicit. Failure, authority scope, and state alternatives MUST NOT hide behind convention.
+**Copyable data type** means a data type that is not affine-bearing.
 
-## Compilation Model
+**Permit binding** means a named, scope-local authority introduced by `grant ... as name { ... }` or by a permit parameter in a function declaration. A permit binding is not an ordinary value.
 
-- `[Current]` A conforming implementation of the current subset MUST process one source file at a time.
-- `[Current]` A source file MAY contain nested `module` declarations that form lexical namespaces.
-- `[Deferred]` Package and import-based multi-file compilation.
+**Grantor function** means a function that declares `grants P` for some permit type `P`.
 
-## Visibility
+**Phase family** means a `phase` declaration that creates concrete lifecycle-position types such as `AppConfig::Draft` and `AppConfig::Validated`.
 
-- `[Current]` Top-level declarations are private by default. A declaration MUST be prefixed with `public` to be exported.
-- `[Current]` A public API MUST NOT expose a private type.
+**Phase family name** means the bare identifier of a `phase` declaration, such as `AppConfig`. A phase family name is not itself a value type.
 
-## Declaration Forms
+**Exact boundary function** means the first boundary-facing function that receives foreign ambiguity such as nullability, external booleans, stringly discriminators, integerly typed enums, parser looseness, or other schema uncertainty.
 
-`[Current]` A conforming implementation of the current subset MUST recognize these top-level declaration forms:
+**Foundation module** means a module reserved for semantically blind plumbing and the only place where user-defined generics may be declared.
 
-- `module`
-- `struct`
-- `state`
-- `reason`
-- `proof`
-- `permit`
-- `trait`
-- `fn`
-- `foreign fn`
+**Hazard module** means a module reserved for low-level system interaction, FFI, concurrency coordination, runtime orchestration, and other operations whose hazards are inherently runtime-visible.
+
+## 5. Module Model
+
+Declarations other than `module` declarations MUST appear inside a module.
+
+Every module declaration, top-level or nested, MUST spell its module kind explicitly. Module kind inheritance does not exist.
+
+Evident defines four module kinds.
+
+### 5.1 `domain module`
+
+A `domain module` is the normal home for domain truth.
+
+A `domain module` MAY declare:
+
+* `record`
+* `state`
+* `reason`
+* `proof`
+* `permit`
+* `phase`
+* `fn`
+
+A `domain module` MUST NOT declare `foreign fn`.
+
+A `domain module` MUST NOT declare user-defined generics.
+
+### 5.2 `boundary module`
+
+A `boundary module` is the place where foreign ambiguity collapses into strict internal forms.
+
+A `boundary module` MAY declare:
+
+* `record`
+* `state`
+* `reason`
+* `proof`
+* `permit`
+* `phase`
+* `fn`
+* `foreign fn`
+
+A `boundary module` MUST collapse foreign looseness in the exact boundary function that first receives it.
+
+Public exports from a `boundary module` MUST use data types in ordinary value positions and explicit contract clauses where needed. Raw foreign ambiguity MUST NOT appear in public boundary exports.
+
+A `boundary module` MUST NOT declare user-defined generics.
+
+### 5.3 `foundation module`
+
+A `foundation module` is reserved for semantically blind plumbing.
+
+A `foundation module` MAY declare:
+
+* `record`
+* `fn`
+
+A `foundation module` MAY declare user-defined generics, subject to the restrictions in Section 16.
+
+A `foundation module` MUST NOT declare public `state`, `reason`, `proof`, `permit`, or `phase` declarations.
+
+A `foundation module` MUST NOT assign domain meaning to generic parameters.
+
+### 5.4 `hazard module`
+
+A `hazard module` isolates runtime-visible hazards such as OS interaction, network interaction, scheduling, FFI, concurrency coordination, low-level orchestration, and compatibility glue.
+
+A `hazard module` MAY declare:
+
+* `record`
+* `state`
+* `reason`
+* `proof`
+* `permit`
+* `phase`
+* `fn`
+* `foreign fn`
+
+A `hazard module` MAY define hazard-local proofs, permits, reasons, states, and phases when those categories are genuine consequences of hazardous interaction.
+
+A `hazard module` MUST NOT be the default home for ordinary domain truth.
+
+A `hazard module` MUST NOT declare user-defined generics.
+
+## 6. Visibility and Construction Control
+
+Top-level and nested declarations are private by default.
+
+A declaration MUST be prefixed with `public` to be exported from its enclosing module.
+
+Fields of `record`, `proof`, and `phase` declarations are private by default. A field MUST be prefixed with `public` to be accessible from outside the declaring module.
+
+A public API MUST NOT expose a private type in any of the following positions:
+
+* ordinary parameter type
+* permit parameter type
+* return type
+* `fails` clause
+* `grants` clause
+* `proves` clause
+* public record field type
+* public proof field type
+* public phase field type
+
+Construction control is part of the core language:
+
+* A `record` value may be directly constructed in a module only if the record is visible there and every field named by that construction is visible there.
+* Because record construction uses named fields and must provide all fields, a hidden field blocks direct external construction.
+* A `state` variant may be constructed wherever the `state` and chosen variant are visible.
+* A `proof` may be constructed only by `prove`.
+* A concrete `phase` type may be directly constructed only inside its declaring module.
+* A permit is never directly constructed by user code.
+
+## 7. Declaration Forms
+
+The language core recognizes these declaration forms:
+
+* `module`
+* `record`
+* `state`
+* `reason`
+* `proof`
+* `permit`
+* `phase`
+* `fn`
+* `foreign fn`
+
+The language core does not define `trait`, `impl`, open method dispatch, or reflection-based typing features.
+
+## 8. Compact Grammar
+
+The following grammar is an EBNF-style sketch of the intended surface. It is not a token-level lexical grammar.
+
+```text
+translation-unit   = { module-decl } ;
+
+module-decl        = [ "public" ] module-kind "module" identifier
+                     "{" { declaration } "}" ;
+module-kind        = "domain" | "boundary" | "foundation" | "hazard" ;
+
+declaration        = [ "public" ] (
+                       module-decl
+                     | record-decl
+                     | state-decl
+                     | reason-decl
+                     | proof-decl
+                     | permit-decl
+                     | phase-decl
+                     | foreign-fn-decl
+                     | fn-decl
+                     ) ;
+
+record-decl        = "record" identifier [ generic-params ] field-block ;
+state-decl         = "state" identifier variant-block ;
+reason-decl        = "reason" identifier variant-block ;
+proof-decl         = "proof" identifier [ field-block ] [ ";" ] ;
+permit-decl        = "permit" identifier [ ";" ] ;
+phase-decl         = "phase" identifier "{"
+                       "fields" field-block
+                       "positions" position-block
+                     "}" ;
+
+fn-decl            = "fn" identifier [ generic-params ] parameter-list "->" type
+                     { contract-clause }
+                     block ;
+
+foreign-fn-decl    = "foreign" "fn" identifier foreign-parameter-list "->" type [ ";" ] ;
+
+contract-clause    = "fails" type
+                   | "grants" type
+                   | "proves" type ;
+
+generic-params     = "<" identifier { "," identifier } ">" ;
+parameter-list     = "(" [ parameter { "," parameter } [ "," ] ] ")" ;
+parameter          = value-parameter | permit-parameter ;
+value-parameter    = identifier ":" type ;
+permit-parameter   = "as" identifier ":" type ;
+
+foreign-parameter-list
+                   = "(" [ value-parameter { "," value-parameter } [ "," ] ] ")" ;
+
+type               = path [ "<" type { "," type } ">" ] ;
+path               = identifier { "::" identifier } ;
+
+field-block        = "{" [ field { "," field } [ "," ] ] "}" ;
+field              = [ "public" ] identifier ":" type ;
+
+variant-block      = "{" [ variant { "," variant } [ "," ] ] "}" ;
+variant            = identifier [ payload-block ] ;
+payload-block      = "{" [ payload-field { "," payload-field } [ "," ] ] "}" ;
+payload-field      = identifier ":" type ;
+
+position-block     = "{" identifier { "," identifier } [ "," ] "}" ;
+
+block              = "{"
+                       { statement }
+                       [ expression ]
+                     "}" ;
+statement          = let-statement ";"
+                   | expression ";" ;
+let-statement      = "let" identifier "=" expression ;
+
+expression         = try-expr
+                   | match-expr
+                   | grant-expr
+                   | fail-expr
+                   | prove-expr
+                   | postfix-expr ;
+
+try-expr           = "try" expression ;
+match-expr         = "match" expression "{"
+                       [ match-arm { "," match-arm } [ "," ] ]
+                     "}" ;
+match-arm          = pattern "=>" expression ;
+
+grant-expr         = "grant" call-expr "as" identifier block ;
+fail-expr          = "fail" path [ record-initializer ] ;
+prove-expr         = "prove" path [ record-initializer ] ;
+
+postfix-expr       = primary-expr { field-access | call-suffix } ;
+field-access       = "." identifier ;
+call-suffix        = "(" [ call-arg { "," call-arg } [ "," ] ] ")" ;
+call-arg           = expression | permit-arg ;
+permit-arg         = "as" identifier ;
+
+primary-expr       = number | string | block | path | construct-expr ;
+construct-expr     = path record-initializer ;
+record-initializer = "{" [ field-init { "," field-init } [ "," ] ] "}" ;
+field-init         = identifier [ ":" expression ] ;
+
+pattern            = succeeded-pattern | failed-pattern | variant-pattern ;
+succeeded-pattern  = "succeeded" "(" ( identifier | "_" ) ")" ;
+failed-pattern     = "failed" "(" reason-pattern ")" ;
+reason-pattern     = path [ "{" ( ".." | binding { "," binding } [ "," ] ) "}" ] ;
+variant-pattern    = path [ "{" ( ".." | binding { "," binding } [ "," ] ) "}" ] ;
+binding            = identifier [ ":" identifier ] ;
+
+call-expr          = postfix-expr ;   // semantic restriction: must end in a call
+```
+
+## 9. Built-In Types
+
+A conforming implementation MUST recognize these built-in type names:
+
+* `Int`
+* `Nat`
+* `Float`
+* `Char`
+* `Text`
+* `Bytes`
+* `Byte`
+* `CString`
+* `CInt`
+* `CSize`
+* `Unit`
+* `Never`
+
+A conforming implementation MUST also recognize these compiler-owned collection families:
+
+* `List<T>`
+* `NonEmptyList<T>`
+* `Map<K, V>`
+* `NonEmptyMap<K, V>`
+
+`Unit` is the empty success type.
+
+`Never` is the diverging type of expressions that do not continue, such as `fail`.
+
+There is no built-in `Bool`, no built-in optional type, and no nullable reference type in the core language.
+
+The completed collection library surface is **[Deferred]**.
+
+## 10. Modeling Rules and Boundary Discipline
+
+Public modeling MUST follow the rules in this section.
+
+### 10.1 Consequence-first naming
+
+Public names MUST describe downstream consequence or established fact.
+
+A public `state` variant MUST name either the resulting behavior or the established runtime alternative.
+
+A public `reason` variant MUST name the failure consequence or the concrete reason for denial.
+
+A public `proof` name MUST describe the fact that has been proven.
+
+A public `permit` name MUST describe the authority that has been granted.
+
+A public phase position name MUST describe lifecycle position, not parser history or vague status.
+
+Public names MUST NOT describe only mechanism, origin function, or generic container state.
+
+### 10.2 No pseudo-optionals
+
+A `state` MUST NOT merely encode presence versus absence.
+
+Public variant names such as `Absent`, `Present`, `Missing`, `Unknown`, `Known`, `None`, or equivalent absence wrappers are forbidden when one branch means only “no value”.
+
+If the domain truly has alternatives, those alternatives MUST be named by consequence.
+
+### 10.3 No wildcard bypass variants
+
+Public configuration, policy, and authority models MUST NOT include a universal escape-hatch variant such as:
+
+* `Any`
+* `All`
+* `AllowAll`
+* `Unrestricted`
+
+Policy MUST be modeled with explicit finite alternatives and explicit merge rules.
+
+### 10.4 No sentinel values
+
+Sentinel values and in-band placeholders MUST NOT encode absence, failure, denial, not-yet-initialized state, or not-found state in public surfaces.
+
+Examples of forbidden public sentinel practice include zero IDs used as “not assigned”, empty text used as “missing”, all-zero handles used as “not opened”, and equivalent in-band markers.
+
+### 10.5 Exact boundary collapse
+
+Foreign ambiguity MUST collapse in the exact boundary function that first receives it.
+
+This includes:
+
+* external booleans
+* nullability
+* external optionality
+* stringly typed discriminators
+* integerly typed enums
+* parser defaults
+* partially missing configuration
+* FFI looseness
+* foreign schema uncertainty
+
+Such ambiguity MUST NOT be stored, forwarded, or bound to locals whose scope outlives the immediate collapse logic.
+
+The boundary either:
+
+* rejects the input with an explicit `reason`, or
+* translates it into a fully inhabited internal form.
+
+The parser or boundary adapter MUST NOT silently invent domain values.
+
+## 11. Value Discipline
+
+Evaluation is by immutable values. The core language defined by this document has no assignment and no mutable variable rebinding.
+
+Every data type is either copyable or affine-bearing.
+
+A data type is affine-bearing if it is:
+
+* a `proof`,
+* a concrete `phase` type, or
+* any record, state, or collection that structurally contains one.
+
+All other data types are copyable.
+
+The semantic model is value-copy for copyable data. Implementations MAY optimize storage and copying so long as observable behavior matches the rules below.
+
+### 11.1 Binding, arguments, and returns
+
+For copyable data types:
+
+* `let x = e` copies the result of `e` into `x`
+* passing an argument copies it into the callee
+* returning a value copies it into the caller
+
+For affine-bearing data types:
+
+* `let x = e` moves the result of `e` into `x`
+* passing an argument moves it into the callee
+* returning a value moves it into the caller
+
+A moved affine-bearing binding MUST NOT be reused.
+
+### 11.2 Permit bindings
+
+A permit binding is not an ordinary value.
+
+A permit binding:
+
+* is introduced only by a permit parameter or by `grant ... as name { ... }`
+* is passed explicitly with `as name`
+* is not copied
+* is not moved
+* is not stored
+* is not returned
+* may be used repeatedly while its lexical scope remains active
+
+Passing a permit with `as name` authorizes the call and does not consume the permit binding.
+
+### 11.3 Field access
+
+Field access on a copyable receiver yields a copy of the selected field.
+
+Field access on an affine-bearing receiver is valid only when the selected field type is copyable. Such access yields a copy of the field and does not move the receiver.
+
+Direct extraction of an affine-bearing field from another affine-bearing value is not part of the core language.
+
+### 11.4 Matching and consumption
+
+`match` on a copyable `state` does not consume the subject.
+
+`match` on an affine-bearing `state` consumes the subject. Copyable payload bindings are copied into the arm. Affine-bearing payload bindings are moved into the arm.
+
+`match` over a failing expression follows the same success/failure control-flow rules regardless of whether the success value is copyable or affine-bearing.
+
+## 12. Type Categories
+
+### 12.1 `record`
+
+A `record` defines a nominal product type with named fields.
+
+Fields are private by default.
+
+Record values MUST be constructed with named fields.
+
+A record may be directly constructed only where all of its fields are visible.
 
 Example:
 
 ```evd
-public struct FeatureConfig {
-    endpoint: Text,
-    retries: Nat,
+public record FeatureConfig {
+    public endpoint: Text,
+    public retries: Nat,
 }
+```
 
+A user-defined generic `record` MAY appear only in a `foundation module`.
+
+A `record` that structurally contains an affine-bearing field becomes affine-bearing.
+
+### 12.2 `state`
+
+A `state` defines a closed sum type of runtime alternatives.
+
+A `state` variant MAY be payload-free or carry named payload fields.
+
+State payload fields are visible wherever the chosen variant is visible.
+
+A `match` over a `state` value MUST be exhaustive.
+
+Wildcard catch-all matching is forbidden.
+
+Pseudo-optional shapes are forbidden. A `state` MUST NOT merely encode absence.
+
+Example:
+
+```evd
 public state FeatureMode {
     OfflineOnly,
     ProviderBacked { config: FeatureConfig },
 }
+```
 
-public reason OpenFailure {
-    FileNotFound { path: Text },
-    PermissionDenied { path: Text },
+A `state` MUST NOT be generic.
+
+### 12.3 `reason`
+
+A `reason` defines a closed sum type for failure explanation and control flow.
+
+A function’s `fails` clause MUST name exactly one `reason` type.
+
+A `reason` MUST NOT be generic.
+
+Reason payload fields are visible wherever the reason type is visible.
+
+A `reason` type MUST NOT appear in stored data positions, including:
+
+* record fields
+* state payload fields
+* proof fields
+* phase fields
+* collection element types
+* generic arguments in ordinary data positions
+
+A `reason` path MAY appear only in:
+
+* a `fails` clause
+* a `fail` expression
+* a `failed(...)` match arm pattern
+
+Example:
+
+```evd
+public reason ParseFailure {
+    BadSyntax,
+    MissingKey { key: Text },
 }
+```
 
-public proof ConfigValidatedReceipt {
-    config: FeatureConfig,
+### 12.4 `proof`
+
+A `proof` defines a proof-of-fact token.
+
+A `proof` MAY have zero or more named fields.
+
+Proof fields are private by default.
+
+Proof values are affine. They MAY be moved, but they MUST NOT be copied or reused after move.
+
+A `proof` MUST be constructed only with `prove`.
+
+A `proof` MAY be stored, returned, or placed inside records, states, and collections, subject to affine discipline.
+
+Only functions declared in the same module as a proof type MAY declare `proves` for that proof type.
+
+Example:
+
+```evd
+public proof ConfigValidated {
+    public config_id: Text,
 }
+```
 
+A `proof` MUST NOT be generic.
+
+### 12.5 `permit`
+
+A `permit` defines scope-local authority.
+
+A `permit` is not data.
+
+A permit binding exists only as a named lexical authority. It is always visible where it is usable.
+
+A permit type MUST NOT appear in any ordinary data position, including:
+
+* record fields
+* state payload fields
+* proof fields
+* phase fields
+* ordinary function parameters
+* function return types
+* collection element types
+* generic arguments
+* patterns
+* ordinary expressions
+
+A permit type MAY appear only in:
+
+* a `permit` declaration
+* a permit parameter (`as name: PermitType`)
+* a `grants` clause
+
+A permit binding MAY appear only in:
+
+* a `grant ... as name { ... }` binder
+* a permit argument written as `as name`
+
+Only functions declared in the same module as a permit type MAY declare `grants` for that permit type.
+
+Example:
+
+```evd
 public permit RenderPassActive
 ```
 
-## Compact Grammar
+A `permit` MUST NOT be generic.
 
-`[Current]` The following grammar is a compact description of the implemented subset. It is intended to be read as an EBNF-style sketch rather than a token-level lexical grammar.
+### 12.6 `phase`
 
-```text
-translation-unit  = { declaration } ;
+A `phase` declaration defines a closed lifecycle family with shared fields and named positions.
 
-declaration       = [ "public" ] (
-                      module-decl
-                    | struct-decl
-                    | state-decl
-                    | reason-decl
-                    | proof-decl
-                    | permit-decl
-                    | trait-decl
-                    | foreign-fn-decl
-                    | fn-decl
-                    ) ;
-
-module-decl       = "module" identifier "{" { declaration } "}" ;
-struct-decl       = "struct" identifier [ generic-params ] field-block ;
-state-decl        = "state" identifier [ generic-params ] variant-block ;
-reason-decl       = "reason" identifier variant-block ;
-proof-decl        = "proof" identifier [ field-block ] [ declaration-terminator ] ;
-permit-decl       = "permit" identifier [ declaration-terminator ] ;
-trait-decl        = "trait" identifier [ generic-params ] "{"
-                      { "fn" identifier function-signature [ declaration-terminator ] }
-                    "}" ;
-foreign-fn-decl   = "foreign" "fn" identifier function-signature [ declaration-terminator ] ;
-fn-decl           = "fn" identifier function-signature ( block | [ declaration-terminator ] ) ;
-
-function-signature = [ generic-params ] parameter-list "->" type
-                     [ "yields" type ]
-                     [ "grants" type ]
-                     [ "proves" type ] ;
-
-generic-params    = "<" identifier { "," identifier } ">" ;
-parameter-list    = "(" [ parameter { "," parameter } [ "," ] ] ")" ;
-parameter         = identifier ":" type ;
-type              = path [ "<" type { "," type } ">" ] ;
-path              = identifier { "::" identifier } ;
-
-field-block       = "{" [ field { "," field } [ "," ] ] "}" ;
-field             = identifier ":" type ;
-variant-block     = "{" [ variant { "," variant } [ "," ] ] "}" ;
-variant           = identifier [ field-block ] ;
-
-block             = "{"
-                      { let-statement [ ";" ] | expression ";" }
-                      [ expression ]
-                    "}" ;
-let-statement     = "let" identifier "=" expression ;
-
-expression        = match-expr | with-expr | try-expr ;
-match-expr        = "match" expression "{"
-                      [ match-arm { "," match-arm } [ "," ] ]
-                    "}" ;
-match-arm         = pattern "=>" expression ;
-with-expr         = "with" postfix-expr "as" identifier block ;
-try-expr          = [ "try" ] fail-expr ;
-fail-expr         = "fail" path [ record-initializer ] | prove-expr ;
-prove-expr        = "prove" path [ record-initializer ] | postfix-expr ;
-postfix-expr      = primary-expr { "(" [ expression { "," expression } [ "," ] ] ")" } ;
-primary-expr      = number | string | block | path | construct-expr ;
-construct-expr    = path record-initializer ;
-record-initializer = "{" [ field-init { "," field-init } [ "," ] ] "}" ;
-field-init        = identifier [ ":" expression ] ;
-
-pattern           = succeeded-pattern | failed-pattern | variant-pattern ;
-succeeded-pattern = "succeeded" "(" ( identifier | "_" ) ")" ;
-failed-pattern    = "failed" "(" variant-pattern ")" ;
-variant-pattern   = path [ "{" ( ".." | binding { "," binding } [ "," ] ) "}" ] ;
-binding           = identifier [ ":" identifier ] ;
-
-declaration-terminator = ";" ;
-```
-
-`[Current]` In the current parser, a `let` statement inside a block MAY omit its trailing semicolon, although explicit semicolons are RECOMMENDED for readability.
-
-## Built-In Types
-
-`[Current]` A conforming implementation of the current subset MUST recognize these built-in type names:
-
-- `Int`
-- `Nat`
-- `Float`
-- `Char`
-- `Text`
-- `Bytes`
-- `Byte`
-- `CString`
-- `CInt`
-- `CSize`
-- `Unit`
-- `Never`
-- `List`
-- `List1`
-- `Map`
-- `Map1`
-
-`[Current]` `Unit` is the empty success/result type.
-
-`[Current]` `Never` is the diverging type used for expressions that do not continue, such as `fail`.
-
-`[Open]` The long-term surface spelling and semantics of collection families are not settled. The current compiler reserves `List`, `List1`, `Map`, and `Map1`, but the language may move toward a more explicit built-in collection syntax and contract.
-
-## Type Categories
-
-### Struct
-
-- `[Current]` A `struct` declaration defines a nominal product type with named fields.
-- `[Current]` Struct values MUST be constructed with named fields.
-- `[Working]` Transitioning between related concrete layouts SHOULD use distinct `struct` declarations when representation actually changes.
+A `phase` declaration is self-contained. It does not target a previously declared `record`.
 
 Example:
 
 ```evd
-public struct FileHandle {
-    raw: Int,
-}
+public phase AppConfig {
+    fields {
+        public id: Text,
+        public payload: Text,
+    }
 
-public fn open_handle(raw: Int) -> FileHandle {
-    FileHandle { raw }
-}
-```
-
-### State
-
-- `[Current]` A `state` declaration defines a closed sum type, i.e., a runtime branch point with alternatives that must be matched.
-- `[Current]` State variants MAY be payload-free or carry named fields.
-- `[Current]` A `match` over a `state` value MUST be exhaustive.
-- `[Current]` Wildcard pattern arms MUST be rejected.
-- `[Current]` Pseudo-optional shapes MUST be rejected. A `state` MUST NOT merely encode `Present` versus `Absent`.
-
-Example:
-
-```evd
-public state FeatureMode {
-    OfflineOnly,
-    ProviderBacked { config: FeatureConfig },
-}
-```
-
-### Reason
-
-- `[Current]` A `reason` declaration defines a closed sum type for yielded failure.
-- `[Current]` A function's `yields` clause MUST name a `reason`.
-- `[Current]` `reason` declarations MUST NOT be generic in the current subset.
-- `[Current]` `reason` types MUST NOT appear in ordinary stored data positions.
-
-### Proof
-
-- `[Current]` A `proof` declaration defines a proof-of-fact token: transportable evidence that a fact has been established.
-- `[Current]` Proof values are affine. They MAY be moved, but they MUST NOT be copied or reused after move.
-- `[Current]` Proof values MUST be created with `prove`.
-- `[Current]` Instantiated generic wrappers MUST inherit affine behavior from their payloads. For example, `Wrapper<Receipt>` is affine when `Receipt` is a proof.
-- `[Working]` Proofs represent facts that may be stored, returned, and transported, but never duplicated.
-
-### Permit
-
-- `[Current]` A `permit` declaration defines scoped authority.
-- `[Current]` Permit values are compile-time-only authority tokens.
-- `[Current]` Permit values MUST NOT be stored in fields or returned from functions.
-- `[Current]` Permit values MUST be used only as direct function arguments.
-- `[Current]` A `with` scope controls where a permit binding exists; it does not loosen the direct-argument rule.
-- `[Working]` Permits are scope-bound authority, not data.
-
-### Trait
-
-- `[Current]` `trait` declarations are parsed and represented in the compiler.
-- `[Deferred]` Trait implementations, solving, and method dispatch.
-
-## Phase Families
-
-- `[Working]` A phase family SHOULD be attached to exactly one struct layout.
-- `[Working]` Each phase in a phase family SHOULD be a distinct nominal type.
-- `[Working]` All phases in a phase family SHOULD share the same runtime fields and layout, so transitions are static lifecycle refinements.
-- `[Working]` A phase transition SHOULD consume one phase and yield another.
-- `[Working]` Phases are compile-time distinctions, not runtime tags. They SHOULD NOT be matched or inspected at runtime.
-- `[Working]` If code needs dynamic uncertainty between alternatives, it SHOULD use `state`.
-- `[Working]` If representation differs across alternatives, it SHOULD use separate `struct` declarations; otherwise, use `state` for runtime alternatives.
-- `[Working]` Public APIs SHOULD NOT abstract over phases using ordinary generics.
-- `[Open]` The exact surface syntax for declaring a phase family and its transitions is not settled.
-
-## Functions
-
-### Function Signatures
-
-`[Current]` Functions MUST have explicit parameter and return types.
-
-Example:
-
-```evd
-public fn choose_mode(config: FeatureConfig) -> FeatureMode {
-    ProviderBacked { config }
-}
-```
-
-### `yields`
-
-- `[Current]` `yields` declares the `reason` type a function may fail with.
-- `[Current]` Calls to yielding functions MUST be handled with `try` or `match`.
-- `[Current]` `try` is valid only inside a function whose `yields` type matches.
-- `[Current]` `fail` MUST produce a variant of the enclosing function's yielded `reason`.
-
-Example:
-
-```evd
-public fn parse(raw: Text) -> Config yields ParseFailure {
-    fail Bad
-}
-
-public fn boot(raw: Text) -> Config yields ParseFailure {
-    try parse(raw)
-}
-```
-
-### `grants`
-
-- `[Current]` `grants` marks a function as minting a permit for use in `with`.
-- `[Current]` A granting function MUST return `Unit`.
-- `[Current]` `with` requires a grant call that grants a permit and returns `Unit`.
-
-Example:
-
-```evd
-public fn start_pass() -> Unit grants RenderPassActive {
-}
-
-public fn boot(mesh: Mesh) -> FrameReceipt {
-    with start_pass() as pass {
-        submit(pass, mesh);
-        make_receipt(mesh)
+    positions {
+        Draft,
+        Validated,
     }
 }
 ```
 
-### `proves`
+This declaration creates two concrete value types:
 
-- `[Current]` `proves` marks a function as authorized to mint a specific proof type.
-- `[Current]` A `prove` expression MUST construct the proof named by the enclosing `proves` clause.
+* `AppConfig::Draft`
+* `AppConfig::Validated`
+
+The phase family name `AppConfig` is not a value type.
+
+All concrete phase types in a family share the declared field layout.
+
+Concrete phase types are affine. They MAY be moved, but they MUST NOT be copied or reused after move.
+
+Concrete phase types are not runtime tags. They MUST NOT be matched. If runtime uncertainty must be inspected, the model MUST use `state`.
+
+If different lifecycle positions require different fields, the model MUST use separate records or a `state`. A phase family MUST NOT be used to smuggle per-position shape differences through sentinels, unused fields, or pseudo-optionals.
+
+Direct construction of a concrete phase type is valid only within the declaring module.
+
+A `phase` family MUST NOT be generic.
+
+## 13. Type-Position Rules
+
+The following type-position rules are reserved by category:
+
+* An ordinary value parameter type MUST be a data type.
+* A permit parameter type MUST be a `permit`.
+* A function return type MUST be a data type.
+* A `fails` clause MUST name a `reason`.
+* A `grants` clause MUST name a `permit`.
+* A `proves` clause MUST name a `proof`.
+* A `reason` type is valid only in reason-handling positions.
+* A `permit` type is valid only in permit parameter positions and `grants` clauses.
+* A `proof` type is an ordinary data type, but it is affine.
+* A concrete `phase` type is an ordinary data type, but it is affine.
+* A phase family name is not a value type.
+
+## 14. Functions and Contract Clauses
+
+Functions MUST have explicit parameter and return types.
+
+A function MAY declare:
+
+* zero or one `fails` clause
+* zero or one `grants` clause
+* zero or more `proves` clauses
+
+A contract clause MUST NOT be repeated with the same target type.
+
+The order of contract clauses is not semantically meaningful.
+
+### 14.1 `fails`
+
+`fails R` declares that the function may fail with reason type `R`.
+
+`R` MUST be a `reason`.
+
+A call to a failing function is a failing expression.
+
+A failing call MUST be handled with `try` or `match`.
+
+Reason compatibility is exact. `try` is valid only when the callee’s declared reason type exactly matches the enclosing function’s declared reason type.
+
+### 14.2 `grants`
+
+`grants P` declares that the function may bestow permit `P`.
+
+`P` MUST be a `permit`.
+
+Only functions in the same module as `P` may declare `grants P`.
+
+A function with `grants` MUST return `Unit`.
+
+A function with `grants` MAY also declare `fails`.
+
+A function with `grants` MUST be invoked only through `grant`. An ordinary direct call to a grantor function is invalid.
+
+### 14.3 `proves`
+
+`proves Q` declares that the function is authorized to mint proof type `Q`.
+
+`Q` MUST be a `proof`.
+
+Only functions in the same module as `Q` may declare `proves Q`.
+
+A `prove` expression inside the function MUST name one of the proof types listed by its enclosing `proves` clauses.
+
+### 14.4 `foreign fn`
+
+A `foreign fn` declares an external function without a body.
+
+A `foreign fn` MAY appear only in `boundary` or `hazard` modules.
+
+A `foreign fn` parameter list may contain only ordinary value parameters.
+
+A `foreign fn` MUST NOT declare:
+
+* `fails`
+* `grants`
+* `proves`
+
+## 15. Expressions and Statements
+
+The function-body language includes:
+
+* blocks
+* `let` bindings
+* path expressions
+* field access
+* calls
+* named-field construction
+* `match`
+* `try`
+* `fail`
+* `grant`
+* `prove`
+
+### 15.1 Blocks
+
+A block MAY contain statements followed by an optional trailing result expression.
+
+A block with no trailing result expression evaluates to `Unit`.
+
+Diverging control flow with type `Never` MUST NOT contribute a reachable post-block environment.
+
+### 15.2 Construction
+
+Records, state payload variants, and concrete phase types use named-field construction syntax.
+
+Examples:
+
+```evd
+FeatureConfig { endpoint: "https://x", retries: 3 }
+
+FeatureMode::ProviderBacked { config: cfg }
+
+AppConfig::Draft { id: "cfg-1", payload: raw }
+```
+
+Direct construction of a `record` is valid only where all record fields are visible.
+
+Direct construction of a `proof` outside `prove` is invalid.
+
+Direct construction of a concrete `phase` type outside its declaring module is invalid.
+
+### 15.3 Calls and explicit permit passing
+
+Permit use is explicit in both signatures and calls.
 
 Example:
 
 ```evd
-public fn make_receipt(mesh: Mesh) -> FrameReceipt proves FrameReceipt {
-    prove FrameReceipt { count: 7 }
+public fn submit(mesh: Mesh, as pass: RenderPassActive) -> Unit
+    fails DrawFailure
+{
+    {}
 }
 ```
 
-### `foreign fn`
+A call to that function must spell the permit argument explicitly:
 
-- `[Current]` A `foreign fn` MUST NOT have a body.
-- `[Current]` A `foreign fn` MUST NOT declare `yields`.
-- `[Current]` A `foreign fn` MUST NOT declare `proves`.
+```evd
+submit(mesh, as pass)
+```
 
-## Expressions and Statements
+Ordinary arguments follow ordinary parameter positions.
 
-`[Current]` A conforming implementation of the current subset MUST support this function-body language:
+Permit arguments written as `as name` follow permit parameter positions.
 
-- block expressions
-- `let` bindings
-- path expressions
-- calls
-- named-field construction
-- `match`
-- `try`
-- `fail`
-- `with`
-- `prove`
+Passing a permit does not consume it.
 
-### Literals
+### 15.4 `match` over a `state`
 
-- `[Current]` Integer literals produce `Int`.
-- `[Current]` String literals produce `Text`.
+A `match` subject in the core language MUST be either:
 
-### Blocks
+* a `state` value, or
+* a failing expression
 
-- `[Current]` A block MAY contain `let` statements, expression statements, and a trailing result expression.
-- `[Current]` A block with no trailing result expression evaluates to `Unit`.
-- `[Current]` Control flow that diverges with `Never` MUST NOT contribute a reachable post-block environment.
+No other `match` subject forms are defined by the core language.
 
-### Construction
+A `match` over a `state` value MUST cover all reachable variants.
 
-- `[Current]` Struct, proof, and state payload construction use named field syntax.
-- `[Current]` Payload-free state variants MAY be used directly by name.
+Wildcard arms are forbidden.
 
-### Match
+Payload patterns support:
 
-- `[Current]` `match` over `state` values MUST cover all reachable variants.
-- `[Current]` Variant payload patterns support:
-  - `{ field }`
-  - `{ field: alias }`
-  - `{ .. }`
-- `[Current]` `_` wildcard patterns MUST be rejected.
-- `[Current]` Diverging arms MUST NOT poison later reachable move state. If an affine value is moved only on a `Never` arm, it remains available on the branches that actually reach the join.
+* `{ field }`
+* `{ field: alias }`
+* `{ .. }`
 
 Example:
 
 ```evd
 match mode {
-    OfflineOnly => fail FileNotFound { path: "offline" },
-    ProviderBacked { config } => FileHandle { raw: 1 },
+    FeatureMode::OfflineOnly => fallback,
+    FeatureMode::ProviderBacked { config } => config,
 }
 ```
 
-### Yielded-Call Match
+### 15.5 `match` over a failing expression
 
-- `[Current]` A call to a yielding function MAY be matched directly.
-- `[Current]` The success arm uses `succeeded(name)`.
-- `[Current]` Failure arms use `failed(ReasonVariant ...)`.
-- `[Current]` Failure coverage MUST be exhaustive for the yielded reason.
+A failing expression MAY be matched directly.
+
+The success arm uses `succeeded(name)`.
+
+Failure arms use `failed(ReasonVariant ...)`.
+
+Failure coverage MUST be exhaustive for the declared `reason`.
 
 Example:
 
 ```evd
 match parse(raw) {
     succeeded(config) => config,
-    failed(Bad) => Config { raw: "fallback" },
-    failed(MissingKey { key }) => Config { raw: key },
+    failed(ParseFailure::BadSyntax) => fallback,
+    failed(ParseFailure::MissingKey { key }) => recover(key),
 }
 ```
 
-### `with`
+### 15.6 `try`
 
-- `[Current]` `with grant_call() as permit_name { ... }` introduces a scoped permit binding.
-- `[Current]` The permit binding exists only within the `with` body.
-- `[Current]` Even within that body, the permit MUST appear only as a direct function argument.
+`try e` is valid only when `e` is a failing expression and the enclosing function declares the exact same `reason` type.
 
-### `prove`
+On success, `try e` yields the success value of `e`.
 
-- `[Current]` `prove ProofType { ... }` constructs a proof value.
-- `[Current]` Proof construction is valid only within an appropriate `proves` context.
+On failure, `try e` propagates that failure to the enclosing function.
 
-## Undefined or Deferred Behavior
+### 15.7 `fail`
 
-- `[Current]` A non-foreign function MAY omit its body in the current subset.
-- `[Current]` A conforming implementation of the current subset MAY accept such declarations.
-- `[Deferred]` Complete execution semantics for calling bodyless non-foreign declarations.
+`fail ReasonPath { ... }` diverges with `Never`.
 
-## Semantic Rules
+A `fail` expression is valid only within a function whose `fails` clause names that exact `reason` type.
 
-`[Current]` A conforming implementation of the current subset MUST reject programs exhibiting at least the following:
+### 15.8 `grant`
 
-- no duplicate declarations within a scope
-- no duplicate fields, variants, parameters, trait methods, or generic parameters
-- no unknown type references
-- no public API leaks of private types
-- no empty `state` or `reason` declarations
-- no reserved public names such as `Present`, `Missing`, `AllowAll`, or single-letter identifiers
-- no pseudo-optional `state` shapes
-- no `yields` targeting a non-`reason`
-- no `foreign fn` bodies
-- no `foreign fn` use of `yields` or `proves`
-- no permit types in stored positions or return types
-- no proof construction outside `prove`
-- no proof reuse after move
-- no permit escape through local storage
-- no direct use of yielded calls without `try` or `match`
-- no `try` outside a compatible `yields` context
-- no `fail` using the wrong `reason`
-- no non-exhaustive `match`
-- no wildcard patterns
-- no payload-pattern shape mismatches
+`grant call as permit_name { body }` invokes a grantor function, binds a visible permit name for the lexical extent of `body`, and yields the result of `body`.
 
-## Generics and Parametricity
+The operand of `grant` MUST be a direct call expression whose callee declares `grants P` for some permit type `P`.
 
-### Current Compiler State
+The binder introduced by `as permit_name` has type `P` and is usable only inside the `grant` body.
 
-- `[Current]` Generic parameters are parsed on `struct`, `state`, `trait`, and `fn` declarations.
-- `[Current]` Type arguments are parsed on type references.
-- `[Current]` Generic type declarations participate in semantic checking and instantiated discipline analysis.
-- `[Current]` Instantiated generic containers correctly inherit proof affinity from their payload types.
-- `[Current]` Generic function calls are not yet implemented as a full language feature.
+The permit binding is explicit. It does not arrive from surrounding scope, and it does not become ambient.
 
-### Working Design Direction
+The permit binding ceases to exist when control leaves the `grant` body.
 
-- `[Working]` Generics SHOULD be reserved for semantic blindness, not for smuggling domain meaning through placeholder types.
-- `[Working]` Domain facts SHOULD normally be modeled with concrete named types or first-class constructs such as `state`, `reason`, `proof`, `permit`, and explicit phases.
-- `[Working]` Parametric abstractions MAY be used for infrastructure and plumbing that are intentionally blind to payload meaning.
-- `[Working]` Good generic candidates include collection invariants, caches, queues, middleware wrappers, retry/logging/metrics decorators, serializers, and event-bus plumbing.
-- `[Working]` Bad generic candidates include wrappers whose primary purpose is to name a domain fact that SHOULD instead be explicit and concrete.
-- `[Working]` If a generic abstraction needs to inspect the meaning of `T`, branch on `T`, or specialize behavior by `T`, it SHOULD be treated as a poor fit for Evident.
+If the grantor call fails, the body is not evaluated.
 
-### Intended Compiler Restrictions
+Failure typing for `grant` is exact:
 
-- `[Working]` The intended compiler direction is to give "heavily suspect" generic domain modeling real teeth rather than treating it as style advice.
-- `[Working]` Generic `proof`, `permit`, and `reason` declarations SHOULD be rejected.
-- `[Working]` User-defined generic `state` declarations SHOULD be rejected.
-- `[Working]` Public APIs SHOULD NOT use ordinary generics to abstract over phase families.
-- `[Working]` Function-result sum types such as `LoadOutcome[T]` SHOULD usually be expressed with a concrete happy-path return type plus `yields` and concrete `reason` variants, rather than exported generic outcome wrappers.
-- `[Working]` Built-in collection families SHOULD remain a special case. They are compiler-owned structural forms, not evidence that arbitrary generic state wrappers are encouraged.
-- `[Working]` If user-defined generics remain in the language, they SHOULD be limited to structural `struct` declarations and generic functions whose meaning remains blind to their type parameters.
-- `[Working]` Public generics SHOULD be quarantined to explicitly designated substrate or infrastructure modules rather than used as ordinary domain-modeling tools.
-- `[Working]` Names such as `Custody[T]`, `Validated[T]`, `Authorized[T]`, `Settled[T]`, or `Draft[T]` SHOULD be treated as strong evidence that a generic abstraction is assigning domain meaning to `T` and SHOULD instead be modeled concretely.
+* if neither the grantor call nor the body is failing, the `grant` expression is non-failing
+* if exactly one of them is failing with reason `R`, the `grant` expression is failing with reason `R`
+* if both are failing, they MUST use the same reason type `R`, and the `grant` expression is failing with reason `R`
+* otherwise the `grant` expression is invalid
 
-### Proof-Bearing Instantiations
+Example:
 
-- `[Working]` Generic infrastructure does not become semantically harmless when instantiated with proof-bearing types.
-- `[Working]` Instantiation MUST propagate the full discipline of the element or payload type through generic containers and generic functions.
-- `[Working]` A structurally blind generic operation MAY still be authority-relevant once instantiated with proof-bearing values, and reviews SHOULD treat it that way even if the abstraction itself never inspects `T`.
-- `[Working]` If a generic operation only moves proof-bearing elements, it MAY be valid.
-- `[Working]` If a generic operation duplicates proof-bearing elements, stores permits, or otherwise violates instantiated proof/permit rules, it MUST be rejected after instantiation.
+```evd
+public permit RenderPassActive
 
-Concrete stress cases:
+public reason DrawFailure {
+    PassDenied,
+    SubmissionRejected,
+}
 
-- `[Working]` A future generic helper that moves every element from one collection into another MAY be valid for `Receipt` or other proof-bearing element types because the operation preserves affine movement rather than duplicating values.
-- `[Working]` A future generic helper that duplicates, clones, fans out, or retries by retaining the original payload MUST be rejected when instantiated with proof-bearing element types.
-- `[Working]` A future generic cache or queue MAY store proof-bearing values only if ordinary proof storage is otherwise legal for that position; genericity does not weaken the rule.
-- `[Working]` A future generic cache, queue, or collection instantiated with a `permit` element type MUST still be rejected because permit values may not be stored.
-- `[Working]` A future logging or metrics wrapper around an operation returning proof-bearing values MAY be valid only if it observes without duplicating or retaining those values beyond what their instantiated discipline permits.
+public fn start_pass() -> Unit
+    grants RenderPassActive
+    fails DrawFailure
+{
+    {}
+}
 
-### Open Questions
+public fn submit(mesh: Mesh, as pass: RenderPassActive) -> Unit
+    fails DrawFailure
+{
+    {}
+}
 
-- `[Open]` What surface syntax should designate substrate or infrastructure modules strongly enough for the compiler to quarantine public generics there?
-- `[Open]` Beyond structural `struct` declarations and generic functions, should Evident expose any additional user-defined generic forms at all?
-- `[Open]` Should collection families become fully compiler-owned surface forms rather than ordinary built-in generic names?
-- `[Open]` What concrete surface syntax should declare phase families, their shared layout, and their consuming transitions?
-- `[Open]` What is the exact trait/generic interaction model once trait implementations exist?
+public fn draw(mesh: Mesh) -> Unit
+    fails DrawFailure
+{
+    try grant start_pass() as pass {
+        try submit(mesh, as pass)
+    }
+}
+```
 
-## Traits and Implementations
+### 15.9 `prove`
 
-- `[Current]` Trait declarations exist as part of the parsed and lowered surface.
-- `[Deferred]` `impl` syntax.
-- `[Deferred]` trait conformance checking.
-- `[Deferred]` trait method dispatch.
+`prove ProofType { ... }` constructs a proof value.
 
-## Out of Current Scope
+A `prove` expression is valid only within a function that declares `proves ProofType`.
 
-- `[Deferred]` package/import-based multi-file compilation
-- `[Deferred]` first-class phase-family surface syntax and transition checking
-- `[Deferred]` trait implementations and dispatch
-- `[Deferred]` a fully specified collection library surface
-- `[Deferred]` a completed typestate transition system beyond the current proof/permit/affine model
+The expression yields a proof value of the named proof type.
 
-## Maintenance Rule
+Example:
 
-When a language decision is made, update this document in the same change if the decision affects syntax, typing, control flow, visibility, authority, proof semantics, or genericity.
+```evd
+public phase AppConfig {
+    fields {
+        public id: Text,
+        public payload: Text,
+    }
+
+    positions {
+        Draft,
+        Validated,
+    }
+}
+
+public proof ConfigValidated {
+    public config_id: Text,
+}
+
+public record ValidationResult {
+    public config: AppConfig::Validated,
+    public receipt: ConfigValidated,
+}
+
+public reason ValidationFailure {
+    EmptyPayload,
+}
+
+public fn validate(config: AppConfig::Draft) -> ValidationResult
+    fails ValidationFailure
+    proves ConfigValidated
+{
+    let next = AppConfig::Validated {
+        id: config.id,
+        payload: config.payload,
+    };
+
+    let receipt = prove ConfigValidated { config_id: next.id };
+
+    ValidationResult {
+        config: next,
+        receipt,
+    }
+}
+```
+
+## 16. Generics and Parametricity
+
+User-defined generics are intentionally small and quarantined.
+
+### 16.1 Allowed generic forms
+
+Only a `foundation module` MAY declare user-defined generics.
+
+Within a `foundation module`, the only generic declaration forms are:
+
+* generic `record`
+* generic `fn`
+
+There is no generic syntax for:
+
+* `state`
+* `reason`
+* `proof`
+* `permit`
+* `phase`
+
+There is no trait system, reflection system, constraint syntax, or open polymorphism in the core language.
+
+### 16.2 Structural blindness
+
+A user-defined generic abstraction MUST remain structurally blind.
+
+A generic abstraction MUST NOT assign domain meaning to its type parameters.
+
+Good foundation examples include abstractions equivalent to:
+
+* queue
+* cache
+* bag
+* buffer
+* collection wrapper
+* serialization envelope
+* middleware shell
+
+Bad foundation examples include abstractions equivalent to:
+
+* `Validated<T>`
+* `Authorized<T>`
+* `Settled<T>`
+* `Draft<T>`
+
+Those names indicate that the type parameter is carrying lifecycle, authority, proof, or domain fact. Those meanings belong to first-class language constructs, not generic wrappers.
+
+### 16.3 Affine propagation through generics
+
+Instantiation MUST propagate affine discipline.
+
+If a generic record, collection, or function is instantiated with an affine-bearing type, the instantiated form is itself affine-bearing wherever that payload is structurally retained.
+
+A generic abstraction that would duplicate an affine-bearing payload MUST be rejected after instantiation.
+
+A generic abstraction that only moves or relays an affine-bearing payload MAY be valid.
+
+## 17. Required Static Rejections
+
+A conforming Evident toolchain MUST reject at least the following:
+
+* declarations outside modules
+* any module declaration without an explicit module kind
+* duplicate declarations within a scope
+* duplicate record fields, payload fields, phase positions, parameters, or generic parameters
+* unknown type references
+* public API leakage of private types
+* a public boundary export that forwards foreign ambiguity past the exact boundary function
+* generic declarations outside a `foundation module`
+* generic `state`, `reason`, `proof`, `permit`, or `phase` declarations anywhere
+* a `foundation module` that assigns domain meaning to generic parameters
+* a `foreign fn` outside a `boundary` or `hazard` module
+* a `foreign fn` with a body
+* a `foreign fn` with any contract clause
+* a `foreign fn` with a permit parameter
+* a `reason` type in a stored data position
+* a `permit` type in an ordinary parameter, return, field, collection, pattern, or generic-argument position
+* an ordinary parameter whose type is a `permit`
+* a permit parameter whose type is not a `permit`
+* `fails` targeting a non-`reason`
+* `grants` targeting a non-`permit`
+* `proves` targeting a non-`proof`
+* a function with `grants` that does not return `Unit`
+* a function that declares `grants P` outside the module that declares `P`
+* a function that declares `proves Q` outside the module that declares `Q`
+* an ordinary direct call to a function with `grants`
+* a `grant` expression whose operand is not a direct call to a grantor function
+* a `grant` expression whose grantor call and body fail with different reason types
+* direct construction of a `proof` outside `prove`
+* a `prove` expression outside a matching `proves` context
+* a `fail` expression outside a matching `fails` context
+* direct use of a failing expression without `try` or `match`
+* `try` outside an exact matching `fails` context
+* non-exhaustive `match`
+* wildcard catch-all match arms
+* a `match` subject that is neither a `state` value nor a failing expression
+* pseudo-optional `state` shapes
+* public absence-only names
+* public wildcard bypass names
+* public sentinel-value modeling
+* silent parser or boundary default injection of domain values where rejection or explicit translation is required
+* direct construction of a concrete `phase` type outside its declaring module
+* use of a phase family name as a value type
+* direct matching on a concrete `phase` type
+* field access to a private record, proof, or phase field from outside its declaring module
+* direct construction of a `record` from a module that cannot see all required fields
+* direct extraction of an affine-bearing field from an affine-bearing carrier
+* reuse of an affine-bearing value after move
+
+## 18. Deferred Areas
+
+The following areas are intentionally outside this draft:
+
+* package and import-based multi-file compilation
+* mutation and assignment semantics beyond the immutable core defined here
+* trait declarations, trait bounds, and open polymorphism
+* explicit phase-family helper syntax for “any position of a family”
+* the completed collection library surface
+* concurrency and runtime coordination primitives beyond module classification
+* macros and compile-time metaprogramming
+* custom constructor syntax beyond field visibility, `grant`, and `prove`
+
+## 19. Maintenance Rule
+
+When a language decision changes syntax, typing, visibility, construction control, value discipline, proof semantics, permit semantics, phase semantics, module classification, or genericity, this document MUST be updated in the same change.
