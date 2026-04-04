@@ -15,14 +15,21 @@ enum class Visibility {
     Public,
 };
 
+enum class ModuleKind {
+    Domain,
+    Boundary,
+    Foundation,
+    Hazard,
+};
+
 enum class DeclKind {
     Module,
-    Struct,
+    Record,
     State,
     Reason,
     Proof,
     Permit,
-    Trait,
+    Phase,
     Function,
     ForeignFunction,
 };
@@ -37,8 +44,9 @@ enum class ExprKind {
     Match,
     Block,
     Fail,
-    WithPermit,
+    Grant,
     Prove,
+    FieldAccess,
 };
 
 enum class StmtKind {
@@ -69,6 +77,7 @@ struct GenericParam {
 };
 
 struct Field {
+    Visibility visibility = Visibility::Private;
     std::string name;
     TypeRef type;
     SourceSpan span{};
@@ -83,6 +92,7 @@ struct Variant {
 struct Parameter {
     std::string name;
     TypeRef type;
+    bool is_permit_param = false;
     SourceSpan span{};
 };
 
@@ -91,9 +101,9 @@ struct FunctionSignature {
     std::vector<GenericParam> generic_params;
     std::vector<Parameter> params;
     TypeRef return_type;
-    std::optional<TypeRef> yields_type;
+    std::optional<TypeRef> fails_type;
     std::optional<TypeRef> grants_type;
-    std::optional<TypeRef> proves_type;
+    std::vector<TypeRef> proves_types;
     SourceSpan span{};
 };
 
@@ -158,6 +168,14 @@ struct TryExpr final : Expr {
 
     TryExpr()
         : Expr(ExprKind::Try) {}
+};
+
+struct FieldAccessExpr final : Expr {
+    std::unique_ptr<Expr> object;
+    std::string field_name;
+
+    FieldAccessExpr()
+        : Expr(ExprKind::FieldAccess) {}
 };
 
 struct Pattern : Node {
@@ -257,13 +275,13 @@ struct FailExpr final : Expr {
         : Expr(ExprKind::Fail) {}
 };
 
-struct WithPermitExpr final : Expr {
+struct GrantExpr final : Expr {
     std::unique_ptr<Expr> grant_call;
     std::string binder_name;
     std::unique_ptr<BlockExpr> body;
 
-    WithPermitExpr()
-        : Expr(ExprKind::WithPermit) {}
+    GrantExpr()
+        : Expr(ExprKind::Grant) {}
 };
 
 struct ProveExpr final : Expr {
@@ -275,7 +293,7 @@ struct ProveExpr final : Expr {
 };
 
 struct Decl : Node {
-    DeclKind kind = DeclKind::Struct;
+    DeclKind kind = DeclKind::Record;
     Visibility visibility = Visibility::Private;
     std::string name;
 
@@ -284,22 +302,22 @@ struct Decl : Node {
 };
 
 struct ModuleDecl final : Decl {
+    ModuleKind module_kind = ModuleKind::Domain;
     std::vector<std::unique_ptr<Decl>> members;
 
-    explicit ModuleDecl(Visibility visibility, std::string name)
-        : Decl(DeclKind::Module, visibility, std::move(name)) {}
+    explicit ModuleDecl(Visibility visibility, std::string name, ModuleKind mk)
+        : Decl(DeclKind::Module, visibility, std::move(name)), module_kind(mk) {}
 };
 
-struct StructDecl final : Decl {
+struct RecordDecl final : Decl {
     std::vector<GenericParam> generic_params;
     std::vector<Field> fields;
 
-    explicit StructDecl(Visibility visibility, std::string name)
-        : Decl(DeclKind::Struct, visibility, std::move(name)) {}
+    explicit RecordDecl(Visibility visibility, std::string name)
+        : Decl(DeclKind::Record, visibility, std::move(name)) {}
 };
 
 struct StateDecl final : Decl {
-    std::vector<GenericParam> generic_params;
     std::vector<Variant> variants;
 
     explicit StateDecl(Visibility visibility, std::string name)
@@ -325,12 +343,13 @@ struct PermitDecl final : Decl {
         : Decl(DeclKind::Permit, visibility, std::move(name)) {}
 };
 
-struct TraitDecl final : Decl {
-    std::vector<GenericParam> generic_params;
-    std::vector<FunctionSignature> methods;
+struct PhaseDecl final : Decl {
+    std::vector<Field> fields;
+    std::vector<std::string> positions;
+    std::vector<SourceSpan> position_spans;
 
-    explicit TraitDecl(Visibility visibility, std::string name)
-        : Decl(DeclKind::Trait, visibility, std::move(name)) {}
+    explicit PhaseDecl(Visibility visibility, std::string name)
+        : Decl(DeclKind::Phase, visibility, std::move(name)) {}
 };
 
 struct FunctionDecl final : Decl {
@@ -351,6 +370,7 @@ struct TranslationUnit {
 };
 
 [[nodiscard]] std::string_view decl_kind_name(DeclKind kind);
+[[nodiscard]] std::string_view module_kind_name(ModuleKind kind);
 [[nodiscard]] std::string visibility_name(Visibility visibility);
 [[nodiscard]] std::string format_type(const TypeRef& type);
 std::string dump(const TranslationUnit& unit, std::string_view source_text = {});

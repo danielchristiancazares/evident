@@ -20,7 +20,7 @@ struct Scope;
 
 struct Symbol {
     const ast::Decl* decl = nullptr;
-    ast::DeclKind kind = ast::DeclKind::Struct;
+    ast::DeclKind kind = ast::DeclKind::Record;
     ast::Visibility visibility = ast::Visibility::Private;
     std::unique_ptr<Scope> child_scope;
 };
@@ -39,12 +39,12 @@ const std::unordered_set<std::string_view> kReservedPublicNames = {
 };
 
 const std::unordered_set<std::string_view> kPseudoOptionalNames = {
-    "Present", "Absent", "Missing", "Some", "None",
+    "Present", "Absent", "Missing", "Some", "None", "Known", "Unknown",
 };
 
 const std::unordered_set<std::string_view> kBuiltins = {
     "Int",   "Nat",   "Float",  "Char",  "Text",    "Bytes",
-    "Never", "List",  "List1",  "Map",   "Map1",    "CString",
+    "Never", "List",  "NonEmptyList",  "Map",   "NonEmptyMap",    "CString",
     "CInt",  "CSize", "Byte",   "Unit",
 };
 
@@ -61,19 +61,6 @@ const ast::StateDecl* as_state(const ast::Decl* decl) {
         ? static_cast<const ast::StateDecl*>(decl)
         : nullptr;
 }
-
-const ast::ProofDecl* as_proof(const ast::Decl* decl) {
-    return decl != nullptr && decl->kind == ast::DeclKind::Proof
-        ? static_cast<const ast::ProofDecl*>(decl)
-        : nullptr;
-}
-
-const ast::PermitDecl* as_permit(const ast::Decl* decl) {
-    return decl != nullptr && decl->kind == ast::DeclKind::Permit
-        ? static_cast<const ast::PermitDecl*>(decl)
-        : nullptr;
-}
-
 
 struct TypeUseRules {
     bool require_public = false;
@@ -94,7 +81,7 @@ public:
 
     void analyze(const ast::TranslationUnit& unit) {
         build_scope(unit.decls, root_, "");
-        analyze_scope(unit.decls, root_, true);
+        analyze_scope(unit.decls, root_, true, std::nullopt);
     }
 
 private:
@@ -131,8 +118,8 @@ private:
         const ast::FunctionDecl& function;
         std::vector<std::string> generics;
         Type return_type;
-        const ast::ReasonDecl* yields_reason = nullptr;
-        const ast::ProofDecl* proves_proof = nullptr;
+        const ast::ReasonDecl* fails_reason = nullptr;
+        std::vector<const ast::ProofDecl*> proves_proofs;
     };
 
     struct VariantResolution {
@@ -271,12 +258,12 @@ private:
 
     static bool is_type_decl_kind(ast::DeclKind kind) {
         switch (kind) {
-        case ast::DeclKind::Struct:
+        case ast::DeclKind::Record:
         case ast::DeclKind::State:
         case ast::DeclKind::Reason:
         case ast::DeclKind::Proof:
         case ast::DeclKind::Permit:
-        case ast::DeclKind::Trait:
+        case ast::DeclKind::Phase:
             return true;
         default:
             return false;
@@ -299,6 +286,16 @@ private:
         auto it = qualified_names_.find(decl);
         const std::string name = it != qualified_names_.end() ? it->second : decl->name;
         return typesys::named_type(name, decl, std::move(args));
+    }
+
+    // True if `ancestor` is `descendant` or an ancestor along `parent` links (nested modules).
+    static bool scope_encloses(const Scope* ancestor, const Scope* descendant) {
+        for (const Scope* p = descendant; p != nullptr; p = p->parent) {
+            if (p == ancestor) {
+                return true;
+            }
+        }
+        return false;
     }
 
     bool is_error(const Type& type) const {
@@ -342,18 +339,16 @@ private:
             return nullptr;
         }
         switch (decl->kind) {
-        case ast::DeclKind::Struct:
-            return &static_cast<const ast::StructDecl*>(decl)->generic_params;
-        case ast::DeclKind::State:
-            return &static_cast<const ast::StateDecl*>(decl)->generic_params;
-        case ast::DeclKind::Trait:
-            return &static_cast<const ast::TraitDecl*>(decl)->generic_params;
+        case ast::DeclKind::Record:
+            return &static_cast<const ast::RecordDecl*>(decl)->generic_params;
         case ast::DeclKind::Function:
         case ast::DeclKind::ForeignFunction:
             return &static_cast<const ast::FunctionDecl*>(decl)->signature.generic_params;
+        case ast::DeclKind::State:
         case ast::DeclKind::Reason:
         case ast::DeclKind::Proof:
         case ast::DeclKind::Permit:
+        case ast::DeclKind::Phase:
         case ast::DeclKind::Module:
             return nullptr;
         }
@@ -618,20 +613,20 @@ private:
                              signature.return_type,
                              TypeUseRules{require_public, false, false, "function return type"});
 
-        if (signature.yields_type.has_value()) {
+        if (signature.fails_type.has_value()) {
             check_type_ref_usage(scope,
                                  generics,
-                                 *signature.yields_type,
-                                 TypeUseRules{require_public, true, false, "yield reason"});
-            if (const Symbol* symbol = resolve_symbol(scope, generics, signature.yields_type->path); symbol != nullptr) {
+                                 *signature.fails_type,
+                                 TypeUseRules{require_public, true, false, "fails clause"});
+            if (const Symbol* symbol = resolve_symbol(scope, generics, signature.fails_type->path); symbol != nullptr) {
                 if (symbol->kind != ast::DeclKind::Reason) {
-                    diagnostics_.error(signature.yields_type->span,
-                                      "'yields' must reference a reason type, not '"
+                    diagnostics_.error(signature.fails_type->span,
+                                      "'fails' must reference a reason type, not '"
                                           + std::string(ast::decl_kind_name(symbol->kind)) + "'");
                 }
             }
             if (is_foreign) {
-                diagnostics_.error(signature.yields_type->span, "foreign functions may not use 'yields'");
+                diagnostics_.error(signature.fails_type->span, "foreign functions may not use 'fails'");
             }
         }
 
@@ -651,34 +646,98 @@ private:
             if (!types_equal(return_type, builtin_type("Unit"))) {
                 diagnostics_.error(signature.return_type.span, "granting functions must return 'Unit'");
             }
-            if (signature.yields_type.has_value()) {
-                diagnostics_.error(signature.grants_type->span, "granting functions may not use 'yields'");
-            }
         }
 
-        if (signature.proves_type.has_value()) {
+        for (const ast::TypeRef& proves_type : signature.proves_types) {
             check_type_ref_usage(scope,
                                  generics,
-                                 *signature.proves_type,
+                                 proves_type,
                                  TypeUseRules{require_public, false, false, "proof authorization"});
-            if (const Symbol* symbol = resolve_symbol(scope, generics, signature.proves_type->path); symbol != nullptr) {
+            if (const Symbol* symbol = resolve_symbol(scope, generics, proves_type.path); symbol != nullptr) {
                 if (symbol->kind != ast::DeclKind::Proof) {
-                    diagnostics_.error(signature.proves_type->span,
+                    diagnostics_.error(proves_type.span,
                                       "'proves' must reference a proof type, not '"
                                           + std::string(ast::decl_kind_name(symbol->kind)) + "'");
                 }
             }
             if (is_foreign) {
-                diagnostics_.error(signature.proves_type->span, "foreign functions may not use 'proves'");
+                diagnostics_.error(proves_type.span, "foreign functions may not use 'proves'");
             }
+        }
+    }
+
+    void enforce_module_kind(ast::ModuleKind mk, const ast::Decl& decl) {
+        switch (mk) {
+        case ast::ModuleKind::Foundation: {
+            if (decl.kind == ast::DeclKind::Module) {
+                diagnostics_.error(decl.span, "foundation modules may not nest additional `module` declarations");
+                return;
+            }
+            if (decl.kind != ast::DeclKind::Record && decl.kind != ast::DeclKind::Function) {
+                diagnostics_.error(decl.span, "foundation modules may only declare `record` and `fn`");
+            }
+            if (decl.visibility == ast::Visibility::Public) {
+                if (decl.kind == ast::DeclKind::State || decl.kind == ast::DeclKind::Reason
+                    || decl.kind == ast::DeclKind::Proof || decl.kind == ast::DeclKind::Permit
+                    || decl.kind == ast::DeclKind::Phase) {
+                    diagnostics_.error(decl.span,
+                                      "foundation modules must not declare public state, reason, proof, permit, or phase");
+                }
+            }
+            break;
+        }
+        case ast::ModuleKind::Domain:
+            if (decl.kind == ast::DeclKind::ForeignFunction) {
+                diagnostics_.error(decl.span, "`domain` modules must not declare `foreign fn`");
+            }
+            if (decl.kind == ast::DeclKind::Record) {
+                const auto& rd = static_cast<const ast::RecordDecl&>(decl);
+                if (!rd.generic_params.empty()) {
+                    diagnostics_.error(rd.generic_params.front().span,
+                                       "`domain` modules must not declare user-defined generics");
+                }
+            }
+            if (decl.kind == ast::DeclKind::Function) {
+                const auto& fd = static_cast<const ast::FunctionDecl&>(decl);
+                if (!fd.signature.generic_params.empty()) {
+                    diagnostics_.error(fd.signature.generic_params.front().span,
+                                       "`domain` modules must not declare user-defined generics");
+                }
+            }
+            break;
+        case ast::ModuleKind::Boundary:
+        case ast::ModuleKind::Hazard:
+            if (decl.kind == ast::DeclKind::Record) {
+                const auto& rd = static_cast<const ast::RecordDecl&>(decl);
+                if (!rd.generic_params.empty()) {
+                    diagnostics_.error(rd.generic_params.front().span,
+                                       "this module kind must not declare user-defined generics on `record`");
+                }
+            }
+            if (decl.kind == ast::DeclKind::Function) {
+                const auto& fd = static_cast<const ast::FunctionDecl&>(decl);
+                if (!fd.signature.generic_params.empty()) {
+                    diagnostics_.error(fd.signature.generic_params.front().span,
+                                       "this module kind must not declare user-defined generics on `fn`");
+                }
+            }
+            break;
         }
     }
 
     void analyze_scope(const std::vector<std::unique_ptr<ast::Decl>>& decls,
                        const Scope& scope,
-                       bool enclosing_public) {
+                       bool enclosing_public,
+                       std::optional<ast::ModuleKind> module_kind) {
         for (const auto& decl_ptr : decls) {
             const ast::Decl& decl = *decl_ptr;
+            if (!module_kind.has_value() && decl.kind != ast::DeclKind::Module) {
+                diagnostics_.error(decl.span, "declarations must appear inside a module");
+                continue;
+            }
+            if (module_kind.has_value() && decl.kind != ast::DeclKind::Module) {
+                enforce_module_kind(*module_kind, decl);
+            }
             const bool effectively_public = enclosing_public && decl.visibility == ast::Visibility::Public;
 
             if (effectively_public) {
@@ -690,23 +749,23 @@ private:
                 const auto& module_decl = static_cast<const ast::ModuleDecl&>(decl);
                 const auto it = scope.symbols.find(module_decl.name);
                 if (it != scope.symbols.end() && it->second.child_scope != nullptr) {
-                    analyze_scope(module_decl.members, *it->second.child_scope, effectively_public);
+                    analyze_scope(module_decl.members, *it->second.child_scope, effectively_public, module_decl.module_kind);
                 }
                 break;
             }
-            case ast::DeclKind::Struct: {
-                const auto& struct_decl = static_cast<const ast::StructDecl&>(decl);
-                check_duplicate_generic_params(struct_decl.generic_params, "struct");
-                check_duplicate_fields(struct_decl.fields, "struct");
+            case ast::DeclKind::Record: {
+                const auto& record_decl = static_cast<const ast::RecordDecl&>(decl);
+                check_duplicate_generic_params(record_decl.generic_params, "record");
+                check_duplicate_fields(record_decl.fields, "record");
                 std::vector<std::string> generics;
-                for (const ast::GenericParam& generic : struct_decl.generic_params) {
+                for (const ast::GenericParam& generic : record_decl.generic_params) {
                     generics.push_back(generic.name);
                 }
-                for (const ast::Field& field : struct_decl.fields) {
+                for (const ast::Field& field : record_decl.fields) {
                     check_type_ref_usage(scope,
                                          generics,
                                          field.type,
-                                         TypeUseRules{effectively_public, false, false, "struct field"});
+                                         TypeUseRules{effectively_public, false, false, "record field"});
                 }
                 break;
             }
@@ -723,12 +782,7 @@ private:
                                           "pseudo-optional state detected; model inhabited domain alternatives instead");
                     }
                 }
-                check_duplicate_generic_params(state_decl.generic_params, "state");
                 check_duplicate_variants(state_decl.variants, "state");
-                std::vector<std::string> generics;
-                for (const ast::GenericParam& generic : state_decl.generic_params) {
-                    generics.push_back(generic.name);
-                }
                 for (const ast::Variant& variant : state_decl.variants) {
                     if (effectively_public) {
                         check_public_name(variant.name, variant.span);
@@ -736,7 +790,7 @@ private:
                     check_duplicate_fields(variant.fields, "state variant");
                     for (const ast::Field& field : variant.fields) {
                         check_type_ref_usage(scope,
-                                             generics,
+                                             {},
                                              field.type,
                                              TypeUseRules{effectively_public, false, false, "state variant payload"});
                     }
@@ -776,28 +830,35 @@ private:
             }
             case ast::DeclKind::Permit:
                 break;
-            case ast::DeclKind::Trait: {
-                const auto& trait_decl = static_cast<const ast::TraitDecl&>(decl);
-                check_duplicate_generic_params(trait_decl.generic_params, "trait");
-                std::vector<std::string> generics;
-                for (const ast::GenericParam& generic : trait_decl.generic_params) {
-                    generics.push_back(generic.name);
+            case ast::DeclKind::Phase: {
+                const auto& phase_decl = static_cast<const ast::PhaseDecl&>(decl);
+                if (phase_decl.positions.empty()) {
+                    diagnostics_.error(phase_decl.span, "phase declarations must define at least one position");
                 }
-                std::unordered_set<std::string> method_names;
-                for (const ast::FunctionSignature& method : trait_decl.methods) {
-                    if (!method_names.insert(method.name).second) {
-                        diagnostics_.error(method.span, "duplicate trait method '" + method.name + "'");
+                check_duplicate_fields(phase_decl.fields, "phase");
+                std::unordered_set<std::string> seen_positions;
+                for (const std::string& pos : phase_decl.positions) {
+                    if (!seen_positions.insert(pos).second) {
+                        diagnostics_.error(phase_decl.span, "duplicate phase position '" + pos + "'");
                     }
-                    check_function_signature(scope, method, effectively_public, false, generics);
+                }
+                for (const ast::Field& field : phase_decl.fields) {
+                    check_type_ref_usage(scope,
+                                         {},
+                                         field.type,
+                                         TypeUseRules{effectively_public, false, false, "phase field"});
                 }
                 break;
             }
             case ast::DeclKind::Function:
             case ast::DeclKind::ForeignFunction: {
                 const auto& function_decl = static_cast<const ast::FunctionDecl&>(decl);
+                // Public functions must not expose private types in their signature even when the
+                // enclosing module is private (visibility is per-declaration).
+                const bool signature_is_public_api = function_decl.visibility == ast::Visibility::Public;
                 check_function_signature(scope,
                                          function_decl.signature,
-                                         effectively_public,
+                                         signature_is_public_api,
                                          function_decl.is_foreign(),
                                          {});
                 if (function_decl.is_foreign() && function_decl.body != nullptr) {
@@ -872,7 +933,8 @@ private:
 
             ExprType arg_type = type_expr(*args[index], context, env);
             if (arg_type.yielded_reason != nullptr) {
-                diagnostics_.error(args[index]->span, "yielded call must be handled with 'try' or 'match'");
+                diagnostics_.error(args[index]->span,
+                                    "call with `fails` must be handled with `try` or `match`");
             }
             if (!assignable_to(param_type, arg_type.value)) {
                 diagnostics_.error(args[index]->span,
@@ -883,10 +945,27 @@ private:
         }
     }
 
-    bool check_initializer_fields(const std::vector<ast::Field>& expected_fields,
+    bool check_initializer_fields(const ast::Decl* owner_decl,
+                                  const std::vector<ast::Field>& expected_fields,
                                   const std::vector<ast::RecordFieldInit>& actual_fields,
                                   const FunctionContext& context,
-                                  ValueEnv& env) {
+                                  ValueEnv& env,
+                                  SourceSpan construct_span) {
+        if (owner_decl != nullptr) {
+            const auto owner_it = decl_scopes_.find(owner_decl);
+            if (owner_it != decl_scopes_.end()) {
+                const Scope* const owner_scope = owner_it->second;
+                for (const ast::Field& field : expected_fields) {
+                    if (field.visibility != ast::Visibility::Public
+                        && !scope_encloses(owner_scope, &context.scope)) {
+                        diagnostics_.error(construct_span,
+                                            "cannot construct here: field '" + field.name + "' is private");
+                        return false;
+                    }
+                }
+            }
+        }
+
         bool ok = true;
         std::unordered_map<std::string, const ast::Field*> expected;
         for (const ast::Field& field : expected_fields) {
@@ -908,7 +987,7 @@ private:
             }
             ExprType init_type = type_expr(*init.value, context, env);
             if (init_type.yielded_reason != nullptr) {
-                diagnostics_.error(init.span, "yielded call must be handled with 'try' or 'match'");
+                diagnostics_.error(init.span, "call with `fails` must be handled with `try` or `match`");
                 ok = false;
             }
             const Type expected_type = resolve_type(context.scope, context.generics, it->second->type);
@@ -937,6 +1016,25 @@ private:
                     return make_expr(error_type());
                 }
                 return make_expr(use_binding(env, expr.path.front(), expr.span));
+            }
+            if (const Symbol* sym = resolve_symbol(context.scope, context.generics, expr.path);
+                sym != nullptr && sym->decl->kind == ast::DeclKind::Phase) {
+                diagnostics_.error(expr.span,
+                                  "a phase family name is not a value type; use a concrete position such as 'Phase::Position'");
+                return make_expr(error_type());
+            }
+        }
+
+        if (expr.path.size() >= 2) {
+            std::vector<std::string> family_path(expr.path.begin(), expr.path.end() - 1);
+            const std::string& position_name = expr.path.back();
+            if (const Symbol* sym = resolve_symbol(context.scope, context.generics, family_path);
+                sym != nullptr && sym->decl->kind == ast::DeclKind::Phase) {
+                const auto& pd = static_cast<const ast::PhaseDecl&>(*sym->decl);
+                if (std::find(pd.positions.begin(), pd.positions.end(), position_name) != pd.positions.end()) {
+                    const std::string qn = qualified_names_.at(sym->decl) + "::" + position_name;
+                    return make_expr(typesys::named_type(qn, sym->decl));
+                }
             }
         }
 
@@ -974,12 +1072,12 @@ private:
                 diagnostics_.error(expr.span, "proof values must be created with 'prove'");
                 return make_expr(error_type());
             }
-            if (symbol->kind == ast::DeclKind::Struct) {
-                const auto* struct_decl = static_cast<const ast::StructDecl*>(symbol->decl);
-                if (struct_decl->fields.empty()) {
+            if (symbol->kind == ast::DeclKind::Record) {
+                const auto* record_decl = static_cast<const ast::RecordDecl*>(symbol->decl);
+                if (record_decl->fields.empty()) {
                     return make_expr(named_type(symbol->decl));
                 }
-                diagnostics_.error(expr.span, "struct '" + struct_decl->name + "' requires field initialization");
+                diagnostics_.error(expr.span, "record '" + record_decl->name + "' requires field initialization");
                 return make_expr(error_type());
             }
             diagnostics_.error(expr.span, "type name '" + expr.path.back() + "' is not a value");
@@ -1003,7 +1101,7 @@ private:
             return make_expr(error_type());
         }
         if (function->signature.grants_type.has_value()) {
-            diagnostics_.error(expr.span, "function '" + function->name + "' grants a permit and must be used in a 'with' scope");
+            diagnostics_.error(expr.span, "function '" + function->name + "' grants a permit and must be used with 'grant'");
             return make_expr(error_type());
         }
         if (!function->signature.generic_params.empty()) {
@@ -1013,19 +1111,39 @@ private:
         check_call_arguments(*function, expr.args, context, env);
 
         ExprType result = make_expr(resolve_type(context.scope, {}, function->signature.return_type));
-        if (function->signature.yields_type.has_value()) {
-            const Type yields_type = resolve_type(context.scope, {}, *function->signature.yields_type);
-            result.yielded_reason = yields_type.decl != nullptr ? static_cast<const ast::ReasonDecl*>(yields_type.decl) : nullptr;
+        if (function->signature.fails_type.has_value()) {
+            const Type fails_type = resolve_type(context.scope, {}, *function->signature.fails_type);
+            result.yielded_reason = fails_type.decl != nullptr ? static_cast<const ast::ReasonDecl*>(fails_type.decl) : nullptr;
         }
         return result;
     }
 
     ExprType type_construct_expr(const ast::ConstructExpr& expr, const FunctionContext& context, ValueEnv& env) {
+        if (expr.path.size() >= 2) {
+            std::vector<std::string> family_path(expr.path.begin(), expr.path.end() - 1);
+            const std::string& position_name = expr.path.back();
+            if (const Symbol* sym = resolve_symbol(context.scope, context.generics, family_path);
+                sym != nullptr && sym->decl->kind == ast::DeclKind::Phase) {
+                const auto& pd = static_cast<const ast::PhaseDecl&>(*sym->decl);
+                if (std::find(pd.positions.begin(), pd.positions.end(), position_name) == pd.positions.end()) {
+                    diagnostics_.error(expr.span, "unknown phase position '" + position_name + "'");
+                    return make_expr(error_type());
+                }
+                if (!check_initializer_fields(sym->decl, pd.fields, expr.fields, context, env, expr.span)) {
+                    return make_expr(error_type());
+                }
+                const std::string qn = qualified_names_.at(sym->decl) + "::" + position_name;
+                return make_expr(typesys::named_type(qn, sym->decl));
+            }
+        }
+
         if (const Symbol* symbol = resolve_symbol(context.scope, context.generics, expr.path); symbol != nullptr) {
             switch (symbol->kind) {
-            case ast::DeclKind::Struct: {
-                const auto* struct_decl = static_cast<const ast::StructDecl*>(symbol->decl);
-                check_initializer_fields(struct_decl->fields, expr.fields, context, env);
+            case ast::DeclKind::Record: {
+                const auto* record_decl = static_cast<const ast::RecordDecl*>(symbol->decl);
+                if (!check_initializer_fields(symbol->decl, record_decl->fields, expr.fields, context, env, expr.span)) {
+                    return make_expr(error_type());
+                }
                 return make_expr(named_type(symbol->decl));
             }
             case ast::DeclKind::Proof: {
@@ -1049,7 +1167,10 @@ private:
             return make_expr(error_type());
         }
         if (state_variant.variant != nullptr) {
-            check_initializer_fields(state_variant.variant->fields, expr.fields, context, env);
+            if (!check_initializer_fields(state_variant.owner_decl, state_variant.variant->fields, expr.fields, context,
+                                           env, expr.span)) {
+                return make_expr(error_type());
+            }
             return make_expr(named_type(state_variant.owner_decl));
         }
 
@@ -1063,15 +1184,15 @@ private:
         return make_expr(error_type());
     }
 
-    ExprType type_with_permit_expr(const ast::WithPermitExpr& expr, const FunctionContext& context, ValueEnv& env) {
+    ExprType type_grant_expr(const ast::GrantExpr& expr, const FunctionContext& context, ValueEnv& env) {
         const auto* grant_call = dynamic_cast<const ast::CallExpr*>(expr.grant_call.get());
         if (grant_call == nullptr) {
-            diagnostics_.error(expr.span, "'with' requires a direct grant call");
+            diagnostics_.error(expr.span, "'grant' requires a direct grantor call");
             return make_expr(error_type());
         }
         const auto* callee_path = dynamic_cast<const ast::PathExpr*>(grant_call->callee.get());
         if (callee_path == nullptr) {
-            diagnostics_.error(expr.span, "'with' requires a named grant function");
+            diagnostics_.error(expr.span, "'grant' requires a named grantor function");
             return make_expr(error_type());
         }
 
@@ -1082,20 +1203,19 @@ private:
             return make_expr(error_type());
         }
         if (!function->signature.generic_params.empty()) {
-            diagnostics_.error(expr.span, "'with' may not call a generic grant function");
+            diagnostics_.error(expr.span, "'grant' may not call a generic grantor function");
             return make_expr(error_type());
         }
         if (!function->signature.grants_type.has_value()) {
-            diagnostics_.error(expr.span, "'with' requires a function annotated with 'grants'");
+            diagnostics_.error(expr.span, "'grant' requires a function annotated with 'grants'");
             return make_expr(error_type());
         }
-        if (function->signature.yields_type.has_value()) {
-            diagnostics_.error(expr.span, "'with' may not call a yielding grant function");
-            return make_expr(error_type());
-        }
+        
+        // Spec allows fails + grants together.
+        
         const Type return_type = resolve_type(context.scope, context.generics, function->signature.return_type);
         if (!types_equal(return_type, builtin_type("Unit"))) {
-            diagnostics_.error(expr.span, "'with' requires a grant function that returns 'Unit'");
+            diagnostics_.error(expr.span, "'grant' requires a grantor function that returns 'Unit'");
             return make_expr(error_type());
         }
 
@@ -1119,32 +1239,40 @@ private:
         }
 
         const auto* proof_decl = static_cast<const ast::ProofDecl*>(symbol->decl);
-        if (context.proves_proof == nullptr) {
+        if (context.proves_proofs.empty()) {
             diagnostics_.error(expr.span, "'prove' is only valid inside a function with 'proves'");
             return make_expr(named_type(symbol->decl));
         }
-        if (context.proves_proof != proof_decl) {
-            diagnostics_.error(expr.span,
-                              "'prove' must create proof '" + context.proves_proof->name + "', not '"
-                                  + proof_decl->name + "'");
+        bool proves_ok = false;
+        for (const ast::ProofDecl* allowed : context.proves_proofs) {
+            if (allowed == proof_decl) {
+                proves_ok = true;
+                break;
+            }
         }
-        check_initializer_fields(proof_decl->fields, expr.fields, context, env);
+        if (!proves_ok) {
+            diagnostics_.error(expr.span,
+                              "'prove' must name one of the proof types listed in the function's `proves` clauses");
+        }
+        if (!check_initializer_fields(proof_decl, proof_decl->fields, expr.fields, context, env, expr.span)) {
+            return make_expr(error_type());
+        }
         return make_expr(named_type(symbol->decl));
     }
 
     ExprType type_try_expr(const ast::TryExpr& expr, const FunctionContext& context, ValueEnv& env) {
         ExprType operand = type_expr(*expr.operand, context, env);
         if (operand.yielded_reason == nullptr) {
-            diagnostics_.error(expr.span, "'try' requires a yielded call");
+            diagnostics_.error(expr.span, "`try` requires an operand that may fail (a call to a function with `fails`)");
             return make_expr(error_type());
         }
-        if (context.yields_reason == nullptr) {
-            diagnostics_.error(expr.span, "'try' is only valid inside a function with 'yields'");
+        if (context.fails_reason == nullptr) {
+            diagnostics_.error(expr.span, "'try' is only valid inside a function with 'fails'");
             return make_expr(error_type());
         }
-        if (operand.yielded_reason != context.yields_reason) {
+        if (operand.yielded_reason != context.fails_reason) {
             diagnostics_.error(expr.span,
-                              "'try' expects yielded reason '" + context.yields_reason->name + "', got '"
+                              "'try' expects failure reason '" + context.fails_reason->name + "', got '"
                                   + operand.yielded_reason->name + "'");
             return make_expr(error_type());
         }
@@ -1152,8 +1280,8 @@ private:
     }
 
     ExprType type_fail_expr(const ast::FailExpr& expr, const FunctionContext& context, ValueEnv& env) {
-        if (context.yields_reason == nullptr) {
-            diagnostics_.error(expr.span, "'fail' is only valid inside a function with 'yields'");
+        if (context.fails_reason == nullptr) {
+            diagnostics_.error(expr.span, "'fail' is only valid inside a function with 'fails'");
             return make_expr(error_type());
         }
 
@@ -1166,11 +1294,13 @@ private:
             diagnostics_.error(expr.span, "unknown reason variant '" + expr.path.back() + "'");
             return make_expr(error_type());
         }
-        if (variant.owner_decl != context.yields_reason) {
+        if (variant.owner_decl != context.fails_reason) {
             diagnostics_.error(expr.span,
-                              "'fail' must use a variant of yielded reason '" + context.yields_reason->name + "'");
+                              "'fail' must use a variant of failure reason '" + context.fails_reason->name + "'");
         }
-        check_initializer_fields(variant.variant->fields, expr.fields, context, env);
+        if (!check_initializer_fields(variant.owner_decl, variant.variant->fields, expr.fields, context, env, expr.span)) {
+            return make_expr(error_type());
+        }
         return make_expr(builtin_type("Never"));
     }
 
@@ -1292,13 +1422,14 @@ private:
                 }
                 case ast::PatternKind::Variant:
                     diagnostics_.error(arm.pattern->span,
-                                      "match over a yielded call requires succeeded(...) and failed(...) patterns");
+                                      "match over a `fails` call requires succeeded(...) and failed(...) patterns");
                     break;
                 }
 
                 ExprType arm_type = type_expr(*arm.body, context, arm_env);
                 if (arm_type.yielded_reason != nullptr) {
-                    diagnostics_.error(arm.body->span, "yielded call must be handled with 'try' or 'match'");
+                    diagnostics_.error(arm.body->span,
+                                        "call with `fails` must be handled with `try` or `match`");
                 }
                 result_type = unify_match_result(result_type, arm_type.value, arm.span);
                 has_arm = true;
@@ -1306,7 +1437,7 @@ private:
             }
 
             if (!seen_success) {
-                diagnostics_.error(expr.span, "match over yielded call must include a succeeded(...) arm");
+                diagnostics_.error(expr.span, "match over a `fails` call must include a succeeded(...) arm");
             }
             for (const ast::Variant& variant : scrutinee.yielded_reason->variants) {
                 if (!seen_failed.contains(variant.name)) {
@@ -1320,7 +1451,8 @@ private:
 
         const ast::StateDecl* state_decl = as_state(scrutinee.value.decl);
         if (state_decl == nullptr) {
-            diagnostics_.error(expr.scrutinee->span, "match requires a state value or yielded call");
+            diagnostics_.error(expr.scrutinee->span,
+                                "match requires a state value or an expression that may fail (`fails`)");
             return make_expr(error_type());
         }
 
@@ -1355,7 +1487,8 @@ private:
             bind_variant_pattern(pattern, *resolution.variant, context, arm_env);
             ExprType arm_type = type_expr(*arm.body, context, arm_env);
             if (arm_type.yielded_reason != nullptr) {
-                diagnostics_.error(arm.body->span, "yielded call must be handled with 'try' or 'match'");
+                diagnostics_.error(arm.body->span,
+                                    "call with `fails` must be handled with `try` or `match`");
             }
             result_type = unify_match_result(result_type, arm_type.value, arm.span);
             has_arm = true;
@@ -1382,7 +1515,8 @@ private:
                 const auto& let_stmt = static_cast<const ast::LetStmt&>(stmt);
                 ExprType init_type = type_expr(*let_stmt.initializer, context, local);
                 if (init_type.yielded_reason != nullptr) {
-                    diagnostics_.error(let_stmt.initializer->span, "yielded call must be handled with 'try' or 'match'");
+                    diagnostics_.error(let_stmt.initializer->span,
+                                        "call with `fails` must be handled with `try` or `match`");
                 }
                 if (!init_type.reachable) {
                     return init_type;
@@ -1394,7 +1528,8 @@ private:
                 const auto& expr_stmt = static_cast<const ast::ExprStmt&>(stmt);
                 ExprType expr_type = type_expr(*expr_stmt.expr, context, local);
                 if (expr_type.yielded_reason != nullptr) {
-                    diagnostics_.error(expr_stmt.expr->span, "yielded call must be handled with 'try' or 'match'");
+                    diagnostics_.error(expr_stmt.expr->span,
+                                        "call with `fails` must be handled with `try` or `match`");
                 }
                 if (!expr_type.reachable) {
                     return expr_type;
@@ -1407,7 +1542,8 @@ private:
         if (block.result != nullptr) {
             ExprType result = type_expr(*block.result, context, local);
             if (result.yielded_reason != nullptr) {
-                diagnostics_.error(block.result->span, "yielded call must be handled with 'try' or 'match'");
+                diagnostics_.error(block.result->span,
+                                    "call with `fails` must be handled with `try` or `match`");
                 return make_expr(error_type());
             }
             if (result.reachable) {
@@ -1417,6 +1553,67 @@ private:
         }
         merge_sequential_env(parent_env, local);
         return make_expr(builtin_type("Unit"));
+    }
+
+    ExprType type_field_access_expr(const ast::FieldAccessExpr& expr, const FunctionContext& context, ValueEnv& env) {
+        ExprType recv = type_expr(*expr.object, context, env);
+        if (is_error(recv.value)) {
+            return recv;
+        }
+        const ast::Decl* decl = recv.value.decl;
+        if (decl == nullptr) {
+            diagnostics_.error(expr.span, "field access requires a value of known type");
+            return make_expr(error_type());
+        }
+        const auto owner_it = decl_scopes_.find(decl);
+        if (owner_it == decl_scopes_.end()) {
+            diagnostics_.error(expr.span, "field access requires a value of known type");
+            return make_expr(error_type());
+        }
+        const Scope* const owner_scope = owner_it->second;
+
+        if (decl->kind == ast::DeclKind::Record) {
+            const auto* rd = static_cast<const ast::RecordDecl*>(decl);
+            for (const ast::Field& f : rd->fields) {
+                if (f.name == expr.field_name) {
+                    if (f.visibility != ast::Visibility::Public
+                        && !scope_encloses(owner_scope, &context.scope)) {
+                        diagnostics_.error(expr.span, "field '" + expr.field_name + "' is private");
+                        return make_expr(error_type());
+                    }
+                    const Type field_ty = resolve_member_type(decl, recv.value.args, f.type);
+                    if (typesys::is_affine(discipline(recv.value))
+                        && discipline(field_ty) != typesys::UseDiscipline::Copyable) {
+                        diagnostics_.error(expr.span,
+                                            "field access on affine value requires a copyable field type");
+                        return make_expr(error_type());
+                    }
+                    return make_expr(field_ty);
+                }
+            }
+        }
+        if (decl->kind == ast::DeclKind::Phase) {
+            const auto* pd = static_cast<const ast::PhaseDecl*>(decl);
+            for (const ast::Field& f : pd->fields) {
+                if (f.name == expr.field_name) {
+                    if (f.visibility != ast::Visibility::Public
+                        && !scope_encloses(owner_scope, &context.scope)) {
+                        diagnostics_.error(expr.span, "field '" + expr.field_name + "' is private");
+                        return make_expr(error_type());
+                    }
+                    const Type field_ty = resolve_member_type(decl, recv.value.args, f.type);
+                    if (typesys::is_affine(discipline(recv.value))
+                        && discipline(field_ty) != typesys::UseDiscipline::Copyable) {
+                        diagnostics_.error(expr.span,
+                                            "field access on affine value requires a copyable field type");
+                        return make_expr(error_type());
+                    }
+                    return make_expr(field_ty);
+                }
+            }
+        }
+        diagnostics_.error(expr.span, "no field '" + expr.field_name + "' on this type");
+        return make_expr(error_type());
     }
 
     ExprType type_expr(const ast::Expr& expr, const FunctionContext& context, ValueEnv& env) {
@@ -1439,26 +1636,30 @@ private:
             return type_block(static_cast<const ast::BlockExpr&>(expr), context, env);
         case ast::ExprKind::Fail:
             return type_fail_expr(static_cast<const ast::FailExpr&>(expr), context, env);
-        case ast::ExprKind::WithPermit:
-            return type_with_permit_expr(static_cast<const ast::WithPermitExpr&>(expr), context, env);
+        case ast::ExprKind::Grant:
+            return type_grant_expr(static_cast<const ast::GrantExpr&>(expr), context, env);
         case ast::ExprKind::Prove:
             return type_prove_expr(static_cast<const ast::ProveExpr&>(expr), context, env);
+        case ast::ExprKind::FieldAccess:
+            return type_field_access_expr(static_cast<const ast::FieldAccessExpr&>(expr), context, env);
         }
         return make_expr(error_type());
     }
 
     void analyze_function_body(const ast::FunctionDecl& function_decl, const Scope& scope) {
-        FunctionContext context{scope, function_decl, {}, resolve_type(scope, {}, function_decl.signature.return_type), nullptr, nullptr};
+        FunctionContext context{scope, function_decl, {}, resolve_type(scope, {}, function_decl.signature.return_type), nullptr, {}};
         for (const ast::GenericParam& generic : function_decl.signature.generic_params) {
             context.generics.push_back(generic.name);
         }
-        if (function_decl.signature.yields_type.has_value()) {
-            const Type yields_type = resolve_type(scope, context.generics, *function_decl.signature.yields_type);
-            context.yields_reason = yields_type.decl != nullptr ? static_cast<const ast::ReasonDecl*>(yields_type.decl) : nullptr;
+        if (function_decl.signature.fails_type.has_value()) {
+            const Type fails_type = resolve_type(scope, context.generics, *function_decl.signature.fails_type);
+            context.fails_reason = fails_type.decl != nullptr ? static_cast<const ast::ReasonDecl*>(fails_type.decl) : nullptr;
         }
-        if (function_decl.signature.proves_type.has_value()) {
-            const Type proves_type = resolve_type(scope, context.generics, *function_decl.signature.proves_type);
-            context.proves_proof = proves_type.decl != nullptr ? static_cast<const ast::ProofDecl*>(proves_type.decl) : nullptr;
+        for (const ast::TypeRef& proves_ast : function_decl.signature.proves_types) {
+            const Type proves_type = resolve_type(scope, context.generics, proves_ast);
+            if (proves_type.decl != nullptr && proves_type.decl->kind == ast::DeclKind::Proof) {
+                context.proves_proofs.push_back(static_cast<const ast::ProofDecl*>(proves_type.decl));
+            }
         }
 
         ValueEnv env = make_root_env();

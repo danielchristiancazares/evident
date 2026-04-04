@@ -50,8 +50,8 @@ std::string_view token_kind_name(TokenKind kind) {
         return "module";
     case TokenKind::KeywordPublic:
         return "public";
-    case TokenKind::KeywordStruct:
-        return "struct";
+    case TokenKind::KeywordRecord:
+        return "record";
     case TokenKind::KeywordState:
         return "state";
     case TokenKind::KeywordReason:
@@ -60,14 +60,14 @@ std::string_view token_kind_name(TokenKind kind) {
         return "proof";
     case TokenKind::KeywordPermit:
         return "permit";
-    case TokenKind::KeywordTrait:
-        return "trait";
+    case TokenKind::KeywordPhase:
+        return "phase";
     case TokenKind::KeywordFn:
         return "fn";
     case TokenKind::KeywordForeign:
         return "foreign";
-    case TokenKind::KeywordYields:
-        return "yields";
+    case TokenKind::KeywordFails:
+        return "fails";
     case TokenKind::KeywordGrants:
         return "grants";
     case TokenKind::KeywordProves:
@@ -80,14 +80,28 @@ std::string_view token_kind_name(TokenKind kind) {
         return "try";
     case TokenKind::KeywordFail:
         return "fail";
-    case TokenKind::KeywordWith:
-        return "with";
+    case TokenKind::KeywordGrant:
+        return "grant";
     case TokenKind::KeywordAs:
         return "as";
     case TokenKind::KeywordProve:
         return "prove";
-    case TokenKind::KeywordFor:
-        return "for";
+    case TokenKind::KeywordDomain:
+        return "domain";
+    case TokenKind::KeywordBoundary:
+        return "boundary";
+    case TokenKind::KeywordFoundation:
+        return "foundation";
+    case TokenKind::KeywordHazard:
+        return "hazard";
+    case TokenKind::KeywordFields:
+        return "fields";
+    case TokenKind::KeywordPositions:
+        return "positions";
+    case TokenKind::KeywordSucceeded:
+        return "succeeded";
+    case TokenKind::KeywordFailed:
+        return "failed";
     case TokenKind::Unknown:
         return "Unknown";
     }

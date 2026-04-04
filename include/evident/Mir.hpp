@@ -121,9 +121,9 @@ struct Function {
     ast::Visibility visibility = ast::Visibility::Private;
     std::string qualified_name;
     std::string return_type;
-    std::optional<std::string> yields_type;
+    std::optional<std::string> fails_type;
     std::optional<std::string> grants_type;
-    std::optional<std::string> proves_type;
+    std::vector<std::string> proves_types;
     bool is_foreign = false;
     std::vector<Local> locals;
     std::vector<BasicBlock> blocks;

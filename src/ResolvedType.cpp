@@ -128,9 +128,11 @@ UseDiscipline DisciplineClassifier::classify_impl(const Type& type) const {
         return UseDiscipline::Affine;
     case ast::DeclKind::Permit:
         return UseDiscipline::ScopedAuthority;
-    case ast::DeclKind::Struct: {
-        const auto* struct_decl = static_cast<const ast::StructDecl*>(type.decl);
-        for (const ast::Field& field : struct_decl->fields) {
+    case ast::DeclKind::Phase:
+        return UseDiscipline::Affine;
+    case ast::DeclKind::Record: {
+        const auto* record_decl = static_cast<const ast::RecordDecl*>(type.decl);
+        for (const ast::Field& field : record_decl->fields) {
             discipline = merge_discipline(discipline, classify(resolve_type_ref_(type.decl, type.args, field.type)));
         }
         return discipline;
@@ -153,7 +155,6 @@ UseDiscipline DisciplineClassifier::classify_impl(const Type& type) const {
         }
         return discipline;
     }
-    case ast::DeclKind::Trait:
     case ast::DeclKind::Module:
     case ast::DeclKind::Function:
     case ast::DeclKind::ForeignFunction:

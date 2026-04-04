@@ -23,6 +23,9 @@ void dump_type(std::ostream& out, const TypeRef& type) {
 void dump_fields(std::ostream& out, const std::vector<Field>& fields, std::size_t depth) {
     for (const Field& field : fields) {
         indent(out, depth);
+        if (field.visibility == Visibility::Public) {
+            out << "public ";
+        }
         out << "field " << field.name << ": ";
         dump_type(out, field.type);
         out << '\n';
@@ -169,18 +172,18 @@ void dump_expr(std::ostream& out, const Expr& expr, std::size_t depth) {
         dump_record_fields(out, fail_expr.fields, depth + 1);
         break;
     }
-    case ExprKind::WithPermit: {
-        const auto& with_expr = static_cast<const WithPermitExpr&>(expr);
-        out << "with " << with_expr.binder_name << '\n';
-        if (with_expr.grant_call != nullptr) {
+    case ExprKind::Grant: {
+        const auto& grant_expr = static_cast<const GrantExpr&>(expr);
+        out << "grant " << grant_expr.binder_name << '\n';
+        if (grant_expr.grant_call != nullptr) {
             indent(out, depth + 1);
-            out << "grant\n";
-            dump_expr(out, *with_expr.grant_call, depth + 2);
+            out << "grantor\n";
+            dump_expr(out, *grant_expr.grant_call, depth + 2);
         }
-        if (with_expr.body != nullptr) {
+        if (grant_expr.body != nullptr) {
             indent(out, depth + 1);
             out << "body\n";
-            dump_expr(out, *with_expr.body, depth + 2);
+            dump_expr(out, *grant_expr.body, depth + 2);
         }
         break;
     }
@@ -195,6 +198,14 @@ void dump_expr(std::ostream& out, const Expr& expr, std::size_t depth) {
         }
         out << '\n';
         dump_record_fields(out, prove_expr.fields, depth + 1);
+        break;
+    }
+    case ExprKind::FieldAccess: {
+        const auto& fa = static_cast<const FieldAccessExpr&>(expr);
+        out << "field-access ." << fa.field_name << '\n';
+        if (fa.object != nullptr) {
+            dump_expr(out, *fa.object, depth + 1);
+        }
         break;
     }
     }
@@ -253,14 +264,16 @@ void dump_decl(std::ostream& out, const Decl& decl, std::size_t depth) {
     switch (decl.kind) {
     case DeclKind::Module: {
         const auto& module = static_cast<const ModuleDecl&>(decl);
+        indent(out, depth + 1);
+        out << "kind " << module_kind_name(module.module_kind) << '\n';
         for (const auto& member : module.members) {
             dump_decl(out, *member, depth + 1);
         }
         break;
     }
-    case DeclKind::Struct: {
-        const auto& struct_decl = static_cast<const StructDecl&>(decl);
-        dump_fields(out, struct_decl.fields, depth + 1);
+    case DeclKind::Record: {
+        const auto& record_decl = static_cast<const RecordDecl&>(decl);
+        dump_fields(out, record_decl.fields, depth + 1);
         break;
     }
     case DeclKind::State: {
@@ -288,29 +301,17 @@ void dump_decl(std::ostream& out, const Decl& decl, std::size_t depth) {
     }
     case DeclKind::Permit:
         break;
-    case DeclKind::Trait: {
-        const auto& trait_decl = static_cast<const TraitDecl&>(decl);
-        for (const FunctionSignature& method : trait_decl.methods) {
-            indent(out, depth + 1);
-            out << "method " << method.name << '(';
-            for (std::size_t i = 0; i < method.params.size(); ++i) {
-                if (i > 0) {
-                    out << ", ";
-                }
-                out << method.params[i].name << ": " << format_type(method.params[i].type);
-            }
-            out << ") -> " << format_type(method.return_type);
-            if (method.yields_type.has_value()) {
-                out << " yields " << format_type(*method.yields_type);
-            }
-            if (method.grants_type.has_value()) {
-                out << " grants " << format_type(*method.grants_type);
-            }
-            if (method.proves_type.has_value()) {
-                out << " proves " << format_type(*method.proves_type);
-            }
-            out << '\n';
+    case DeclKind::Phase: {
+        const auto& phase_decl = static_cast<const PhaseDecl&>(decl);
+        indent(out, depth + 1);
+        out << "fields\n";
+        dump_fields(out, phase_decl.fields, depth + 2);
+        indent(out, depth + 1);
+        out << "positions";
+        for (const std::string& pos : phase_decl.positions) {
+            out << ' ' << pos;
         }
+        out << '\n';
         break;
     }
     case DeclKind::Function:
@@ -322,17 +323,20 @@ void dump_decl(std::ostream& out, const Decl& decl, std::size_t depth) {
             if (i > 0) {
                 out << ", ";
             }
+            if (fn_decl.signature.params[i].is_permit_param) {
+                out << "as ";
+            }
             out << fn_decl.signature.params[i].name << ": " << format_type(fn_decl.signature.params[i].type);
         }
         out << ") -> " << format_type(fn_decl.signature.return_type);
-        if (fn_decl.signature.yields_type.has_value()) {
-            out << " yields " << format_type(*fn_decl.signature.yields_type);
+        if (fn_decl.signature.fails_type.has_value()) {
+            out << " fails " << format_type(*fn_decl.signature.fails_type);
         }
         if (fn_decl.signature.grants_type.has_value()) {
             out << " grants " << format_type(*fn_decl.signature.grants_type);
         }
-        if (fn_decl.signature.proves_type.has_value()) {
-            out << " proves " << format_type(*fn_decl.signature.proves_type);
+        for (const auto& proves : fn_decl.signature.proves_types) {
+            out << " proves " << format_type(proves);
         }
         out << '\n';
         if (fn_decl.body != nullptr) {
@@ -349,8 +353,8 @@ std::string_view decl_kind_name(DeclKind kind) {
     switch (kind) {
     case DeclKind::Module:
         return "module";
-    case DeclKind::Struct:
-        return "struct";
+    case DeclKind::Record:
+        return "record";
     case DeclKind::State:
         return "state";
     case DeclKind::Reason:
@@ -359,14 +363,28 @@ std::string_view decl_kind_name(DeclKind kind) {
         return "proof";
     case DeclKind::Permit:
         return "permit";
-    case DeclKind::Trait:
-        return "trait";
+    case DeclKind::Phase:
+        return "phase";
     case DeclKind::Function:
         return "function";
     case DeclKind::ForeignFunction:
         return "foreign-function";
     }
     return "decl";
+}
+
+std::string_view module_kind_name(ModuleKind kind) {
+    switch (kind) {
+    case ModuleKind::Domain:
+        return "domain";
+    case ModuleKind::Boundary:
+        return "boundary";
+    case ModuleKind::Foundation:
+        return "foundation";
+    case ModuleKind::Hazard:
+        return "hazard";
+    }
+    return "unknown";
 }
 
 std::string visibility_name(Visibility visibility) {

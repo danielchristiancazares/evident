@@ -16,12 +16,12 @@ using VariantId = std::size_t;
 using FunctionId = std::size_t;
 
 enum class TypeKind {
-    Struct,
+    Record,
     State,
     Reason,
     Proof,
     Permit,
-    Trait,
+    Phase,
 };
 
 enum class ExprKind {
@@ -35,8 +35,9 @@ enum class ExprKind {
     Match,
     Block,
     Fail,
-    WithPermit,
+    Grant,
     Prove,
+    FieldAccess,
 };
 
 enum class StatementKind {
@@ -51,7 +52,7 @@ enum class PatternKind {
 };
 
 enum class ConstructKind {
-    Struct,
+    Record,
     Proof,
     StateVariant,
     ReasonVariant,
@@ -82,20 +83,20 @@ struct VariantDecl {
 
 struct TypeDecl {
     TypeId id = 0;
-    TypeKind kind = TypeKind::Struct;
+    TypeKind kind = TypeKind::Record;
     ast::Visibility visibility = ast::Visibility::Private;
     std::string qualified_name;
     std::optional<typesys::UseDiscipline> concrete_discipline;
     std::vector<std::string> generics;
     std::vector<FieldDecl> fields;
     std::vector<VariantId> variants;
-    std::vector<std::string> trait_methods;
 };
 
 struct Parameter {
     std::string name;
     TypeRef type;
     bool is_compile_time_only = false;
+    bool is_permit_param = false;
 };
 
 struct Binding {
@@ -114,7 +115,7 @@ struct FieldInit {
 struct Expr {
     ExprKind kind = ExprKind::Unit;
     TypeRef result_type;
-    std::optional<TypeId> yields_reason_type_id;
+    std::optional<TypeId> fails_reason_type_id;
 
     explicit Expr(ExprKind expr_kind, TypeRef type = {})
         : kind(expr_kind), result_type(std::move(type)) {}
@@ -157,7 +158,7 @@ struct CallExpr final : Expr {
 };
 
 struct ConstructExpr final : Expr {
-    ConstructKind construct_kind = ConstructKind::Struct;
+    ConstructKind construct_kind = ConstructKind::Record;
     TypeId owner_type_id = 0;
     std::optional<VariantId> variant_id;
     std::string qualified_name;
@@ -271,7 +272,7 @@ struct FailExpr final : Expr {
         : Expr(ExprKind::Fail, std::move(type)) {}
 };
 
-struct WithPermitExpr final : Expr {
+struct GrantExpr final : Expr {
     FunctionId grant_function_id = 0;
     TypeId permit_type_id = 0;
     std::string grant_name;
@@ -280,8 +281,16 @@ struct WithPermitExpr final : Expr {
     std::vector<std::unique_ptr<Expr>> args;
     std::unique_ptr<BlockExpr> body;
 
-    explicit WithPermitExpr(TypeRef type = {})
-        : Expr(ExprKind::WithPermit, std::move(type)) {}
+    explicit GrantExpr(TypeRef type = {})
+        : Expr(ExprKind::Grant, std::move(type)) {}
+};
+
+struct FieldAccessExpr final : Expr {
+    std::unique_ptr<Expr> object;
+    std::string field_name;
+
+    explicit FieldAccessExpr(TypeRef type = {})
+        : Expr(ExprKind::FieldAccess, std::move(type)) {}
 };
 
 struct ProveExpr final : Expr {
@@ -300,9 +309,9 @@ struct FunctionDecl {
     std::vector<std::string> generics;
     std::vector<Parameter> params;
     TypeRef return_type;
-    std::optional<TypeId> yields_reason_type_id;
+    std::optional<TypeId> fails_reason_type_id;
     std::optional<TypeId> grants_permit_type_id;
-    std::optional<TypeId> proves_proof_type_id;
+    std::vector<TypeId> proves_proof_type_ids;
     bool is_foreign = false;
     std::unique_ptr<BlockExpr> body;
 };

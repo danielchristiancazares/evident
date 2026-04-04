@@ -152,17 +152,17 @@ if(BUILD_TESTING)
     add_emit_pattern_test(hygiene_llvm_plain_call_insertvalue
         valid_plain_call.evd
         hygiene_valid_plain_call.ll
-        "insertvalue %evid.type.Value zeroinitializer, i64 %load0, 0"
-        "getelementptr inbounds %evid.type.Value")
+        "insertvalue %evid.type.test.Value zeroinitializer, i64 %load0, 0"
+        "getelementptr inbounds %evid.type.test.Value")
     add_emit_pattern_test(hygiene_llvm_try_invoke_extractvalue
         valid_try.evd
         hygiene_valid_try.ll
-        "extractvalue %evid.yield.open %invoke1, 0"
+        "extractvalue %evid.yield.test.open %invoke1, 0"
         "invoke.slot")
     add_emit_pattern_test(hygiene_llvm_direct_fail_text_value
         valid_direct_fail.evd
         hygiene_valid_direct_fail.ll
-        "insertvalue %evid.yield.boot zeroinitializer, i8 1, 0"
+        "insertvalue %evid.yield.test.boot zeroinitializer, i8 1, 0"
         "alloca { ptr, i64 }")
     add_emit_pattern_test(hygiene_llvm_yield_match_text_value
         valid_yield_match.evd
@@ -172,12 +172,12 @@ if(BUILD_TESTING)
     add_emit_pattern_test(hygiene_llvm_permit_signature_erased
         valid_permit_proof.evd
         hygiene_valid_permit_proof_signature.ll
-        "define i64 @evid$submit(%evid.type.Mesh %arg0)"
-        "@evid$submit(%evid.type.RenderPassActive")
+        "define i64 @evid$test$submit(%evid.type.test.Mesh %arg0)"
+        "@evid$test$submit(%evid.type.RenderPassActive")
     add_emit_pattern_test(hygiene_llvm_permit_storage_erased
         valid_permit_proof.evd
         hygiene_valid_permit_proof_storage.ll
-        "call i8 @evid$start_pass()"
+        "call i8 @evid$test$start_pass()"
         "%slot3 = alloca %evid.type.RenderPassActive")
 
     add_emit_exe_test(run_native_constant native_main_constant.evd 7 native_main_constant.exe)
@@ -205,6 +205,9 @@ if(BUILD_TESTING)
     add_reject_test(reject_prove_without_authority invalid_prove_without_authority.evd)
     add_reject_test(reject_prove_wrong_proof invalid_prove_wrong_proof.evd)
     add_reject_test(reject_foreign_proves invalid_foreign_proves.evd)
+    add_reject_test(reject_foreign_generics invalid_foreign_generics.evd)
+    add_reject_test(reject_field_access_private invalid_field_access_private.evd)
+    add_reject_test(reject_construct_private_field invalid_construct_private_field.evd)
     add_reject_test(reject_grant_direct_call invalid_grant_direct_call.evd)
     add_reject_test(reject_with_non_grant invalid_with_non_grant.evd)
     add_reject_test(reject_permit_escape_let invalid_permit_escape_let.evd)

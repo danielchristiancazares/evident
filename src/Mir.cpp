@@ -28,14 +28,14 @@ struct Builder {
         function.visibility = source.visibility;
         function.qualified_name = source.qualified_name;
         function.return_type = source.return_type.text;
-        if (source.yields_reason_type_id.has_value()) {
-            function.yields_type = hir::lookup_type(package, *source.yields_reason_type_id).qualified_name;
+        if (source.fails_reason_type_id.has_value()) {
+            function.fails_type = hir::lookup_type(package, *source.fails_reason_type_id).qualified_name;
         }
         if (source.grants_permit_type_id.has_value()) {
             function.grants_type = hir::lookup_type(package, *source.grants_permit_type_id).qualified_name;
         }
-        if (source.proves_proof_type_id.has_value()) {
-            function.proves_type = hir::lookup_type(package, *source.proves_proof_type_id).qualified_name;
+        for (hir::TypeId proof_id : source.proves_proof_type_ids) {
+            function.proves_types.push_back(hir::lookup_type(package, proof_id).qualified_name);
         }
         function.is_foreign = source.is_foreign;
     }
@@ -73,7 +73,8 @@ private:
     [[nodiscard]] MaybeBlock lower_match_expr(const hir::MatchExpr& expr, LocalId dest, BlockId current, Env& env);
     [[nodiscard]] MaybeBlock lower_state_match(const hir::MatchExpr& expr, LocalId dest, BlockId current, Env& env);
     [[nodiscard]] MaybeBlock lower_yield_match(const hir::MatchExpr& expr, LocalId dest, BlockId current, Env& env);
-    [[nodiscard]] MaybeBlock lower_with_permit_expr(const hir::WithPermitExpr& expr, LocalId dest, BlockId current, Env& env);
+    [[nodiscard]] MaybeBlock lower_grant_expr(const hir::GrantExpr& expr, LocalId dest, BlockId current, Env& env);
+    [[nodiscard]] MaybeBlock lower_field_access_expr(const hir::FieldAccessExpr& expr, LocalId dest, BlockId current, Env& env);
     [[nodiscard]] MaybeBlock lower_prove_expr(const hir::ProveExpr& expr, LocalId dest, BlockId current, Env& env);
     [[nodiscard]] MaybeBlock ensure_local_operand(Operand operand,
                                                   std::string type,
@@ -390,7 +391,7 @@ Builder::MaybeBlock Builder::lower_try_expr(const hir::TryExpr& expr,
                                             BlockId current,
                                             Env& env) {
     const auto* call = dynamic_cast<const hir::CallExpr*>(expr.operand.get());
-    if (call == nullptr || !call->yields_reason_type_id.has_value()) {
+    if (call == nullptr || !call->fails_reason_type_id.has_value()) {
         return lower_expr_to(*expr.operand, dest, current, env);
     }
 
@@ -415,7 +416,7 @@ Builder::MaybeBlock Builder::lower_try_expr(const hir::TryExpr& expr,
         invoke.args.push_back(std::move(operand));
     }
 
-    const hir::TypeDecl& failure_type = hir::lookup_type(hir_package, *call->yields_reason_type_id);
+    const hir::TypeDecl& failure_type = hir::lookup_type(hir_package, *call->fails_reason_type_id);
     LocalId failure_local = make_temp(failure_type.qualified_name,
                                       failure_type.concrete_discipline.value_or(typesys::UseDiscipline::Copyable),
                                       "failure");
@@ -522,7 +523,7 @@ Builder::MaybeBlock Builder::lower_yield_match(const hir::MatchExpr& expr,
                                                BlockId current,
                                                Env& env) {
     const auto* call = dynamic_cast<const hir::CallExpr*>(expr.scrutinee.get());
-    if (call == nullptr || !call->yields_reason_type_id.has_value()) {
+    if (call == nullptr || !call->fails_reason_type_id.has_value()) {
         return lower_state_match(expr, dest, current, env);
     }
 
@@ -548,7 +549,7 @@ Builder::MaybeBlock Builder::lower_yield_match(const hir::MatchExpr& expr,
     }
 
     LocalId success_local = make_temp(call->result_type.text, call->result_type.discipline, "success");
-    const hir::TypeDecl& yielded_reason = hir::lookup_type(hir_package, *call->yields_reason_type_id);
+    const hir::TypeDecl& yielded_reason = hir::lookup_type(hir_package, *call->fails_reason_type_id);
     LocalId failure_local = make_temp(yielded_reason.qualified_name,
                                       yielded_reason.concrete_discipline.value_or(typesys::UseDiscipline::Copyable),
                                       "failure");
@@ -634,16 +635,16 @@ Builder::MaybeBlock Builder::lower_match_expr(const hir::MatchExpr& expr,
                                               LocalId dest,
                                               BlockId current,
                                               Env& env) {
-    if (expr.scrutinee->yields_reason_type_id.has_value()) {
+    if (expr.scrutinee->fails_reason_type_id.has_value()) {
         return lower_yield_match(expr, dest, current, env);
     }
     return lower_state_match(expr, dest, current, env);
 }
 
-Builder::MaybeBlock Builder::lower_with_permit_expr(const hir::WithPermitExpr& expr,
-                                                    LocalId dest,
-                                                    BlockId current,
-                                                    Env& env) {
+Builder::MaybeBlock Builder::lower_grant_expr(const hir::GrantExpr& expr,
+                                                LocalId dest,
+                                                BlockId current,
+                                                Env& env) {
     LocalId grant_dest = make_temp("Unit", typesys::UseDiscipline::Copyable, "grant");
     MaybeBlock cursor = lower_direct_call(expr.grant_function_id, expr.grant_name, expr.args, grant_dest, current, env);
     if (!cursor.has_value()) {
@@ -654,6 +655,35 @@ Builder::MaybeBlock Builder::lower_with_permit_expr(const hir::WithPermitExpr& e
     const LocalId binder = add_local(expr.binder_name, expr.permit_name, LocalKind::Let, true, false);
     scoped.locals.emplace(expr.binder_name, binder);
     return lower_block_expr(*expr.body, dest, *cursor, scoped);
+}
+
+Builder::MaybeBlock Builder::lower_field_access_expr(const hir::FieldAccessExpr& expr,
+                                                     LocalId dest,
+                                                     BlockId current,
+                                                     Env& env) {
+    Operand base;
+    MaybeBlock cursor = lower_value(*expr.object, current, env, base);
+    if (!cursor.has_value()) {
+        return std::nullopt;
+    }
+    LocalId base_local = 0;
+    cursor = ensure_local_operand(std::move(base),
+                                  expr.object->result_type.text,
+                                  expr.object->result_type.discipline,
+                                  *cursor,
+                                  base_local);
+    if (!cursor.has_value()) {
+        return std::nullopt;
+    }
+    Rvalue proj;
+    proj.kind = RvalueKind::ProjectField;
+    proj.base_local = base_local;
+    if (expr.object->result_type.type_id.has_value()) {
+        proj.projection_owner_type_id = *expr.object->result_type.type_id;
+    }
+    proj.field_name = expr.field_name;
+    append_statement(*cursor, Statement{StatementKind::Assign, dest, std::move(proj)});
+    return cursor;
 }
 
 Builder::MaybeBlock Builder::lower_prove_expr(const hir::ProveExpr& expr,
@@ -764,8 +794,10 @@ Builder::MaybeBlock Builder::lower_expr_to(const hir::Expr& expr,
         set_terminator(*cursor, std::move(terminator));
         return std::nullopt;
     }
-    case hir::ExprKind::WithPermit:
-        return lower_with_permit_expr(static_cast<const hir::WithPermitExpr&>(expr), dest, current, env);
+    case hir::ExprKind::Grant:
+        return lower_grant_expr(static_cast<const hir::GrantExpr&>(expr), dest, current, env);
+    case hir::ExprKind::FieldAccess:
+        return lower_field_access_expr(static_cast<const hir::FieldAccessExpr&>(expr), dest, current, env);
     case hir::ExprKind::Prove:
         return lower_prove_expr(static_cast<const hir::ProveExpr&>(expr), dest, current, env);
     }
@@ -791,14 +823,14 @@ std::string dump(const Package& package) {
         out << "  - " << ast::visibility_name(function.visibility) << ' '
             << (function.is_foreign ? "foreign-fn " : "fn ") << function.qualified_name
             << " -> " << function.return_type;
-        if (function.yields_type.has_value()) {
-            out << " yields " << *function.yields_type;
+        if (function.fails_type.has_value()) {
+            out << " fails " << *function.fails_type;
         }
         if (function.grants_type.has_value()) {
             out << " grants " << *function.grants_type;
         }
-        if (function.proves_type.has_value()) {
-            out << " proves " << *function.proves_type;
+        for (const std::string& p : function.proves_types) {
+            out << " proves " << p;
         }
         out << '\n';
         if (!function.locals.empty()) {

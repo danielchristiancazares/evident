@@ -206,7 +206,7 @@ struct TypeLayout {
     std::string source_name;
     std::string llvm_type;
     std::string definition;
-    hir::TypeKind kind = hir::TypeKind::Struct;
+    hir::TypeKind kind = hir::TypeKind::Record;
     std::vector<FieldLayout> fields;
     std::unordered_map<std::string, std::size_t> field_indices;
     std::unordered_map<hir::VariantId, VariantLayout> variants;
@@ -332,11 +332,6 @@ private:
                                                                      const std::string& value);
     [[nodiscard]] std::expected<std::string, std::string> load_from_slot(const std::string& slot_ptr,
                                                                          const ResolvedType& type);
-    [[nodiscard]] std::expected<std::string, std::string> get_record_field_ptr(const std::string& record_type,
-                                                                               const std::string& record_ptr,
-                                                                               std::size_t field_index);
-    [[nodiscard]] std::expected<std::string, std::string> get_union_payload_ptr(const TypeLayout& layout,
-                                                                                const std::string& union_ptr);
     [[nodiscard]] std::expected<void, std::string> store_text_literal(const std::string& slot_ptr,
                                                                       const ResolvedType& type,
                                                                       const std::string& lexeme);
@@ -485,7 +480,7 @@ std::expected<ResolvedType, std::string> BackendModel::resolve_type_name(const s
     if (name == "Never") {
         return ResolvedType{name, "i8", 1, 1, true, true, std::nullopt, BuiltinKind::Never};
     }
-    if (name == "CString" || name == "List" || name == "List1" || name == "Map" || name == "Map1") {
+    if (name == "CString" || name == "List" || name == "NonEmptyList" || name == "Map" || name == "NonEmptyMap") {
         return std::unexpected("backend does not yet support builtin type '" + name + "'");
     }
 
@@ -536,9 +531,9 @@ std::expected<const YieldLayout*, std::string> BackendModel::ensure_yield_layout
     }
 
     const hir::FunctionDecl& function_decl = function(id);
-    if (!function_decl.yields_reason_type_id.has_value()) {
+    if (!function_decl.fails_reason_type_id.has_value()) {
         return std::unexpected("internal backend error: function '" + function_decl.qualified_name
-                               + "' does not yield");
+                               + "' does not declare fails");
     }
     if (!function_decl.generics.empty()) {
         return std::unexpected("backend does not yet support generic function '"
@@ -550,7 +545,7 @@ std::expected<const YieldLayout*, std::string> BackendModel::ensure_yield_layout
         return std::unexpected(success_type.error());
     }
     const std::expected<ResolvedType, std::string> failure_type = resolve_type_name(
-        hir::lookup_type(package_, *function_decl.yields_reason_type_id).qualified_name);
+        hir::lookup_type(package_, *function_decl.fails_reason_type_id).qualified_name);
     if (!failure_type.has_value()) {
         return std::unexpected(failure_type.error());
     }
@@ -589,14 +584,14 @@ std::expected<const YieldLayout*, std::string> BackendModel::ensure_yield_layout
 std::expected<const hir::FunctionDecl*, std::string> BackendModel::validate_entry_main() const {
     const hir::FunctionDecl* main_function = nullptr;
     for (const hir::FunctionDecl& function_decl : package_.functions) {
-        if (function_decl.qualified_name == "main") {
+        if (function_decl.qualified_name == "main" || function_decl.qualified_name.ends_with("::main")) {
             main_function = &function_decl;
             break;
         }
     }
 
     if (main_function == nullptr) {
-        return std::unexpected("`--emit-exe` requires a top-level `public fn main() -> Int`");
+        return std::unexpected("`--emit-exe` requires a public `fn main() -> Int` in a module (e.g. `domain module ... { public fn main() ... }`)");
     }
     if (main_function->visibility != ast::Visibility::Public) {
         return std::unexpected("entry `main` must be declared `public`");
@@ -610,8 +605,8 @@ std::expected<const hir::FunctionDecl*, std::string> BackendModel::validate_entr
     if (!main_function->params.empty()) {
         return std::unexpected("entry `main` may not take parameters");
     }
-    if (main_function->yields_reason_type_id.has_value()) {
-        return std::unexpected("entry `main` may not use `yields`");
+    if (main_function->fails_reason_type_id.has_value()) {
+        return std::unexpected("entry `main` may not use `fails`");
     }
     if (main_function->return_type.text != "Int") {
         return std::unexpected("entry `main` must return `Int`");
@@ -625,16 +620,15 @@ std::expected<TypeLayout, std::string> BackendModel::build_type_layout(const hir
     }
 
     switch (type_decl.kind) {
-    case hir::TypeKind::Struct:
+    case hir::TypeKind::Record:
     case hir::TypeKind::Proof:
+    case hir::TypeKind::Phase:
         return build_record_layout(type_decl);
     case hir::TypeKind::State:
     case hir::TypeKind::Reason:
         return build_tagged_union_layout(type_decl);
     case hir::TypeKind::Permit:
         return build_permit_layout(type_decl);
-    case hir::TypeKind::Trait:
-        return std::unexpected("backend does not yet support trait type '" + type_decl.qualified_name + "'");
     }
     return std::unexpected("backend could not lower type '" + type_decl.qualified_name + "'");
 }
@@ -906,12 +900,12 @@ std::expected<void, std::string> validate_backend_package(BackendModel& model,
                 return std::unexpected(param_type.error());
             }
         }
-        if (function_decl.yields_reason_type_id.has_value()) {
+        if (function_decl.fails_reason_type_id.has_value()) {
             const std::expected<const YieldLayout*, std::string> yield_layout = model.ensure_yield_layout(function_decl.id);
             if (!yield_layout.has_value()) {
                 return std::unexpected(yield_layout.error());
             }
-            const hir::TypeDecl& reason_type = model.type(*function_decl.yields_reason_type_id);
+            const hir::TypeDecl& reason_type = model.type(*function_decl.fails_reason_type_id);
             const std::expected<ResolvedType, std::string> resolved_reason = resolve_materializable_type(
                 reason_type.qualified_name,
                 "yield reason of function '" + function_decl.qualified_name + "'");
@@ -1068,7 +1062,7 @@ std::expected<void, std::string> validate_backend_package(BackendModel& model,
                                                + hir_function.qualified_name + "'");
                     }
                     const hir::FunctionDecl& callee = hir::lookup_function(hir_package, statement.value.function_id);
-                    if (callee.yields_reason_type_id.has_value()) {
+                    if (callee.fails_reason_type_id.has_value()) {
                         return std::unexpected("backend does not support lowering a yielding call as a plain assignment in '"
                                                + hir_function.qualified_name + "'");
                     }
@@ -1246,7 +1240,7 @@ std::expected<void, std::string> validate_backend_package(BackendModel& model,
                 break;
             }
             case mir::TerminatorKind::Fail: {
-                if (!hir_function.yields_reason_type_id.has_value()) {
+                if (!hir_function.fails_reason_type_id.has_value()) {
                     return std::unexpected("internal backend error: `fail` terminator in non-yielding function '"
                                            + hir_function.qualified_name + "'");
                 }
@@ -1254,7 +1248,7 @@ std::expected<void, std::string> validate_backend_package(BackendModel& model,
                     return std::unexpected("internal backend error: missing fail value in function '"
                                            + hir_function.qualified_name + "'");
                 }
-                const hir::TypeDecl& reason_type = model.type(*hir_function.yields_reason_type_id);
+                const hir::TypeDecl& reason_type = model.type(*hir_function.fails_reason_type_id);
                 const std::expected<ResolvedType, std::string> resolved_reason = resolve_materializable_type(
                     reason_type.qualified_name,
                     "fail reason of function '" + hir_function.qualified_name + "'");
@@ -1315,7 +1309,7 @@ std::expected<void, std::string> validate_backend_package(BackendModel& model,
                                            + hir_function.qualified_name + "'");
                 }
                 const hir::FunctionDecl& callee = hir::lookup_function(hir_package, terminator.function_id);
-                if (!callee.yields_reason_type_id.has_value()) {
+                if (!callee.fails_reason_type_id.has_value()) {
                     return std::unexpected("internal backend error: invoke used on non-yielding function '"
                                            + callee.qualified_name + "'");
                 }
@@ -1352,7 +1346,7 @@ std::expected<void, std::string> validate_backend_package(BackendModel& model,
                 if (!success_type.has_value()) {
                     return std::unexpected(success_type.error());
                 }
-                const hir::TypeDecl& callee_reason = model.type(*callee.yields_reason_type_id);
+                const hir::TypeDecl& callee_reason = model.type(*callee.fails_reason_type_id);
                 const std::expected<ResolvedType, std::string> failure_type = resolve_materializable_type(
                     callee_reason.qualified_name,
                     "failure result of invoke '" + callee.qualified_name + "'");
@@ -1600,26 +1594,6 @@ std::expected<std::string, std::string> FunctionEmitter::load_from_slot(const st
     return value;
 }
 
-std::expected<std::string, std::string> FunctionEmitter::get_record_field_ptr(const std::string& record_type,
-                                                                              const std::string& record_ptr,
-                                                                              std::size_t field_index) {
-    const std::string field_ptr = next_temp("field");
-    append_line(field_ptr + " = getelementptr inbounds " + record_type + ", ptr " + record_ptr
-                + ", i32 0, i32 " + std::to_string(field_index));
-    return field_ptr;
-}
-
-std::expected<std::string, std::string> FunctionEmitter::get_union_payload_ptr(const TypeLayout& layout,
-                                                                               const std::string& union_ptr) {
-    if (!layout.has_payload) {
-        return std::unexpected("backend expected payload storage for '" + layout.source_name + "'");
-    }
-    const std::string payload_ptr = next_temp("payload");
-    append_line(payload_ptr + " = getelementptr inbounds " + layout.llvm_type + ", ptr " + union_ptr
-                + ", i32 0, i32 " + std::to_string(layout.payload_field_index));
-    return payload_ptr;
-}
-
 std::expected<void, std::string> FunctionEmitter::store_text_literal(const std::string& slot_ptr,
                                                                      const ResolvedType& type,
                                                                      const std::string& lexeme) {
@@ -1817,8 +1791,8 @@ std::expected<void, std::string> FunctionEmitter::emit_assign_call(mir::LocalId 
     if (!callee.generics.empty()) {
         return std::unexpected("backend does not yet support generic function '" + callee.qualified_name + "'");
     }
-    if (callee.yields_reason_type_id.has_value()) {
-        return std::unexpected("internal backend error: yielded call used as a plain assignment for '"
+    if (callee.fails_reason_type_id.has_value()) {
+        return std::unexpected("internal backend error: `fails` call used as a plain assignment for '"
                                + callee.qualified_name + "'");
     }
 
@@ -2110,7 +2084,7 @@ std::expected<void, std::string> FunctionEmitter::emit_success_or_failure_return
 
     const std::expected<ResolvedType, std::string> payload_type = model_.resolve_type_name(
         is_failure
-            ? model_.type(*hir_function_.yields_reason_type_id).qualified_name
+            ? model_.type(*hir_function_.fails_reason_type_id).qualified_name
             : hir_function_.return_type.text);
     if (!payload_type.has_value()) {
         return std::unexpected(payload_type.error());
@@ -2154,7 +2128,7 @@ std::expected<void, std::string> FunctionEmitter::emit_success_or_failure_return
 }
 
 std::expected<void, std::string> FunctionEmitter::emit_function_return(const mir::Operand& operand) {
-    if (hir_function_.yields_reason_type_id.has_value()) {
+    if (hir_function_.fails_reason_type_id.has_value()) {
         return emit_success_or_failure_return(operand, false);
     }
 
@@ -2171,7 +2145,7 @@ std::expected<void, std::string> FunctionEmitter::emit_function_return(const mir
 }
 
 std::expected<void, std::string> FunctionEmitter::emit_function_fail(const mir::Operand& operand) {
-    if (!hir_function_.yields_reason_type_id.has_value()) {
+    if (!hir_function_.fails_reason_type_id.has_value()) {
         return std::unexpected("internal backend error: `fail` terminator in non-yielding function '"
                                + hir_function_.qualified_name + "'");
     }
@@ -2369,7 +2343,7 @@ std::expected<std::string, std::string> FunctionEmitter::emit() {
     }
 
     std::expected<ResolvedType, std::string> signature_return_type = model_.resolve_type_name(hir_function_.return_type.text);
-    if (hir_function_.yields_reason_type_id.has_value()) {
+    if (hir_function_.fails_reason_type_id.has_value()) {
         const std::expected<const YieldLayout*, std::string> yield_layout = model_.ensure_yield_layout(hir_function_.id);
         if (!yield_layout.has_value()) {
             return std::unexpected(yield_layout.error());

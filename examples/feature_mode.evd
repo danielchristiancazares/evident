@@ -1,9 +1,10 @@
-public struct FeatureConfig {
+domain module test {
+public record FeatureConfig {
     endpoint: Text,
     retries: Nat,
 }
 
-public struct FileHandle {
+public record FileHandle {
     raw: Int,
 }
 
@@ -27,15 +28,15 @@ public fn choose_mode(config: FeatureConfig) -> FeatureMode {
     ProviderBacked { config }
 }
 
-public fn open_mode(mode: FeatureMode) -> FileHandle yields OpenFailure {
+public fn open_mode(mode: FeatureMode) -> FileHandle fails OpenFailure {
     match mode {
         OfflineOnly => fail FileNotFound { path: "offline" },
         ProviderBacked { config } => FileHandle { raw: 1 },
     }
 }
 
-module billing {
-    public struct Card {
+domain module billing {
+    public record Card {
         pan: Text,
     }
 
@@ -48,4 +49,5 @@ module billing {
     public fn charge(card: Card, amount: Int) -> ChargeOutcome {
         RequiresAction { action: "3ds" }
     }
+}
 }
