@@ -1,0 +1,16 @@
+domain module test {
+public permit RenderPassActive
+
+public fn start_pass() -> Unit grants RenderPassActive {
+}
+
+public fn submit(as pass: RenderPassActive) -> Int {
+    7
+}
+
+public fn boot() -> Int {
+    grant start_pass() as pass {
+        submit(pass)
+    }
+}
+}

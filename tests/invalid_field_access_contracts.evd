@@ -1,0 +1,35 @@
+domain module test {
+public record Point {
+    public x: Int,
+}
+
+public proof Receipt {
+    public count: Int,
+}
+
+public phase Config {
+    fields {
+        public id: Int,
+    }
+    positions {
+        Draft,
+    }
+}
+
+public fn bad_builtin_field() -> Int {
+    1.value
+}
+
+public fn bad_record_field() -> Int {
+    Point { x: 1 }.missing
+}
+
+public fn bad_proof_field() -> Int proves Receipt {
+    let receipt = prove Receipt { count: 1 };
+    receipt.missing
+}
+
+public fn bad_phase_field() -> Int {
+    Config::Draft { id: 1 }.missing
+}
+}

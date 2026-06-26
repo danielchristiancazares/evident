@@ -1,0 +1,3 @@
+<input2>:3:5: error: field 'secret' is private
+        pkg_phase_private_field_source::make_draft().secret
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

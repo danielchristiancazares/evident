@@ -1,0 +1,21 @@
+domain module domain_generics {
+public fn identity<T>(value: T) -> T {
+    value
+}
+}
+
+boundary module boundary_generics {
+public record Box<T> {
+    public value: T,
+}
+
+public fn relay<T>(value: T) -> T {
+    value
+}
+}
+
+hazard module hazard_generics {
+public record Cell<T> {
+    public value: T,
+}
+}

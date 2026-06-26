@@ -1,0 +1,3 @@
+<input2>:1:1: error: import must name a module, not 'record'
+    import pkg_support::SharedNumber;
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

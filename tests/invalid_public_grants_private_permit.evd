@@ -1,0 +1,5 @@
+domain module app {
+permit Access
+
+public fn open() -> Unit grants Access
+}

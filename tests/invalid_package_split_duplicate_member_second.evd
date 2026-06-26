@@ -1,0 +1,5 @@
+domain module pkg_split_duplicate_member {
+public fn value() -> Int {
+    2
+}
+}

@@ -12,7 +12,7 @@ public proof FrameReceipt {
 public fn start_pass() -> Unit grants RenderPassActive {
 }
 
-public fn submit(pass: RenderPassActive, mesh: Mesh) -> Int {
+public fn submit(as pass: RenderPassActive, mesh: Mesh) -> Int {
     7
 }
 
@@ -22,7 +22,7 @@ public fn make_receipt(mesh: Mesh) -> FrameReceipt proves FrameReceipt {
 
 public fn boot(mesh: Mesh) -> FrameReceipt {
     grant start_pass() as pass {
-        submit(pass, mesh);
+        submit(as pass, mesh);
         make_receipt(mesh)
     }
 }

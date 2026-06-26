@@ -1,0 +1,5 @@
+domain module app {
+public reason Failure<T> {
+    Bad,
+}
+}

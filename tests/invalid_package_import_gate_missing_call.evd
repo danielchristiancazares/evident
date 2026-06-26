@@ -1,0 +1,9 @@
+import pkg_unrelated;
+
+domain module pkg_unrelated {}
+
+domain module pkg_import_gate_missing_call {
+public fn read(value: Int) -> Int {
+    pkg_import_value_support::id(value)
+}
+}

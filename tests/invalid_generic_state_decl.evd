@@ -1,0 +1,5 @@
+domain module app {
+public state Result<T> {
+    Ready,
+}
+}

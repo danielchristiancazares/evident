@@ -1,0 +1,3 @@
+<input>:7:18: error: public API cannot reference private type 'Hidden'
+        Bad { value: Hidden },
+                     ^^^^^^

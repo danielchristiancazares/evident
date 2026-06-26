@@ -1,0 +1,3 @@
+<input>:18:9: error: failed(...) arm must match a variant of reason 'ParseFailure'
+            failed(Different) => 2,
+            ^^^^^^^^^^^^^^^^^

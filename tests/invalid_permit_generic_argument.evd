@@ -1,0 +1,6 @@
+domain module test {
+public permit RenderPassActive
+
+public fn submit(passes: List<RenderPassActive>) -> Unit {
+}
+}

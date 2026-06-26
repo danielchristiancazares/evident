@@ -1,0 +1,3 @@
+<input>:6:30: error: public API cannot reference private type 'Failure'
+    public fn run() -> Int fails Failure
+                                 ^^^^^^^

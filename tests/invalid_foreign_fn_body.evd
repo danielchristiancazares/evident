@@ -1,0 +1,5 @@
+boundary module ffi {
+public foreign fn getenv(name: CString) -> CString {
+    "value"
+}
+}

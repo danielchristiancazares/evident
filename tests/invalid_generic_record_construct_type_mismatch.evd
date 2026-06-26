@@ -1,0 +1,12 @@
+foundation module support {
+public record Box<T> {
+    public value: T,
+}
+}
+
+domain module app {
+public fn main() -> Int {
+    let box = support::Box<Text> { value: 7 };
+    7
+}
+}

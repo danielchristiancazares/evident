@@ -1,0 +1,12 @@
+<input>:18:9: error: duplicate match arm for variant 'ModeEnabled'
+            ModeEnabled => 2,
+            ^^^^^^^^^^^
+<input>:26:9: error: pattern must match a variant of state 'Mode'
+            OtherOnly => 2,
+            ^^^^^^^^^
+<input>:33:9: error: match over a state requires variant patterns
+            succeeded(value) => value,
+            ^^^^^^^^^^^^^^^^
+<input>:42:9: error: match arms have incompatible types 'Int' and 'Text'
+            ModeDisabled => "two",
+            ^^^^^^^^^^^^^^^^^^^^^

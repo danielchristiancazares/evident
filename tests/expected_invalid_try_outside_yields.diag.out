@@ -1,0 +1,3 @@
+<input>:13:5: error: 'try' is only valid inside a function with 'fails'
+        try open()
+        ^^^^^^^^^^

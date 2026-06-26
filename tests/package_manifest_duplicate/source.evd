@@ -1,0 +1,5 @@
+domain module pkg_manifest_duplicate {
+public fn value() -> Int {
+    1
+}
+}

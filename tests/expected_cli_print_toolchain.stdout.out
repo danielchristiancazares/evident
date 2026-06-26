@@ -1,0 +1,5 @@
+native target: x86_64-pc-windows-msvc
+supported native target: x86_64-pc-windows-msvc
+clang driver: clang
+clang override env: EVIDENT_CLANG
+linker mode: clang -fuse-ld=lld

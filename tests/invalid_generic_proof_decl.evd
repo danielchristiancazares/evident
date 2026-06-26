@@ -1,0 +1,5 @@
+domain module app {
+public proof Receipt<T> {
+    public value: Int,
+}
+}

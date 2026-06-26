@@ -1,0 +1,3 @@
+<input>:2:20: error: state declarations may not be generic
+    public state Result<T> {
+                       ^

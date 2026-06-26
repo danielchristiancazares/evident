@@ -1,0 +1,21 @@
+<input>:22:5: error: unknown proof type 'Missing'
+        prove Missing { count: 1, label: "ok" }
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<input>:26:5: error: 'prove' expects a proof type, found 'record'
+        prove Marker { x: 1 }
+        ^^^^^^^^^^^^^^^^^^^^^
+<input>:30:31: error: duplicate initializer for field 'count'
+        prove Receipt { count: 1, count: 2, label: "ok" }
+                                  ^^^^^^^^
+<input>:34:44: error: unknown field 'extra' in initializer
+        prove Receipt { count: 1, label: "ok", extra: 0 }
+                                               ^^^^^^^^
+<input>:38:5: error: missing initializer for field 'label'
+        prove Receipt { count: 1 }
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^
+<input>:42:21: error: initializer for field 'count' has type 'Text', expected 'Int'
+        prove Receipt { count: "one", label: "ok" }
+                        ^^^^^^^^^^^^
+<input>:46:21: error: failing expression must be handled with `try` or `match`
+        prove Receipt { count: load(), label: "ok" }
+                        ^^^^^^^^^^^^^

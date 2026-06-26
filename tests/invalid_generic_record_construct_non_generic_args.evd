@@ -1,0 +1,11 @@
+foundation module support {
+public record Number {
+    public value: Int,
+}
+}
+
+domain module app {
+public fn main() -> Int {
+    support::Number<Int> { value: 7 }.value
+}
+}

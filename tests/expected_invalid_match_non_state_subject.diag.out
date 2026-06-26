@@ -1,0 +1,3 @@
+<input>:3:11: error: match requires a state value or an expression that may fail (`fails`)
+        match value {
+              ^^^^^

@@ -1,0 +1,12 @@
+domain module test {
+public phase AppConfig {
+    fields {
+        public id: Int,
+    }
+
+    positions {
+        Draft,
+        Draft,
+    }
+}
+}

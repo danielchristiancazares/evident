@@ -1,0 +1,3 @@
+<input2>:2:26: error: public API cannot reference private type 'pkg_private_type_source::Secret'
+    public fn expose(secret: pkg_private_type_source::Secret) -> Int {
+                             ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

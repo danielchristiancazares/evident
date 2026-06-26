@@ -1,0 +1,7 @@
+import pkg_import_value_support;
+
+domain module pkg_import_gated_consumer_two {
+public fn read_again(value: Int) -> Int {
+    pkg_import_value_support::id(value)
+}
+}

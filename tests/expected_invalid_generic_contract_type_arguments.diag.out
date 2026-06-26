@@ -1,0 +1,12 @@
+<input>:18:21: error: reason type 'Failure' may not appear in generic function type argument
+        support::marker<Failure>()
+                        ^^^^^^^
+<input>:22:21: error: permit type 'Access' may not appear in generic function type argument
+        support::marker<Access>()
+                        ^^^^^^
+<input>:26:32: error: reason type 'Failure' may not appear in generic record constructor type argument
+        let token = support::Token<Failure> {};
+                                   ^^^^^^^
+<input>:31:32: error: permit type 'Access' may not appear in generic record constructor type argument
+        let token = support::Token<Access> {};
+                                   ^^^^^^

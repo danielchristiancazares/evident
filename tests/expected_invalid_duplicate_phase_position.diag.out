@@ -1,0 +1,3 @@
+<input>:9:9: error: duplicate phase position 'Draft'
+            Draft,
+            ^^^^^

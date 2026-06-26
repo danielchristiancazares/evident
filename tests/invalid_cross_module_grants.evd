@@ -1,0 +1,8 @@
+domain module authority {
+public permit RenderPassActive
+}
+
+domain module draw {
+public fn start_pass() -> Unit grants authority::RenderPassActive {
+}
+}

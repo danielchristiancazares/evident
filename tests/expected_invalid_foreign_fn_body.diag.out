@@ -1,0 +1,3 @@
+<input>:2:52: error: foreign functions may not define a body
+    public foreign fn getenv(name: CString) -> CString {
+                                                       ^

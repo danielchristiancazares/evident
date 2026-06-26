@@ -1,0 +1,21 @@
+foundation module support {
+public record Box<T> {
+    public value: T,
+}
+
+public fn unwrap<T>(box: Box<T>) -> T {
+    box.value
+}
+
+public fn discard<T>(box: Box<T>) -> Int {
+    0
+}
+}
+
+domain module app {
+public fn main() -> Int {
+    let number = support::unwrap<Int>(support::Box<Int> { value: 7 });
+    let ignored = support::discard<Text>(support::Box<Text> { value: "seven" });
+    number
+}
+}

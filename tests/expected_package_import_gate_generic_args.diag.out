@@ -1,0 +1,6 @@
+<input3>:5:42: error: cross-module reference 'pkg_support::SharedNumber' requires a matching import
+        package_generic_gate_support::marker<pkg_support::SharedNumber>()
+                                             ^^^^^^^^^^^^^^^^^^^^^^^^^
+<input3>:9:53: error: cross-module reference 'pkg_support::SharedNumber' requires a matching import
+        let token = package_generic_gate_support::Token<pkg_support::SharedNumber> {};
+                                                        ^^^^^^^^^^^^^^^^^^^^^^^^^

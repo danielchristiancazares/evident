@@ -1,0 +1,26 @@
+types:
+  - public record pkg_support::SharedNumber
+      field value: Int
+functions:
+  - public fn pkg_support::wrap(value: Int) -> pkg_support::SharedNumber
+      block -> pkg_support::SharedNumber
+        result
+          construct pkg_support::SharedNumber : pkg_support::SharedNumber
+            init value [shorthand]
+              local value : Int
+  - public fn pkg_support::extract(number: pkg_support::SharedNumber) -> Int
+      block -> Int
+        result
+          field-access .value : Int
+            local number : pkg_support::SharedNumber
+  - public fn pkg_consumer::build(value: Int) -> pkg_support::SharedNumber
+      block -> pkg_support::SharedNumber
+        result
+          call pkg_support::wrap -> pkg_support::SharedNumber
+            local value : Int
+  - public fn pkg_consumer::read(value: Int) -> Int
+      block -> Int
+        result
+          call pkg_support::extract -> Int
+            call pkg_consumer::build -> pkg_support::SharedNumber
+              local value : Int

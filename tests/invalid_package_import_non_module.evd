@@ -1,0 +1,3 @@
+import pkg_support::SharedNumber;
+
+domain module pkg_import_user {}

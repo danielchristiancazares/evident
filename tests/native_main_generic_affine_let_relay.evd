@@ -1,0 +1,21 @@
+foundation module support {
+public fn relay<T>(value: T) -> T {
+    let moved = value;
+    moved
+}
+}
+
+domain module test {
+public proof Receipt {
+    public count: Int,
+}
+
+public fn mint() -> Receipt proves Receipt {
+    prove Receipt { count: 7 }
+}
+
+public fn main() -> Int {
+    let receipt = support::relay<Receipt>(mint());
+    receipt.count
+}
+}

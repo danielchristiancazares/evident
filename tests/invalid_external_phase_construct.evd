@@ -1,0 +1,19 @@
+domain module model {
+public phase AppConfig {
+    fields {
+        public id: Int,
+        public payload: Int,
+    }
+
+    positions {
+        Draft,
+        Validated,
+    }
+}
+}
+
+domain module client {
+public fn forge() -> model::AppConfig::Draft {
+    model::AppConfig::Draft { id: 1, payload: 2 }
+}
+}

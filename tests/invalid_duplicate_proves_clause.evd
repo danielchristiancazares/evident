@@ -1,0 +1,8 @@
+domain module test {
+public proof Receipt {
+}
+
+public fn validate() -> Receipt proves Receipt proves Receipt {
+    prove Receipt {}
+}
+}

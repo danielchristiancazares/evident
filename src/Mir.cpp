@@ -69,6 +69,40 @@ private:
                                                LocalId dest,
                                                BlockId current,
                                                Env& env);
+    [[nodiscard]] MaybeBlock lower_call_to_success_or_failure(hir::FunctionId function_id,
+                                                              const std::string& callee_name,
+                                                              const std::vector<std::unique_ptr<hir::Expr>>& args,
+                                                              LocalId success_dest,
+                                                              LocalId failure_dest,
+                                                              BlockId success_block,
+                                                              BlockId failure_block,
+                                                              BlockId current,
+                                                              Env& env);
+    [[nodiscard]] MaybeBlock lower_expr_to_success_or_failure(const hir::Expr& expr,
+                                                              LocalId success_dest,
+                                                              LocalId failure_dest,
+                                                              BlockId success_block,
+                                                              BlockId failure_block,
+                                                              BlockId current,
+                                                              Env& env);
+    [[nodiscard]] MaybeBlock lower_block_to_success_or_failure(const hir::BlockExpr& expr,
+                                                               LocalId success_dest,
+                                                               LocalId failure_dest,
+                                                               BlockId success_block,
+                                                               BlockId failure_block,
+                                                               BlockId current,
+                                                               Env& env);
+    [[nodiscard]] MaybeBlock lower_grant_to_success_or_failure(const hir::GrantExpr& expr,
+                                                               LocalId success_dest,
+                                                               LocalId failure_dest,
+                                                               BlockId success_block,
+                                                               BlockId failure_block,
+                                                               BlockId current,
+                                                               Env& env);
+    [[nodiscard]] MaybeBlock lower_failing_expr_to_propagation(const hir::Expr& expr,
+                                                               LocalId dest,
+                                                               BlockId current,
+                                                               Env& env);
     [[nodiscard]] MaybeBlock lower_try_expr(const hir::TryExpr& expr, LocalId dest, BlockId current, Env& env);
     [[nodiscard]] MaybeBlock lower_match_expr(const hir::MatchExpr& expr, LocalId dest, BlockId current, Env& env);
     [[nodiscard]] MaybeBlock lower_state_match(const hir::MatchExpr& expr, LocalId dest, BlockId current, Env& env);
@@ -386,54 +420,223 @@ Builder::MaybeBlock Builder::lower_direct_call(hir::FunctionId function_id,
     return cursor;
 }
 
-Builder::MaybeBlock Builder::lower_try_expr(const hir::TryExpr& expr,
-                                            LocalId dest,
-                                            BlockId current,
-                                            Env& env) {
-    const auto* call = dynamic_cast<const hir::CallExpr*>(expr.operand.get());
-    if (call == nullptr || !call->fails_reason_type_id.has_value()) {
-        return lower_expr_to(*expr.operand, dest, current, env);
-    }
-
+Builder::MaybeBlock Builder::lower_call_to_success_or_failure(hir::FunctionId function_id,
+                                                              const std::string& callee_name,
+                                                              const std::vector<std::unique_ptr<hir::Expr>>& args,
+                                                              LocalId success_dest,
+                                                              LocalId failure_dest,
+                                                              BlockId success_block,
+                                                              BlockId failure_block,
+                                                              BlockId current,
+                                                              Env& env) {
     Terminator invoke;
     invoke.kind = TerminatorKind::Invoke;
-    invoke.function_id = call->function_id;
-    invoke.callee_name = call->callee_name;
+    invoke.function_id = function_id;
+    invoke.callee_name = callee_name;
 
-    const hir::FunctionDecl& callee = hir::lookup_function(hir_package, call->function_id);
+    const hir::FunctionDecl& callee = hir::lookup_function(hir_package, function_id);
 
     MaybeBlock cursor = current;
-    for (std::size_t index = 0; index < call->args.size(); ++index) {
+    for (std::size_t index = 0; index < args.size(); ++index) {
         if (index < callee.params.size() && callee.params[index].is_compile_time_only) {
             invoke.args.push_back(unit_operand());
             continue;
         }
         Operand operand;
-        cursor = lower_value(*call->args[index], *cursor, env, operand);
+        cursor = lower_value(*args[index], *cursor, env, operand);
         if (!cursor.has_value()) {
             return std::nullopt;
         }
         invoke.args.push_back(std::move(operand));
     }
 
-    const hir::TypeDecl& failure_type = hir::lookup_type(hir_package, *call->fails_reason_type_id);
-    LocalId failure_local = make_temp(failure_type.qualified_name,
-                                      failure_type.concrete_discipline.value_or(typesys::UseDiscipline::Copyable),
-                                      "failure");
-    invoke.success_local = dest;
-    invoke.failure_local = failure_local;
-    BlockId success_block = add_block();
-    BlockId failure_block = add_block();
+    invoke.success_local = success_dest;
+    invoke.failure_local = failure_dest;
     invoke.success_block = success_block;
     invoke.failure_block = failure_block;
     set_terminator(*cursor, std::move(invoke));
+    return std::nullopt;
+}
+
+Builder::MaybeBlock Builder::lower_block_to_success_or_failure(const hir::BlockExpr& expr,
+                                                               LocalId success_dest,
+                                                               LocalId failure_dest,
+                                                               BlockId success_block,
+                                                               BlockId failure_block,
+                                                               BlockId current,
+                                                               Env& env) {
+    Env local{&env, {}};
+    MaybeBlock cursor = current;
+
+    for (const auto& stmt_ptr : expr.statements) {
+        if (!cursor.has_value()) {
+            return std::nullopt;
+        }
+        const hir::Stmt& stmt = *stmt_ptr;
+        switch (stmt.kind) {
+        case hir::StatementKind::Let: {
+            const auto& let_stmt = static_cast<const hir::LetStmt&>(stmt);
+            LocalId local_id = add_local(let_stmt.name,
+                                         let_stmt.type.text,
+                                         LocalKind::Let,
+                                         false,
+                                         typesys::is_affine(let_stmt.type.discipline));
+            cursor = lower_expr_to(*let_stmt.initializer, local_id, *cursor, local);
+            if (cursor.has_value()) {
+                local.locals[let_stmt.name] = local_id;
+            }
+            break;
+        }
+        case hir::StatementKind::Expr: {
+            const auto& expr_stmt = static_cast<const hir::ExprStmt&>(stmt);
+            LocalId temp = make_temp(expr_stmt.expr->result_type.text.empty() ? "Unit" : expr_stmt.expr->result_type.text,
+                                     expr_stmt.expr->result_type.discipline,
+                                     "discard");
+            cursor = lower_expr_to(*expr_stmt.expr, temp, *cursor, local);
+            break;
+        }
+        }
+    }
+
+    if (!cursor.has_value()) {
+        return std::nullopt;
+    }
+    return lower_expr_to_success_or_failure(*expr.result,
+                                            success_dest,
+                                            failure_dest,
+                                            success_block,
+                                            failure_block,
+                                            *cursor,
+                                            local);
+}
+
+Builder::MaybeBlock Builder::lower_grant_to_success_or_failure(const hir::GrantExpr& expr,
+                                                               LocalId success_dest,
+                                                               LocalId failure_dest,
+                                                               BlockId success_block,
+                                                               BlockId failure_block,
+                                                               BlockId current,
+                                                               Env& env) {
+    LocalId grant_dest = make_temp("Unit", typesys::UseDiscipline::Copyable, "grant");
+    MaybeBlock cursor = current;
+    const hir::FunctionDecl& grantor = hir::lookup_function(hir_package, expr.grant_function_id);
+    if (grantor.fails_reason_type_id.has_value()) {
+        const BlockId grant_success_block = add_block();
+        (void)lower_call_to_success_or_failure(expr.grant_function_id,
+                                               expr.grant_name,
+                                               expr.args,
+                                               grant_dest,
+                                               failure_dest,
+                                               grant_success_block,
+                                               failure_block,
+                                               *cursor,
+                                               env);
+        cursor = grant_success_block;
+    } else {
+        cursor = lower_direct_call(expr.grant_function_id, expr.grant_name, expr.args, grant_dest, *cursor, env);
+    }
+    if (!cursor.has_value()) {
+        return std::nullopt;
+    }
+
+    Env scoped{&env, {}};
+    const LocalId binder = add_local(expr.binder_name, expr.permit_name, LocalKind::Let, true, false);
+    scoped.locals.emplace(expr.binder_name, binder);
+    return lower_block_to_success_or_failure(*expr.body,
+                                             success_dest,
+                                             failure_dest,
+                                             success_block,
+                                             failure_block,
+                                             *cursor,
+                                             scoped);
+}
+
+Builder::MaybeBlock Builder::lower_expr_to_success_or_failure(const hir::Expr& expr,
+                                                              LocalId success_dest,
+                                                              LocalId failure_dest,
+                                                              BlockId success_block,
+                                                              BlockId failure_block,
+                                                              BlockId current,
+                                                              Env& env) {
+    if (expr.fails_reason_type_id.has_value()) {
+        switch (expr.kind) {
+        case hir::ExprKind::Call: {
+            const auto& call = static_cast<const hir::CallExpr&>(expr);
+            return lower_call_to_success_or_failure(call.function_id,
+                                                    call.callee_name,
+                                                    call.args,
+                                                    success_dest,
+                                                    failure_dest,
+                                                    success_block,
+                                                    failure_block,
+                                                    current,
+                                                    env);
+        }
+        case hir::ExprKind::Grant:
+            return lower_grant_to_success_or_failure(static_cast<const hir::GrantExpr&>(expr),
+                                                     success_dest,
+                                                     failure_dest,
+                                                     success_block,
+                                                     failure_block,
+                                                     current,
+                                                     env);
+        case hir::ExprKind::Block:
+            return lower_block_to_success_or_failure(static_cast<const hir::BlockExpr&>(expr),
+                                                     success_dest,
+                                                     failure_dest,
+                                                     success_block,
+                                                     failure_block,
+                                                     current,
+                                                     env);
+        default:
+            break;
+        }
+    }
+
+    MaybeBlock tail = lower_expr_to(expr, success_dest, current, env);
+    if (tail.has_value()) {
+        Terminator goto_success;
+        goto_success.kind = TerminatorKind::Goto;
+        goto_success.target_block = success_block;
+        set_terminator(*tail, std::move(goto_success));
+    }
+    return std::nullopt;
+}
+
+Builder::MaybeBlock Builder::lower_failing_expr_to_propagation(const hir::Expr& expr,
+                                                               LocalId dest,
+                                                               BlockId current,
+                                                               Env& env) {
+    if (!expr.fails_reason_type_id.has_value()) {
+        return lower_expr_to(expr, dest, current, env);
+    }
+
+    const hir::TypeDecl& failure_type = hir::lookup_type(hir_package, *expr.fails_reason_type_id);
+    LocalId failure_local = make_temp(failure_type.qualified_name,
+                                      failure_type.concrete_discipline.value_or(typesys::UseDiscipline::Copyable),
+                                      "failure");
+    BlockId success_block = add_block();
+    BlockId failure_block = add_block();
+    (void)lower_expr_to_success_or_failure(expr,
+                                           dest,
+                                           failure_local,
+                                           success_block,
+                                           failure_block,
+                                           current,
+                                           env);
 
     Terminator fail_term;
     fail_term.kind = TerminatorKind::Fail;
     fail_term.value = local_operand(failure_local);
     set_terminator(failure_block, std::move(fail_term));
-
     return success_block;
+}
+
+Builder::MaybeBlock Builder::lower_try_expr(const hir::TryExpr& expr,
+                                            LocalId dest,
+                                            BlockId current,
+                                            Env& env) {
+    return lower_failing_expr_to_propagation(*expr.operand, dest, current, env);
 }
 
 void Builder::bind_variant_pattern(const hir::VariantPattern& pattern,
@@ -522,39 +725,17 @@ Builder::MaybeBlock Builder::lower_yield_match(const hir::MatchExpr& expr,
                                                LocalId dest,
                                                BlockId current,
                                                Env& env) {
-    const auto* call = dynamic_cast<const hir::CallExpr*>(expr.scrutinee.get());
-    if (call == nullptr || !call->fails_reason_type_id.has_value()) {
+    if (!expr.scrutinee->fails_reason_type_id.has_value()) {
         return lower_state_match(expr, dest, current, env);
     }
 
-    Terminator invoke;
-    invoke.kind = TerminatorKind::Invoke;
-    invoke.function_id = call->function_id;
-    invoke.callee_name = call->callee_name;
-
-    const hir::FunctionDecl& callee = hir::lookup_function(hir_package, call->function_id);
-
-    MaybeBlock cursor = current;
-    for (std::size_t index = 0; index < call->args.size(); ++index) {
-        if (index < callee.params.size() && callee.params[index].is_compile_time_only) {
-            invoke.args.push_back(unit_operand());
-            continue;
-        }
-        Operand operand;
-        cursor = lower_value(*call->args[index], *cursor, env, operand);
-        if (!cursor.has_value()) {
-            return std::nullopt;
-        }
-        invoke.args.push_back(std::move(operand));
-    }
-
-    LocalId success_local = make_temp(call->result_type.text, call->result_type.discipline, "success");
-    const hir::TypeDecl& yielded_reason = hir::lookup_type(hir_package, *call->fails_reason_type_id);
+    LocalId success_local = make_temp(expr.scrutinee->result_type.text,
+                                      expr.scrutinee->result_type.discipline,
+                                      "success");
+    const hir::TypeDecl& yielded_reason = hir::lookup_type(hir_package, *expr.scrutinee->fails_reason_type_id);
     LocalId failure_local = make_temp(yielded_reason.qualified_name,
                                       yielded_reason.concrete_discipline.value_or(typesys::UseDiscipline::Copyable),
                                       "failure");
-    invoke.success_local = success_local;
-    invoke.failure_local = failure_local;
 
     const hir::MatchArm* success_arm = nullptr;
     std::vector<const hir::MatchArm*> failure_arms;
@@ -571,9 +752,13 @@ Builder::MaybeBlock Builder::lower_yield_match(const hir::MatchExpr& expr,
 
     BlockId success_block = add_block();
     BlockId failure_dispatch = add_block();
-    invoke.success_block = success_block;
-    invoke.failure_block = failure_dispatch;
-    set_terminator(*cursor, std::move(invoke));
+    (void)lower_expr_to_success_or_failure(*expr.scrutinee,
+                                           success_local,
+                                           failure_local,
+                                           success_block,
+                                           failure_dispatch,
+                                           current,
+                                           env);
 
     std::optional<BlockId> join;
     if (success_arm != nullptr) {
@@ -581,10 +766,10 @@ Builder::MaybeBlock Builder::lower_yield_match(const hir::MatchExpr& expr,
         const auto& pattern = static_cast<const hir::SucceededPattern&>(*success_arm->pattern);
         if (pattern.binding_name.has_value()) {
             LocalId binding = add_local(*pattern.binding_name,
-                                        call->result_type.text,
+                                        expr.scrutinee->result_type.text,
                                         LocalKind::Let,
                                         false,
-                                        typesys::is_affine(call->result_type.discipline));
+                                        typesys::is_affine(expr.scrutinee->result_type.discipline));
             success_env.locals[*pattern.binding_name] = binding;
             Rvalue copy;
             copy.kind = RvalueKind::Use;
@@ -645,6 +830,10 @@ Builder::MaybeBlock Builder::lower_grant_expr(const hir::GrantExpr& expr,
                                                 LocalId dest,
                                                 BlockId current,
                                                 Env& env) {
+    if (expr.fails_reason_type_id.has_value()) {
+        return lower_failing_expr_to_propagation(expr, dest, current, env);
+    }
+
     LocalId grant_dest = make_temp("Unit", typesys::UseDiscipline::Copyable, "grant");
     MaybeBlock cursor = lower_direct_call(expr.grant_function_id, expr.grant_name, expr.args, grant_dest, current, env);
     if (!cursor.has_value()) {
@@ -713,6 +902,12 @@ Builder::MaybeBlock Builder::lower_expr_to(const hir::Expr& expr,
                                            LocalId dest,
                                            BlockId current,
                                            Env& env) {
+    if (expr.fails_reason_type_id.has_value()
+        && (expr.kind == hir::ExprKind::Call || expr.kind == hir::ExprKind::Grant
+            || expr.kind == hir::ExprKind::Block)) {
+        return lower_failing_expr_to_propagation(expr, dest, current, env);
+    }
+
     switch (expr.kind) {
     case hir::ExprKind::NumberLiteral: {
         Statement statement;

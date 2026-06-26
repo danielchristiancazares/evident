@@ -1,0 +1,3 @@
+<input>:6:21: error: public API cannot reference private type 'Hidden'
+    public fn leak() -> Hidden
+                        ^^^^^^

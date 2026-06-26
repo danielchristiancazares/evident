@@ -1,0 +1,11 @@
+foundation module support {
+public fn identity<T>(value: T) -> T {
+    value
+}
+}
+
+domain module app {
+public fn main() -> Int {
+    support::identity(7)
+}
+}

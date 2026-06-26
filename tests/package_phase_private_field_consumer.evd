@@ -1,0 +1,5 @@
+domain module pkg_phase_private_field_consumer {
+fn read() -> Int {
+    pkg_phase_private_field_source::make_draft().secret
+}
+}

@@ -1,0 +1,3 @@
+<input>:13:23: error: phase family name 'AppConfig' is not a concrete type; use a concrete position such as 'AppConfig::Draft'
+    public fn bad(config: AppConfig) -> Int {
+                          ^^^^^^^^^

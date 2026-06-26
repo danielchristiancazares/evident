@@ -1,0 +1,27 @@
+types:
+  - public record test::IntLists
+      field many: List<Int>
+      field nonempty: NonEmptyList<Int>
+functions:
+  - public fn test::keep_many(values: List<Int>) -> List<Int>
+      block -> List<Int>
+        result
+          local values : List<Int>
+  - public fn test::keep_nonempty(values: NonEmptyList<Int>) -> NonEmptyList<Int>
+      block -> NonEmptyList<Int>
+        result
+          local values : NonEmptyList<Int>
+  - public fn test::clone_holder(holder: test::IntLists) -> test::IntLists
+      block -> test::IntLists
+        result
+          construct test::IntLists : test::IntLists
+            init many
+              field-access .many : List<Int>
+                local holder : test::IntLists
+            init nonempty
+              field-access .nonempty : NonEmptyList<Int>
+                local holder : test::IntLists
+  - public fn test::main() -> Int
+      block -> Int
+        result
+          number 7 : Int

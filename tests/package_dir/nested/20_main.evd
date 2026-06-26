@@ -1,0 +1,5 @@
+domain module pkg_discovery_main {
+public fn main() -> Int {
+    pkg_discovery_support::extract(pkg_discovery_consumer::build(17))
+}
+}

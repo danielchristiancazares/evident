@@ -1,0 +1,3 @@
+<input>:14:11: error: concrete phase value 'test::AppConfig::Draft' cannot be matched; use a state for runtime alternatives
+        match config {
+              ^^^^^^

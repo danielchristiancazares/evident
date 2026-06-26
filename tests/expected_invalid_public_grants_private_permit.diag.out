@@ -1,0 +1,3 @@
+<input>:4:33: error: public API cannot reference private type 'Access'
+    public fn open() -> Unit grants Access
+                                    ^^^^^^

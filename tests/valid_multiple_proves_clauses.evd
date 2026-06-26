@@ -1,0 +1,10 @@
+domain module test {
+public proof FirstReceipt {
+}
+
+public proof SecondReceipt {
+}
+
+public fn authorize() -> Unit proves FirstReceipt proves SecondReceipt {
+}
+}

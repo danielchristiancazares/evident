@@ -1,0 +1,3 @@
+boundary module ffi {
+public foreign fn identity<T>(value: Int) -> Int
+}

@@ -1,0 +1,3 @@
+<input2>:2:8: error: duplicate declaration for 'value'
+    public fn value() -> Int {
+           ^^^^^^^^^^^^^^^^^^^

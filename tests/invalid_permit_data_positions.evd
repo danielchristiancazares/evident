@@ -1,0 +1,36 @@
+foundation module support {
+public record Box<T> {
+    public value: T,
+}
+}
+
+boundary module app {
+public permit Access
+
+public record StoredPermit {
+    public value: Access,
+}
+
+public state PermitState {
+    Stored { value: Access },
+}
+
+public proof PermitProof {
+    public value: Access,
+}
+
+public phase PermitPhase {
+    fields {
+        public value: Access,
+    }
+    positions {
+        Draft,
+    }
+}
+
+public record GenericStoredPermit {
+    public value: support::Box<Access>,
+}
+
+public foreign fn leak() -> Access
+}

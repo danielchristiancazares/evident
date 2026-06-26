@@ -1,0 +1,29 @@
+functions:
+  - public fn app::main -> Int
+      locals:
+        %0[$return] : Int
+        %1[number] : Int
+        %2[tmp] : support::Box$Int
+        %3[ignored] : Int
+        %4[tmp] : support::Box$Text
+      block %0
+        %2[tmp] = construct support::Box$Int {value: 7}
+        %1[number] = call support::unwrap$Int(%2[tmp])
+        %4[tmp] = construct support::Box$Text {value: "seven"}
+        %3[ignored] = call support::discard$Text(%4[tmp])
+        %0[$return] = %1[number]
+        return %0[$return]
+  - public fn support::unwrap$Int -> Int
+      locals:
+        %0[box] : support::Box$Int
+        %1[$return] : Int
+      block %0
+        %1[$return] = %0[box].value
+        return %1[$return]
+  - public fn support::discard$Text -> Int
+      locals:
+        %0[box] : support::Box$Text
+        %1[$return] : Int
+      block %0
+        %1[$return] = 0
+        return %1[$return]

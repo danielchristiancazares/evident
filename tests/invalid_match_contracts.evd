@@ -1,0 +1,45 @@
+domain module test {
+public state Mode {
+    ModeEnabled,
+    ModeDisabled,
+}
+
+public state OtherMode {
+    OtherOnly,
+}
+
+public reason LoadFailure {
+    Bad,
+}
+
+public fn bad_duplicate_arm(mode: Mode) -> Int {
+    match mode {
+        ModeEnabled => 1,
+        ModeEnabled => 2,
+        ModeDisabled => 3,
+    }
+}
+
+public fn bad_wrong_state_variant(mode: Mode) -> Int {
+    match mode {
+        ModeEnabled => 1,
+        OtherOnly => 2,
+        ModeDisabled => 3,
+    }
+}
+
+public fn bad_fails_pattern_in_state_match(mode: Mode) -> Int {
+    match mode {
+        succeeded(value) => value,
+        ModeEnabled => 1,
+        ModeDisabled => 2,
+    }
+}
+
+public fn bad_arm_type_mismatch(mode: Mode) -> Int {
+    match mode {
+        ModeEnabled => 1,
+        ModeDisabled => "two",
+    }
+}
+}

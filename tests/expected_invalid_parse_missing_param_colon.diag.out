@@ -1,0 +1,3 @@
+<input>:2:22: error: expected ':' after parameter name
+    public fn main(value Int) -> Int {
+                         ^^^

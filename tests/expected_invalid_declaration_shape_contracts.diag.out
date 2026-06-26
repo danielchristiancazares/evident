@@ -1,0 +1,30 @@
+<input>:2:18: error: duplicate generic parameter 'Item' in record
+    record Box<Item, Item> {
+                     ^^^^
+<input>:6:20: error: duplicate generic parameter 'Value' in function signature
+    fn identity<Value, Value>(value: Value) -> Value {
+                       ^^^^^
+<input>:14:5: error: duplicate field 'value' in record
+        value: Text,
+        ^^^^^^^^^^^
+<input>:19:5: error: duplicate variant 'StateAlpha' in state
+        StateAlpha,
+        ^^^^^^^^^^
+<input>:23:30: error: duplicate field 'code' in state variant
+        WithPayload { code: Int, code: Text },
+                                 ^^^^^^^^^^
+<input>:28:5: error: duplicate variant 'ReasonAlpha' in reason
+        ReasonAlpha,
+        ^^^^^^^^^^^
+<input>:32:30: error: duplicate field 'code' in reason variant
+        WithPayload { code: Int, code: Text },
+                                 ^^^^^^^^^^
+<input>:37:5: error: duplicate field 'count' in proof
+        count: Text,
+        ^^^^^^^^^^^
+<input>:43:9: error: duplicate field 'id' in phase
+            id: Text,
+            ^^^^^^^^
+<input>:53:41: error: duplicate parameter 'value'
+    foreign fn duplicate_params(value: Int, value: Int) -> Int
+                                            ^^^^^^^^^^

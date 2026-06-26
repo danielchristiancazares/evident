@@ -30,6 +30,16 @@ if(NOT command_result EQUAL 0)
         "compiler command failed with exit code ${command_result}\nstdout:\n${command_stdout}\nstderr:\n${command_stderr}")
 endif()
 
+if(NOT command_stdout STREQUAL "")
+    message(FATAL_ERROR
+        "compiler command wrote unexpected stdout for ${INPUT_PATH}\nstdout:\n${command_stdout}")
+endif()
+
+if(NOT command_stderr STREQUAL "")
+    message(FATAL_ERROR
+        "compiler command wrote unexpected stderr for ${INPUT_PATH}\nstderr:\n${command_stderr}")
+endif()
+
 if(NOT EXISTS "${OUTPUT_PATH}")
     message(FATAL_ERROR "expected emitted file does not exist: ${OUTPUT_PATH}")
 endif()

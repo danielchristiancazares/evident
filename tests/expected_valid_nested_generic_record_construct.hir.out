@@ -1,0 +1,37 @@
+types:
+  - public record support::Box<T>
+      field value: T
+  - public record support::Pair<L, R>
+      field left: L
+      field right: R
+  - public record support::BoxPair<T>
+      field pair: support::Pair<support::Box<T>, support::Box<T>>
+functions:
+  - public fn support::make_pair<T>(left: T, right: T) -> support::BoxPair<T>
+      block -> support::BoxPair<T>
+        result
+          construct support::BoxPair<T> : support::BoxPair<T>
+            init pair
+              construct support::Pair<support::Box<T>, support::Box<T>> : support::Pair<support::Box<T>, support::Box<T>>
+                init left
+                  construct support::Box<T> : support::Box<T>
+                    init value
+                      local left : T
+                init right
+                  construct support::Box<T> : support::Box<T>
+                    init value
+                      local right : T
+  - public fn support::first<T>(box_pair: support::BoxPair<T>) -> T
+      block -> T
+        result
+          field-access .value : T
+            field-access .left : support::Box<T>
+              field-access .pair : support::Pair<support::Box<T>, support::Box<T>>
+                local box_pair : support::BoxPair<T>
+  - public fn app::main() -> Int
+      block -> Int
+        result
+          call support::first<Int> -> Int
+            call support::make_pair<Int> -> support::BoxPair<Int>
+              number 7 : Int
+              number 3 : Int

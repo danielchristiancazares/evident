@@ -1,0 +1,16 @@
+domain module pkg_phase_private_field_source {
+public phase AppConfig {
+    fields {
+        secret: Int,
+        public id: Int,
+    }
+
+    positions {
+        Draft,
+    }
+}
+
+public fn make_draft() -> AppConfig::Draft {
+    AppConfig::Draft { secret: 7, id: 1 }
+}
+}

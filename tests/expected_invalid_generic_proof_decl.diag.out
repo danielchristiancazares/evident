@@ -1,0 +1,3 @@
+<input>:2:21: error: proof declarations may not be generic
+    public proof Receipt<T> {
+                        ^

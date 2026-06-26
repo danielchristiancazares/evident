@@ -1,0 +1,16 @@
+domain module test {
+public record Marker {
+}
+
+public permit Access
+
+public fn bad_grants() -> Unit grants Marker {
+}
+
+public fn bad_proves() -> Unit proves Marker {
+}
+
+public fn bad_grant_return() -> Int grants Access {
+    1
+}
+}

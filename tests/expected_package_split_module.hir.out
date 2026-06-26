@@ -1,0 +1,10 @@
+types:
+functions:
+  - public fn pkg_split::first() -> Int
+      block -> Int
+        result
+          number 1 : Int
+  - public fn pkg_split::second() -> Int
+      block -> Int
+        result
+          call pkg_split::first -> Int

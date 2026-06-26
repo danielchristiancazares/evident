@@ -1,0 +1,3 @@
+<input>:2:19: error: `domain` modules must not declare user-defined generics
+    public record Box<T> {
+                      ^

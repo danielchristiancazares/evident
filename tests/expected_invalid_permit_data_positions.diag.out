@@ -1,0 +1,18 @@
+<input>:11:19: error: permit type 'Access' may not appear in record field
+        public value: Access,
+                      ^^^^^^
+<input>:15:21: error: permit type 'Access' may not appear in state variant payload
+        Stored { value: Access },
+                        ^^^^^^
+<input>:19:19: error: permit type 'Access' may not appear in proof field
+        public value: Access,
+                      ^^^^^^
+<input>:24:23: error: permit type 'Access' may not appear in phase field
+            public value: Access,
+                          ^^^^^^
+<input>:32:32: error: permit type 'Access' may not appear in record field
+        public value: support::Box<Access>,
+                                   ^^^^^^
+<input>:35:29: error: permit type 'Access' may not appear in function return type
+    public foreign fn leak() -> Access
+                                ^^^^^^

@@ -1,4 +1,4 @@
-foundation module test {
+domain module test {
 public proof Receipt {
     count: Int,
 }

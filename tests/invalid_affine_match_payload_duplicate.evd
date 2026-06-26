@@ -1,0 +1,25 @@
+domain module test {
+public proof Receipt {
+    public count: Int,
+}
+
+public state TicketState {
+    Issued { receipt: Receipt },
+    Archived,
+}
+
+public fn mint() -> Receipt proves Receipt {
+    prove Receipt { count: 7 }
+}
+
+public fn combine(first: Receipt, second: Receipt) -> Int {
+    first.count
+}
+
+public fn from_ticket(ticket: TicketState) -> Int {
+    match ticket {
+        Issued { receipt } => combine(receipt, receipt),
+        Archived => 0,
+    }
+}
+}

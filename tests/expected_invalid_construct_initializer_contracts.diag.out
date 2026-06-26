@@ -1,0 +1,24 @@
+<input>:34:19: error: duplicate initializer for field 'x'
+        Point { x: 1, x: 2, y: 3 }
+                      ^^^^
+<input>:38:25: error: unknown field 'z' in initializer
+        Point { x: 1, y: 2, z: 3 }
+                            ^^^^
+<input>:42:5: error: missing initializer for field 'y'
+        Point { x: 1 }
+        ^^^^^^^^^^^^^^
+<input>:46:13: error: failing expression must be handled with `try` or `match`
+        Point { x: load(), y: 0 }
+                ^^^^^^^^^
+<input>:50:35: error: unknown field 'extra' in initializer
+        Wrapped { id: 1, label: "ok", extra: 0 }
+                                      ^^^^^^^^
+<input>:54:5: error: missing initializer for field 'label'
+        Wrapped { id: 1 }
+        ^^^^^^^^^^^^^^^^^
+<input>:58:28: error: duplicate initializer for field 'id'
+        Config::Draft { id: 1, id: 2, payload: 3 }
+                               ^^^^^
+<input>:62:5: error: missing initializer for field 'payload'
+        Config::Draft { id: 1 }
+        ^^^^^^^^^^^^^^^^^^^^^^^

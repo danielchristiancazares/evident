@@ -1,0 +1,471 @@
+name: CI
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  windows-x64:
+    name: Windows x64 build and test
+    runs-on: windows-2022
+    timeout-minutes: 30
+    env:
+      EVIDENT_CLANG: clang
+
+    steps:
+      - name: Check out source
+        # Pinned to the full commit resolved from the checkout v4 major tag on 2026-06-26.
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+
+      - name: Validate release source tree
+        shell: cmd
+        run: |
+          cmake -DSOURCE_DIR=. -P cmake/AssertReleaseSourceTree.cmake > release-source-tree-audit.txt 2>&1
+          set "SOURCE_TREE_AUDIT_RESULT=%errorlevel%"
+          type release-source-tree-audit.txt
+          if not "%SOURCE_TREE_AUDIT_RESULT%"=="0" exit /b %SOURCE_TREE_AUDIT_RESULT%
+          echo release source tree audit: passed
+          >> release-source-tree-audit.txt echo release source tree audit: passed
+
+      - name: Configure, build, and test
+        shell: cmd
+        run: |
+          set "VSWHERE=%ProgramFiles(x86)%\Microsoft Visual Studio\Installer\vswhere.exe"
+          if not exist "%VSWHERE%" (
+            echo vswhere was not found at "%VSWHERE%".
+            exit /b 1
+          )
+
+          for /f "usebackq tokens=*" %%i in (`"%VSWHERE%" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -property installationPath`) do set "VSINSTALL=%%i"
+          if not defined VSINSTALL (
+            echo Visual Studio with x64 C++ tools was not found.
+            exit /b 1
+          )
+
+          call "%VSINSTALL%\Common7\Tools\VsDevCmd.bat" -host_arch=x64 -arch=x64
+          if errorlevel 1 exit /b %errorlevel%
+
+          if not defined ImageOS (
+            echo GitHub runner ImageOS is not defined.
+            exit /b 1
+          )
+          if not defined ImageVersion (
+            echo GitHub runner ImageVersion is not defined.
+            exit /b 1
+          )
+
+          where cmake
+          if errorlevel 1 exit /b %errorlevel%
+          cmake --version
+          if errorlevel 1 exit /b %errorlevel%
+          where ninja
+          if errorlevel 1 exit /b %errorlevel%
+          ninja --version
+          if errorlevel 1 exit /b %errorlevel%
+          where cl
+          if errorlevel 1 exit /b %errorlevel%
+          cl
+          where clang
+          if errorlevel 1 exit /b %errorlevel%
+          clang --version
+          if errorlevel 1 exit /b %errorlevel%
+          where lld-link
+          if errorlevel 1 exit /b %errorlevel%
+          lld-link --version
+          if errorlevel 1 exit /b %errorlevel%
+
+          cmake --preset windows-x64-ninja
+          if errorlevel 1 exit /b %errorlevel%
+          cmake --build --preset windows-x64-ninja
+          if errorlevel 1 exit /b %errorlevel%
+          ctest --preset windows-x64-ninja > build\windows-x64-ninja\ctest-output.txt 2>&1
+          set "CTEST_RESULT=%errorlevel%"
+          type build\windows-x64-ninja\ctest-output.txt
+          if not "%CTEST_RESULT%"=="0" exit /b %CTEST_RESULT%
+          cmake --build --preset windows-x64-ninja-package-checksum
+          if errorlevel 1 exit /b %errorlevel%
+
+          set "EVIDENCE=build\windows-x64-ninja\evident-release-evidence.txt"
+          > "%EVIDENCE%" echo Evident Windows x64 release evidence
+          >> "%EVIDENCE%" echo commit: %GITHUB_SHA%
+          >> "%EVIDENCE%" echo runner: windows-2022
+          >> "%EVIDENCE%" echo runner image os: %ImageOS%
+          >> "%EVIDENCE%" echo runner image version: %ImageVersion%
+          >> "%EVIDENCE%" echo native target: x86_64-pc-windows-msvc
+          >> "%EVIDENCE%" echo package preset: windows-x64-ninja-package-checksum
+          >> "%EVIDENCE%" echo.
+          if not exist release-source-tree-audit.txt (
+            echo release source tree audit log was not found.
+            exit /b 1
+          )
+          >> "%EVIDENCE%" echo [release source tree audit]
+          type release-source-tree-audit.txt >> "%EVIDENCE%" 2>&1
+          if errorlevel 1 exit /b %errorlevel%
+          >> "%EVIDENCE%" echo.
+          >> "%EVIDENCE%" echo [validated commands]
+          >> "%EVIDENCE%" echo cmake --preset windows-x64-ninja
+          >> "%EVIDENCE%" echo cmake --build --preset windows-x64-ninja
+          >> "%EVIDENCE%" echo ctest --preset windows-x64-ninja
+          >> "%EVIDENCE%" echo cmake --build --preset windows-x64-ninja-package-checksum
+          >> "%EVIDENCE%" echo.
+          >> "%EVIDENCE%" echo [ctest output]
+          type build\windows-x64-ninja\ctest-output.txt >> "%EVIDENCE%" 2>&1
+          if errorlevel 1 exit /b %errorlevel%
+          >> "%EVIDENCE%" echo.
+          >> "%EVIDENCE%" echo [vswhere]
+          "%VSWHERE%" -latest -products * -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 -format text >> "%EVIDENCE%" 2>&1
+          if errorlevel 1 exit /b %errorlevel%
+          >> "%EVIDENCE%" echo.
+          >> "%EVIDENCE%" echo [where cmake]
+          where cmake >> "%EVIDENCE%" 2>&1
+          if errorlevel 1 exit /b %errorlevel%
+          >> "%EVIDENCE%" echo.
+          >> "%EVIDENCE%" echo [cmake --version]
+          cmake --version >> "%EVIDENCE%" 2>&1
+          if errorlevel 1 exit /b %errorlevel%
+          >> "%EVIDENCE%" echo.
+          >> "%EVIDENCE%" echo [where ninja]
+          where ninja >> "%EVIDENCE%" 2>&1
+          if errorlevel 1 exit /b %errorlevel%
+          >> "%EVIDENCE%" echo.
+          >> "%EVIDENCE%" echo [ninja --version]
+          ninja --version >> "%EVIDENCE%" 2>&1
+          if errorlevel 1 exit /b %errorlevel%
+          >> "%EVIDENCE%" echo.
+          >> "%EVIDENCE%" echo [where cl]
+          where cl >> "%EVIDENCE%" 2>&1
+          if errorlevel 1 exit /b %errorlevel%
+          >> "%EVIDENCE%" echo.
+          >> "%EVIDENCE%" echo [cl]
+          cl >> "%EVIDENCE%" 2>&1
+          >> "%EVIDENCE%" echo.
+          >> "%EVIDENCE%" echo [where clang]
+          where clang >> "%EVIDENCE%" 2>&1
+          if errorlevel 1 exit /b %errorlevel%
+          >> "%EVIDENCE%" echo.
+          >> "%EVIDENCE%" echo [clang --version]
+          clang --version >> "%EVIDENCE%" 2>&1
+          if errorlevel 1 exit /b %errorlevel%
+          >> "%EVIDENCE%" echo.
+          >> "%EVIDENCE%" echo [where lld-link]
+          where lld-link >> "%EVIDENCE%" 2>&1
+          if errorlevel 1 exit /b %errorlevel%
+          >> "%EVIDENCE%" echo.
+          >> "%EVIDENCE%" echo [lld-link --version]
+          lld-link --version >> "%EVIDENCE%" 2>&1
+          if errorlevel 1 exit /b %errorlevel%
+          >> "%EVIDENCE%" echo.
+          >> "%EVIDENCE%" echo [evidc --version]
+          build\windows-x64-ninja\evidc.exe --version >> "%EVIDENCE%" 2>&1
+          if errorlevel 1 exit /b %errorlevel%
+          >> "%EVIDENCE%" echo.
+          >> "%EVIDENCE%" echo [evidc --print-toolchain]
+          build\windows-x64-ninja\evidc.exe --print-toolchain >> "%EVIDENCE%" 2>&1
+          if errorlevel 1 exit /b %errorlevel%
+          >> "%EVIDENCE%" echo.
+          >> "%EVIDENCE%" echo [evidc --check-toolchain]
+          build\windows-x64-ninja\evidc.exe --check-toolchain >> "%EVIDENCE%" 2>&1
+          if errorlevel 1 exit /b %errorlevel%
+
+      - name: Verify release ZIP checksum
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $workspace = if ($env:GITHUB_WORKSPACE) { $env:GITHUB_WORKSPACE } else { (Get-Location).Path }
+          $releaseDir = Join-Path $workspace 'build/windows-x64-ninja'
+          $zips = @(Get-ChildItem -Path $releaseDir -Filter 'evident-*-windows-x64.zip' -File)
+          $checksums = @(Get-ChildItem -Path $releaseDir -Filter 'evident-*-windows-x64.zip.sha256' -File)
+
+          if ($zips.Count -ne 1) {
+            throw "expected exactly one release ZIP under $releaseDir, found $($zips.Count)"
+          }
+          if ($checksums.Count -ne 1) {
+            throw "expected exactly one release ZIP checksum under $releaseDir, found $($checksums.Count)"
+          }
+
+          $zip = $zips[0]
+          $checksum = $checksums[0]
+          $expectedChecksumName = "$($zip.Name).sha256"
+          if ($checksum.Name -cne $expectedChecksumName) {
+            throw "expected release ZIP checksum sidecar to be named $expectedChecksumName, found $($checksum.Name)"
+          }
+
+          & cmake `
+            "-DPACKAGE_PATH=$($zip.FullName)" `
+            "-DCHECKSUM_PATH=$($checksum.FullName)" `
+            -P cmake/AssertPackageChecksum.cmake
+          if ($LASTEXITCODE -ne 0) {
+            throw "release ZIP checksum validation failed with exit code $LASTEXITCODE"
+          }
+
+          $zipSize = $zip.Length
+          if ($zipSize -lt 1) {
+            throw "release ZIP is empty: $($zip.FullName)"
+          }
+
+          $actualText = (Get-Content -Raw -Path $checksum.FullName).Replace("`r`n", "`n").Replace("`r", "`n")
+          $expectedHash = (Get-FileHash -Algorithm SHA256 -Path $zip.FullName).Hash.ToLowerInvariant()
+          $expectedLine = "$expectedHash  $($zip.Name)"
+          $expectedText = "$expectedLine`n"
+
+          if ($actualText -cne $expectedText) {
+            throw "release ZIP checksum mismatch; expected '$expectedText', found '$actualText'"
+          }
+
+          "release ZIP: $($zip.Name)"
+          "release ZIP bytes: $zipSize"
+          "release ZIP checksum: $expectedLine"
+
+          $evidence = Join-Path $releaseDir 'evident-release-evidence.txt'
+          if (-not (Test-Path -LiteralPath $evidence)) {
+            throw "expected release evidence file does not exist: $evidence"
+          }
+          $evidenceInfo = Get-Item -LiteralPath $evidence
+          if ($evidenceInfo.Length -lt 1) {
+            throw "release evidence file is empty: $evidence"
+          }
+          Add-Content -Path $evidence -Value ''
+          Add-Content -Path $evidence -Value '[release ZIP]'
+          Add-Content -Path $evidence -Value "file: $($zip.Name)"
+          Add-Content -Path $evidence -Value "bytes: $zipSize"
+          Add-Content -Path $evidence -Value "sha256: $expectedHash"
+
+          & cmake `
+            "-DEVIDENCE_PATH=$evidence" `
+            "-DEXPECTED_CTEST_TOTAL=353" `
+            "-DEXPECTED_COMMIT_SHA=$env:GITHUB_SHA" `
+            "-DRELEASE_PACKAGE_NAME=$($zip.Name)" `
+            "-DRELEASE_PACKAGE_SIZE=$zipSize" `
+            "-DRELEASE_PACKAGE_SHA256=$expectedHash" `
+            -P cmake/AssertReleaseEvidence.cmake
+          if ($LASTEXITCODE -ne 0) {
+            throw "release evidence validation failed with exit code $LASTEXITCODE"
+          }
+
+          if ($env:GITHUB_STEP_SUMMARY) {
+            Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '### Release ZIP'
+            Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value ''
+            Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- File: ``$($zip.Name)``"
+            Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- Bytes: ``$zipSize``"
+            Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- SHA256: ``$expectedHash``"
+          }
+
+      - name: Upload release ZIP
+        id: upload-release-zip
+        # Pinned to the full commit resolved from the upload-artifact v4 major tag on 2026-06-26.
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: evident-windows-x64-zip
+          path: |
+            build/windows-x64-ninja/evident-*-windows-x64.zip
+            build/windows-x64-ninja/evident-*-windows-x64.zip.sha256
+            build/windows-x64-ninja/evident-release-evidence.txt
+          if-no-files-found: error
+          retention-days: 14
+
+      - name: Report release ZIP digest
+        shell: pwsh
+        env:
+          ARTIFACT_DIGEST: ${{ steps.upload-release-zip.outputs['artifact-digest'] }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          if (-not $env:ARTIFACT_DIGEST) {
+            throw 'upload-artifact did not report an artifact digest'
+          }
+          if ($env:ARTIFACT_DIGEST -notmatch '^[0-9a-fA-F]{64}$') {
+            throw "upload-artifact reported an unexpected digest value: $env:ARTIFACT_DIGEST"
+          }
+
+          $digest = $env:ARTIFACT_DIGEST.ToLowerInvariant()
+          "release ZIP artifact digest: $digest"
+
+          if ($env:GITHUB_STEP_SUMMARY) {
+            Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value ''
+            Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value '### Release Artifact'
+            Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value ''
+            Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- Artifact: ``evident-windows-x64-zip``"
+            Add-Content -Path $env:GITHUB_STEP_SUMMARY -Value "- Digest: ``$digest``"
+          }
+
+  attest-windows-x64-release:
+    name: Windows x64 release artifact attestation
+    needs: windows-x64
+    if: ${{ github.event.repository.private == false && (github.event_name == 'push' || github.event_name == 'workflow_dispatch') }}
+    runs-on: windows-2022
+    timeout-minutes: 10
+    permissions:
+      actions: read
+      attestations: write
+      contents: read
+      id-token: write
+
+    steps:
+      - name: Check out source
+        # Pinned to the full commit resolved from the checkout v4 major tag on 2026-06-26.
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5
+        with:
+          persist-credentials: false
+
+      - name: Download release ZIP artifact
+        # Pinned to the full commit resolved from the download-artifact v5 major tag on 2026-06-26.
+        uses: actions/download-artifact@634f93cb2916e3fdff6788551b99b062d0335ce0
+        with:
+          name: evident-windows-x64-zip
+          path: release-artifact
+
+      - name: Validate downloaded release artifact
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+
+          $zipFiles = @(Get-ChildItem -Path 'release-artifact' -Filter 'evident-*-windows-x64.zip' -File)
+          if ($zipFiles.Count -ne 1) {
+            throw "expected exactly one release ZIP, found $($zipFiles.Count)"
+          }
+
+          $checksumFiles = @(Get-ChildItem -Path 'release-artifact' -Filter 'evident-*-windows-x64.zip.sha256' -File)
+          if ($checksumFiles.Count -ne 1) {
+            throw "expected exactly one release ZIP checksum sidecar, found $($checksumFiles.Count)"
+          }
+
+          $evidenceFiles = @(Get-ChildItem -Path 'release-artifact' -Filter 'evident-release-evidence.txt' -File)
+          if ($evidenceFiles.Count -ne 1) {
+            throw "expected exactly one release evidence file, found $($evidenceFiles.Count)"
+          }
+
+          $zip = $zipFiles[0]
+          $checksum = $checksumFiles[0]
+          $expectedChecksumName = "$($zip.Name).sha256"
+          if ($checksum.Name -cne $expectedChecksumName) {
+            throw "expected downloaded release ZIP checksum sidecar to be named $expectedChecksumName, found $($checksum.Name)"
+          }
+
+          & cmake `
+            "-DPACKAGE_PATH=$($zip.FullName)" `
+            "-DCHECKSUM_PATH=$($checksum.FullName)" `
+            -P cmake/AssertPackageChecksum.cmake
+          if ($LASTEXITCODE -ne 0) {
+            throw "downloaded release ZIP checksum validation failed with exit code $LASTEXITCODE"
+          }
+
+          $actualText = (Get-Content -Raw -Path $checksum.FullName).Replace("`r`n", "`n").Replace("`r", "`n")
+          $expectedHash = (Get-FileHash -Algorithm SHA256 -Path $zip.FullName).Hash.ToLowerInvariant()
+          $expectedLine = "$expectedHash  $($zip.Name)"
+          $expectedText = "$expectedLine`n"
+
+          if ($actualText -cne $expectedText) {
+            throw "downloaded release ZIP checksum mismatch; expected '$expectedText', found '$actualText'"
+          }
+
+          "verified downloaded release ZIP checksum: $expectedHash"
+
+          & cmake `
+            "-DEVIDENCE_PATH=$($evidenceFiles[0].FullName)" `
+            "-DEXPECTED_CTEST_TOTAL=353" `
+            "-DEXPECTED_COMMIT_SHA=$env:GITHUB_SHA" `
+            "-DRELEASE_PACKAGE_NAME=$($zip.Name)" `
+            "-DRELEASE_PACKAGE_SIZE=$($zip.Length)" `
+            "-DRELEASE_PACKAGE_SHA256=$expectedHash" `
+            -P cmake/AssertReleaseEvidence.cmake
+          if ($LASTEXITCODE -ne 0) {
+            throw "downloaded release evidence validation failed with exit code $LASTEXITCODE"
+          }
+
+          "validated downloaded release evidence: $($evidenceFiles[0].FullName)"
+
+      - name: Generate release provenance attestation
+        # Pinned to the full commit resolved from the attest v4 major tag on 2026-06-26.
+        uses: actions/attest@281a49d4cbb0a72c9575a50d18f6deb515a11deb
+        with:
+          subject-path: |
+            release-artifact/evident-*-windows-x64.zip
+            release-artifact/evident-*-windows-x64.zip.sha256
+            release-artifact/evident-release-evidence.txt
+
+      - name: Verify release provenance attestations
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $ErrorActionPreference = 'Stop'
+          if ($PSVersionTable.PSVersion.Major -ge 7) {
+            $PSNativeCommandUseErrorActionPreference = $true
+          }
+
+          gh --version
+
+          $zipFiles = @(Get-ChildItem -Path 'release-artifact' -Filter 'evident-*-windows-x64.zip' -File)
+          if ($zipFiles.Count -ne 1) {
+            throw "expected exactly one release ZIP, found $($zipFiles.Count)"
+          }
+
+          $checksumFiles = @(Get-ChildItem -Path 'release-artifact' -Filter 'evident-*-windows-x64.zip.sha256' -File)
+          if ($checksumFiles.Count -ne 1) {
+            throw "expected exactly one release ZIP checksum sidecar, found $($checksumFiles.Count)"
+          }
+
+          $evidenceFiles = @(Get-ChildItem -Path 'release-artifact' -Filter 'evident-release-evidence.txt' -File)
+          if ($evidenceFiles.Count -ne 1) {
+            throw "expected exactly one release evidence file, found $($evidenceFiles.Count)"
+          }
+
+          $zip = $zipFiles[0]
+          $checksum = $checksumFiles[0]
+          $evidence = $evidenceFiles[0]
+
+          if ([string]::IsNullOrWhiteSpace($env:GITHUB_REPOSITORY)) {
+            throw 'GITHUB_REPOSITORY is required to verify release attestations'
+          }
+          if ([string]::IsNullOrWhiteSpace($env:GITHUB_REF)) {
+            throw 'GITHUB_REF is required to verify release attestations'
+          }
+
+          $repo = $env:GITHUB_REPOSITORY
+          $sourceRef = $env:GITHUB_REF
+          $signerWorkflow = "$repo/.github/workflows/ci.yml"
+          $subjects = @($zip, $checksum, $evidence)
+
+          foreach ($subject in $subjects) {
+            $verified = $false
+
+            for ($attempt = 1; $attempt -le 6; $attempt++) {
+              try {
+                & gh attestation verify $subject.FullName `
+                  --repo $repo `
+                  --signer-workflow $signerWorkflow `
+                  --source-ref $sourceRef
+
+                if ($LASTEXITCODE -ne 0) {
+                  throw "gh attestation verify exited with code $LASTEXITCODE for $($subject.Name)"
+                }
+
+                $verified = $true
+                break
+              } catch {
+                if ($attempt -eq 6) {
+                  throw
+                }
+
+                Write-Warning "Attestation verification for $($subject.Name) failed on attempt $attempt; retrying in 10 seconds."
+                Start-Sleep -Seconds 10
+              }
+            }
+
+            if (-not $verified) {
+              throw "attestation verification did not complete for $($subject.Name)"
+            }
+
+            "verified release provenance attestation for $($subject.Name)"
+          }

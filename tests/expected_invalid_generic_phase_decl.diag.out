@@ -1,0 +1,3 @@
+<input>:2:18: error: phase declarations may not be generic
+    public phase Task<T> {
+                     ^

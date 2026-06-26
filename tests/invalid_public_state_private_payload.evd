@@ -1,0 +1,9 @@
+domain module app {
+record Hidden {
+    public value: Int,
+}
+
+public state Result {
+    Loaded { value: Hidden },
+}
+}

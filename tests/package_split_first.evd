@@ -1,0 +1,5 @@
+domain module pkg_split {
+public fn first() -> Int {
+    1
+}
+}

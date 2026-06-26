@@ -1,0 +1,56 @@
+domain module test {
+public record Point {
+    public x: Int,
+}
+
+public state Packet {
+    Empty,
+    Wrapped { id: Int },
+}
+
+public reason LoadFailure {
+    Bad,
+}
+
+public permit Access
+
+public fn helper() -> Int {
+    1
+}
+
+public fn bad_record_value() -> Point {
+    Point
+}
+
+public fn bad_payload_variant_value() -> Packet {
+    Wrapped
+}
+
+public fn bad_reason_variant_value() -> Int {
+    Bad
+}
+
+public fn bad_function_value() -> Int {
+    helper
+}
+
+public fn bad_unknown_value() -> Int {
+    missing_value
+}
+
+public fn bad_permit_construct() -> Int {
+    Access {}
+}
+
+public fn bad_reason_construct() -> Int {
+    LoadFailure {}
+}
+
+public fn bad_variant_generic_construct() -> Packet {
+    Wrapped<Int> { id: 1 }
+}
+
+public fn bad_unknown_constructor() -> Int {
+    Missing {}
+}
+}

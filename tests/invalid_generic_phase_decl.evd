@@ -1,0 +1,11 @@
+domain module app {
+public phase Task<T> {
+    fields {
+        public id: Int,
+    }
+    positions {
+        Draft,
+        Done,
+    }
+}
+}

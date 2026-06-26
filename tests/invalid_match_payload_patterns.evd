@@ -1,0 +1,48 @@
+domain module test {
+public state Mode {
+    Empty,
+    Pair { left: Int, right: Int },
+}
+
+public fn bad_missing_payload(mode: Mode) -> Int {
+    match mode {
+        Empty => 0,
+        Pair => 1,
+    }
+}
+
+public fn bad_payload_on_empty(mode: Mode) -> Int {
+    match mode {
+        Empty { .. } => 0,
+        Pair { .. } => 1,
+    }
+}
+
+public fn bad_partial_payload(mode: Mode) -> Int {
+    match mode {
+        Empty => 0,
+        Pair { left } => 1,
+    }
+}
+
+public fn bad_duplicate_payload(mode: Mode) -> Int {
+    match mode {
+        Empty => 0,
+        Pair { left, left: again } => 1,
+    }
+}
+
+public fn bad_unknown_payload(mode: Mode) -> Int {
+    match mode {
+        Empty => 0,
+        Pair { left, extra } => 1,
+    }
+}
+
+public fn bad_underscore_payload(mode: Mode) -> Int {
+    match mode {
+        Empty => 0,
+        Pair { left: _, right } => 1,
+    }
+}
+}

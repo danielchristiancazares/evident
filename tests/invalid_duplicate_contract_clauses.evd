@@ -1,0 +1,14 @@
+domain module test {
+public reason Failure {
+    Bad,
+}
+
+public permit Access
+
+public fn parse() -> Int fails Failure fails Failure {
+    1
+}
+
+public fn start() -> Unit grants Access grants Access {
+}
+}

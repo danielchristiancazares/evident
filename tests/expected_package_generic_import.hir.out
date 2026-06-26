@@ -1,0 +1,26 @@
+types:
+  - public record package_generics::Box<T>
+      field value: T
+functions:
+  - public fn package_generics::identity<T>(value: T) -> T
+      block -> T
+        result
+          local value : T
+  - public fn package_generics::wrap<T>(value: T) -> package_generics::Box<T>
+      block -> package_generics::Box<T>
+        result
+          construct package_generics::Box<T> : package_generics::Box<T>
+            init value
+              call package_generics::identity<T> -> T
+                local value : T
+  - public fn package_generics::unwrap<T>(box: package_generics::Box<T>) -> T
+      block -> T
+        result
+          field-access .value : T
+            local box : package_generics::Box<T>
+  - public fn package_generic_app::main() -> Int
+      block -> Int
+        result
+          call package_generics::unwrap<Int> -> Int
+            call package_generics::wrap<Int> -> package_generics::Box<Int>
+              number 7 : Int

@@ -1,0 +1,3 @@
+<input>:9:28: error: argument 1 to 'identity' has type 'Text', expected 'Int'
+        support::identity<Int>("seven")
+                               ^^^^^^^

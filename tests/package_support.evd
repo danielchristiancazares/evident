@@ -1,0 +1,13 @@
+foundation module pkg_support {
+public record SharedNumber {
+    public value: Int,
+}
+
+public fn wrap(value: Int) -> SharedNumber {
+    SharedNumber { value }
+}
+
+public fn extract(number: SharedNumber) -> Int {
+    number.value
+}
+}

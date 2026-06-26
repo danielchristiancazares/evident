@@ -1,0 +1,34 @@
+domain module test {
+public phase AppConfig {
+    fields {
+        public id: Int,
+    }
+    positions {
+        Draft,
+    }
+}
+
+public phase EmptyPhase {
+    fields {
+        public id: Int,
+    }
+    positions {
+    }
+}
+
+public fn bad_family_value() -> AppConfig::Draft {
+    AppConfig
+}
+
+public fn bad_unknown_position() -> AppConfig::Draft {
+    AppConfig::Ready { id: 1 }
+}
+
+public fn bad_generic_position() -> AppConfig::Draft {
+    AppConfig::Draft<Int> { id: 1 }
+}
+
+public fn bad_position_value() -> AppConfig::Draft {
+    AppConfig::Draft
+}
+}

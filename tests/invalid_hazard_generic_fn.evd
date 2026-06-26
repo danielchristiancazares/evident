@@ -1,0 +1,5 @@
+hazard module sys {
+public fn identity<T>(value: T) -> T {
+    value
+}
+}

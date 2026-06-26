@@ -1,0 +1,44 @@
+foundation module support {
+public record Box<T> {
+    public value: T,
+}
+}
+
+domain module app {
+public reason Failure {
+    Bad,
+}
+
+public record StoredReason {
+    public value: Failure,
+}
+
+public state ReasonState {
+    Stored { value: Failure },
+}
+
+public proof ReasonProof {
+    public value: Failure,
+}
+
+public phase ReasonPhase {
+    fields {
+        public value: Failure,
+    }
+    positions {
+        Draft,
+    }
+}
+
+public record GenericStoredReason {
+    public value: support::Box<Failure>,
+}
+}
+
+boundary module bridge {
+public reason BridgeFailure {
+    Bad,
+}
+
+public foreign fn pass(value: BridgeFailure) -> BridgeFailure
+}

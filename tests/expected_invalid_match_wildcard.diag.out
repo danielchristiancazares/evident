@@ -1,0 +1,6 @@
+<input>:9:9: error: wildcard patterns are not allowed
+            _ => "unknown",
+            ^
+<input>:8:5: error: non-exhaustive match over state 'FeatureMode'; missing 'OfflineOnly'
+        match mode {
+        ^^^^^^^^^^^^

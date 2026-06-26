@@ -50,6 +50,13 @@ ast::TranslationUnit Parser::parse() {
             break;
         }
 
+        if (check(TokenKind::KeywordImport)) {
+            if (std::optional<ast::ImportDecl> import_decl = parse_import(); import_decl.has_value()) {
+                unit.imports.push_back(std::move(*import_decl));
+            }
+            continue;
+        }
+
         if (std::unique_ptr<ast::Decl> decl = parse_top_level_decl()) {
             unit.decls.push_back(std::move(decl));
         } else {
@@ -146,6 +153,27 @@ ast::Visibility Parser::parse_visibility() {
         return ast::Visibility::Public;
     }
     return ast::Visibility::Private;
+}
+
+std::optional<ast::ImportDecl> Parser::parse_import() {
+    const Token start = expect(TokenKind::KeywordImport, "expected 'import'");
+    ast::ImportDecl import_decl;
+    import_decl.span.begin = start.span.begin;
+
+    if (!check(TokenKind::Identifier)) {
+        diagnostics_.error(peek().span, "expected module path after 'import'");
+        if (match(TokenKind::Semicolon)) {
+            import_decl.span.end = tokens_[current_ - 1].span.end;
+        } else {
+            import_decl.span.end = start.span.end;
+        }
+        return std::nullopt;
+    }
+
+    import_decl.path = parse_path();
+    const Token end = expect(TokenKind::Semicolon, "expected ';' after import declaration");
+    import_decl.span.end = end.span.end;
+    return import_decl;
 }
 
 std::unique_ptr<ast::Decl> Parser::parse_top_level_decl() {
@@ -279,6 +307,10 @@ std::unique_ptr<ast::ProofDecl> Parser::parse_proof(ast::Visibility visibility) 
     const Token start = expect(TokenKind::KeywordProof, "expected 'proof'");
     const Token name = expect(TokenKind::Identifier, "expected proof name");
     auto decl = std::make_unique<ast::ProofDecl>(visibility, token_text(name));
+    if (check(TokenKind::LeftAngle)) {
+        diagnostics_.error(peek().span, "proof declarations may not be generic");
+        parse_generic_params();
+    }
     if (check(TokenKind::LeftBrace)) {
         decl->fields = parse_field_block();
         decl->span = SourceSpan{start.span.begin, tokens_[current_ - 1].span.end};
@@ -293,6 +325,10 @@ std::unique_ptr<ast::PermitDecl> Parser::parse_permit(ast::Visibility visibility
     const Token start = expect(TokenKind::KeywordPermit, "expected 'permit'");
     const Token name = expect(TokenKind::Identifier, "expected permit name");
     auto decl = std::make_unique<ast::PermitDecl>(visibility, token_text(name));
+    if (check(TokenKind::LeftAngle)) {
+        diagnostics_.error(peek().span, "permit declarations may not be generic");
+        parse_generic_params();
+    }
     decl->span = SourceSpan{start.span.begin, name.span.end};
     consume_optional_declaration_terminator();
     return decl;
@@ -301,6 +337,10 @@ std::unique_ptr<ast::PermitDecl> Parser::parse_permit(ast::Visibility visibility
 std::unique_ptr<ast::PhaseDecl> Parser::parse_phase(ast::Visibility visibility) {
     const Token start = expect(TokenKind::KeywordPhase, "expected 'phase'");
     const Token name = expect(TokenKind::Identifier, "expected phase name");
+    if (check(TokenKind::LeftAngle)) {
+        diagnostics_.error(peek().span, "phase declarations may not be generic");
+        parse_generic_params();
+    }
     expect(TokenKind::LeftBrace, "expected '{' after phase name");
     expect(TokenKind::KeywordFields, "expected 'fields' in phase declaration");
     std::vector<ast::Field> fields = parse_field_block();
@@ -501,20 +541,26 @@ ast::FunctionSignature Parser::parse_foreign_function_signature(std::string name
     signature.params = parse_foreign_parameter_list();
     expect(TokenKind::Arrow, "expected '->' after parameter list");
     signature.return_type = parse_type();
-    if (check(TokenKind::KeywordFails)) {
-        const Token fails_tok = advance();
-        diagnostics_.error(fails_tok.span, "foreign functions may not declare `fails`");
-        parse_type();
-    }
-    if (check(TokenKind::KeywordGrants)) {
-        const Token grants_tok = advance();
-        diagnostics_.error(grants_tok.span, "foreign functions may not declare `grants`");
-        parse_type();
-    }
-    while (check(TokenKind::KeywordProves)) {
-        const Token proves_tok = advance();
-        diagnostics_.error(proves_tok.span, "foreign functions may not declare `proves`");
-        parse_type();
+    for (;;) {
+        if (check(TokenKind::KeywordFails)) {
+            const Token fails_tok = advance();
+            diagnostics_.error(fails_tok.span, "foreign functions may not declare `fails`");
+            parse_type();
+            continue;
+        }
+        if (check(TokenKind::KeywordGrants)) {
+            const Token grants_tok = advance();
+            diagnostics_.error(grants_tok.span, "foreign functions may not declare `grants`");
+            parse_type();
+            continue;
+        }
+        if (check(TokenKind::KeywordProves)) {
+            const Token proves_tok = advance();
+            diagnostics_.error(proves_tok.span, "foreign functions may not declare `proves`");
+            parse_type();
+            continue;
+        }
+        break;
     }
     signature.span = SourceSpan{begin, signature.return_type.span.end};
     return signature;
@@ -528,14 +574,30 @@ ast::FunctionSignature Parser::parse_function_signature(std::string name) {
     signature.params = parse_parameter_list();
     expect(TokenKind::Arrow, "expected '->' after parameter list");
     signature.return_type = parse_type();
-    if (match(TokenKind::KeywordFails)) {
-        signature.fails_type = parse_type();
-    }
-    if (match(TokenKind::KeywordGrants)) {
-        signature.grants_type = parse_type();
-    }
-    while (match(TokenKind::KeywordProves)) {
-        signature.proves_types.push_back(parse_type());
+    for (;;) {
+        if (match(TokenKind::KeywordFails)) {
+            ast::TypeRef fails_type = parse_type();
+            if (signature.fails_type.has_value()) {
+                diagnostics_.error(fails_type.span, "function signature repeats `fails`");
+            } else {
+                signature.fails_type = std::move(fails_type);
+            }
+            continue;
+        }
+        if (match(TokenKind::KeywordGrants)) {
+            ast::TypeRef grants_type = parse_type();
+            if (signature.grants_type.has_value()) {
+                diagnostics_.error(grants_type.span, "function signature repeats `grants`");
+            } else {
+                signature.grants_type = std::move(grants_type);
+            }
+            continue;
+        }
+        if (match(TokenKind::KeywordProves)) {
+            signature.proves_types.push_back(parse_type());
+            continue;
+        }
+        break;
     }
     std::size_t end = signature.return_type.span.end;
     if (signature.fails_type.has_value()) {
@@ -574,6 +636,16 @@ ast::TypeRef Parser::parse_type() {
     }
 
     return type;
+}
+
+std::vector<ast::TypeRef> Parser::parse_type_argument_list() {
+    std::vector<ast::TypeRef> args;
+    expect(TokenKind::LeftAngle, "expected '<' before type argument list");
+    do {
+        args.push_back(parse_type());
+    } while (match(TokenKind::Comma));
+    expect(TokenKind::RightAngle, "expected '>' after type argument list");
+    return args;
 }
 
 std::vector<std::string> Parser::parse_path() {
@@ -732,7 +804,7 @@ std::unique_ptr<ast::Expr> Parser::parse_try_expr() {
     if (match(TokenKind::KeywordTry)) {
         const Token start = tokens_[current_ - 1];
         auto expr = std::make_unique<ast::TryExpr>();
-        expr->operand = parse_try_expr();
+        expr->operand = parse_expr();
         expr->span = SourceSpan{start.span.begin, expr->operand != nullptr ? expr->operand->span.end : start.span.end};
         return expr;
     }
@@ -789,15 +861,40 @@ std::unique_ptr<ast::Expr> Parser::parse_postfix_expr() {
         if (expr == nullptr) {
             break;
         }
+        std::vector<ast::TypeRef> type_args;
+        if (check(TokenKind::LeftAngle)) {
+            auto* path_expr = dynamic_cast<ast::PathExpr*>(expr.get());
+            if (path_expr == nullptr) {
+                diagnostics_.error(peek().span, "type arguments may only be applied to named calls or record construction");
+                break;
+            }
+            type_args = parse_type_argument_list();
+            if (check(TokenKind::LeftBrace) && looks_like_record_initializer()) {
+                auto construct = std::make_unique<ast::ConstructExpr>();
+                construct->path = std::move(path_expr->path);
+                construct->type_args = std::move(type_args);
+                construct->fields = parse_record_field_initializers();
+                construct->span = SourceSpan{expr->span.begin, tokens_[current_ - 1].span.end};
+                expr = std::move(construct);
+                continue;
+            }
+            if (!check(TokenKind::LeftParen)) {
+                diagnostics_.error(tokens_[current_ - 1].span,
+                                   "type arguments must be followed by an argument list or record initializer");
+                break;
+            }
+        }
         if (match(TokenKind::LeftParen)) {
             const Token open = tokens_[current_ - 1];
             auto call = std::make_unique<ast::CallExpr>();
             call->callee = std::move(expr);
+            call->type_args = std::move(type_args);
             while (!check(TokenKind::RightParen) && !at_end()) {
                 if (check(TokenKind::KeywordAs)) {
                     // permit argument: `as name`
                     advance(); // consume 'as'
                     auto permit_arg = std::make_unique<ast::PathExpr>();
+                    permit_arg->explicit_permit_argument = true;
                     const Token permit_name = expect(TokenKind::Identifier, "expected permit name after 'as'");
                     permit_arg->path.push_back(token_text(permit_name));
                     permit_arg->span = permit_name.span;

@@ -1,0 +1,20 @@
+foundation module support {
+public fn duplicate<T>(value: T) -> T {
+    let copy = value;
+    value
+}
+}
+
+domain module test {
+public proof Receipt {
+    public count: Int,
+}
+
+public fn mint() -> Receipt proves Receipt {
+    prove Receipt { count: 7 }
+}
+
+public fn boot() -> Receipt {
+    support::duplicate<Receipt>(mint())
+}
+}

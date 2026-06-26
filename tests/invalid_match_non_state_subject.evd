@@ -1,0 +1,7 @@
+domain module test {
+public fn render(value: Int) -> Int {
+    match value {
+        Offline => 0,
+    }
+}
+}

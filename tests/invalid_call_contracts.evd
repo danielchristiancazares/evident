@@ -1,0 +1,39 @@
+domain module test {
+public reason LoadFailure {
+    Bad,
+}
+
+public fn load() -> Int
+    fails LoadFailure
+{
+    fail Bad
+}
+
+public fn takes_one(value: Int) -> Int {
+    value
+}
+
+public fn bad_unknown_function() -> Int {
+    missing_call()
+}
+
+public fn bad_too_few() -> Int {
+    takes_one()
+}
+
+public fn bad_too_many() -> Int {
+    takes_one(1, 2)
+}
+
+public fn bad_type_mismatch() -> Int {
+    takes_one("seven")
+}
+
+public fn bad_failing_argument() -> Int {
+    takes_one(load())
+}
+
+public fn bad_non_path_callee() -> Int {
+    takes_one.value()
+}
+}

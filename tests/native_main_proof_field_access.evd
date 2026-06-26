@@ -1,0 +1,14 @@
+domain module test {
+public proof Receipt {
+    public count: Int,
+}
+
+public fn mint() -> Receipt proves Receipt {
+    prove Receipt { count: 7 }
+}
+
+public fn main() -> Int {
+    let receipt = mint();
+    receipt.count
+}
+}

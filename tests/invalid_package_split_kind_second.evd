@@ -1,0 +1,5 @@
+foundation module pkg_split_kind {
+public fn other() -> Int {
+    2
+}
+}

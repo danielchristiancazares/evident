@@ -1,0 +1,12 @@
+import package_generic_gate_support;
+
+domain module package_import_gate_generic_args {
+public fn bad_function_arg() -> Int {
+    package_generic_gate_support::marker<pkg_support::SharedNumber>()
+}
+
+public fn bad_record_arg() -> Int {
+    let token = package_generic_gate_support::Token<pkg_support::SharedNumber> {};
+    0
+}
+}

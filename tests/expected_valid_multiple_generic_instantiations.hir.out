@@ -1,0 +1,27 @@
+types:
+  - public record support::Box<T>
+      field value: T
+functions:
+  - public fn support::unwrap<T>(box: support::Box<T>) -> T
+      block -> T
+        result
+          field-access .value : T
+            local box : support::Box<T>
+  - public fn support::discard<T>(box: support::Box<T>) -> Int
+      block -> Int
+        result
+          number 0 : Int
+  - public fn app::main() -> Int
+      block -> Int
+        let number: Int
+          call support::unwrap<Int> -> Int
+            construct support::Box<Int> : support::Box<Int>
+              init value
+                number 7 : Int
+        let ignored: Int
+          call support::discard<Text> -> Int
+            construct support::Box<Text> : support::Box<Text>
+              init value
+                string "seven" : Text
+        result
+          local number : Int

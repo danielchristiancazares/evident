@@ -20,6 +20,21 @@ void dump_type(std::ostream& out, const TypeRef& type) {
     out << format_type(type);
 }
 
+void dump_path(std::ostream& out, const std::vector<std::string>& path) {
+    for (std::size_t i = 0; i < path.size(); ++i) {
+        if (i > 0) {
+            out << "::";
+        }
+        out << path[i];
+    }
+}
+
+void dump_import(std::ostream& out, const ImportDecl& import_decl) {
+    out << "import ";
+    dump_path(out, import_decl.path);
+    out << '\n';
+}
+
 void dump_fields(std::ostream& out, const std::vector<Field>& fields, std::size_t depth) {
     for (const Field& field : fields) {
         indent(out, depth);
@@ -84,19 +99,25 @@ void dump_expr(std::ostream& out, const Expr& expr, std::size_t depth) {
     }
     case ExprKind::Path: {
         const auto& path_expr = static_cast<const PathExpr&>(expr);
-        out << "path ";
-        for (std::size_t i = 0; i < path_expr.path.size(); ++i) {
-            if (i > 0) {
-                out << "::";
-            }
-            out << path_expr.path[i];
-        }
+        out << (path_expr.explicit_permit_argument ? "permit-arg " : "path ");
+        dump_path(out, path_expr.path);
         out << '\n';
         break;
     }
     case ExprKind::Call: {
         const auto& call = static_cast<const CallExpr&>(expr);
-        out << "call\n";
+        out << "call";
+        if (!call.type_args.empty()) {
+            out << '<';
+            for (std::size_t index = 0; index < call.type_args.size(); ++index) {
+                if (index > 0) {
+                    out << ", ";
+                }
+                dump_type(out, call.type_args[index]);
+            }
+            out << '>';
+        }
+        out << '\n';
         if (call.callee != nullptr) {
             dump_expr(out, *call.callee, depth + 1);
         }
@@ -108,11 +129,16 @@ void dump_expr(std::ostream& out, const Expr& expr, std::size_t depth) {
     case ExprKind::Construct: {
         const auto& construct = static_cast<const ConstructExpr&>(expr);
         out << "construct ";
-        for (std::size_t i = 0; i < construct.path.size(); ++i) {
-            if (i > 0) {
-                out << "::";
+        dump_path(out, construct.path);
+        if (!construct.type_args.empty()) {
+            out << '<';
+            for (std::size_t index = 0; index < construct.type_args.size(); ++index) {
+                if (index > 0) {
+                    out << ", ";
+                }
+                dump_type(out, construct.type_args[index]);
             }
-            out << construct.path[i];
+            out << '>';
         }
         out << '\n';
         dump_record_fields(out, construct.fields, depth + 1);
@@ -162,12 +188,7 @@ void dump_expr(std::ostream& out, const Expr& expr, std::size_t depth) {
     case ExprKind::Fail: {
         const auto& fail_expr = static_cast<const FailExpr&>(expr);
         out << "fail ";
-        for (std::size_t i = 0; i < fail_expr.path.size(); ++i) {
-            if (i > 0) {
-                out << "::";
-            }
-            out << fail_expr.path[i];
-        }
+        dump_path(out, fail_expr.path);
         out << '\n';
         dump_record_fields(out, fail_expr.fields, depth + 1);
         break;
@@ -190,12 +211,7 @@ void dump_expr(std::ostream& out, const Expr& expr, std::size_t depth) {
     case ExprKind::Prove: {
         const auto& prove_expr = static_cast<const ProveExpr&>(expr);
         out << "prove ";
-        for (std::size_t i = 0; i < prove_expr.path.size(); ++i) {
-            if (i > 0) {
-                out << "::";
-            }
-            out << prove_expr.path[i];
-        }
+        dump_path(out, prove_expr.path);
         out << '\n';
         dump_record_fields(out, prove_expr.fields, depth + 1);
         break;
@@ -217,12 +233,7 @@ void dump_pattern(std::ostream& out, const Pattern& pattern, std::size_t depth) 
     case PatternKind::Variant: {
         const auto& variant = static_cast<const VariantPattern&>(pattern);
         out << "pattern ";
-        for (std::size_t i = 0; i < variant.path.size(); ++i) {
-            if (i > 0) {
-                out << "::";
-            }
-            out << variant.path[i];
-        }
+        dump_path(out, variant.path);
         out << '\n';
         if (variant.payload_mode == VariantPattern::PayloadMode::Ignore) {
             indent(out, depth + 1);
@@ -414,6 +425,9 @@ std::string format_type(const TypeRef& type) {
 
 std::string dump(const TranslationUnit& unit, std::string_view) {
     std::ostringstream out;
+    for (const ImportDecl& import_decl : unit.imports) {
+        dump_import(out, import_decl);
+    }
     for (const auto& decl : unit.decls) {
         dump_decl(out, *decl, 0);
     }

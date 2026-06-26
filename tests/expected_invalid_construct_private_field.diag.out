@@ -1,0 +1,3 @@
+<input>:10:9: error: cannot construct here: field 'y' is private
+            outer::Resource { x: 1, y: 2 }
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

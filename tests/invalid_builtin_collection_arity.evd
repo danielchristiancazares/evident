@@ -1,0 +1,31 @@
+foundation module support {
+public record Box<T> {
+    public value: T<Int>,
+}
+}
+
+domain module test {
+public fn bare_list(values: List) -> Int {
+    0
+}
+
+public fn too_many_list(values: List<Int, Int>) -> Int {
+    0
+}
+
+public fn short_map(values: Map<Int>) -> Int {
+    0
+}
+
+public fn too_many_map(values: Map<Int, Int, Int>) -> Int {
+    0
+}
+
+public fn builtin_args(values: Int<Text>) -> Int {
+    0
+}
+
+public fn qualified_builtin(values: List::Thing) -> Int {
+    0
+}
+}

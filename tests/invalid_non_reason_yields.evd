@@ -1,7 +1,7 @@
 domain module test {
 public state NotAReason {
-    A,
-    B,
+    Alpha,
+    Beta,
 }
 
 public fn bad() -> Int fails NotAReason

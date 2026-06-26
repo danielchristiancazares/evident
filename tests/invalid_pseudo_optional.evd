@@ -1,6 +1,6 @@
 domain module test {
 public state Connection {
-    Present { id: Int },
-    Absent,
+    Known { id: Int },
+    Offline,
 }
 }

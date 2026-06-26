@@ -1,0 +1,3 @@
+<input>:6:39: error: functions may only declare 'grants' for permits from the same module
+    public fn start_pass() -> Unit grants authority::RenderPassActive {
+                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^

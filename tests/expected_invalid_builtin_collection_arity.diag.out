@@ -1,0 +1,21 @@
+<input>:3:19: error: generic parameter 'T' may not have type arguments
+        public value: T<Int>,
+                      ^^^^^^
+<input>:8:29: error: builtin type 'List' requires 1 type argument(s)
+    public fn bare_list(values: List) -> Int {
+                                ^^^^
+<input>:12:33: error: builtin type 'List' expects 1 type argument(s), got 2
+    public fn too_many_list(values: List<Int, Int>) -> Int {
+                                    ^^^^^^^^^^^^^^
+<input>:16:29: error: builtin type 'Map' expects 2 type argument(s), got 1
+    public fn short_map(values: Map<Int>) -> Int {
+                                ^^^^^^^^
+<input>:20:32: error: builtin type 'Map' expects 2 type argument(s), got 3
+    public fn too_many_map(values: Map<Int, Int, Int>) -> Int {
+                                   ^^^^^^^^^^^^^^^^^^
+<input>:24:32: error: builtin type 'Int' may not have type arguments
+    public fn builtin_args(values: Int<Text>) -> Int {
+                                   ^^^^^^^^^
+<input>:28:37: error: builtin type 'List' may not be used as a qualified type
+    public fn qualified_builtin(values: List::Thing) -> Int {
+                                        ^^^^^^^^^^^

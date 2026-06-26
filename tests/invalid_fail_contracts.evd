@@ -1,0 +1,60 @@
+domain module test {
+public reason OpenFailure {
+    Basic,
+    WithPayload { code: Int, label: Text },
+    Ambiguous,
+}
+
+public reason ParseFailure {
+    BadSyntax,
+    Ambiguous,
+}
+
+fn load() -> Int
+    fails OpenFailure
+{
+    fail Basic
+}
+
+public fn bad_unknown_variant() -> Int
+    fails OpenFailure
+{
+    fail Missing
+}
+
+public fn bad_ambiguous_variant() -> Int
+    fails OpenFailure
+{
+    fail Ambiguous
+}
+
+public fn bad_duplicate_field() -> Int
+    fails OpenFailure
+{
+    fail WithPayload { code: 1, code: 2, label: "open" }
+}
+
+public fn bad_unknown_field() -> Int
+    fails OpenFailure
+{
+    fail WithPayload { code: 1, label: "open", extra: 0 }
+}
+
+public fn bad_missing_field() -> Int
+    fails OpenFailure
+{
+    fail WithPayload { code: 1 }
+}
+
+public fn bad_field_type() -> Int
+    fails OpenFailure
+{
+    fail WithPayload { code: "one", label: "open" }
+}
+
+public fn bad_failing_initializer() -> Int
+    fails OpenFailure
+{
+    fail WithPayload { code: load(), label: "open" }
+}
+}

@@ -1,0 +1,5 @@
+import pkg_import_support
+private module pkg_import_support
+  kind foundation
+private module pkg_import_consumer
+  kind domain

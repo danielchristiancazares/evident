@@ -1,0 +1,20 @@
+foundation module support {
+public fn identity<T>(value: T) -> T {
+    value
+}
+}
+
+domain module test {
+public proof Receipt {
+    public count: Int,
+}
+
+public fn mint() -> Receipt proves Receipt {
+    prove Receipt { count: 7 }
+}
+
+public fn main() -> Int {
+    let receipt = support::identity<Receipt>(mint());
+    receipt.count
+}
+}

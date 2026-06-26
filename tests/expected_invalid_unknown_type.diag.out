@@ -1,0 +1,3 @@
+<input>:3:8: error: unknown type 'DoesNotExist' in record field
+        x: DoesNotExist,
+           ^^^^^^^^^^^^

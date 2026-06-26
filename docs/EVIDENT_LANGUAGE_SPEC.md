@@ -1,7 +1,7 @@
 # Evident Language Specification
 
 **Status:** Redesigned working draft  
-**Last updated:** 2026-03-30
+**Last updated:** 2026-06-24
 
 ## 1. Scope
 
@@ -66,6 +66,15 @@ For this document:
 Declarations other than `module` declarations MUST appear inside a module.
 
 Every module declaration, top-level or nested, MUST spell its module kind explicitly. Module kind inheritance does not exist.
+
+An implementation MAY accept more than one source file in a single package compilation. In that case, the supplied files are parsed in deterministic package order as one package translation unit, name resolution is package-wide, and diagnostics MUST report the original source file and location. A package MUST NOT contain duplicate declarations in the same non-module scope. Multiple declarations of the same module path merge into one module scope only when they use the same module kind; split declarations with different module kinds MUST be rejected.
+
+The current compiler supports two package entrypoints: an explicit input-file list and `--package <dir>`. A package directory MAY contain an `evident.pkg` manifest with one relative `.evd` source path per non-empty, non-comment line. Manifest source paths MUST stay inside the package directory, MUST NOT contain `..`, MUST end in `.evd`, and MUST be unique. If the manifest is absent, `--package <dir>` recursively discovers `.evd` sources in deterministic path order.
+
+A source file MAY declare top-level imports with `import module::path;`. An import path MUST resolve to a module, and a source file MUST NOT repeat the same import path. A package with no valid imports keeps package-wide fully qualified name resolution for compatibility with the current source-list model. Once a package declares at least one valid import, cross-top-level fully qualified references in each source file MUST be under a matching import from that same source file.
+
+This package model is source-set compilation only. External package identity, package dependency resolution, build
+profiles, version constraints, and cross-package linking metadata are deferred.
 
 Evident defines four module kinds.
 
@@ -161,6 +170,8 @@ A public API MUST NOT expose a private type in any of the following positions:
 * `grants` clause
 * `proves` clause
 * public record field type
+* public state variant payload type
+* public reason variant payload type
 * public proof field type
 * public phase field type
 
@@ -279,9 +290,11 @@ grant-expr         = "grant" call-expr "as" identifier block ;
 fail-expr          = "fail" path [ record-initializer ] ;
 prove-expr         = "prove" path [ record-initializer ] ;
 
-postfix-expr       = primary-expr { field-access | call-suffix } ;
+postfix-expr       = primary-expr { field-access | call-suffix | construct-suffix } ;
 field-access       = "." identifier ;
-call-suffix        = "(" [ call-arg { "," call-arg } [ "," ] ] ")" ;
+call-suffix        = [ generic-args ] "(" [ call-arg { "," call-arg } [ "," ] ] ")" ;
+construct-suffix   = generic-args record-initializer ;
+generic-args       = "<" type { "," type } ">" ;
 call-arg           = expression | permit-arg ;
 permit-arg         = "as" identifier ;
 
@@ -323,6 +336,9 @@ A conforming implementation MUST also recognize these compiler-owned collection 
 * `NonEmptyList<T>`
 * `Map<K, V>`
 * `NonEmptyMap<K, V>`
+
+These collection families MUST be used with exactly the type-argument arity shown above. Non-collection built-in
+types MUST NOT be used with type arguments.
 
 `Unit` is the empty success type.
 
@@ -645,7 +661,7 @@ This declaration creates two concrete value types:
 * `AppConfig::Draft`
 * `AppConfig::Validated`
 
-The phase family name `AppConfig` is not a value type.
+The phase family name `AppConfig` is not a concrete type and MUST NOT be used as a value type or type annotation.
 
 All concrete phase types in a family share the declared field layout.
 
@@ -673,7 +689,7 @@ The following type-position rules are reserved by category:
 * A `permit` type is valid only in permit parameter positions and `grants` clauses.
 * A `proof` type is an ordinary data type, but it is affine.
 * A concrete `phase` type is an ordinary data type, but it is affine.
-* A phase family name is not a value type.
+* A phase family name is not a concrete type.
 
 ## 14. Functions and Contract Clauses
 
@@ -697,7 +713,7 @@ The order of contract clauses is not semantically meaningful.
 
 A call to a failing function is a failing expression.
 
-A failing call MUST be handled with `try` or `match`.
+A failing expression MUST be handled with `try` or `match`.
 
 Reason compatibility is exact. `try` is valid only when the callee’s declared reason type exactly matches the enclosing function’s declared reason type.
 
@@ -725,7 +741,28 @@ Only functions in the same module as `Q` may declare `proves Q`.
 
 A `prove` expression inside the function MUST name one of the proof types listed by its enclosing `proves` clauses.
 
-### 14.4 `foreign fn`
+### 14.4 Stable authority and minting contract
+
+The current core language treats proof creation and permit use as explicit authority events. A conforming implementation MUST enforce all of the following:
+
+* A permit type is not data. It MUST NOT be stored, returned, matched, nested in collections or generic arguments, constructed directly, or bound with ordinary `let`.
+* A permit parameter MUST be written as `as name: PermitType`.
+* A permit argument MUST be written as `as name` in the direct argument position where the callee expects that permit type.
+* A permit binding MUST originate only from a permit parameter or from `grant grantor(...) as name { ... }`.
+* A grantor function MUST declare `grants PermitType`, MUST be declared in the same module as that permit type, and MUST return `Unit`.
+* A grantor function MUST be invoked through `grant`; an ordinary direct call to a function with `grants` is invalid.
+* A permit binding introduced by `grant` is lexical. It exists only inside the grant body and is not consumed by being passed to authorized calls.
+* `grant` failure typing is exact: the grantor failure reason and grant body failure reason MUST either be absent or be the same `reason` type.
+* A proof value MUST be created with `prove ProofType { ... }`. Direct proof construction is invalid.
+* A function MAY use `prove ProofType { ... }` only when its own signature declares `proves ProofType`.
+* A function that declares `proves ProofType` MUST be declared in the same module as that proof type.
+* Duplicate `proves` clauses for the same proof type are invalid.
+* A `prove` initializer MUST name exactly the proof fields, MUST NOT duplicate fields, and each initializer expression MUST have the declared field type without an unhandled failure.
+* Proof values are affine. Moving a proof consumes that binding; reusing it after move is invalid.
+
+These rules are the stable subset contract for authority and proof minting. Broader typestate transition syntax may extend the language later, but it MUST NOT weaken these rules.
+
+### 14.5 `foreign fn`
 
 A `foreign fn` declares an external function without a body.
 
@@ -1001,6 +1038,14 @@ There is no generic syntax for:
 
 There is no trait system, reflection system, constraint syntax, or open polymorphism in the core language.
 
+Generic function calls MUST write all type arguments explicitly, for example `identity<Int>(value)`.
+The language does not infer user-defined generic function arguments.
+
+Generic record construction MUST write all type arguments explicitly, for example `Box<Int> { value: value }`.
+The language does not infer user-defined generic record constructor arguments.
+Generic type arguments MAY themselves be explicitly instantiated generic records, for example `Pair<Box<Int>, Box<Int>>`.
+Different explicit type-argument tuples MUST be treated as distinct concrete instantiations.
+
 ### 16.2 Structural blindness
 
 A user-defined generic abstraction MUST remain structurally blind.
@@ -1092,7 +1137,7 @@ A conforming Evident toolchain MUST reject at least the following:
 
 The following areas are intentionally outside this draft:
 
-* package and import-based multi-file compilation
+* external package identity, dependency metadata, build profiles, version constraints, and cross-package linking
 * mutation and assignment semantics beyond the immutable core defined here
 * trait declarations, trait bounds, and open polymorphism
 * explicit phase-family helper syntax for “any position of a family”

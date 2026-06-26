@@ -1,0 +1,3 @@
+<input>:10:9: error: field 'y' is private
+            r.y
+            ^^^

@@ -1,0 +1,27 @@
+domain module test {
+public phase AppConfig {
+    fields {
+        public id: Int,
+        public payload: Int,
+    }
+
+    positions {
+        Draft,
+        Validated,
+    }
+}
+
+public fn make_draft() -> AppConfig::Draft {
+    AppConfig::Draft { id: 7, payload: 2 }
+}
+
+public fn validate(config: AppConfig::Draft) -> AppConfig::Validated {
+    AppConfig::Validated { id: config.id, payload: 3 }
+}
+
+public fn main() -> Int {
+    let draft = make_draft();
+    let validated = validate(draft);
+    validated.id
+}
+}

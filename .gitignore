@@ -1,12 +1,35 @@
 # Build output
 build/
+build-*/
 build-gcc/
 out/
 cmake-build-*/
+CMakeUserPresets.json
+CMakeCache.txt
+CMakeFiles/
+CTestTestfile.cmake
+DartConfiguration.tcl
+Testing/
+cmake_install.cmake
+compile_commands.json
+install_manifest.txt
+build.ninja
+.ninja_deps
+.ninja_log
+_CPack_Packages/
+CPackConfig.cmake
+CPackSourceConfig.cmake
+
+# Release artifacts
+evident-*-windows-x64.zip
+evident-*-windows-x64.zip.sha256
+evident-release-evidence.txt
+release-artifact/
 
 # IDE / editor
 .vs/
 .vscode/
+.minimax/
 *.suo
 *.user
 *.sln.docstates

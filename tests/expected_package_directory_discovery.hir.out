@@ -1,0 +1,32 @@
+types:
+  - public record pkg_discovery_support::SharedNumber
+      field value: Int
+functions:
+  - public fn pkg_discovery_support::wrap(value: Int) -> pkg_discovery_support::SharedNumber
+      block -> pkg_discovery_support::SharedNumber
+        result
+          construct pkg_discovery_support::SharedNumber : pkg_discovery_support::SharedNumber
+            init value [shorthand]
+              local value : Int
+  - public fn pkg_discovery_support::extract(number: pkg_discovery_support::SharedNumber) -> Int
+      block -> Int
+        result
+          field-access .value : Int
+            local number : pkg_discovery_support::SharedNumber
+  - public fn pkg_discovery_consumer::build(value: Int) -> pkg_discovery_support::SharedNumber
+      block -> pkg_discovery_support::SharedNumber
+        result
+          call pkg_discovery_support::wrap -> pkg_discovery_support::SharedNumber
+            local value : Int
+  - public fn pkg_discovery_consumer::read(value: Int) -> Int
+      block -> Int
+        result
+          call pkg_discovery_support::extract -> Int
+            call pkg_discovery_consumer::build -> pkg_discovery_support::SharedNumber
+              local value : Int
+  - public fn pkg_discovery_main::main() -> Int
+      block -> Int
+        result
+          call pkg_discovery_support::extract -> Int
+            call pkg_discovery_consumer::build -> pkg_discovery_support::SharedNumber
+              number 17 : Int

@@ -1,0 +1,12 @@
+<input>:20:5: error: field access requires record, proof, or phase value, got 'Int'
+        1.value
+        ^^^^^^^
+<input>:24:5: error: type 'test::Point' has no field 'missing'
+        Point { x: 1 }.missing
+        ^^^^^^^^^^^^^^^^^^^^^^
+<input>:29:5: error: type 'test::Receipt' has no field 'missing'
+        receipt.missing
+        ^^^^^^^^^^^^^^^
+<input>:33:5: error: type 'test::Config::Draft' has no field 'missing'
+        Config::Draft { id: 1 }.missing
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

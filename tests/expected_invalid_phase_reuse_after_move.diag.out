@@ -1,0 +1,6 @@
+<input>:21:5: error: affine value 'config' was already moved
+        config.id
+        ^^^^^^
+<input>:20:13: note: 'config' was previously moved here
+        consume(config);
+                ^^^^^^

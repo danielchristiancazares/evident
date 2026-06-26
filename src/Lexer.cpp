@@ -9,6 +9,7 @@ namespace {
 
 const std::unordered_map<std::string_view, TokenKind> kKeywords = {
     {"module", TokenKind::KeywordModule},
+    {"import", TokenKind::KeywordImport},
     {"public", TokenKind::KeywordPublic},
     {"record", TokenKind::KeywordRecord},
     {"state", TokenKind::KeywordState},

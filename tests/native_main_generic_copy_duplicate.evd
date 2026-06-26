@@ -1,0 +1,12 @@
+foundation module support {
+public fn duplicate<T>(value: T) -> T {
+    let copy = value;
+    value
+}
+}
+
+domain module test {
+public fn main() -> Int {
+    support::duplicate<Int>(7)
+}
+}

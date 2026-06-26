@@ -1,0 +1,32 @@
+types:
+  - public record pkg_manifest_support::SharedNumber
+      field value: Int
+functions:
+  - public fn pkg_manifest_support::wrap(value: Int) -> pkg_manifest_support::SharedNumber
+      block -> pkg_manifest_support::SharedNumber
+        result
+          construct pkg_manifest_support::SharedNumber : pkg_manifest_support::SharedNumber
+            init value [shorthand]
+              local value : Int
+  - public fn pkg_manifest_support::extract(number: pkg_manifest_support::SharedNumber) -> Int
+      block -> Int
+        result
+          field-access .value : Int
+            local number : pkg_manifest_support::SharedNumber
+  - public fn pkg_manifest_consumer::build(value: Int) -> pkg_manifest_support::SharedNumber
+      block -> pkg_manifest_support::SharedNumber
+        result
+          call pkg_manifest_support::wrap -> pkg_manifest_support::SharedNumber
+            local value : Int
+  - public fn pkg_manifest_consumer::read(value: Int) -> Int
+      block -> Int
+        result
+          call pkg_manifest_support::extract -> Int
+            call pkg_manifest_consumer::build -> pkg_manifest_support::SharedNumber
+              local value : Int
+  - public fn pkg_manifest_main::main() -> Int
+      block -> Int
+        result
+          call pkg_manifest_support::extract -> Int
+            call pkg_manifest_consumer::build -> pkg_manifest_support::SharedNumber
+              number 19 : Int

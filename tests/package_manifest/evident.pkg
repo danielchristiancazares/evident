@@ -1,0 +1,4 @@
+# Manifest order intentionally differs from recursive path order.
+z_support.evd
+nested/a_consumer.evd
+m_main.evd

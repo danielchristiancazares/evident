@@ -1,0 +1,15 @@
+foundation module support {
+public record Box<T> {
+    public value: T,
+}
+}
+
+domain module app {
+record Hidden {
+    public value: Int,
+}
+
+public fn leak(box: support::Box<Hidden>) -> Int {
+    7
+}
+}

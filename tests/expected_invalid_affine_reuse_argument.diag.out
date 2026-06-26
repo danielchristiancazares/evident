@@ -1,0 +1,6 @@
+<input>:17:13: error: affine value 'receipt' was already moved
+        consume(receipt)
+                ^^^^^^^
+<input>:16:13: note: 'receipt' was previously moved here
+        consume(receipt);
+                ^^^^^^^

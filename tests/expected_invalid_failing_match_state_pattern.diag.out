@@ -1,0 +1,3 @@
+<input>:13:9: error: match over a `fails` call requires succeeded(...) and failed(...) patterns
+            Bad => 1,
+            ^^^

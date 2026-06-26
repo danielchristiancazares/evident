@@ -1,0 +1,3 @@
+<input2>:7:5: error: cross-module reference 'pkg_import_value_support::id' requires a matching import
+        pkg_import_value_support::id(value)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^

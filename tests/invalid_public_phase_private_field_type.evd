@@ -1,0 +1,15 @@
+domain module app {
+record Hidden {
+    public value: Int,
+}
+
+public phase Task {
+    fields {
+        public value: Hidden,
+    }
+    positions {
+        Draft,
+        Done,
+    }
+}
+}

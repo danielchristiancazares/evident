@@ -1,0 +1,5 @@
+domain module pkg_split_kind {
+public fn value() -> Int {
+    1
+}
+}

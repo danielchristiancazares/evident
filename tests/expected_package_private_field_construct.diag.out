@@ -1,0 +1,3 @@
+<input2>:3:5: error: cannot construct here: field 'value' is private
+        pkg_private_field_source::Token { value: 7 }
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

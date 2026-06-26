@@ -1,0 +1,5 @@
+boundary module ffi {
+permit Access
+
+public foreign fn open() -> Unit grants Access
+}

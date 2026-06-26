@@ -1,0 +1,9 @@
+domain module pkg_discovery_consumer {
+public fn build(value: Int) -> pkg_discovery_support::SharedNumber {
+    pkg_discovery_support::wrap(value)
+}
+
+public fn read(value: Int) -> Int {
+    pkg_discovery_support::extract(build(value))
+}
+}

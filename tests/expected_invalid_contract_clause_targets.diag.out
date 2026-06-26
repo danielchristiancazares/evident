@@ -1,0 +1,9 @@
+<input>:7:39: error: 'grants' must reference a permit type, not 'record'
+    public fn bad_grants() -> Unit grants Marker {
+                                          ^^^^^^
+<input>:10:39: error: 'proves' must reference a proof type, not 'record'
+    public fn bad_proves() -> Unit proves Marker {
+                                          ^^^^^^
+<input>:13:33: error: granting functions must return 'Unit'
+    public fn bad_grant_return() -> Int grants Access {
+                                    ^^^

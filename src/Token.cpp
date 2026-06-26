@@ -48,6 +48,8 @@ std::string_view token_kind_name(TokenKind kind) {
         return "Equals";
     case TokenKind::KeywordModule:
         return "module";
+    case TokenKind::KeywordImport:
+        return "import";
     case TokenKind::KeywordPublic:
         return "public";
     case TokenKind::KeywordRecord:

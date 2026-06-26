@@ -1,0 +1,3 @@
+<input>:11:5: error: field access on affine value requires a copyable field type
+        envelope.receipt
+        ^^^^^^^^^^^^^^^^

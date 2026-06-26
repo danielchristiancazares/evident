@@ -1,0 +1,1 @@
+`--emit-exe` requires a public `fn main() -> Int` in a module (e.g. `domain module ... { public fn main() ... }`)

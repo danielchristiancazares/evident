@@ -1,0 +1,67 @@
+{
+  "version": 5,
+  "cmakeMinimumRequired": {
+    "major": 3,
+    "minor": 24,
+    "patch": 0
+  },
+  "configurePresets": [
+    {
+      "name": "windows-x64-ninja",
+      "displayName": "Windows x64 Ninja",
+      "description": "Supported subset-release validation build. Run from an x64 Visual Studio developer shell when validating the MSVC path.",
+      "generator": "Ninja",
+      "binaryDir": "${sourceDir}/build/windows-x64-ninja",
+      "cacheVariables": {
+        "BUILD_TESTING": "ON",
+        "CMAKE_BUILD_TYPE": "Release",
+        "CMAKE_EXPORT_COMPILE_COMMANDS": "ON"
+      },
+      "environment": {
+        "EVIDENT_CLANG": "clang"
+      },
+      "condition": {
+        "type": "equals",
+        "lhs": "${hostSystemName}",
+        "rhs": "Windows"
+      }
+    }
+  ],
+  "buildPresets": [
+    {
+      "name": "windows-x64-ninja",
+      "displayName": "Windows x64 Ninja",
+      "configurePreset": "windows-x64-ninja",
+      "jobs": 0
+    },
+    {
+      "name": "windows-x64-ninja-package",
+      "displayName": "Windows x64 Ninja Package",
+      "configurePreset": "windows-x64-ninja",
+      "targets": [
+        "package"
+      ]
+    },
+    {
+      "name": "windows-x64-ninja-package-checksum",
+      "displayName": "Windows x64 Ninja Package Checksum",
+      "configurePreset": "windows-x64-ninja",
+      "targets": [
+        "package_checksum"
+      ]
+    }
+  ],
+  "testPresets": [
+    {
+      "name": "windows-x64-ninja",
+      "displayName": "Windows x64 Ninja",
+      "configurePreset": "windows-x64-ninja",
+      "output": {
+        "outputOnFailure": true
+      },
+      "environment": {
+        "EVIDENT_CLANG": "clang"
+      }
+    }
+  ]
+}

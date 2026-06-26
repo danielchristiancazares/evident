@@ -1,0 +1,25 @@
+domain module test {
+public record IntLists {
+    public many: List<Int>,
+    public nonempty: NonEmptyList<Int>,
+}
+
+public fn keep_many(values: List<Int>) -> List<Int> {
+    values
+}
+
+public fn keep_nonempty(values: NonEmptyList<Int>) -> NonEmptyList<Int> {
+    values
+}
+
+public fn clone_holder(holder: IntLists) -> IntLists {
+    IntLists {
+        many: holder.many,
+        nonempty: holder.nonempty,
+    }
+}
+
+public fn main() -> Int {
+    7
+}
+}

@@ -1,0 +1,12 @@
+<input>:31:9: error: ambiguous failed(...) pattern
+            failed(Ambiguous) => 2,
+            ^^^^^^^^^^^^^^^^^
+<input>:39:9: error: wildcard patterns are not allowed
+            failed(_) => 1,
+            ^^^^^^^^^
+<input>:49:9: error: match arms have incompatible types 'Int' and 'Text'
+            failed(ParseFailure::Ambiguous) => "two",
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<input>:56:24: error: failing expression must be handled with `try` or `match`
+            failed(Bad) => side(),
+                           ^^^^^^

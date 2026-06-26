@@ -1,0 +1,4 @@
+import pkg_import_dupe_support;
+import pkg_import_dupe_support;
+
+foundation module pkg_import_dupe_support {}

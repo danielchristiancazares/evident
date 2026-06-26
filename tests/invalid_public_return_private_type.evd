@@ -1,0 +1,7 @@
+domain module app {
+record Hidden {
+    public value: Int,
+}
+
+public fn leak() -> Hidden
+}

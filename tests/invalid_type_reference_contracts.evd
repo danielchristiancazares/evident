@@ -1,0 +1,51 @@
+foundation module support {
+public record Box<Item> {
+    public value: Item,
+}
+
+public record Pair<Left, Right> {
+    public left: Left,
+    public right: Right,
+}
+}
+
+domain module test {
+public record Marker {
+    public value: Int,
+}
+
+public proof Receipt {
+    public count: Int,
+}
+
+public permit Access
+
+public phase Config {
+    fields {
+        public id: Int,
+    }
+    positions {
+        Draft,
+    }
+}
+
+fn helper() -> Int {
+    1
+}
+
+public fn bad_function_param(value: helper) -> Int
+
+public fn bad_module_param(value: support) -> Int
+
+public fn bad_non_generic_record(value: Marker<Int>) -> Int
+
+public fn bad_non_generic_proof(value: Receipt<Int>) -> Int
+
+public fn bad_permit_type_arg(as access: Access<Int>) -> Int
+
+public fn bad_generic_record_wrong_arity(value: support::Pair<Int>) -> Int
+
+public fn bad_phase_position_type_arg(value: Config::Draft<Int>) -> Int
+
+public fn bad_phase_family_type_arg(value: Config<Int>) -> Int
+}

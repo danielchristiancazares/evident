@@ -1,0 +1,16 @@
+functions:
+  - public fn app::main -> Int
+      locals:
+        %0[$return] : Int
+        %1[tmp] : support::Box$Int
+      block %0
+        %1[tmp] = construct support::Box$Int {value: 7}
+        %0[$return] = call support::unwrap$Int(%1[tmp])
+        return %0[$return]
+  - public fn support::unwrap$Int -> Int
+      locals:
+        %0[box] : support::Box$Int
+        %1[$return] : Int
+      block %0
+        %1[$return] = %0[box].value
+        return %1[$return]

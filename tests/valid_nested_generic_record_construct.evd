@@ -1,0 +1,33 @@
+foundation module support {
+public record Box<T> {
+    public value: T,
+}
+
+public record Pair<L, R> {
+    public left: L,
+    public right: R,
+}
+
+public record BoxPair<T> {
+    public pair: Pair<Box<T>, Box<T>>,
+}
+
+public fn make_pair<T>(left: T, right: T) -> BoxPair<T> {
+    BoxPair<T> {
+        pair: Pair<Box<T>, Box<T>> {
+            left: Box<T> { value: left },
+            right: Box<T> { value: right },
+        },
+    }
+}
+
+public fn first<T>(box_pair: BoxPair<T>) -> T {
+    box_pair.pair.left.value
+}
+}
+
+domain module app {
+public fn main() -> Int {
+    support::first<Int>(support::make_pair<Int>(7, 3))
+}
+}

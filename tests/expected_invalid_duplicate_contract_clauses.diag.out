@@ -1,0 +1,6 @@
+<input>:8:46: error: function signature repeats `fails`
+    public fn parse() -> Int fails Failure fails Failure {
+                                                 ^^^^^^^
+<input>:12:48: error: function signature repeats `grants`
+    public fn start() -> Unit grants Access grants Access {
+                                                   ^^^^^^

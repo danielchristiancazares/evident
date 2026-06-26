@@ -1,0 +1,3 @@
+<input>:9:5: error: record 'Number' is not generic but was constructed with type arguments
+        support::Number<Int> { value: 7 }.value
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

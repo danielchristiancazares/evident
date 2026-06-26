@@ -1,0 +1,9 @@
+<input>:5:1: error: expected statement or expression inside block
+    public fn after() -> Int {
+    ^^^^^^
+<input>:5:8: error: expected statement or expression inside block
+    public fn after() -> Int {
+           ^^
+<input>:5:19: error: expected statement or expression inside block
+    public fn after() -> Int {
+                      ^^

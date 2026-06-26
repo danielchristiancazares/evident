@@ -1,0 +1,3 @@
+<input>:2:1: error: duplicate import 'pkg_import_dupe_support'
+    import pkg_import_dupe_support;
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

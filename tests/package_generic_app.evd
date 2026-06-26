@@ -1,0 +1,7 @@
+import package_generics;
+
+domain module package_generic_app {
+public fn main() -> Int {
+    package_generics::unwrap<Int>(package_generics::wrap<Int>(7))
+}
+}

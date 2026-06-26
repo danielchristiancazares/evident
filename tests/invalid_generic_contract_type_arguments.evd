@@ -1,0 +1,34 @@
+foundation module support {
+public record Token<T> {
+}
+
+public fn marker<T>() -> Int {
+    0
+}
+}
+
+domain module app {
+public reason Failure {
+    Bad,
+}
+
+public permit Access
+
+public fn bad_reason_function_arg() -> Int {
+    support::marker<Failure>()
+}
+
+public fn bad_permit_function_arg() -> Int {
+    support::marker<Access>()
+}
+
+public fn bad_reason_record_arg() -> Int {
+    let token = support::Token<Failure> {};
+    0
+}
+
+public fn bad_permit_record_arg() -> Int {
+    let token = support::Token<Access> {};
+    0
+}
+}

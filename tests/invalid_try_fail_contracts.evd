@@ -1,0 +1,29 @@
+domain module test {
+public reason OpenFailure {
+    Denied,
+}
+
+public reason ParseFailure {
+    Bad,
+}
+
+public fn open() -> Int fails OpenFailure {
+    fail Denied
+}
+
+public fn value() -> Int {
+    1
+}
+
+public fn bad_try_reason() -> Int fails ParseFailure {
+    try open()
+}
+
+public fn bad_try_non_failing() -> Int fails ParseFailure {
+    try value()
+}
+
+public fn bad_fail_outside() -> Int {
+    fail Bad
+}
+}

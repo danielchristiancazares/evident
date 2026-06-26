@@ -1,0 +1,7 @@
+domain module app {
+reason Failure {
+    Bad,
+}
+
+public fn run() -> Int fails Failure
+}

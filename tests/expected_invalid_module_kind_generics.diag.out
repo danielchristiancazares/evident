@@ -1,0 +1,12 @@
+<input>:2:20: error: `domain` modules must not declare user-defined generics
+    public fn identity<T>(value: T) -> T {
+                       ^
+<input>:8:19: error: this module kind must not declare user-defined generics on `record`
+    public record Box<T> {
+                      ^
+<input>:12:17: error: this module kind must not declare user-defined generics on `fn`
+    public fn relay<T>(value: T) -> T {
+                    ^
+<input>:18:20: error: this module kind must not declare user-defined generics on `record`
+    public record Cell<T> {
+                       ^

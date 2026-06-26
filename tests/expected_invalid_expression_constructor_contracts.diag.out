@@ -1,0 +1,27 @@
+<input>:22:5: error: record 'Point' requires field initialization
+        Point
+        ^^^^^
+<input>:26:5: error: variant 'Wrapped' requires payload construction
+        Wrapped
+        ^^^^^^^
+<input>:30:5: error: reason variants may appear only in 'fail' or failed(...) patterns
+        Bad
+        ^^^
+<input>:34:5: error: function values are not first-class; call 'helper' with '(...)'
+        helper
+        ^^^^^^
+<input>:38:5: error: unknown value 'missing_value'
+        missing_value
+        ^^^^^^^^^^^^^
+<input>:42:5: error: permit values may not be constructed directly
+        Access {}
+        ^^^^^^^^^
+<input>:46:5: error: reason values may not be constructed directly; use 'fail'
+        LoadFailure {}
+        ^^^^^^^^^^^^^^
+<input>:50:5: error: variant constructor 'Wrapped' may not have generic arguments
+        Wrapped<Int> { id: 1 }
+        ^^^^^^^^^^^^^^^^^^^^^^
+<input>:54:5: error: unknown constructor 'Missing'
+        Missing {}
+        ^^^^^^^^^^

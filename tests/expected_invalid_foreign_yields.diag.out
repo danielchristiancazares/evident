@@ -1,0 +1,3 @@
+<input>:6:33: error: foreign functions may not declare `fails`
+    public foreign fn test() -> Int fails Error
+                                    ^^^^^

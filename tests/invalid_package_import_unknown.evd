@@ -1,0 +1,3 @@
+import missing::child;
+
+domain module pkg_import_user {}

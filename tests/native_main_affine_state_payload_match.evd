@@ -1,0 +1,30 @@
+domain module test {
+public proof Receipt {
+    public count: Int,
+}
+
+public state TicketState {
+    Issued { receipt: Receipt },
+    Archived,
+}
+
+public fn mint() -> Receipt proves Receipt {
+    prove Receipt { count: 7 }
+}
+
+public fn make_ticket() -> TicketState {
+    Issued { receipt: mint() }
+}
+
+public fn extract(ticket: TicketState) -> Receipt {
+    match ticket {
+        Issued { receipt } => receipt,
+        Archived => mint(),
+    }
+}
+
+public fn main() -> Int {
+    let receipt = extract(make_ticket());
+    receipt.count
+}
+}

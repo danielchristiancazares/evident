@@ -1,0 +1,54 @@
+foundation module support {
+record Box<Item, Item> {
+    value: Item,
+}
+
+fn identity<Value, Value>(value: Value) -> Value {
+    value
+}
+}
+
+domain module test {
+record DuplicateRecordFields {
+    value: Int,
+    value: Text,
+}
+
+state DuplicateStateVariants {
+    StateAlpha,
+    StateAlpha,
+}
+
+state VariantFieldShape {
+    WithPayload { code: Int, code: Text },
+}
+
+reason DuplicateReasonVariants {
+    ReasonAlpha,
+    ReasonAlpha,
+}
+
+reason ReasonFieldShape {
+    WithPayload { code: Int, code: Text },
+}
+
+proof Receipt {
+    count: Int,
+    count: Text,
+}
+
+phase PhaseShape {
+    fields {
+        id: Int,
+        id: Text,
+    }
+    positions {
+        PhaseDraft,
+    }
+}
+
+}
+
+boundary module ffi {
+foreign fn duplicate_params(value: Int, value: Int) -> Int
+}

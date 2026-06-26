@@ -1,0 +1,3 @@
+<input>:2:21: error: permit declarations may not be generic
+    public permit Access<T>
+                        ^

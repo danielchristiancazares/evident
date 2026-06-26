@@ -1,0 +1,9 @@
+domain module test {
+public record HasMap {
+    public values: Map<Int, Int>,
+}
+
+public fn main() -> Int {
+    0
+}
+}

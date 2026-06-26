@@ -1,0 +1,5 @@
+domain module pkg_proof_private_field_consumer {
+fn read() -> Int {
+    pkg_proof_private_field_source::mint().count
+}
+}

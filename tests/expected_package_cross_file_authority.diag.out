@@ -1,0 +1,6 @@
+<input2>:2:39: error: functions may only declare 'grants' for permits from the same module
+    public fn start_pass() -> Unit grants pkg_authority_source::RenderPassActive {
+                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<input2>:5:71: error: functions may only declare 'proves' for proofs from the same module
+    public fn make_receipt() -> pkg_authority_source::FrameReceipt proves pkg_authority_source::FrameReceipt {
+                                                                          ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

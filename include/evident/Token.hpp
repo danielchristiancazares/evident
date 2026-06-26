@@ -31,6 +31,7 @@ enum class TokenKind {
     Equals,
 
     KeywordModule,
+    KeywordImport,
     KeywordPublic,
     KeywordRecord,
     KeywordState,

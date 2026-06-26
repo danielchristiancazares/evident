@@ -1,0 +1,8 @@
+foundation module package_generic_gate_support {
+public record Token<T> {
+}
+
+public fn marker<T>() -> Int {
+    0
+}
+}

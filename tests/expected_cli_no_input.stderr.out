@@ -1,0 +1,2 @@
+no input file or package directory provided
+usage: evidc [--dump-tokens] [--dump-ast] [--dump-hir] [--dump-mir] [--target <triple>] [--print-toolchain] [--check-toolchain] [--emit-stub <path>] [--emit-llvm <path>] [--emit-asm <path>] [--emit-obj <path>] [--emit-exe <path>] [--package <dir> | <input.evd> [input2.evd ...]]

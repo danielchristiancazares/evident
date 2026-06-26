@@ -1,0 +1,3 @@
+<input>:2:22: error: reason declarations may not be generic
+    public reason Failure<T> {
+                         ^

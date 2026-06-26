@@ -1,0 +1,13 @@
+domain module test {
+public proof Receipt {
+    public count: Int,
+}
+
+public record Envelope {
+    public receipt: Receipt,
+}
+
+public fn unwrap(envelope: Envelope) -> Receipt {
+    envelope.receipt
+}
+}

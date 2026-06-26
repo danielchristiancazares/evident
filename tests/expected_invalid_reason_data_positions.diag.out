@@ -1,0 +1,21 @@
+<input>:13:19: error: reason type 'Failure' may not appear in record field
+        public value: Failure,
+                      ^^^^^^^
+<input>:17:21: error: reason type 'Failure' may not appear in state variant payload
+        Stored { value: Failure },
+                        ^^^^^^^
+<input>:21:19: error: reason type 'Failure' may not appear in proof field
+        public value: Failure,
+                      ^^^^^^^
+<input>:26:23: error: reason type 'Failure' may not appear in phase field
+            public value: Failure,
+                          ^^^^^^^
+<input>:34:32: error: reason type 'Failure' may not appear in record field
+        public value: support::Box<Failure>,
+                                   ^^^^^^^
+<input>:43:31: error: reason type 'BridgeFailure' may not appear in function parameter
+    public foreign fn pass(value: BridgeFailure) -> BridgeFailure
+                                  ^^^^^^^^^^^^^
+<input>:43:49: error: reason type 'BridgeFailure' may not appear in function return type
+    public foreign fn pass(value: BridgeFailure) -> BridgeFailure
+                                                    ^^^^^^^^^^^^^

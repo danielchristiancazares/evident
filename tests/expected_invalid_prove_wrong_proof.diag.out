@@ -1,0 +1,6 @@
+<input>:11:5: error: 'prove' must name one of the proof types listed in the function's `proves` clauses
+        prove LeftReceipt { count: 1 }
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<input>:10:62: error: function 'make_receipt' returns 'test::LeftReceipt' but signature requires 'test::RightReceipt'
+    public fn make_receipt() -> RightReceipt proves RightReceipt {
+                                                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

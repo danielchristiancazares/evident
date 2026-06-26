@@ -1,0 +1,3 @@
+<input>:10:12: error: permit argument must be written as 'as name'
+        submit(count)
+               ^^^^^

@@ -1,0 +1,18 @@
+<input>:10:9: error: payload-bearing variants must bind fields or use '{ .. }'
+            Pair => 1,
+            ^^^^
+<input>:16:9: error: payload pattern used for variant without payload
+            Empty { .. } => 0,
+            ^^^^^^^^^^^^
+<input>:24:9: error: payload pattern must bind every field or use '{ .. }'
+            Pair { left } => 1,
+            ^^^^^^^^^^^^^
+<input>:31:22: error: duplicate field binding 'left'
+            Pair { left, left: again } => 1,
+                         ^^^^^^^^^^^
+<input>:38:22: error: unknown field 'extra' in pattern
+            Pair { left, extra } => 1,
+                         ^^^^^
+<input>:45:16: error: use '{ .. }' to ignore payloads; '_' is not a field binding
+            Pair { left: _, right } => 1,
+                   ^^^^^^^

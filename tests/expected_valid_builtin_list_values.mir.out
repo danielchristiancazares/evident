@@ -1,0 +1,32 @@
+functions:
+  - public fn test::keep_many -> List<Int>
+      locals:
+        %0[values] : List<Int>
+        %1[$return] : List<Int>
+      block %0
+        %1[$return] = %0[values]
+        return %1[$return]
+  - public fn test::keep_nonempty -> NonEmptyList<Int>
+      locals:
+        %0[values] : NonEmptyList<Int>
+        %1[$return] : NonEmptyList<Int>
+      block %0
+        %1[$return] = %0[values]
+        return %1[$return]
+  - public fn test::clone_holder -> test::IntLists
+      locals:
+        %0[holder] : test::IntLists
+        %1[$return] : test::IntLists
+        %2[tmp] : List<Int>
+        %3[tmp] : NonEmptyList<Int>
+      block %0
+        %2[tmp] = %0[holder].many
+        %3[tmp] = %0[holder].nonempty
+        %1[$return] = construct test::IntLists {many: %2[tmp], nonempty: %3[tmp]}
+        return %1[$return]
+  - public fn test::main -> Int
+      locals:
+        %0[$return] : Int
+      block %0
+        %0[$return] = 7
+        return %0[$return]

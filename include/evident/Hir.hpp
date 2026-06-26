@@ -151,6 +151,7 @@ struct LocalRefExpr final : Expr {
 struct CallExpr final : Expr {
     FunctionId function_id = 0;
     std::string callee_name;
+    std::vector<TypeRef> type_args;
     std::vector<std::unique_ptr<Expr>> args;
 
     explicit CallExpr(TypeRef type = {})
@@ -323,6 +324,7 @@ struct Package {
 };
 
 [[nodiscard]] Package lower(const ast::TranslationUnit& unit);
+[[nodiscard]] Package monomorphize_for_backend(const Package& package);
 [[nodiscard]] std::string dump(const Package& package);
 [[nodiscard]] std::string emit_stub_backend(const Package& package);
 [[nodiscard]] const TypeDecl& lookup_type(const Package& package, TypeId id);

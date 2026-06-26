@@ -1,0 +1,5 @@
+domain module pkg_private_type_leak {
+public fn expose(secret: pkg_private_type_source::Secret) -> Int {
+    1
+}
+}

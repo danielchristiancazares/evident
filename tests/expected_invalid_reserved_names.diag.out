@@ -1,0 +1,3 @@
+<input>:3:5: error: public name 'AllowAll' is reserved or too generic
+        AllowAll,
+        ^^^^^^^^

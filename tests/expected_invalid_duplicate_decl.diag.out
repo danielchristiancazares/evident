@@ -1,0 +1,3 @@
+<input>:6:1: error: duplicate declaration for 'Foo'
+    record Foo {
+    ^^^^^^^^^^^^

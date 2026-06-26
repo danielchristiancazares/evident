@@ -1,0 +1,9 @@
+domain module pkg_proof_private_field_source {
+public proof Receipt {
+    count: Int,
+}
+
+public fn mint() -> Receipt proves Receipt {
+    prove Receipt { count: 7 }
+}
+}

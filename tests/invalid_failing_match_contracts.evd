@@ -1,0 +1,60 @@
+domain module test {
+public reason ParseFailure {
+    Bad,
+    Ambiguous,
+}
+
+public reason OtherFailure {
+    Ambiguous,
+}
+
+public reason SideFailure {
+    Denied,
+}
+
+public fn parse() -> Int
+    fails ParseFailure
+{
+    fail Bad
+}
+
+public fn side() -> Int
+    fails SideFailure
+{
+    fail Denied
+}
+
+public fn bad_ambiguous_failed_pattern() -> Int {
+    match parse() {
+        succeeded(value) => value,
+        failed(Bad) => 1,
+        failed(Ambiguous) => 2,
+        failed(ParseFailure::Ambiguous) => 3,
+    }
+}
+
+public fn bad_wildcard_failed_pattern() -> Int {
+    match parse() {
+        succeeded(value) => value,
+        failed(_) => 1,
+        failed(Bad) => 2,
+        failed(ParseFailure::Ambiguous) => 3,
+    }
+}
+
+public fn bad_arm_type_mismatch() -> Int {
+    match parse() {
+        succeeded(value) => value,
+        failed(Bad) => 1,
+        failed(ParseFailure::Ambiguous) => "two",
+    }
+}
+
+public fn bad_failing_arm_body() -> Int {
+    match parse() {
+        succeeded(value) => value,
+        failed(Bad) => side(),
+        failed(ParseFailure::Ambiguous) => 2,
+    }
+}
+}

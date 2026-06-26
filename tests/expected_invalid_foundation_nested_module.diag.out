@@ -1,0 +1,3 @@
+<input>:2:1: error: foundation modules may not nest additional `module` declarations
+    domain module nested {
+    ^^^^^^^^^^^^^^^^^^^^^^

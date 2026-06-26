@@ -1,0 +1,5 @@
+domain module pkg_private_type_source {
+record Secret {
+    public raw: Int,
+}
+}

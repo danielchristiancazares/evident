@@ -1,0 +1,9 @@
+import pkg_unrelated;
+
+domain module pkg_unrelated {}
+
+domain module pkg_import_gate_missing_type {
+public record UsesSupport {
+    public number: pkg_support::SharedNumber,
+}
+}

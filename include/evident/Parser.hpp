@@ -5,6 +5,7 @@
 #include "evident/Source.hpp"
 #include "evident/Token.hpp"
 
+#include <optional>
 #include <vector>
 
 namespace evident {
@@ -26,6 +27,7 @@ private:
 
     void synchronize();
     ast::Visibility parse_visibility();
+    std::optional<ast::ImportDecl> parse_import();
     std::unique_ptr<ast::Decl> parse_top_level_decl();
     std::unique_ptr<ast::Decl> parse_decl();
     std::unique_ptr<ast::ModuleDecl> parse_module(ast::Visibility visibility);
@@ -45,6 +47,7 @@ private:
     ast::FunctionSignature parse_function_signature(std::string name);
     ast::FunctionSignature parse_foreign_function_signature(std::string name);
     ast::TypeRef parse_type();
+    std::vector<ast::TypeRef> parse_type_argument_list();
     std::vector<std::string> parse_path();
     std::vector<ast::RecordFieldInit> parse_record_field_initializers();
 

@@ -1,0 +1,3 @@
+<input>:14:9: error: duplicate failed arm for variant 'Bad'
+            failed(Bad) => 2,
+            ^^^^^^^^^^^

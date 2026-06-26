@@ -1,0 +1,32 @@
+functions:
+  - public fn package_generic_app::main -> Int
+      locals:
+        %0[$return] : Int
+        %1[tmp] : package_generics::Box$Int
+      block %0
+        %1[tmp] = call package_generics::wrap$Int(7)
+        %0[$return] = call package_generics::unwrap$Int(%1[tmp])
+        return %0[$return]
+  - public fn package_generics::unwrap$Int -> Int
+      locals:
+        %0[box] : package_generics::Box$Int
+        %1[$return] : Int
+      block %0
+        %1[$return] = %0[box].value
+        return %1[$return]
+  - public fn package_generics::wrap$Int -> package_generics::Box$Int
+      locals:
+        %0[value] : Int
+        %1[$return] : package_generics::Box$Int
+        %2[tmp] : Int
+      block %0
+        %2[tmp] = call package_generics::identity$Int(%0[value])
+        %1[$return] = construct package_generics::Box$Int {value: %2[tmp]}
+        return %1[$return]
+  - public fn package_generics::identity$Int -> Int
+      locals:
+        %0[value] : Int
+        %1[$return] : Int
+      block %0
+        %1[$return] = %0[value]
+        return %1[$return]

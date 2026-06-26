@@ -1,0 +1,11 @@
+types:
+functions:
+  - public fn pkg_import_value_support::id(value: Int) -> Int
+      block -> Int
+        result
+          local value : Int
+  - public fn pkg_import_gated_consumer::read(value: Int) -> Int
+      block -> Int
+        result
+          call pkg_import_value_support::id -> Int
+            local value : Int

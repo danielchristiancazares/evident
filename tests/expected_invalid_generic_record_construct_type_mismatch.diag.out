@@ -1,0 +1,3 @@
+<input>:9:36: error: initializer for field 'value' has type 'Int', expected 'Text'
+        let box = support::Box<Text> { value: 7 };
+                                       ^^^^^^^^

@@ -1,0 +1,3 @@
+<input2>:1:1: error: split module 'pkg_split_kind' must use module kind 'domain'
+    foundation module pkg_split_kind {
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

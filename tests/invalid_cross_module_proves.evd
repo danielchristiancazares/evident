@@ -1,0 +1,11 @@
+domain module authority {
+public proof FrameReceipt {
+    public count: Int,
+}
+}
+
+domain module draw {
+public fn make_receipt() -> authority::FrameReceipt proves authority::FrameReceipt {
+    prove authority::FrameReceipt { count: 7 }
+}
+}

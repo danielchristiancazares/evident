@@ -1,0 +1,5 @@
+domain module pkg_private_field_consumer {
+fn build() -> pkg_private_field_source::Token {
+    pkg_private_field_source::Token { value: 7 }
+}
+}

@@ -1,0 +1,30 @@
+functions:
+  - public fn test::start_pass -> Unit fails test::DrawFailure grants test::RenderPassActive
+      locals:
+        %0[$return] : Unit
+        %1[reason] : test::DrawFailure
+      block %0
+        %1[reason] = construct test::DrawFailure::Denied {}
+        fail %1[reason]
+  - public fn test::submit -> Int fails test::DrawFailure
+      locals:
+        %0[pass] : test::RenderPassActive [compile-time-only]
+        %1[$return] : Int
+        %2[reason] : test::DrawFailure
+      block %0
+        %2[reason] = construct test::DrawFailure::Rejected {}
+        fail %2[reason]
+  - public fn test::draw -> Int fails test::DrawFailure
+      locals:
+        %0[$return] : Int
+        %1[failure] : test::DrawFailure
+        %2[grant] : Unit
+        %3[pass] : test::RenderPassActive [compile-time-only]
+      block %0
+        invoke test::start_pass() ok %2[grant] -> %3 fail %1[failure] -> %2
+      block %1
+        return %0[$return]
+      block %2
+        fail %1[failure]
+      block %3
+        invoke test::submit(unit) ok %0[$return] -> %1 fail %1[failure] -> %2

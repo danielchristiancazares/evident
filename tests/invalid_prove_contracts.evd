@@ -1,0 +1,48 @@
+domain module test {
+public record Marker {
+    public x: Int,
+}
+
+public proof Receipt {
+    public count: Int,
+    public label: Text,
+}
+
+public reason LoadFailure {
+    Bad,
+}
+
+fn load() -> Int
+    fails LoadFailure
+{
+    fail Bad
+}
+
+public fn bad_unknown_proof() -> Receipt proves Receipt {
+    prove Missing { count: 1, label: "ok" }
+}
+
+public fn bad_non_proof_target() -> Receipt proves Receipt {
+    prove Marker { x: 1 }
+}
+
+public fn bad_duplicate_field() -> Receipt proves Receipt {
+    prove Receipt { count: 1, count: 2, label: "ok" }
+}
+
+public fn bad_unknown_field() -> Receipt proves Receipt {
+    prove Receipt { count: 1, label: "ok", extra: 0 }
+}
+
+public fn bad_missing_field() -> Receipt proves Receipt {
+    prove Receipt { count: 1 }
+}
+
+public fn bad_field_type() -> Receipt proves Receipt {
+    prove Receipt { count: "one", label: "ok" }
+}
+
+public fn bad_failing_initializer() -> Receipt proves Receipt {
+    prove Receipt { count: load(), label: "ok" }
+}
+}

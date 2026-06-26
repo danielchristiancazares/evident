@@ -1,0 +1,3 @@
+<input>:8:5: error: function 'start_pass' grants a permit and must be used with 'grant'
+        start_pass()
+        ^^^^^^^^^^^^

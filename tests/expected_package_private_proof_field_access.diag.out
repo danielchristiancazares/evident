@@ -1,0 +1,3 @@
+<input2>:3:5: error: field 'count' is private
+        pkg_proof_private_field_source::mint().count
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

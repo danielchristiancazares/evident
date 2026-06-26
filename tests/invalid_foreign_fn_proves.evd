@@ -1,0 +1,7 @@
+boundary module ffi {
+proof Receipt {
+    public value: Int,
+}
+
+public foreign fn validate() -> Unit proves Receipt
+}

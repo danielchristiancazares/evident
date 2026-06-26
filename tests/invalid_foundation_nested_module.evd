@@ -1,0 +1,7 @@
+foundation module support {
+domain module nested {
+public fn value() -> Int {
+    1
+}
+}
+}

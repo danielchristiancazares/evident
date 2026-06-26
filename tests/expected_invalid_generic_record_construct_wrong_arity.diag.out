@@ -1,0 +1,3 @@
+<input>:9:5: error: generic record 'Box' expects 1 type argument(s), got 2
+        support::Box<Int, Text> { value: 7 }.value
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

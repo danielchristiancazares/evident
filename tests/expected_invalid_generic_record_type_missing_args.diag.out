@@ -1,0 +1,3 @@
+<input>:6:23: error: generic record 'Box' requires type arguments
+    public fn unwrap(box: Box) -> Int {
+                          ^^^

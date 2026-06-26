@@ -1,0 +1,7 @@
+domain module pkg_authority_source {
+public permit RenderPassActive
+
+public proof FrameReceipt {
+    public count: Int,
+}
+}

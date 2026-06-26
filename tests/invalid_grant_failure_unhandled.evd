@@ -1,0 +1,21 @@
+domain module test {
+public permit RenderPassActive
+
+public reason DrawFailure {
+    Denied,
+}
+
+public fn start_pass() -> Unit grants RenderPassActive fails DrawFailure {
+    fail Denied
+}
+
+public fn submit(as pass: RenderPassActive) -> Int {
+    7
+}
+
+public fn draw() -> Int {
+    grant start_pass() as pass {
+        submit(as pass)
+    }
+}
+}

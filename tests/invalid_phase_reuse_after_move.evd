@@ -1,0 +1,23 @@
+domain module test {
+public phase AppConfig {
+    fields {
+        public id: Int,
+        public payload: Int,
+    }
+
+    positions {
+        Draft,
+        Validated,
+    }
+}
+
+public fn consume(config: AppConfig::Draft) -> Int {
+    config.id
+}
+
+public fn bad() -> Int {
+    let config = AppConfig::Draft { id: 1, payload: 2 };
+    consume(config);
+    config.id
+}
+}

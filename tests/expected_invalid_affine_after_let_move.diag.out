@@ -1,0 +1,6 @@
+<input>:13:5: error: affine value 'receipt' was already moved
+        receipt
+        ^^^^^^^
+<input>:12:16: note: 'receipt' was previously moved here
+        let next = receipt;
+                   ^^^^^^^

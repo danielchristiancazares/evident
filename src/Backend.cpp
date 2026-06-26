@@ -2,8 +2,11 @@
 
 #include <algorithm>
 #include <array>
+#include <cerrno>
 #include <cctype>
+#include <chrono>
 #include <cstdio>
+#include <cstdlib>
 #include <filesystem>
 #include <fstream>
 #include <optional>
@@ -19,13 +22,24 @@
 #define NOMINMAX
 #endif
 #include <windows.h>
+#else
+#include <fcntl.h>
+#include <spawn.h>
+#include <sys/wait.h>
+#include <unistd.h>
+#endif
+
+#ifndef _WIN32
+extern char** environ;
 #endif
 
 namespace evident::backend {
 
 namespace {
 
-constexpr std::string_view kSupportedTarget = "x86_64-pc-windows-msvc";
+constexpr const char* kSupportedTarget = "x86_64-pc-windows-msvc";
+constexpr const char* kClangEnvVar = "EVIDENT_CLANG";
+constexpr const char* kLinkerDriver = "lld-link";
 
 std::size_t align_up(std::size_t value, std::size_t alignment) {
     if (alignment == 0) {
@@ -42,6 +56,72 @@ bool write_text_file(const std::string& path, const std::string& text) {
     }
     out << text;
     return static_cast<bool>(out);
+}
+
+std::string toolchain_driver() {
+    const char* override_path = std::getenv(kClangEnvVar);
+    if (override_path != nullptr && override_path[0] != '\0') {
+        return override_path;
+    }
+    return "clang";
+}
+
+unsigned long current_process_id() {
+#ifdef _WIN32
+    return static_cast<unsigned long>(GetCurrentProcessId());
+#else
+    return static_cast<unsigned long>(getpid());
+#endif
+}
+
+std::expected<std::filesystem::path, std::string> make_toolchain_probe_log_path() {
+    std::error_code error;
+    const std::filesystem::path temp_directory = std::filesystem::temp_directory_path(error);
+    if (error) {
+        return std::unexpected("failed to find temporary directory for toolchain probe: " + error.message());
+    }
+
+    const auto stamp = std::chrono::steady_clock::now().time_since_epoch().count();
+    return temp_directory / ("evident-toolchain-probe-"
+                             + std::to_string(current_process_id())
+                             + "-"
+                             + std::to_string(stamp)
+                             + ".log");
+}
+
+std::string first_nonempty_line(std::string_view text) {
+    std::size_t start = 0;
+    while (start < text.size()) {
+        while (start < text.size() && (text[start] == '\r' || text[start] == '\n')) {
+            ++start;
+        }
+        if (start >= text.size()) {
+            break;
+        }
+
+        const std::size_t end = text.find_first_of("\r\n", start);
+        const std::string_view line = end == std::string_view::npos
+            ? text.substr(start)
+            : text.substr(start, end - start);
+        if (!line.empty()) {
+            return std::string(line);
+        }
+        if (end == std::string_view::npos) {
+            break;
+        }
+        start = end + 1;
+    }
+    return {};
+}
+
+std::string_view type_base_name(std::string_view name) {
+    const std::size_t generic_start = name.find('<');
+    return generic_start == std::string_view::npos ? name : name.substr(0, generic_start);
+}
+
+bool is_unsupported_builtin_type(std::string_view name) {
+    const std::string_view base_name = type_base_name(name);
+    return base_name == "CString" || base_name == "Map" || base_name == "NonEmptyMap";
 }
 
 std::string sanitize_llvm_name(std::string_view text, char scope_separator) {
@@ -229,6 +309,8 @@ enum class BuiltinKind {
     CSize,
     Text,
     Bytes,
+    List,
+    NonEmptyList,
     Unit,
     Never,
 };
@@ -474,14 +556,21 @@ std::expected<ResolvedType, std::string> BackendModel::resolve_type_name(const s
     if (name == "Bytes") {
         return ResolvedType{name, "{ ptr, i64 }", 16, 8, false, false, std::nullopt, BuiltinKind::Bytes};
     }
+    if (type_base_name(name) == "List") {
+        return ResolvedType{name, "{ ptr, i64 }", 16, 8, false, false, std::nullopt, BuiltinKind::List};
+    }
+    if (type_base_name(name) == "NonEmptyList") {
+        return ResolvedType{name, "{ ptr, i64 }", 16, 8, false, false, std::nullopt, BuiltinKind::NonEmptyList};
+    }
     if (name == "Unit") {
         return ResolvedType{name, "i8", 1, 1, true, false, std::nullopt, BuiltinKind::Unit};
     }
     if (name == "Never") {
         return ResolvedType{name, "i8", 1, 1, true, true, std::nullopt, BuiltinKind::Never};
     }
-    if (name == "CString" || name == "List" || name == "NonEmptyList" || name == "Map" || name == "NonEmptyMap") {
-        return std::unexpected("backend does not yet support builtin type '" + name + "'");
+    if (is_unsupported_builtin_type(name)) {
+        return std::unexpected(std::string("backend does not yet support builtin type '")
+                               + std::string(type_base_name(name)) + "'");
     }
 
     const auto type_it = type_ids_by_name_.find(name);
@@ -647,7 +736,8 @@ std::expected<TypeLayout, std::string> BackendModel::build_record_layout(const h
     for (const hir::FieldDecl& field : type_decl.fields) {
         const std::expected<ResolvedType, std::string> field_type = resolve_type_name(field.type.text);
         if (!field_type.has_value()) {
-            return std::unexpected(field_type.error());
+            return std::unexpected("while lowering field '" + field.name + "' of '"
+                                   + type_decl.qualified_name + "': " + field_type.error());
         }
         if (field_type->is_never) {
             return std::unexpected("backend does not support materialized field type `Never` in '"
@@ -883,6 +973,10 @@ std::expected<void, std::string> validate_backend_package(BackendModel& model,
 
     for (const hir::FunctionDecl& function_decl : hir_package.functions) {
         const std::string signature_context = "signature of function '" + function_decl.qualified_name + "'";
+        if (!function_decl.generics.empty()) {
+            return std::unexpected("backend does not yet support generic function '"
+                                   + function_decl.qualified_name + "'");
+        }
         if (const std::expected<ResolvedType, std::string> return_type = resolve_materializable_type(
                 function_decl.return_type.text,
                 signature_context);
@@ -2579,7 +2673,9 @@ std::expected<std::pair<int, std::string>, std::string> run_process_capture(cons
                                         &process_info);
     CloseHandle(log_handle);
     if (!created) {
-        return std::unexpected("failed to launch process '" + display_command(args) + "'");
+        const DWORD error_code = GetLastError();
+        return std::unexpected("failed to launch process '" + display_command(args) + "' (Windows error "
+                               + std::to_string(error_code) + ")");
     }
 
     WaitForSingleObject(process_info.hProcess, INFINITE);
@@ -2597,40 +2693,130 @@ std::expected<std::pair<int, std::string>, std::string> run_process_capture(cons
 
 #else
 
+std::string posix_error_message(int error_code) {
+    return std::error_code(error_code, std::generic_category()).message();
+}
+
+std::string quote_posix_arg(std::string_view arg) {
+    if (arg.empty()) {
+        return "''";
+    }
+
+    const bool needs_quotes = arg.find_first_of(" \t\n'\"\\$&;()<>|*?![]{}") != std::string_view::npos;
+    if (!needs_quotes) {
+        return std::string(arg);
+    }
+
+    std::string out;
+    out.push_back('\'');
+    for (char ch : arg) {
+        if (ch == '\'') {
+            out += "'\\''";
+            continue;
+        }
+        out.push_back(ch);
+    }
+    out.push_back('\'');
+    return out;
+}
+
 std::string display_command(const std::vector<std::string>& args) {
     std::ostringstream out;
     for (std::size_t index = 0; index < args.size(); ++index) {
         if (index > 0) {
             out << ' ';
         }
-        out << args[index];
+        out << quote_posix_arg(args[index]);
     }
     return out.str();
 }
 
 std::expected<std::pair<int, std::string>, std::string> run_process_capture(const std::vector<std::string>& args,
-                                                                             const std::filesystem::path&) {
-    std::ostringstream command;
-    for (std::size_t index = 0; index < args.size(); ++index) {
-        if (index > 0) {
-            command << ' ';
-        }
-        command << args[index];
-    }
-    command << " 2>&1";
-
-    FILE* pipe = popen(command.str().c_str(), "r");
-    if (pipe == nullptr) {
-        return std::unexpected("failed to launch process '" + display_command(args) + "'");
+                                                                             const std::filesystem::path& log_path) {
+    if (args.empty()) {
+        return std::unexpected("failed to launch empty process command");
     }
 
-    std::string output;
-    std::array<char, 4096> buffer{};
-    while (const std::size_t count = std::fread(buffer.data(), 1, buffer.size(), pipe)) {
-        output.append(buffer.data(), count);
+    posix_spawn_file_actions_t file_actions{};
+    int action_result = posix_spawn_file_actions_init(&file_actions);
+    if (action_result != 0) {
+        return std::unexpected("failed to initialize process file actions for '" + display_command(args) + "' (error: "
+                               + posix_error_message(action_result) + ")");
     }
-    const int exit_code = pclose(pipe);
-    return std::pair<int, std::string>{exit_code, output};
+
+    const auto destroy_file_actions = [&file_actions]() {
+        posix_spawn_file_actions_destroy(&file_actions);
+    };
+
+    const std::string log_path_text = log_path.string();
+    action_result = posix_spawn_file_actions_addopen(
+        &file_actions,
+        STDOUT_FILENO,
+        log_path_text.c_str(),
+        O_CREAT | O_WRONLY | O_TRUNC,
+        0600);
+    if (action_result != 0) {
+        destroy_file_actions();
+        return std::unexpected("failed to redirect process output for '" + display_command(args) + "' (error: "
+                               + posix_error_message(action_result) + ")");
+    }
+
+    action_result = posix_spawn_file_actions_adddup2(&file_actions, STDOUT_FILENO, STDERR_FILENO);
+    if (action_result != 0) {
+        destroy_file_actions();
+        return std::unexpected("failed to redirect process diagnostics for '" + display_command(args) + "' (error: "
+                               + posix_error_message(action_result) + ")");
+    }
+
+    std::vector<char*> argv;
+    argv.reserve(args.size() + 1);
+    for (const std::string& arg : args) {
+        argv.push_back(const_cast<char*>(arg.c_str()));
+    }
+    argv.push_back(nullptr);
+
+    pid_t child_pid = 0;
+    const int spawn_result = posix_spawnp(
+        &child_pid,
+        args.front().c_str(),
+        &file_actions,
+        nullptr,
+        argv.data(),
+        ::environ);
+    destroy_file_actions();
+    if (spawn_result != 0) {
+        return std::unexpected("failed to launch process '" + display_command(args) + "' (error: "
+                               + posix_error_message(spawn_result) + ")");
+    }
+
+    int status = 0;
+    pid_t waited = 0;
+    do {
+        waited = waitpid(child_pid, &status, 0);
+    } while (waited == -1 && errno == EINTR);
+    if (waited == -1) {
+        const int wait_error = errno;
+        return std::unexpected("failed to wait for process '" + display_command(args) + "' (error: "
+                               + posix_error_message(wait_error) + ")");
+    }
+
+    int exit_code = status;
+    if (WIFEXITED(status)) {
+        exit_code = WEXITSTATUS(status);
+    } else if (WIFSIGNALED(status)) {
+        exit_code = 128 + WTERMSIG(status);
+    }
+
+    std::ifstream in(log_path, std::ios::binary);
+    std::ostringstream captured;
+    captured << in.rdbuf();
+    in.close();
+    std::string output = captured.str();
+    if (exit_code == 127 && output.empty()) {
+        return std::unexpected("failed to launch process '" + display_command(args)
+                               + "' (child exited with status 127 before producing output)");
+    }
+    return std::pair<int, std::string>{exit_code, std::move(output)};
 }
 
 #endif
@@ -2640,7 +2826,11 @@ std::expected<void, std::string> run_toolchain_command(const std::vector<std::st
                                                        const std::string& temp_input_path) {
     const std::expected<std::pair<int, std::string>, std::string> result = run_process_capture(args, log_path);
     if (!result.has_value()) {
-        return std::unexpected(result.error());
+        std::ostringstream error;
+        error << result.error() << '\n'
+              << "required toolchain driver: " << args.front() << '\n'
+              << "Install LLVM clang/lld or set " << kClangEnvVar << " to the clang executable.";
+        return std::unexpected(error.str());
     }
     if (result->first != 0) {
         std::ostringstream error;
@@ -2654,6 +2844,44 @@ std::expected<void, std::string> run_toolchain_command(const std::vector<std::st
         return std::unexpected(error.str());
     }
     return {};
+}
+
+std::expected<std::string, std::string> probe_driver_version(const std::string& driver,
+                                                             std::string_view required_tool_label,
+                                                             std::string_view install_hint) {
+    const std::vector<std::string> command = {driver, "--version"};
+    std::expected<std::filesystem::path, std::string> log_path = make_toolchain_probe_log_path();
+    if (!log_path.has_value()) {
+        return std::unexpected(log_path.error());
+    }
+
+    const std::expected<std::pair<int, std::string>, std::string> result = run_process_capture(command, *log_path);
+    std::error_code remove_error;
+    std::filesystem::remove(*log_path, remove_error);
+
+    if (!result.has_value()) {
+        std::ostringstream error;
+        error << result.error() << '\n'
+              << "required " << required_tool_label << ": " << driver << '\n'
+              << install_hint;
+        return std::unexpected(error.str());
+    }
+    if (result->first != 0) {
+        std::ostringstream error;
+        error << required_tool_label << " version probe failed: " << display_command(command) << '\n';
+        if (!result->second.empty()) {
+            error << result->second;
+        }
+        return std::unexpected(error.str());
+    }
+
+    std::string version_line = first_nonempty_line(result->second);
+    if (version_line.empty()) {
+        return std::unexpected(std::string(required_tool_label)
+                               + " version probe produced no output: "
+                               + display_command(command));
+    }
+    return version_line;
 }
 
 } // namespace
@@ -2670,6 +2898,33 @@ const char* emit_kind_name(EmitKind kind) {
         return "executable";
     }
     return "artifact";
+}
+
+std::string selected_toolchain_driver() {
+    return toolchain_driver();
+}
+
+std::expected<std::string, std::string> probe_toolchain_driver_version() {
+    const std::string driver = toolchain_driver();
+    return probe_driver_version(
+        driver,
+        "toolchain driver",
+        std::string("Install LLVM clang/lld or set ") + kClangEnvVar + " to the clang executable.");
+}
+
+std::expected<std::string, std::string> probe_linker_driver_version() {
+    return probe_driver_version(
+        kLinkerDriver,
+        "linker driver",
+        "Install LLVM lld-link and ensure it is available on PATH.");
+}
+
+std::string_view supported_target_triple() {
+    return kSupportedTarget;
+}
+
+std::string_view toolchain_driver_environment_variable() {
+    return kClangEnvVar;
 }
 
 std::expected<std::string, std::string> emit_llvm_ir(const hir::Package& hir_package,
@@ -2723,7 +2978,7 @@ std::expected<void, std::string> emit_artifact(const hir::Package& hir_package,
         return std::unexpected("failed to write temporary LLVM IR to '" + temp_ir_path.string() + "'");
     }
 
-    std::vector<std::string> command = {"clang", "-target", options.target_triple};
+    std::vector<std::string> command = {toolchain_driver(), "-target", options.target_triple};
     switch (options.kind) {
     case EmitKind::Assembly:
         command.push_back("-S");

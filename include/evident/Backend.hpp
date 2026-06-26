@@ -5,6 +5,7 @@
 
 #include <expected>
 #include <string>
+#include <string_view>
 
 namespace evident::backend {
 
@@ -31,5 +32,10 @@ struct EmitOptions {
                                                              const EmitOptions& options);
 
 [[nodiscard]] const char* emit_kind_name(EmitKind kind);
+[[nodiscard]] std::string selected_toolchain_driver();
+[[nodiscard]] std::expected<std::string, std::string> probe_toolchain_driver_version();
+[[nodiscard]] std::expected<std::string, std::string> probe_linker_driver_version();
+[[nodiscard]] std::string_view supported_target_triple();
+[[nodiscard]] std::string_view toolchain_driver_environment_variable();
 
 } // namespace evident::backend

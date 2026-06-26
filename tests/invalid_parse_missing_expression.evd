@@ -1,0 +1,6 @@
+domain module test {
+public fn main() -> Int {
+    let x = ;
+    0
+}
+}

@@ -1,0 +1,9 @@
+domain module pkg_manifest_consumer {
+public fn build(value: Int) -> pkg_manifest_support::SharedNumber {
+    pkg_manifest_support::wrap(value)
+}
+
+public fn read(value: Int) -> Int {
+    pkg_manifest_support::extract(build(value))
+}
+}

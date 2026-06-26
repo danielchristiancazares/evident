@@ -142,6 +142,7 @@ struct StringLiteralExpr final : Expr {
 
 struct PathExpr final : Expr {
     std::vector<std::string> path;
+    bool explicit_permit_argument = false;
 
     PathExpr()
         : Expr(ExprKind::Path) {}
@@ -149,6 +150,7 @@ struct PathExpr final : Expr {
 
 struct CallExpr final : Expr {
     std::unique_ptr<Expr> callee;
+    std::vector<TypeRef> type_args;
     std::vector<std::unique_ptr<Expr>> args;
 
     CallExpr()
@@ -157,6 +159,7 @@ struct CallExpr final : Expr {
 
 struct ConstructExpr final : Expr {
     std::vector<std::string> path;
+    std::vector<TypeRef> type_args;
     std::vector<RecordFieldInit> fields;
 
     ConstructExpr()
@@ -365,7 +368,13 @@ struct FunctionDecl final : Decl {
     [[nodiscard]] bool is_foreign() const noexcept { return kind == DeclKind::ForeignFunction; }
 };
 
+struct ImportDecl {
+    std::vector<std::string> path;
+    SourceSpan span{};
+};
+
 struct TranslationUnit {
+    std::vector<ImportDecl> imports;
     std::vector<std::unique_ptr<Decl>> decls;
 };
 

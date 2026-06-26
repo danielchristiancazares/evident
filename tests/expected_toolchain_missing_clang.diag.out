@@ -1,0 +1,3 @@
+failed to launch process 'evident-missing-clang-for-diagnostic-test.exe -target x86_64-pc-windows-msvc -c <output>.tmp.ll -o <output>' (Windows error 2)
+required toolchain driver: evident-missing-clang-for-diagnostic-test.exe
+Install LLVM clang/lld or set EVIDENT_CLANG to the clang executable.

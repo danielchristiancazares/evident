@@ -1,0 +1,34 @@
+domain module test {
+public permit Access
+
+public fn start_pass() -> Unit grants Access {
+}
+
+public fn start_with_count(count: Int) -> Unit grants Access {
+}
+
+public fn bad_direct_grantor() -> Unit {
+    grant start_pass as pass {
+    }
+}
+
+public fn bad_named_grantor() -> Unit {
+    grant start_pass.value() as pass {
+    }
+}
+
+public fn bad_unknown_grantor() -> Unit {
+    grant missing() as pass {
+    }
+}
+
+public fn bad_grantor_too_few() -> Unit {
+    grant start_with_count() as pass {
+    }
+}
+
+public fn bad_grantor_arg_type() -> Unit {
+    grant start_with_count("seven") as pass {
+    }
+}
+}

@@ -5,10 +5,12 @@
 
 namespace evident {
 
+class SourceFile;
+
 class SemanticAnalyzer {
 public:
     explicit SemanticAnalyzer(DiagnosticSink& diagnostics);
-    void analyze(const ast::TranslationUnit& unit);
+    void analyze(const ast::TranslationUnit& unit, const SourceFile& source);
 
 private:
     DiagnosticSink& diagnostics_;

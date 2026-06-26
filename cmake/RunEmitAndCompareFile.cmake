@@ -34,6 +34,25 @@ if(NOT command_result EQUAL 0)
         "compiler command failed with exit code ${command_result}\nstdout:\n${command_stdout}\nstderr:\n${command_stderr}")
 endif()
 
+if(NOT command_stdout STREQUAL "")
+    message(FATAL_ERROR
+        "compiler command wrote unexpected stdout for ${INPUT_PATH}\nstdout:\n${command_stdout}")
+endif()
+
+if(NOT command_stderr STREQUAL "")
+    message(FATAL_ERROR
+        "compiler command wrote unexpected stderr for ${INPUT_PATH}\nstderr:\n${command_stderr}")
+endif()
+
+if(NOT EXISTS "${OUTPUT_PATH}")
+    message(FATAL_ERROR "expected emitted file does not exist: ${OUTPUT_PATH}")
+endif()
+
+file(SIZE "${OUTPUT_PATH}" output_size)
+if(output_size LESS 1)
+    message(FATAL_ERROR "expected emitted file to be non-empty: ${OUTPUT_PATH}")
+endif()
+
 file(READ "${EXPECTED_PATH}" expected_output)
 file(READ "${OUTPUT_PATH}" actual_output)
 string(REGEX REPLACE "[\r\n]+$" "" expected_output "${expected_output}")

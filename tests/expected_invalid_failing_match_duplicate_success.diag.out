@@ -1,0 +1,3 @@
+<input>:13:9: error: duplicate succeeded(...) arm
+            succeeded(other) => other,
+            ^^^^^^^^^^^^^^^^

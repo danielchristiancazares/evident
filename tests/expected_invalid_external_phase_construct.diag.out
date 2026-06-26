@@ -1,0 +1,3 @@
+<input>:17:5: error: cannot construct phase position 'model::AppConfig::Draft' outside its declaring module
+        model::AppConfig::Draft { id: 1, payload: 2 }
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

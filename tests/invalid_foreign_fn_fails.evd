@@ -1,0 +1,7 @@
+boundary module ffi {
+reason Failure {
+    Bad,
+}
+
+public foreign fn read() -> Int fails Failure
+}

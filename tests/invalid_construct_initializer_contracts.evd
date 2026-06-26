@@ -1,0 +1,64 @@
+domain module test {
+public record Point {
+    public x: Int,
+    public y: Int,
+}
+
+public state Packet {
+    Empty,
+    Wrapped { id: Int, label: Text },
+}
+
+public phase Config {
+    fields {
+        public id: Int,
+        public payload: Int,
+    }
+    positions {
+        Draft,
+        Ready,
+    }
+}
+
+public reason LoadFailure {
+    Bad,
+}
+
+fn load() -> Int
+    fails LoadFailure
+{
+    fail Bad
+}
+
+public fn duplicate_record() -> Point {
+    Point { x: 1, x: 2, y: 3 }
+}
+
+public fn unknown_record() -> Point {
+    Point { x: 1, y: 2, z: 3 }
+}
+
+public fn missing_record() -> Point {
+    Point { x: 1 }
+}
+
+public fn failing_record_initializer() -> Point {
+    Point { x: load(), y: 0 }
+}
+
+public fn unknown_variant() -> Packet {
+    Wrapped { id: 1, label: "ok", extra: 0 }
+}
+
+public fn missing_variant() -> Packet {
+    Wrapped { id: 1 }
+}
+
+public fn duplicate_phase() -> Config::Draft {
+    Config::Draft { id: 1, id: 2, payload: 3 }
+}
+
+public fn missing_phase() -> Config::Draft {
+    Config::Draft { id: 1 }
+}
+}

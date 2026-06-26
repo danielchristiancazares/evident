@@ -22,21 +22,32 @@ struct SourceLocation {
 class SourceFile {
 public:
     static std::expected<SourceFile, std::string> load(std::string path);
+    static SourceFile combine(std::vector<SourceFile> sources);
 
     SourceFile() = default;
     SourceFile(std::string path, std::string text);
 
     [[nodiscard]] const std::string& path() const noexcept;
+    [[nodiscard]] std::string_view path_at(std::size_t offset) const noexcept;
     [[nodiscard]] const std::string& text() const noexcept;
     [[nodiscard]] std::string_view slice(SourceSpan span) const;
     [[nodiscard]] SourceLocation locate(std::size_t offset) const;
 
 private:
+    struct Segment {
+        std::string path;
+        std::size_t begin = 0;
+        std::size_t end = 0;
+        std::vector<std::size_t> line_starts;
+    };
+
     void build_line_index();
+    [[nodiscard]] const Segment* find_segment(std::size_t offset) const noexcept;
 
     std::string path_;
     std::string text_;
     std::vector<std::size_t> line_starts_;
+    std::vector<Segment> segments_;
 };
 
 } // namespace evident

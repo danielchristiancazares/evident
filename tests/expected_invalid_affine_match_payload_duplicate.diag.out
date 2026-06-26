@@ -1,0 +1,6 @@
+<input>:21:48: error: affine value 'receipt' was already moved
+            Issued { receipt } => combine(receipt, receipt),
+                                                   ^^^^^^^
+<input>:21:39: note: 'receipt' was previously moved here
+            Issued { receipt } => combine(receipt, receipt),
+                                          ^^^^^^^

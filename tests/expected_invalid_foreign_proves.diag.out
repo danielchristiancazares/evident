@@ -1,0 +1,3 @@
+<input>:6:45: error: foreign functions may not declare `proves`
+    public foreign fn make_receipt() -> Receipt proves Receipt
+                                                ^^^^^^

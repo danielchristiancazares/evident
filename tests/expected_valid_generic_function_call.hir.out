@@ -1,0 +1,11 @@
+types:
+functions:
+  - public fn support::identity<T>(value: T) -> T
+      block -> T
+        result
+          local value : T
+  - public fn app::main() -> Int
+      block -> Int
+        result
+          call support::identity<Int> -> Int
+            number 7 : Int

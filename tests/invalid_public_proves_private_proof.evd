@@ -1,0 +1,7 @@
+domain module app {
+proof Receipt {
+    public value: Int,
+}
+
+public fn validate() -> Unit proves Receipt
+}

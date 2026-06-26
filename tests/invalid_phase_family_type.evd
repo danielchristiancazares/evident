@@ -1,0 +1,16 @@
+domain module test {
+public phase AppConfig {
+    fields {
+        public id: Int,
+    }
+
+    positions {
+        Draft,
+        Validated,
+    }
+}
+
+public fn bad(config: AppConfig) -> Int {
+    0
+}
+}

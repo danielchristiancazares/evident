@@ -1,0 +1,5 @@
+domain module pkg_private_field_source {
+public record Token {
+    value: Int,
+}
+}

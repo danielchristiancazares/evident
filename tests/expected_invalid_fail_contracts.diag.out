@@ -1,0 +1,21 @@
+<input>:22:5: error: unknown reason variant 'Missing'
+        fail Missing
+        ^^^^^^^^^^^^
+<input>:28:5: error: ambiguous reason variant 'Ambiguous'
+        fail Ambiguous
+        ^^^^^^^^^^^^^^
+<input>:34:33: error: duplicate initializer for field 'code'
+        fail WithPayload { code: 1, code: 2, label: "open" }
+                                    ^^^^^^^
+<input>:40:48: error: unknown field 'extra' in initializer
+        fail WithPayload { code: 1, label: "open", extra: 0 }
+                                                   ^^^^^^^^
+<input>:46:5: error: missing initializer for field 'label'
+        fail WithPayload { code: 1 }
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<input>:52:24: error: initializer for field 'code' has type 'Text', expected 'Int'
+        fail WithPayload { code: "one", label: "open" }
+                           ^^^^^^^^^^^
+<input>:58:24: error: failing expression must be handled with `try` or `match`
+        fail WithPayload { code: load(), label: "open" }
+                           ^^^^^^^^^^^^

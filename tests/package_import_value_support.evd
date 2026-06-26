@@ -1,0 +1,5 @@
+foundation module pkg_import_value_support {
+public fn id(value: Int) -> Int {
+    value
+}
+}

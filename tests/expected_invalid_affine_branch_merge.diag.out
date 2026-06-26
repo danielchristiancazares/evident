@@ -1,0 +1,6 @@
+<input>:26:5: error: affine value 'receipt' was already moved
+        receipt
+        ^^^^^^^
+<input>:23:17: note: 'receipt' was previously moved here
+            Open => receipt,
+                    ^^^^^^^

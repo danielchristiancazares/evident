@@ -1,0 +1,13 @@
+domain module test {
+public state Mode {
+    On,
+    Off,
+}
+
+public fn pick(mode: Mode) -> Int {
+    match mode {
+        On 1,
+        Off => 2,
+    }
+}
+}

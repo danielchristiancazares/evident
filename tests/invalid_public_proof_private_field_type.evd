@@ -1,0 +1,9 @@
+domain module app {
+record Hidden {
+    public value: Int,
+}
+
+public proof Receipt {
+    public value: Hidden,
+}
+}

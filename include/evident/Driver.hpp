@@ -2,11 +2,14 @@
 
 #include <optional>
 #include <string>
+#include <vector>
 
 namespace evident {
 
 struct DriverOptions {
     std::string input_path;
+    std::vector<std::string> input_paths;
+    std::optional<std::string> package_path;
     std::string target_triple = "x86_64-pc-windows-msvc";
     bool dump_tokens = false;
     bool dump_ast = false;

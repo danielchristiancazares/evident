@@ -1,12 +1,12 @@
 domain module outer {
-    public record R {
+    public record Resource {
         public x: Int,
         y: Int,
     }
 }
 
 domain module client {
-    public fn g() -> outer::R {
-        outer::R { x: 1, y: 2 }
+    public fn make_resource() -> outer::Resource {
+        outer::Resource { x: 1, y: 2 }
     }
 }

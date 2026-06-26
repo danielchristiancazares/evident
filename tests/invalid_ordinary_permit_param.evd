@@ -1,0 +1,7 @@
+domain module test {
+public permit RenderPassActive
+
+public fn submit(pass: RenderPassActive) -> Int {
+    7
+}
+}

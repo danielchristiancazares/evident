@@ -1,0 +1,18 @@
+usage: evidc [--dump-tokens] [--dump-ast] [--dump-hir] [--dump-mir] [--target <triple>] [--print-toolchain] [--check-toolchain] [--emit-stub <path>] [--emit-llvm <path>] [--emit-asm <path>] [--emit-obj <path>] [--emit-exe <path>] [--package <dir> | <input.evd> [input2.evd ...]]
+
+Options:
+  -h, --help                 Show this help text and exit
+      --version              Show compiler version and exit
+      --dump-tokens          Print lexer tokens
+      --dump-ast             Print parsed AST
+      --dump-hir             Print lowered HIR
+      --dump-mir             Print lowered MIR
+      --target <triple>      Set native target triple (default: x86_64-pc-windows-msvc)
+      --print-toolchain      Print selected native target and toolchain settings
+      --check-toolchain      Validate target and probe clang/lld-link versions
+      --emit-stub <path>     Write stub backend output
+      --emit-llvm <path>     Write textual LLVM IR
+      --emit-asm <path>      Emit assembly through clang
+      --emit-obj <path>      Emit object through clang
+      --emit-exe <path>      Emit executable through clang and lld
+      --package <dir>        Compile package directory sources

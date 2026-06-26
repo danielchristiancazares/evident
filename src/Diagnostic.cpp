@@ -48,7 +48,7 @@ const std::vector<Diagnostic>& DiagnosticSink::items() const noexcept {
 void DiagnosticSink::print(const SourceFile& source, std::ostream& out) const {
     for (const Diagnostic& diagnostic : items_) {
         const SourceLocation location = source.locate(diagnostic.span.begin);
-        out << source.path() << ':' << location.line << ':' << location.column << ": "
+        out << source.path_at(diagnostic.span.begin) << ':' << location.line << ':' << location.column << ": "
             << severity_name(diagnostic.severity) << ": " << diagnostic.message << '\n';
 
         const SourceLocation line_location = source.locate(diagnostic.span.begin);
