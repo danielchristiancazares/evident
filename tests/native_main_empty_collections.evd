@@ -99,6 +99,39 @@ public fn consume_single_map_entry_value() -> Int {
     }
 }
 
+public fn copied_empty_map_entries_count() -> Nat {
+    let entries = map_entries_copy<Text, Int>(empty_map())
+    list_count_copy<MapEntry<Text, Int>>(entries)
+}
+
+public fn copied_single_map_entries_value() -> Int {
+    let entries = nonempty_map_entries_copy<Text, Int>(single_map())
+    let entry = nonempty_list_first_copy<MapEntry<Text, Int>>(entries)
+    entry.value
+}
+
+public fn consumed_widened_map_entries_value() -> Int {
+    let entries = map_consume_entries<Text, Int>(widened_map(single_map()))
+    let required = match list_require_nonempty<MapEntry<Text, Int>>(entries) {
+        succeeded(actual) => actual,
+        failed(ListHadNoElements) => nonempty_map_entries_copy<Text, Int>(single_map()),
+    }
+    let entry = nonempty_list_first_copy<MapEntry<Text, Int>>(required)
+    entry.value
+}
+
+public fn consumed_single_map_entries_value() -> Int {
+    let entries = nonempty_map_consume_entries<Text, Int>(single_map())
+    let consumed = nonempty_list_consume_first<MapEntry<Text, Int>>(entries)
+    match list_require_nonempty<MapEntry<Text, Int>>(consumed.rest) {
+        succeeded(actual) => {
+            let entry = nonempty_list_first_copy<MapEntry<Text, Int>>(actual)
+            entry.value
+        },
+        failed(ListHadNoElements) => consumed.first.value,
+    }
+}
+
 public fn require_single_list() -> Int {
     let values = single_list()
     let widened = widened_list(values)
@@ -139,6 +172,10 @@ public fn main() -> Int {
     let single_result = require_single_list()
     let constructed_result = require_constructed_lists()
     let copied_map_entry_result = first_single_map_value()
-    consume_single_map_entry_value()
+    let consumed_map_entry_result = consume_single_map_entry_value()
+    let empty_entries_count = copied_empty_map_entries_count()
+    let copied_entries_result = copied_single_map_entries_value()
+    let consumed_widened_entries_result = consumed_widened_map_entries_value()
+    consumed_single_map_entries_value()
 }
 }

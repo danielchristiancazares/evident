@@ -406,6 +406,7 @@ enum class CompilerOwnedFunctionLowering {
     MapFirstEntryCopy,
     ListConsumeFirst,
     MapConsumeFirstEntry,
+    MapEntries,
     ListPrepend,
     ListAppend,
     ListConcat,
@@ -448,6 +449,10 @@ CompilerOwnedFunctionLowering compiler_owned_function_lowering(std::string_view 
     }
     if (base_name == "nonempty_map_consume_first_entry") {
         return CompilerOwnedFunctionLowering::MapConsumeFirstEntry;
+    }
+    if (base_name == "map_entries_copy" || base_name == "nonempty_map_entries_copy"
+        || base_name == "map_consume_entries" || base_name == "nonempty_map_consume_entries") {
+        return CompilerOwnedFunctionLowering::MapEntries;
     }
     if (base_name == "list_prepend") {
         return CompilerOwnedFunctionLowering::ListPrepend;
@@ -2976,6 +2981,58 @@ std::expected<std::string, std::string> FunctionEmitter::emit_compiler_owned_fun
         out << "  %carrier0 = insertvalue " << return_type.llvm_type() << " zeroinitializer, ptr %data0, 0\n";
         out << "  %carrier1 = insertvalue " << return_type.llvm_type() << " %carrier0, i64 %new_count0, 1\n";
         out << "  ret " << return_type.llvm_type() << " %carrier1\n";
+        out << "}\n";
+        return out.str();
+    }
+
+    case CompilerOwnedFunctionLowering::MapEntries: {
+        if (param_types.size() != 1) {
+            return std::unexpected("internal backend error: map entries function '"
+                                   + hir_function_.qualified_name + "' expected one parameter");
+        }
+        const std::string_view base_name = function_base_name(hir_function_.qualified_name);
+        const BuiltinKind expected_param_kind = (base_name == "nonempty_map_entries_copy"
+                                                 || base_name == "nonempty_map_consume_entries")
+            ? BuiltinKind::NonEmptyMap
+            : BuiltinKind::Map;
+        const BuiltinKind expected_return_kind = expected_param_kind == BuiltinKind::NonEmptyMap
+            ? BuiltinKind::NonEmptyList
+            : BuiltinKind::List;
+        if (!has_builtin_kind(param_types[0], expected_param_kind)) {
+            return std::unexpected("internal backend error: map entries function '"
+                                   + hir_function_.qualified_name + "' has unsupported parameter type '"
+                                   + param_types[0].source_name() + "'");
+        }
+        if (!has_builtin_kind(return_type, expected_return_kind)) {
+            return std::unexpected("internal backend error: map entries function '"
+                                   + hir_function_.qualified_name + "' returns '"
+                                   + return_type.source_name() + "'");
+        }
+        if (hir_function_.params.size() != 1) {
+            return std::unexpected("internal backend error: map entries function '"
+                                   + hir_function_.qualified_name + "' expected one HIR parameter");
+        }
+        const hir::TypeRef& map_type = hir_function_.params[0].type;
+        const hir::TypeRef& list_type = hir_function_.return_type;
+        if (map_type.args.size() != 2 || list_type.args.size() != 1) {
+            return std::unexpected("internal backend error: map entries function '"
+                                   + hir_function_.qualified_name + "' has malformed collection type arguments");
+        }
+        const hir::TypeRef& entry_type = list_type.args[0];
+        if (type_base_name(entry_type.text) != "MapEntry" || entry_type.args.size() != 2
+            || entry_type.args[0].text != map_type.args[0].text || entry_type.args[1].text != map_type.args[1].text) {
+            return std::unexpected("internal backend error: map entries function '"
+                                   + hir_function_.qualified_name + "' does not return matching MapEntry<K, V> values");
+        }
+        if (param_types[0].llvm_type() != return_type.llvm_type()) {
+            return std::unexpected("internal backend error: map entries function '"
+                                   + hir_function_.qualified_name + "' has incompatible ABI carriers");
+        }
+
+        out << "define " << linkage << return_type.llvm_type() << " @"
+            << model_.function_symbol(hir_function_.id) << "(" << param_types[0].llvm_type() << " %arg0) {\n";
+        out << "entry:\n";
+        out << "  ret " << return_type.llvm_type() << " %arg0\n";
         out << "}\n";
         return out.str();
     }

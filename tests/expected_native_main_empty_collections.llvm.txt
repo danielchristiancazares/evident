@@ -7,10 +7,12 @@ target triple = "x86_64-pc-windows-msvc"
 %evid.type.ListCardinalityFailure = type { i32 }
 %evid.type.MapEntry_Text__Int_ = type { { ptr, i64 }, i64 }
 %evid.type.MapFirstEntryAndRest_Text__Int_ = type { %evid.type.MapEntry_Text__Int_, { ptr, i64 } }
+%evid.type.ListFirstAndRest_MapEntry_Text__Int__ = type { %evid.type.MapEntry_Text__Int_, { ptr, i64 } }
 %evid.type.ListFirstAndRest_Int_ = type { i64, { ptr, i64 } }
 
 %evid.yield.map_require_nonempty$Text$Int = type { i8, [7 x i8], { i64, [8 x i8] } }
 %evid.yield.list_require_nonempty$Int = type { i8, [7 x i8], { i64, [8 x i8] } }
+%evid.yield.list_require_nonempty$MapEntry_Text__Int_ = type { i8, [7 x i8], { i64, [8 x i8] } }
 
 @evid.str.0 = private unnamed_addr constant [4 x i8] c"\6F\6E\65\00", align 1
 
@@ -500,6 +502,226 @@ bb.trap.3:
 
 }
 
+define i64 @evid$test$copied_empty_map_entries_count() {
+entry:
+  %slot0 = alloca i64
+  %slot1 = alloca { ptr, i64 }
+  %slot2 = alloca { ptr, i64 }
+  br label %bb0
+
+bb0:
+  %call0 = call { ptr, i64 } @evid$test$empty_map()
+  store { ptr, i64 } %call0, ptr %slot2
+  %load1 = load { ptr, i64 }, ptr %slot2
+  %call2 = call { ptr, i64 } @evid$map_entries_copy$Text$Int({ ptr, i64 } %load1)
+  store { ptr, i64 } %call2, ptr %slot1
+  %load3 = load { ptr, i64 }, ptr %slot1
+  %call4 = call i64 @evid$list_count_copy$MapEntry_Text__Int_({ ptr, i64 } %load3)
+  store i64 %call4, ptr %slot0
+  %load5 = load i64, ptr %slot0
+  ret i64 %load5
+
+}
+
+define i64 @evid$test$copied_single_map_entries_value() {
+entry:
+  %slot0 = alloca i64
+  %slot1 = alloca { ptr, i64 }
+  %slot2 = alloca { ptr, i64 }
+  %slot3 = alloca %evid.type.MapEntry_Text__Int_
+  br label %bb0
+
+bb0:
+  %call0 = call { ptr, i64 } @evid$test$single_map()
+  store { ptr, i64 } %call0, ptr %slot2
+  %load1 = load { ptr, i64 }, ptr %slot2
+  %call2 = call { ptr, i64 } @evid$nonempty_map_entries_copy$Text$Int({ ptr, i64 } %load1)
+  store { ptr, i64 } %call2, ptr %slot1
+  %load3 = load { ptr, i64 }, ptr %slot1
+  %call4 = call %evid.type.MapEntry_Text__Int_ @evid$nonempty_list_first_copy$MapEntry_Text__Int_({ ptr, i64 } %load3)
+  store %evid.type.MapEntry_Text__Int_ %call4, ptr %slot3
+  %load5 = load %evid.type.MapEntry_Text__Int_, ptr %slot3
+  %ext6 = extractvalue %evid.type.MapEntry_Text__Int_ %load5, 1
+  store i64 %ext6, ptr %slot0
+  %load7 = load i64, ptr %slot0
+  ret i64 %load7
+
+}
+
+define i64 @evid$test$consumed_widened_map_entries_value() {
+entry:
+  %slot0 = alloca i64
+  %slot1 = alloca { ptr, i64 }
+  %slot2 = alloca { ptr, i64 }
+  %slot3 = alloca { ptr, i64 }
+  %slot4 = alloca { ptr, i64 }
+  %slot5 = alloca { ptr, i64 }
+  %slot6 = alloca %evid.type.ListCardinalityFailure
+  %slot7 = alloca { ptr, i64 }
+  %slot8 = alloca { ptr, i64 }
+  %slot9 = alloca %evid.type.MapEntry_Text__Int_
+  br label %bb0
+
+bb0:
+  %call0 = call { ptr, i64 } @evid$test$single_map()
+  store { ptr, i64 } %call0, ptr %slot3
+  %load1 = load { ptr, i64 }, ptr %slot3
+  %call2 = call { ptr, i64 } @evid$test$widened_map({ ptr, i64 } %load1)
+  store { ptr, i64 } %call2, ptr %slot2
+  %load3 = load { ptr, i64 }, ptr %slot2
+  %call4 = call { ptr, i64 } @evid$map_consume_entries$Text$Int({ ptr, i64 } %load3)
+  store { ptr, i64 } %call4, ptr %slot1
+  %load5 = load { ptr, i64 }, ptr %slot1
+  %invoke6 = call %evid.yield.list_require_nonempty$MapEntry_Text__Int_ @evid$list_require_nonempty$MapEntry_Text__Int_({ ptr, i64 } %load5)
+  %ext7 = extractvalue %evid.yield.list_require_nonempty$MapEntry_Text__Int_ %invoke6, 0
+  %ext8 = extractvalue %evid.yield.list_require_nonempty$MapEntry_Text__Int_ %invoke6, 2
+  %unpack.slot9 = alloca { i64, [8 x i8] }
+  store { i64, [8 x i8] } %ext8, ptr %unpack.slot9
+  %unpack10 = load { ptr, i64 }, ptr %unpack.slot9
+  %unpack.slot11 = alloca { i64, [8 x i8] }
+  store { i64, [8 x i8] } %ext8, ptr %unpack.slot11
+  %unpack12 = load %evid.type.ListCardinalityFailure, ptr %unpack.slot11
+  switch i8 %ext7, label %bb.trap.2 [
+    i8 0, label %bb.invoke.ok.0
+    i8 1, label %bb.invoke.fail.1
+  ]
+
+bb1:
+  %load13 = load { ptr, i64 }, ptr %slot5
+  store { ptr, i64 } %load13, ptr %slot7
+  %load14 = load { ptr, i64 }, ptr %slot7
+  store { ptr, i64 } %load14, ptr %slot4
+  br label %bb3
+
+bb2:
+  %load15 = load %evid.type.ListCardinalityFailure, ptr %slot6
+  %ext16 = extractvalue %evid.type.ListCardinalityFailure %load15, 0
+  switch i32 %ext16, label %bb.trap.3 [
+    i32 1, label %bb4
+  ]
+
+bb3:
+  %load17 = load { ptr, i64 }, ptr %slot4
+  %call18 = call %evid.type.MapEntry_Text__Int_ @evid$nonempty_list_first_copy$MapEntry_Text__Int_({ ptr, i64 } %load17)
+  store %evid.type.MapEntry_Text__Int_ %call18, ptr %slot9
+  %load19 = load %evid.type.MapEntry_Text__Int_, ptr %slot9
+  %ext20 = extractvalue %evid.type.MapEntry_Text__Int_ %load19, 1
+  store i64 %ext20, ptr %slot0
+  %load21 = load i64, ptr %slot0
+  ret i64 %load21
+
+bb4:
+  %call22 = call { ptr, i64 } @evid$test$single_map()
+  store { ptr, i64 } %call22, ptr %slot8
+  %load23 = load { ptr, i64 }, ptr %slot8
+  %call24 = call { ptr, i64 } @evid$nonempty_map_entries_copy$Text$Int({ ptr, i64 } %load23)
+  store { ptr, i64 } %call24, ptr %slot4
+  br label %bb3
+
+bb.invoke.ok.0:
+  store { ptr, i64 } %unpack10, ptr %slot5
+  br label %bb1
+
+bb.invoke.fail.1:
+  store %evid.type.ListCardinalityFailure %unpack12, ptr %slot6
+  br label %bb2
+
+bb.trap.2:
+  unreachable
+
+bb.trap.3:
+  unreachable
+
+}
+
+define i64 @evid$test$consumed_single_map_entries_value() {
+entry:
+  %slot0 = alloca i64
+  %slot1 = alloca { ptr, i64 }
+  %slot2 = alloca { ptr, i64 }
+  %slot3 = alloca %evid.type.ListFirstAndRest_MapEntry_Text__Int__
+  %slot4 = alloca { ptr, i64 }
+  %slot5 = alloca %evid.type.ListCardinalityFailure
+  %slot6 = alloca { ptr, i64 }
+  %slot7 = alloca { ptr, i64 }
+  %slot8 = alloca %evid.type.MapEntry_Text__Int_
+  %slot9 = alloca %evid.type.MapEntry_Text__Int_
+  br label %bb0
+
+bb0:
+  %call0 = call { ptr, i64 } @evid$test$single_map()
+  store { ptr, i64 } %call0, ptr %slot2
+  %load1 = load { ptr, i64 }, ptr %slot2
+  %call2 = call { ptr, i64 } @evid$nonempty_map_consume_entries$Text$Int({ ptr, i64 } %load1)
+  store { ptr, i64 } %call2, ptr %slot1
+  %load3 = load { ptr, i64 }, ptr %slot1
+  %call4 = call %evid.type.ListFirstAndRest_MapEntry_Text__Int__ @evid$nonempty_list_consume_first$MapEntry_Text__Int_({ ptr, i64 } %load3)
+  store %evid.type.ListFirstAndRest_MapEntry_Text__Int__ %call4, ptr %slot3
+  %load5 = load %evid.type.ListFirstAndRest_MapEntry_Text__Int__, ptr %slot3
+  %ext6 = extractvalue %evid.type.ListFirstAndRest_MapEntry_Text__Int__ %load5, 1
+  store { ptr, i64 } %ext6, ptr %slot6
+  %load7 = load { ptr, i64 }, ptr %slot6
+  %invoke8 = call %evid.yield.list_require_nonempty$MapEntry_Text__Int_ @evid$list_require_nonempty$MapEntry_Text__Int_({ ptr, i64 } %load7)
+  %ext9 = extractvalue %evid.yield.list_require_nonempty$MapEntry_Text__Int_ %invoke8, 0
+  %ext10 = extractvalue %evid.yield.list_require_nonempty$MapEntry_Text__Int_ %invoke8, 2
+  %unpack.slot11 = alloca { i64, [8 x i8] }
+  store { i64, [8 x i8] } %ext10, ptr %unpack.slot11
+  %unpack12 = load { ptr, i64 }, ptr %unpack.slot11
+  %unpack.slot13 = alloca { i64, [8 x i8] }
+  store { i64, [8 x i8] } %ext10, ptr %unpack.slot13
+  %unpack14 = load %evid.type.ListCardinalityFailure, ptr %unpack.slot13
+  switch i8 %ext9, label %bb.trap.2 [
+    i8 0, label %bb.invoke.ok.0
+    i8 1, label %bb.invoke.fail.1
+  ]
+
+bb1:
+  %load15 = load { ptr, i64 }, ptr %slot4
+  store { ptr, i64 } %load15, ptr %slot7
+  %load16 = load { ptr, i64 }, ptr %slot7
+  %call17 = call %evid.type.MapEntry_Text__Int_ @evid$nonempty_list_first_copy$MapEntry_Text__Int_({ ptr, i64 } %load16)
+  store %evid.type.MapEntry_Text__Int_ %call17, ptr %slot8
+  %load18 = load %evid.type.MapEntry_Text__Int_, ptr %slot8
+  %ext19 = extractvalue %evid.type.MapEntry_Text__Int_ %load18, 1
+  store i64 %ext19, ptr %slot0
+  br label %bb3
+
+bb2:
+  %load20 = load %evid.type.ListCardinalityFailure, ptr %slot5
+  %ext21 = extractvalue %evid.type.ListCardinalityFailure %load20, 0
+  switch i32 %ext21, label %bb.trap.3 [
+    i32 1, label %bb4
+  ]
+
+bb3:
+  %load22 = load i64, ptr %slot0
+  ret i64 %load22
+
+bb4:
+  %load23 = load %evid.type.ListFirstAndRest_MapEntry_Text__Int__, ptr %slot3
+  %ext24 = extractvalue %evid.type.ListFirstAndRest_MapEntry_Text__Int__ %load23, 0
+  store %evid.type.MapEntry_Text__Int_ %ext24, ptr %slot9
+  %load25 = load %evid.type.MapEntry_Text__Int_, ptr %slot9
+  %ext26 = extractvalue %evid.type.MapEntry_Text__Int_ %load25, 1
+  store i64 %ext26, ptr %slot0
+  br label %bb3
+
+bb.invoke.ok.0:
+  store { ptr, i64 } %unpack12, ptr %slot4
+  br label %bb1
+
+bb.invoke.fail.1:
+  store %evid.type.ListCardinalityFailure %unpack14, ptr %slot5
+  br label %bb2
+
+bb.trap.2:
+  unreachable
+
+bb.trap.3:
+  unreachable
+
+}
+
 define i64 @evid$test$require_single_list() {
 entry:
   %slot0 = alloca i64
@@ -773,6 +995,10 @@ entry:
   %slot3 = alloca i64
   %slot4 = alloca i64
   %slot5 = alloca i64
+  %slot6 = alloca i64
+  %slot7 = alloca i64
+  %slot8 = alloca i64
+  %slot9 = alloca i64
   br label %bb0
 
 bb0:
@@ -787,9 +1013,17 @@ bb0:
   %call4 = call i64 @evid$test$first_single_map_value()
   store i64 %call4, ptr %slot5
   %call5 = call i64 @evid$test$consume_single_map_entry_value()
-  store i64 %call5, ptr %slot0
-  %load6 = load i64, ptr %slot0
-  ret i64 %load6
+  store i64 %call5, ptr %slot6
+  %call6 = call i64 @evid$test$copied_empty_map_entries_count()
+  store i64 %call6, ptr %slot7
+  %call7 = call i64 @evid$test$copied_single_map_entries_value()
+  store i64 %call7, ptr %slot8
+  %call8 = call i64 @evid$test$consumed_widened_map_entries_value()
+  store i64 %call8, ptr %slot9
+  %call9 = call i64 @evid$test$consumed_single_map_entries_value()
+  store i64 %call9, ptr %slot0
+  %load10 = load i64, ptr %slot0
+  ret i64 %load10
 
 }
 
@@ -967,6 +1201,79 @@ entry:
   %result0 = insertvalue %evid.type.MapFirstEntryAndRest_Text__Int_ zeroinitializer, %evid.type.MapEntry_Text__Int_ %entry0, 0
   %result1 = insertvalue %evid.type.MapFirstEntryAndRest_Text__Int_ %result0, { ptr, i64 } %rest1, 1
   ret %evid.type.MapFirstEntryAndRest_Text__Int_ %result1
+}
+
+define { ptr, i64 } @evid$map_entries_copy$Text$Int({ ptr, i64 } %arg0) {
+entry:
+  ret { ptr, i64 } %arg0
+}
+
+define i64 @evid$list_count_copy$MapEntry_Text__Int_({ ptr, i64 } %arg0) {
+entry:
+  %count0 = extractvalue { ptr, i64 } %arg0, 1
+  ret i64 %count0
+}
+
+define { ptr, i64 } @evid$nonempty_map_entries_copy$Text$Int({ ptr, i64 } %arg0) {
+entry:
+  ret { ptr, i64 } %arg0
+}
+
+define %evid.type.MapEntry_Text__Int_ @evid$nonempty_list_first_copy$MapEntry_Text__Int_({ ptr, i64 } %arg0) {
+entry:
+  %data0 = extractvalue { ptr, i64 } %arg0, 0
+  %first0 = load %evid.type.MapEntry_Text__Int_, ptr %data0
+  ret %evid.type.MapEntry_Text__Int_ %first0
+}
+
+define { ptr, i64 } @evid$map_consume_entries$Text$Int({ ptr, i64 } %arg0) {
+entry:
+  ret { ptr, i64 } %arg0
+}
+
+define %evid.yield.list_require_nonempty$MapEntry_Text__Int_ @evid$list_require_nonempty$MapEntry_Text__Int_({ ptr, i64 } %arg0) {
+entry:
+  %count0 = extractvalue { ptr, i64 } %arg0, 1
+  %is_empty0 = icmp eq i64 %count0, 0
+  br i1 %is_empty0, label %empty, label %nonempty
+
+nonempty:
+  %ok.tag = insertvalue %evid.yield.list_require_nonempty$MapEntry_Text__Int_ zeroinitializer, i8 0, 0
+  %ok.pack.slot = alloca { i64, [8 x i8] }
+  store { i64, [8 x i8] } zeroinitializer, ptr %ok.pack.slot
+  store { ptr, i64 } %arg0, ptr %ok.pack.slot
+  %ok.pack = load { i64, [8 x i8] }, ptr %ok.pack.slot
+  %ok.value = insertvalue %evid.yield.list_require_nonempty$MapEntry_Text__Int_ %ok.tag, { i64, [8 x i8] } %ok.pack, 2
+  ret %evid.yield.list_require_nonempty$MapEntry_Text__Int_ %ok.value
+
+empty:
+  %reason0 = insertvalue %evid.type.ListCardinalityFailure zeroinitializer, i32 1, 0
+  %fail.tag = insertvalue %evid.yield.list_require_nonempty$MapEntry_Text__Int_ zeroinitializer, i8 1, 0
+  %fail.pack.slot = alloca { i64, [8 x i8] }
+  store { i64, [8 x i8] } zeroinitializer, ptr %fail.pack.slot
+  store %evid.type.ListCardinalityFailure %reason0, ptr %fail.pack.slot
+  %fail.pack = load { i64, [8 x i8] }, ptr %fail.pack.slot
+  %fail.value = insertvalue %evid.yield.list_require_nonempty$MapEntry_Text__Int_ %fail.tag, { i64, [8 x i8] } %fail.pack, 2
+  ret %evid.yield.list_require_nonempty$MapEntry_Text__Int_ %fail.value
+}
+
+define { ptr, i64 } @evid$nonempty_map_consume_entries$Text$Int({ ptr, i64 } %arg0) {
+entry:
+  ret { ptr, i64 } %arg0
+}
+
+define %evid.type.ListFirstAndRest_MapEntry_Text__Int__ @evid$nonempty_list_consume_first$MapEntry_Text__Int_({ ptr, i64 } %arg0) {
+entry:
+  %data0 = extractvalue { ptr, i64 } %arg0, 0
+  %count0 = extractvalue { ptr, i64 } %arg0, 1
+  %first0 = load %evid.type.MapEntry_Text__Int_, ptr %data0
+  %rest_count0 = sub i64 %count0, 1
+  %rest_data0 = getelementptr i8, ptr %data0, i64 24
+  %rest0 = insertvalue { ptr, i64 } zeroinitializer, ptr %rest_data0, 0
+  %rest1 = insertvalue { ptr, i64 } %rest0, i64 %rest_count0, 1
+  %result0 = insertvalue %evid.type.ListFirstAndRest_MapEntry_Text__Int__ zeroinitializer, %evid.type.MapEntry_Text__Int_ %first0, 0
+  %result1 = insertvalue %evid.type.ListFirstAndRest_MapEntry_Text__Int__ %result0, { ptr, i64 } %rest1, 1
+  ret %evid.type.ListFirstAndRest_MapEntry_Text__Int__ %result1
 }
 
 define { ptr, i64 } @evid$nonempty_list_concat$Int({ ptr, i64 } %arg0, { ptr, i64 } %arg1) {
