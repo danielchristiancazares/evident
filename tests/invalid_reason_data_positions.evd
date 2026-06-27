@@ -41,4 +41,8 @@ public reason BridgeFailure {
 }
 
 public foreign fn pass(value: BridgeFailure) -> BridgeFailure
+
+public record CollectionStoredReason {
+    public value: List<BridgeFailure>,
+}
 }

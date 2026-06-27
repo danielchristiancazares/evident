@@ -16,3 +16,6 @@
 <input>:35:29: error: permit type 'Access' may not appear in function return type
     public foreign fn leak() -> Access
                                 ^^^^^^
+<input>:38:28: error: permit type 'Access' may not appear in record field
+        public value: Map<Int, Access>,
+                               ^^^^^^

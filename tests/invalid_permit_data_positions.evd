@@ -33,4 +33,8 @@ public record GenericStoredPermit {
 }
 
 public foreign fn leak() -> Access
+
+public record CollectionStoredPermit {
+    public value: Map<Int, Access>,
+}
 }

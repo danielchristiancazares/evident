@@ -19,3 +19,6 @@
 <input>:43:49: error: reason type 'BridgeFailure' may not appear in function return type
     public foreign fn pass(value: BridgeFailure) -> BridgeFailure
                                                     ^^^^^^^^^^^^^
+<input>:46:24: error: reason type 'BridgeFailure' may not appear in record field
+        public value: List<BridgeFailure>,
+                           ^^^^^^^^^^^^^
