@@ -51,4 +51,7 @@ public phase Lifecycle {
 }
 
 public permit X
+
+public domain module Default {
+}
 }

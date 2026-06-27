@@ -67,3 +67,6 @@
 <input>:53:8: error: public name 'X' is reserved or too generic
     public permit X
            ^^^^^^^^
+<input>:55:8: error: public name 'Default' is reserved or too generic
+    public domain module Default {
+           ^^^^^^^^^^^^^^^^^^^^^^^^^
