@@ -36,6 +36,11 @@ enum class MatchArmSeparatorRecovery {
     ContinueWithNextArm,
 };
 
+enum class RecordInitializerSeparatorRecovery {
+    StopInitializerList,
+    ContinueWithNextField,
+};
+
 DeclarationStartState declaration_start_state(TokenKind kind) {
     switch (kind) {
     case TokenKind::KeywordPublic:
@@ -124,6 +129,21 @@ MatchArmSeparatorRecovery match_arm_after_missing_separator(TokenKind first, Tok
         return MatchArmSeparatorRecovery::ContinueWithNextArm;
     default:
         return MatchArmSeparatorRecovery::StopMatchArms;
+    }
+}
+
+RecordInitializerSeparatorRecovery record_initializer_after_missing_separator(TokenKind first,
+                                                                             TokenKind second) {
+    if (first != TokenKind::Identifier) {
+        return RecordInitializerSeparatorRecovery::StopInitializerList;
+    }
+    switch (second) {
+    case TokenKind::Colon:
+    case TokenKind::Comma:
+    case TokenKind::RightBrace:
+        return RecordInitializerSeparatorRecovery::ContinueWithNextField;
+    default:
+        return RecordInitializerSeparatorRecovery::StopInitializerList;
     }
 }
 
@@ -859,6 +879,11 @@ std::vector<ast::RecordFieldInit> Parser::parse_record_field_initializers() {
             if (token_check(TokenKind::RightBrace) == TokenCheckState::Matches) {
                 break;
             }
+            continue;
+        }
+        if (record_initializer_after_missing_separator(peek().kind(), peek(1).kind())
+            == RecordInitializerSeparatorRecovery::ContinueWithNextField) {
+            diagnostics_.error(peek().span(), "expected ',' between initializer fields");
             continue;
         }
         break;

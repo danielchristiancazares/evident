@@ -1,0 +1,10 @@
+domain module test {
+public record Pair {
+    first: Int,
+    second: Int,
+}
+
+public fn make() -> Pair {
+    Pair { first: 1 second: 2, }
+}
+}

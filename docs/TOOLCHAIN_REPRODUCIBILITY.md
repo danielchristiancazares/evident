@@ -38,7 +38,7 @@ This means a release must publish enough evidence to identify:
 - `evidc --print-toolchain` output with expected native target, supported target, selected clang driver, override environment variable, and linker mode
 - `evidc --check-toolchain` output with those expected fields plus version-probe lines identifying clang and LLD
 - the exact preset commands run
-- the expected CTest `377/377` pass summary inside `[ctest output]`
+- the expected CTest `378/378` pass summary inside `[ctest output]`
 - the `evident-<version>-windows-x64.zip` filename, byte size, and SHA256
 - the `artifact-digest` value reported by `actions/upload-artifact` after upload
 - GitHub artifact attestation status for public-repository push builds or manual `workflow_dispatch` release-validation runs
