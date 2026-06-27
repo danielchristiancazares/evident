@@ -267,9 +267,9 @@ extern "C" std::int32_t evid$bootstrap_host$spawn_tool_text(const char* working_
     CloseHandle(process_info.hProcess);
     return static_cast<std::int32_t>(exit_code);
 #else
-    (void)working_directory_text;
-    (void)executable_text;
-    (void)arguments;
+    static_cast<void>(working_directory_text);
+    static_cast<void>(executable_text);
+    static_cast<void>(arguments);
     return 0;
 #endif
 }

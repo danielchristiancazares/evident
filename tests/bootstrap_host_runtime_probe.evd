@@ -5,7 +5,10 @@ public fn main() -> Int {
     let working_directory = bootstrap_host::host_path(".");
     let probe_directory = bootstrap_host::resolve_path(working_directory, bootstrap_host::host_path("bootstrap-host-runtime-probe"));
     let ignored = bootstrap_host::write_text_file_text("bootstrap-host-runtime-probe.txt", "bootstrap-host-runtime-probe");
-    let ignored_exit = bootstrap_host::spawn_tool_text(".", "C:/Windows/System32/cmd.exe", list_empty<Text>());
+    let exit_argument = nonempty_list_widen<Text>(list_append<Text>(list_empty<Text>(), "/c"));
+    let exit_argument_more = nonempty_list_widen<Text>(list_append<Text>(exit_argument, "exit"));
+    let exit_arguments = nonempty_list_widen<Text>(list_append<Text>(exit_argument_more, "0"));
+    let ignored_exit = bootstrap_host::spawn_tool_text(".", "C:/Windows/System32/cmd.exe", exit_arguments);
     0
 }
 }

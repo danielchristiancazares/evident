@@ -1,8 +1,42 @@
 import bootstrap_environment;
+import bootstrap_discovery;
+import bootstrap_layout;
+import bootstrap_manifest;
+import bootstrap_pipeline;
+import bootstrap_release;
+import bootstrap_source;
 
 domain module bootstrap_environment_probe {
-public fn main() -> Int {
+public fn build_release() -> bootstrap_release::BootstrapReleaseEvidence fails MapBindingFailure {
     let environment = bootstrap_environment::current_environment();
-    0
+    let discovery = bootstrap_discovery::compiler_source_discovery(environment);
+    let source = bootstrap_source::compiler_package(environment, discovery.graph);
+    let layout = bootstrap_layout::bootstrap_package_layout(source);
+    let manifest = bootstrap_manifest::bootstrap_package_manifest(source, layout);
+    let package_validation = try bootstrap_release::bootstrap_package_validation(source, layout, manifest, discovery);
+    let outlined = bootstrap_pipeline::outline(source);
+    let seed = bootstrap_pipeline::compile_with_seed(outlined);
+    let stage_one = bootstrap_pipeline::compile_stage_one(seed);
+    let stage_two = bootstrap_pipeline::validate_stage_two(stage_one);
+    let seed_receipt = bootstrap_pipeline::seed_receipt(environment.source_commit);
+    let stage_one_receipt = bootstrap_pipeline::stage_one_receipt(environment.source_commit);
+    let stage_two_receipt = bootstrap_pipeline::stage_two_receipt(environment.source_commit);
+    let equivalence = bootstrap_pipeline::bootstrap_equivalence();
+    let evidence = bootstrap_pipeline::bootstrap_evidence(
+        seed_receipt,
+        stage_one_receipt,
+        stage_two_receipt,
+        equivalence,
+    );
+
+    bootstrap_release::bootstrap_release_evidence(environment, manifest, package_validation, evidence)
+}
+
+public fn main() -> Int {
+    match build_release() {
+        succeeded(release) => 0,
+        failed(RequestedKeyHadNoBinding) => 1,
+        failed(RequestedKeyAlreadyHadBinding) => 1,
+    }
 }
 }

@@ -118,7 +118,7 @@ if(BUILD_TESTING)
 
     add_dependencies(evidc bootstrap_compiler_generated_environment)
 
-set(EVIDENT_EXPECTED_CTEST_TOTAL 404)
+set(EVIDENT_EXPECTED_CTEST_TOTAL 407)
 
     add_test(NAME parse_valid_example
         COMMAND evidc --dump-hir ${CMAKE_CURRENT_SOURCE_DIR}/examples/feature_mode.evd)
@@ -883,7 +883,7 @@ set(EVIDENT_EXPECTED_CTEST_TOTAL 404)
     add_test(NAME run_bootstrap_environment_probe
         COMMAND ${CMAKE_COMMAND}
             -DCOMMAND_PATH=$<TARGET_FILE:evidc>
-            "-DINPUT_PATHS=${CMAKE_CURRENT_SOURCE_DIR}/bootstrap/compiler/src/host.evd;${CMAKE_CURRENT_SOURCE_DIR}/bootstrap/compiler/src/environment.evd;${CMAKE_CURRENT_SOURCE_DIR}/tests/bootstrap_environment_probe.evd"
+            "-DINPUT_PATHS=${CMAKE_CURRENT_SOURCE_DIR}/bootstrap/compiler/src/source.evd;${CMAKE_CURRENT_SOURCE_DIR}/bootstrap/compiler/src/lexing.evd;${CMAKE_CURRENT_SOURCE_DIR}/bootstrap/compiler/src/parsing.evd;${CMAKE_CURRENT_SOURCE_DIR}/bootstrap/compiler/src/semantics.evd;${CMAKE_CURRENT_SOURCE_DIR}/bootstrap/compiler/src/diagnostics.evd;${CMAKE_CURRENT_SOURCE_DIR}/bootstrap/compiler/src/host.evd;${EVIDENT_BOOTSTRAP_ENVIRONMENT_PATH};${CMAKE_CURRENT_SOURCE_DIR}/bootstrap/compiler/src/discovery.evd;${CMAKE_CURRENT_SOURCE_DIR}/bootstrap/compiler/src/pipeline.evd;${CMAKE_CURRENT_SOURCE_DIR}/bootstrap/compiler/src/layout.evd;${CMAKE_CURRENT_SOURCE_DIR}/bootstrap/compiler/src/manifest.evd;${CMAKE_CURRENT_SOURCE_DIR}/bootstrap/compiler/src/release.evd;${CMAKE_CURRENT_SOURCE_DIR}/tests/bootstrap_environment_probe.evd"
             -DOUTPUT_PATH=${CMAKE_CURRENT_BINARY_DIR}/bootstrap_environment_probe.exe
             -DEXPECTED_EXIT=0
             -DTARGET_TRIPLE=x86_64-pc-windows-msvc

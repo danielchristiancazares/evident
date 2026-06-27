@@ -476,6 +476,11 @@ enum class MapFromEntriesDuplicatePolicy {
     UseLastBinding,
 };
 
+enum class ForeignArgumentPassing {
+    Direct,
+    Pointer,
+};
+
 CompilerOwnedFunctionLowering compiler_owned_function_lowering(std::string_view qualified_name) {
     const std::string_view base_name = function_base_name(qualified_name);
     if (base_name == "list_empty" || base_name == "map_empty") {
@@ -5430,9 +5435,11 @@ BackendStepResult FunctionEmitter::emit_call_argument(std::vector<std::string>& 
         return std::unexpected(param_type.error());
     }
 
-    const bool pass_by_pointer = callee.implementation == ast::FunctionImplementation::ForeignImport
-        && param_type->size() > 8;
-    if (!pass_by_pointer) {
+    const ForeignArgumentPassing argument_passing =
+        callee.implementation == ast::FunctionImplementation::ForeignImport && param_type->size() > 8
+            ? ForeignArgumentPassing::Pointer
+            : ForeignArgumentPassing::Direct;
+    if (argument_passing == ForeignArgumentPassing::Direct) {
         const std::expected<TypedValue, std::string> arg = materialize_operand(operand, *param_type);
         if (!arg.has_value()) {
             return std::unexpected(arg.error());
