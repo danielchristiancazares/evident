@@ -243,7 +243,7 @@ jobs:
 
           & cmake `
             "-DEVIDENCE_PATH=$evidence" `
-            "-DEXPECTED_CTEST_TOTAL=394" `
+            "-DEXPECTED_CTEST_TOTAL=395" `
             "-DEXPECTED_COMMIT_SHA=$env:GITHUB_SHA" `
             "-DRELEASE_PACKAGE_NAME=$($zip.Name)" `
             "-DRELEASE_PACKAGE_SIZE=$zipSize" `

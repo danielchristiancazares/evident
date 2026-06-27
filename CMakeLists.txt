@@ -80,7 +80,7 @@ add_dependencies(package_checksum package)
 
 include(CTest)
 if(BUILD_TESTING)
-    set(EVIDENT_EXPECTED_CTEST_TOTAL 394)
+    set(EVIDENT_EXPECTED_CTEST_TOTAL 395)
 
     add_test(NAME parse_valid_example
         COMMAND evidc --dump-hir ${CMAKE_CURRENT_SOURCE_DIR}/examples/feature_mode.evd)
@@ -495,6 +495,13 @@ if(BUILD_TESTING)
     function(add_backend_reject_test name file output_name)
         add_test(NAME ${name}
             COMMAND evidc --target x86_64-pc-windows-msvc --emit-exe ${CMAKE_CURRENT_BINARY_DIR}/${output_name}
+                ${CMAKE_CURRENT_SOURCE_DIR}/tests/${file})
+        set_tests_properties(${name} PROPERTIES WILL_FAIL TRUE)
+    endfunction()
+
+    function(add_backend_target_reject_test name file emit_mode output_name target_triple)
+        add_test(NAME ${name}
+            COMMAND evidc --target ${target_triple} ${emit_mode} ${CMAKE_CURRENT_BINARY_DIR}/${output_name}
                 ${CMAKE_CURRENT_SOURCE_DIR}/tests/${file})
         set_tests_properties(${name} PROPERTIES WILL_FAIL TRUE)
     endfunction()
@@ -1529,6 +1536,11 @@ if(BUILD_TESTING)
     add_backend_reject_test(reject_backend_main_wrong_return native_invalid_main_wrong_return.evd reject_backend_main_wrong_return.exe)
     add_backend_reject_test(reject_backend_main_yields native_invalid_main_yields.evd reject_backend_main_yields.exe)
     add_backend_reject_test(reject_backend_materialized_never native_invalid_materialized_never.evd reject_backend_materialized_never.exe)
+    add_backend_target_reject_test(reject_backend_unsupported_target
+        native_main_constant.evd
+        --emit-llvm
+        reject_backend_unsupported_target.ll
+        x86_64-unknown-linux-gnu)
     add_emit_exe_test(run_native_empty_collections native_main_empty_collections.evd 7 native_empty_collections.exe)
     add_emit_exe_test(run_native_builtin_cstring_map native_main_builtin_cstring_map.evd 7 native_builtin_cstring_map.exe)
 endif()
