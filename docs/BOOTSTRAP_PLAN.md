@@ -18,9 +18,11 @@ Evident can be called bootstrap-capable only when all of the following are true:
 
 The compiler is not yet self-hosting.
 
-The current blocker is not a single backend issue. The repository lacks:
+The repository now contains an initial Evident package outline at `bootstrap/compiler`. That package is a compilable bootstrap scaffold, not a compiler implementation. It exists to anchor stage-oriented self-hosting work in real Evident source while the larger language and runtime gaps close.
 
-- an Evident implementation package for the compiler itself
+The current blocker is not a single backend issue. The repository still lacks:
+
+- a complete Evident implementation package for the compiler itself
 - a stable standard-library or runtime boundary for compiler file I/O, path handling, process exit, and diagnostics
 - enough language surface to express the compiler implementation without falling back to hidden ambient authority or unchecked runtime state
 - a bootstrap test harness that builds stage 1 and stage 2 compilers and validates equivalence

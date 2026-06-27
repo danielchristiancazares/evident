@@ -1,0 +1,23 @@
+domain module bootstrap_source {
+public record SourcePath {
+    public text: Text,
+}
+
+public record SourceFile {
+    public path: SourcePath,
+    public contents: Text,
+}
+
+public record SourceSet {
+    public entry: SourceFile,
+}
+
+public fn package_entry(path: Text, contents: Text) -> SourceSet {
+    SourceSet {
+        entry: SourceFile {
+            path: SourcePath { text: path },
+            contents,
+        },
+    }
+}
+}

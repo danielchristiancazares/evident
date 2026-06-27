@@ -1,0 +1,32 @@
+domain module bootstrap_diagnostics {
+public state DiagnosticSeverity {
+    SourceRejected,
+    CompilationBlocked,
+    BootstrapInvariantFailed,
+}
+
+public record Diagnostic {
+    public severity: DiagnosticSeverity,
+    public message: Text,
+}
+
+public reason BootstrapFailure {
+    SourcePackageRejected { message: Text },
+    StageBuildRejected { message: Text },
+    StageOutputsDiverged { message: Text },
+}
+
+public fn source_rejected(message: Text) -> Diagnostic {
+    Diagnostic {
+        severity: SourceRejected,
+        message,
+    }
+}
+
+public fn stage_blocked(message: Text) -> Diagnostic {
+    Diagnostic {
+        severity: CompilationBlocked,
+        message,
+    }
+}
+}

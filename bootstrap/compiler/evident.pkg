@@ -1,0 +1,7 @@
+# Initial Evident compiler package skeleton.
+# Keep this manifest deterministic; bootstrap validation depends on stable source order.
+src/source.evd
+src/diagnostics.evd
+src/host.evd
+src/pipeline.evd
+src/main.evd

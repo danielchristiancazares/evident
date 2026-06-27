@@ -1,0 +1,15 @@
+hazard module bootstrap_host {
+public record HostPath {
+    public text: Text,
+}
+
+public record ExitStatus {
+    public code: Int,
+}
+
+public foreign fn process_exit(code: CInt) -> CInt
+
+public fn success_status() -> ExitStatus {
+    ExitStatus { code: 0 }
+}
+}

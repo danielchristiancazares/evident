@@ -1,0 +1,67 @@
+import bootstrap_source;
+
+domain module bootstrap_pipeline {
+public phase CompilerPipeline {
+    fields {
+        public package_name: Text,
+        public source: bootstrap_source::SourceSet,
+    }
+
+    positions {
+        SourceOutlined,
+        SeedCompiled,
+        StageOneCompiled,
+        StageTwoValidated,
+    }
+}
+
+public proof BootstrapOutlineRecorded {
+    public package_name: Text,
+}
+
+public record StageReceipt {
+    public stage_name: Text,
+    public compiler_name: Text,
+}
+
+public fn outline(source: bootstrap_source::SourceSet) -> CompilerPipeline::SourceOutlined {
+    CompilerPipeline::SourceOutlined {
+        package_name: "evident.compiler",
+        source,
+    }
+}
+
+public fn compile_with_seed(pipeline: CompilerPipeline::SourceOutlined) -> CompilerPipeline::SeedCompiled {
+    CompilerPipeline::SeedCompiled {
+        package_name: pipeline.package_name,
+        source: pipeline.source,
+    }
+}
+
+public fn compile_stage_one(pipeline: CompilerPipeline::SeedCompiled) -> CompilerPipeline::StageOneCompiled {
+    CompilerPipeline::StageOneCompiled {
+        package_name: pipeline.package_name,
+        source: pipeline.source,
+    }
+}
+
+public fn validate_stage_two(pipeline: CompilerPipeline::StageOneCompiled) -> CompilerPipeline::StageTwoValidated {
+    CompilerPipeline::StageTwoValidated {
+        package_name: pipeline.package_name,
+        source: pipeline.source,
+    }
+}
+
+public fn record_outline(package_name: Text) -> BootstrapOutlineRecorded proves BootstrapOutlineRecorded {
+    prove BootstrapOutlineRecorded {
+        package_name,
+    }
+}
+
+public fn seed_receipt() -> StageReceipt {
+    StageReceipt {
+        stage_name: "seed",
+        compiler_name: "cxx-seed-evidc",
+    }
+}
+}

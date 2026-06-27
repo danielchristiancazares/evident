@@ -95,6 +95,8 @@ This version does **not** yet implement:
 - Native backend roadmap: `docs/NATIVE_BACKEND_PLAN.md`
 - Release checklist: `docs/RELEASE_CHECKLIST.md`
 
+The first bootstrap-oriented Evident package outline lives under `bootstrap/compiler`. It is a compilable scaffold for stage-oriented self-hosting work, not a self-hosted compiler implementation.
+
 ## Build
 
 Supported Windows x64 validation path:
