@@ -1,9 +1,13 @@
+import bootstrap_discovery;
 import bootstrap_environment;
 import bootstrap_host;
+import bootstrap_lexing;
 import bootstrap_layout;
 import bootstrap_pipeline;
 import bootstrap_manifest;
+import bootstrap_parsing;
 import bootstrap_source;
+import bootstrap_semantics;
 
 domain module bootstrap_release {
 public record BootstrapPackageValidation {
@@ -12,7 +16,11 @@ public record BootstrapPackageValidation {
     public manifest: bootstrap_manifest::BootstrapPackageManifest,
     public compiler_layout_module: bootstrap_layout::BootstrapPackageModule,
     public compiler_manifest_entry: bootstrap_manifest::BootstrapPackageManifestEntry,
+    public discovered_source_count: Int,
     public source_file_count: Nat,
+    public token_stream_size: Int,
+    public syntax_module_count: Int,
+    public symbol_entry_count: Nat,
     public module_count: Nat,
     public manifest_entry_count: Nat,
 }
@@ -43,10 +51,14 @@ public record BootstrapReleaseEvidence {
     public pipeline_evidence: bootstrap_pipeline::BootstrapEvidence,
 }
 
-public fn bootstrap_package_validation(package: bootstrap_source::PackageSource, layout: bootstrap_layout::BootstrapPackageLayout, manifest: bootstrap_manifest::BootstrapPackageManifest) -> BootstrapPackageValidation fails MapBindingFailure {
+public fn bootstrap_package_validation(package: bootstrap_source::PackageSource, layout: bootstrap_layout::BootstrapPackageLayout, manifest: bootstrap_manifest::BootstrapPackageManifest, discovery: bootstrap_discovery::SourceDiscovery) -> BootstrapPackageValidation fails MapBindingFailure {
     let compiler_layout_module = try bootstrap_layout::bootstrap_package_module_by_name(layout, "bootstrap_compiler");
     let compiler_manifest_entry = try bootstrap_manifest::bootstrap_package_manifest_entry_by_name(manifest, "bootstrap_compiler");
+    let discovered_source_count = discovery.source_count;
     let source_file_count = bootstrap_source::compiler_package_file_count(package);
+    let token_stream_size = bootstrap_lexing::seed_token_stream_size();
+    let syntax_module_count = bootstrap_parsing::seed_package_syntax_module_count();
+    let symbol_entry_count = bootstrap_semantics::seed_symbol_catalog_entry_count();
     let module_count = bootstrap_layout::bootstrap_package_module_count(layout);
     let manifest_entry_count = bootstrap_manifest::bootstrap_package_manifest_entry_count(manifest);
 
@@ -56,7 +68,11 @@ public fn bootstrap_package_validation(package: bootstrap_source::PackageSource,
         manifest,
         compiler_layout_module,
         compiler_manifest_entry,
+        discovered_source_count,
         source_file_count,
+        token_stream_size,
+        syntax_module_count,
+        symbol_entry_count,
         module_count,
         manifest_entry_count,
     }

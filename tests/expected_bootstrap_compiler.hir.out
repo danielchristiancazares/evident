@@ -215,7 +215,11 @@ types:
       field manifest: bootstrap_manifest::BootstrapPackageManifest
       field compiler_layout_module: bootstrap_layout::BootstrapPackageModule
       field compiler_manifest_entry: bootstrap_manifest::BootstrapPackageManifestEntry
+      field discovered_source_count: Int
       field source_file_count: Nat
+      field token_stream_size: Int
+      field syntax_module_count: Int
+      field symbol_entry_count: Nat
       field module_count: Nat
       field manifest_entry_count: Nat
   - public record bootstrap_release::BootstrapStageInvocation
@@ -2007,7 +2011,7 @@ functions:
               local module_name : Text
         result
           local entry : bootstrap_manifest::BootstrapPackageManifestEntry
-  - public fn bootstrap_release::bootstrap_package_validation(package: bootstrap_source::PackageSource, layout: bootstrap_layout::BootstrapPackageLayout, manifest: bootstrap_manifest::BootstrapPackageManifest) -> bootstrap_release::BootstrapPackageValidation fails MapBindingFailure
+  - public fn bootstrap_release::bootstrap_package_validation(package: bootstrap_source::PackageSource, layout: bootstrap_layout::BootstrapPackageLayout, manifest: bootstrap_manifest::BootstrapPackageManifest, discovery: bootstrap_discovery::SourceDiscovery) -> bootstrap_release::BootstrapPackageValidation fails MapBindingFailure
       block -> bootstrap_release::BootstrapPackageValidation
         let compiler_layout_module: bootstrap_layout::BootstrapPackageModule
           try
@@ -2019,9 +2023,18 @@ functions:
             call bootstrap_manifest::bootstrap_package_manifest_entry_by_name -> bootstrap_manifest::BootstrapPackageManifestEntry fails
               local manifest : bootstrap_manifest::BootstrapPackageManifest
               string "bootstrap_compiler" : Text
+        let discovered_source_count: Int
+          field-access .source_count : Int
+            local discovery : bootstrap_discovery::SourceDiscovery
         let source_file_count: Nat
           call bootstrap_source::compiler_package_file_count -> Nat
             local package : bootstrap_source::PackageSource
+        let token_stream_size: Int
+          call bootstrap_lexing::seed_token_stream_size -> Int
+        let syntax_module_count: Int
+          call bootstrap_parsing::seed_package_syntax_module_count -> Int
+        let symbol_entry_count: Nat
+          call bootstrap_semantics::seed_symbol_catalog_entry_count -> Nat
         let module_count: Nat
           call bootstrap_layout::bootstrap_package_module_count -> Nat
             local layout : bootstrap_layout::BootstrapPackageLayout
@@ -2040,8 +2053,16 @@ functions:
               local compiler_layout_module : bootstrap_layout::BootstrapPackageModule
             init compiler_manifest_entry [shorthand]
               local compiler_manifest_entry : bootstrap_manifest::BootstrapPackageManifestEntry
+            init discovered_source_count [shorthand]
+              local discovered_source_count : Int
             init source_file_count [shorthand]
               local source_file_count : Nat
+            init token_stream_size [shorthand]
+              local token_stream_size : Int
+            init syntax_module_count [shorthand]
+              local syntax_module_count : Int
+            init symbol_entry_count [shorthand]
+              local symbol_entry_count : Nat
             init module_count [shorthand]
               local module_count : Nat
             init manifest_entry_count [shorthand]
@@ -2227,6 +2248,7 @@ functions:
               local source : bootstrap_source::PackageSource
               local layout : bootstrap_layout::BootstrapPackageLayout
               local manifest : bootstrap_manifest::BootstrapPackageManifest
+              local discovery : bootstrap_discovery::SourceDiscovery
         let outlined: bootstrap_pipeline::CompilerPipeline::SourceOutlined [affine]
           call bootstrap_pipeline::outline -> bootstrap_pipeline::CompilerPipeline::SourceOutlined [affine]
             local source : bootstrap_source::PackageSource

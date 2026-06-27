@@ -31,7 +31,7 @@ public fn build_status() -> BootstrapStatus fails MapBindingFailure {
     let source = bootstrap_source::compiler_package(environment, discovery.graph);
     let layout = bootstrap_layout::bootstrap_package_layout(source);
     let manifest = bootstrap_manifest::bootstrap_package_manifest(source, layout);
-    let package_validation = try bootstrap_release::bootstrap_package_validation(source, layout, manifest);
+    let package_validation = try bootstrap_release::bootstrap_package_validation(source, layout, manifest, discovery);
     let outlined = bootstrap_pipeline::outline(source);
     let seed = bootstrap_pipeline::compile_with_seed(outlined);
     let stage_one = bootstrap_pipeline::compile_stage_one(seed);

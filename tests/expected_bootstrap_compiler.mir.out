@@ -1331,28 +1331,37 @@ functions:
         %0[package] : bootstrap_source::PackageSource
         %1[layout] : bootstrap_layout::BootstrapPackageLayout
         %2[manifest] : bootstrap_manifest::BootstrapPackageManifest
-        %3[$return] : bootstrap_release::BootstrapPackageValidation
-        %4[compiler_layout_module] : bootstrap_layout::BootstrapPackageModule
-        %5[failure] : MapBindingFailure
-        %6[compiler_manifest_entry] : bootstrap_manifest::BootstrapPackageManifestEntry
-        %7[failure] : MapBindingFailure
-        %8[source_file_count] : Nat
-        %9[module_count] : Nat
-        %10[manifest_entry_count] : Nat
+        %3[discovery] : bootstrap_discovery::SourceDiscovery
+        %4[$return] : bootstrap_release::BootstrapPackageValidation
+        %5[compiler_layout_module] : bootstrap_layout::BootstrapPackageModule
+        %6[failure] : MapBindingFailure
+        %7[compiler_manifest_entry] : bootstrap_manifest::BootstrapPackageManifestEntry
+        %8[failure] : MapBindingFailure
+        %9[discovered_source_count] : Int
+        %10[source_file_count] : Nat
+        %11[token_stream_size] : Int
+        %12[syntax_module_count] : Int
+        %13[symbol_entry_count] : Nat
+        %14[module_count] : Nat
+        %15[manifest_entry_count] : Nat
       block %0
-        invoke bootstrap_layout::bootstrap_package_module_by_name(%1[layout], "bootstrap_compiler") ok %4[compiler_layout_module] -> %1 fail %5[failure] -> %2
+        invoke bootstrap_layout::bootstrap_package_module_by_name(%1[layout], "bootstrap_compiler") ok %5[compiler_layout_module] -> %1 fail %6[failure] -> %2
       block %1
-        invoke bootstrap_manifest::bootstrap_package_manifest_entry_by_name(%2[manifest], "bootstrap_compiler") ok %6[compiler_manifest_entry] -> %3 fail %7[failure] -> %4
+        invoke bootstrap_manifest::bootstrap_package_manifest_entry_by_name(%2[manifest], "bootstrap_compiler") ok %7[compiler_manifest_entry] -> %3 fail %8[failure] -> %4
       block %2
-        fail %5[failure]
+        fail %6[failure]
       block %3
-        %8[source_file_count] = call bootstrap_source::compiler_package_file_count(%0[package])
-        %9[module_count] = call bootstrap_layout::bootstrap_package_module_count(%1[layout])
-        %10[manifest_entry_count] = call bootstrap_manifest::bootstrap_package_manifest_entry_count(%2[manifest])
-        %3[$return] = construct bootstrap_release::BootstrapPackageValidation {package: %0[package], layout: %1[layout], manifest: %2[manifest], compiler_layout_module: %4[compiler_layout_module], compiler_manifest_entry: %6[compiler_manifest_entry], source_file_count: %8[source_file_count], module_count: %9[module_count], manifest_entry_count: %10[manifest_entry_count]}
-        return %3[$return]
+        %9[discovered_source_count] = %3[discovery].source_count
+        %10[source_file_count] = call bootstrap_source::compiler_package_file_count(%0[package])
+        %11[token_stream_size] = call bootstrap_lexing::seed_token_stream_size()
+        %12[syntax_module_count] = call bootstrap_parsing::seed_package_syntax_module_count()
+        %13[symbol_entry_count] = call bootstrap_semantics::seed_symbol_catalog_entry_count()
+        %14[module_count] = call bootstrap_layout::bootstrap_package_module_count(%1[layout])
+        %15[manifest_entry_count] = call bootstrap_manifest::bootstrap_package_manifest_entry_count(%2[manifest])
+        %4[$return] = construct bootstrap_release::BootstrapPackageValidation {package: %0[package], layout: %1[layout], manifest: %2[manifest], compiler_layout_module: %5[compiler_layout_module], compiler_manifest_entry: %7[compiler_manifest_entry], discovered_source_count: %9[discovered_source_count], source_file_count: %10[source_file_count], token_stream_size: %11[token_stream_size], syntax_module_count: %12[syntax_module_count], symbol_entry_count: %13[symbol_entry_count], module_count: %14[module_count], manifest_entry_count: %15[manifest_entry_count]}
+        return %4[$return]
       block %4
-        fail %7[failure]
+        fail %8[failure]
   - private fn bootstrap_release::append_bootstrap_stage_argument -> List<Text>
       locals:
         %0[arguments] : List<Text>
@@ -1492,7 +1501,7 @@ functions:
         %5[source] = call bootstrap_source::compiler_package(%2[environment], %6[tmp])
         %7[layout] = call bootstrap_layout::bootstrap_package_layout(%5[source])
         %8[manifest] = call bootstrap_manifest::bootstrap_package_manifest(%5[source], %7[layout])
-        invoke bootstrap_release::bootstrap_package_validation(%5[source], %7[layout], %8[manifest]) ok %9[package_validation] -> %1 fail %10[failure] -> %2
+        invoke bootstrap_release::bootstrap_package_validation(%5[source], %7[layout], %8[manifest], %3[discovery]) ok %9[package_validation] -> %1 fail %10[failure] -> %2
       block %1
         %11[outlined] = call bootstrap_pipeline::outline(%5[source])
         %12[seed] = call bootstrap_pipeline::compile_with_seed(%11[outlined])
