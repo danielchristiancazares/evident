@@ -324,6 +324,8 @@ enum class CompilerOwnedFunctionLowering {
     WidenCollection,
     CountCollection,
     RequireNonEmptyCollection,
+    ListSingle,
+    ListFirstCopy,
 };
 
 enum class RequireNonEmptyCollectionFamily {
@@ -345,6 +347,12 @@ CompilerOwnedFunctionLowering compiler_owned_function_lowering(std::string_view 
     }
     if (base_name == "list_require_nonempty" || base_name == "map_require_nonempty") {
         return CompilerOwnedFunctionLowering::RequireNonEmptyCollection;
+    }
+    if (base_name == "list_single") {
+        return CompilerOwnedFunctionLowering::ListSingle;
+    }
+    if (base_name == "nonempty_list_first_copy") {
+        return CompilerOwnedFunctionLowering::ListFirstCopy;
     }
     return CompilerOwnedFunctionLowering::Unsupported;
 }
@@ -563,6 +571,10 @@ enum class YieldReturnKind {
     Failure,
 };
 
+enum class RuntimeHelper {
+    Malloc,
+};
+
 enum class BlockVisitState {
     AwaitingFirstVisit,
     AlreadyVisited,
@@ -671,6 +683,7 @@ public:
 
     [[nodiscard]] std::expected<std::string, std::string> emit();
     [[nodiscard]] std::expected<StringGlobal, std::string> intern_string(const std::string& lexeme);
+    void require_runtime_helper(RuntimeHelper helper);
 
 private:
     [[nodiscard]] std::string emit_entry_wrapper(const hir::FunctionDecl& source_main) const;
@@ -682,6 +695,7 @@ private:
     EntryPointEmission entry_point_emission_ = EntryPointEmission::UserFunctionsOnly;
     std::vector<StringGlobal> string_globals_;
     std::unordered_map<std::string, std::size_t> string_indices_;
+    std::vector<RuntimeHelper> runtime_helpers_;
 };
 
 [[nodiscard]] ResolvedType resolved_type_from_field(const FieldLayout& field);
@@ -1878,6 +1892,17 @@ std::expected<std::string, std::string> ModuleEmitter::emit() {
         out << '\n';
     }
 
+    for (const RuntimeHelper helper : runtime_helpers_) {
+        switch (helper) {
+        case RuntimeHelper::Malloc:
+            out << "declare ptr @malloc(i64)\n";
+            break;
+        }
+    }
+    if (!runtime_helpers_.empty()) {
+        out << '\n';
+    }
+
     for (const std::string& function_chunk : function_chunks) {
         out << function_chunk;
         if (!function_chunk.empty() && function_chunk.back() != '\n') {
@@ -1902,6 +1927,13 @@ std::expected<StringGlobal, std::string> ModuleEmitter::intern_string(const std:
     string_indices_.emplace(*decoded, index);
     string_globals_.push_back(StringGlobal{"evid.str." + std::to_string(index), *decoded});
     return string_globals_.back();
+}
+
+void ModuleEmitter::require_runtime_helper(RuntimeHelper helper) {
+    if (std::find(runtime_helpers_.begin(), runtime_helpers_.end(), helper) != runtime_helpers_.end()) {
+        return;
+    }
+    runtime_helpers_.push_back(helper);
 }
 
 std::string ModuleEmitter::emit_entry_wrapper(const hir::FunctionDecl& source_main) const {
@@ -2249,6 +2281,58 @@ std::expected<std::string, std::string> FunctionEmitter::emit_compiler_owned_fun
         out << "entry:\n";
         out << "  %count0 = extractvalue " << param_types[0].llvm_type() << " %arg0, 1\n";
         out << "  ret " << return_type.llvm_type() << " %count0\n";
+        out << "}\n";
+        return out.str();
+
+    case CompilerOwnedFunctionLowering::ListSingle: {
+        if (param_types.size() != 1) {
+            return std::unexpected("internal backend error: list single function '"
+                                   + hir_function_.qualified_name + "' expected one parameter");
+        }
+        if (!has_builtin_kind(return_type, BuiltinKind::NonEmptyList)) {
+            return std::unexpected("internal backend error: list single function '"
+                                   + hir_function_.qualified_name + "' returns '"
+                                   + return_type.source_name() + "'");
+        }
+        if (param_types[0].materialization() == MaterializationState::NeverValue) {
+            return std::unexpected("internal backend error: list single function '"
+                                   + hir_function_.qualified_name + "' stores `Never`");
+        }
+
+        module_.require_runtime_helper(RuntimeHelper::Malloc);
+        const std::size_t element_size = std::max<std::size_t>(param_types[0].size(), 1);
+        out << "define " << linkage << return_type.llvm_type() << " @"
+            << model_.function_symbol(hir_function_.id) << "(" << param_types[0].llvm_type() << " %arg0) {\n";
+        out << "entry:\n";
+        out << "  %data0 = call ptr @malloc(i64 " << element_size << ")\n";
+        out << "  store " << param_types[0].llvm_type() << " %arg0, ptr %data0\n";
+        out << "  %carrier0 = insertvalue " << return_type.llvm_type() << " zeroinitializer, ptr %data0, 0\n";
+        out << "  %carrier1 = insertvalue " << return_type.llvm_type() << " %carrier0, i64 1, 1\n";
+        out << "  ret " << return_type.llvm_type() << " %carrier1\n";
+        out << "}\n";
+        return out.str();
+    }
+
+    case CompilerOwnedFunctionLowering::ListFirstCopy:
+        if (param_types.size() != 1) {
+            return std::unexpected("internal backend error: list first-copy function '"
+                                   + hir_function_.qualified_name + "' expected one parameter");
+        }
+        if (!has_builtin_kind(param_types[0], BuiltinKind::NonEmptyList)) {
+            return std::unexpected("internal backend error: list first-copy function '"
+                                   + hir_function_.qualified_name + "' has unsupported parameter type '"
+                                   + param_types[0].source_name() + "'");
+        }
+        if (return_type.materialization() == MaterializationState::NeverValue) {
+            return std::unexpected("internal backend error: list first-copy function '"
+                                   + hir_function_.qualified_name + "' returns `Never`");
+        }
+        out << "define " << linkage << return_type.llvm_type() << " @"
+            << model_.function_symbol(hir_function_.id) << "(" << param_types[0].llvm_type() << " %arg0) {\n";
+        out << "entry:\n";
+        out << "  %data0 = extractvalue " << param_types[0].llvm_type() << " %arg0, 0\n";
+        out << "  %first0 = load " << return_type.llvm_type() << ", ptr %data0\n";
+        out << "  ret " << return_type.llvm_type() << " %first0\n";
         out << "}\n";
         return out.str();
 

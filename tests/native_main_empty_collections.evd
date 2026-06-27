@@ -31,6 +31,14 @@ public fn nonempty_map_count(entries: NonEmptyMap<Text, Int>) -> Nat {
     nonempty_map_count_copy<Text, Int>(entries)
 }
 
+public fn single_list() -> NonEmptyList<Int> {
+    list_single<Int>(7)
+}
+
+public fn first_value(values: NonEmptyList<Int>) -> Int {
+    nonempty_list_first_copy<Int>(values)
+}
+
 public fn require_empty_map(entries: Map<Text, Int>) -> Int {
     match map_require_nonempty<Text, Int>(entries) {
         succeeded(actual) => {
@@ -55,7 +63,19 @@ public fn require_empty_collections() -> Int {
     }
 }
 
+public fn require_single_list() -> Int {
+    let values = single_list()
+    let widened = widened_list(values)
+    let value_count = list_count(widened)
+    let required = match list_require_nonempty<Int>(widened) {
+        succeeded(actual) => actual,
+        failed(ListHadNoElements) => single_list(),
+    }
+    first_value(required)
+}
+
 public fn main() -> Int {
-    require_empty_collections()
+    let empty_result = require_empty_collections()
+    require_single_list()
 }
 }

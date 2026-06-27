@@ -9,6 +9,8 @@ target triple = "x86_64-pc-windows-msvc"
 %evid.yield.map_require_nonempty$Text$Int = type { i8, [7 x i8], { i64, [8 x i8] } }
 %evid.yield.list_require_nonempty$Int = type { i8, [7 x i8], { i64, [8 x i8] } }
 
+declare ptr @malloc(i64)
+
 define { ptr, i64 } @evid$test$empty_list() {
 entry:
   %slot0 = alloca { ptr, i64 }
@@ -125,6 +127,35 @@ entry:
 bb0:
   %load0 = load { ptr, i64 }, ptr %slot0
   %call1 = call i64 @evid$nonempty_map_count_copy$Text$Int({ ptr, i64 } %load0)
+  store i64 %call1, ptr %slot1
+  %load2 = load i64, ptr %slot1
+  ret i64 %load2
+
+}
+
+define { ptr, i64 } @evid$test$single_list() {
+entry:
+  %slot0 = alloca { ptr, i64 }
+  br label %bb0
+
+bb0:
+  %call0 = call { ptr, i64 } @evid$list_single$Int(i64 7)
+  store { ptr, i64 } %call0, ptr %slot0
+  %load1 = load { ptr, i64 }, ptr %slot0
+  ret { ptr, i64 } %load1
+
+}
+
+define i64 @evid$test$first_value({ ptr, i64 } %arg0) {
+entry:
+  %slot0 = alloca { ptr, i64 }
+  %slot1 = alloca i64
+  store { ptr, i64 } %arg0, ptr %slot0
+  br label %bb0
+
+bb0:
+  %load0 = load { ptr, i64 }, ptr %slot0
+  %call1 = call i64 @evid$nonempty_list_first_copy$Int({ ptr, i64 } %load0)
   store i64 %call1, ptr %slot1
   %load2 = load i64, ptr %slot1
   ret i64 %load2
@@ -279,16 +310,97 @@ bb.trap.3:
 
 }
 
+define i64 @evid$test$require_single_list() {
+entry:
+  %slot0 = alloca i64
+  %slot1 = alloca { ptr, i64 }
+  %slot2 = alloca { ptr, i64 }
+  %slot3 = alloca i64
+  %slot4 = alloca { ptr, i64 }
+  %slot5 = alloca { ptr, i64 }
+  %slot6 = alloca %evid.type.ListCardinalityFailure
+  %slot7 = alloca { ptr, i64 }
+  br label %bb0
+
+bb0:
+  %call0 = call { ptr, i64 } @evid$test$single_list()
+  store { ptr, i64 } %call0, ptr %slot1
+  %load1 = load { ptr, i64 }, ptr %slot1
+  %call2 = call { ptr, i64 } @evid$test$widened_list({ ptr, i64 } %load1)
+  store { ptr, i64 } %call2, ptr %slot2
+  %load3 = load { ptr, i64 }, ptr %slot2
+  %call4 = call i64 @evid$test$list_count({ ptr, i64 } %load3)
+  store i64 %call4, ptr %slot3
+  %load5 = load { ptr, i64 }, ptr %slot2
+  %invoke6 = call %evid.yield.list_require_nonempty$Int @evid$list_require_nonempty$Int({ ptr, i64 } %load5)
+  %ext7 = extractvalue %evid.yield.list_require_nonempty$Int %invoke6, 0
+  %ext8 = extractvalue %evid.yield.list_require_nonempty$Int %invoke6, 2
+  %unpack.slot9 = alloca { i64, [8 x i8] }
+  store { i64, [8 x i8] } %ext8, ptr %unpack.slot9
+  %unpack10 = load { ptr, i64 }, ptr %unpack.slot9
+  %unpack.slot11 = alloca { i64, [8 x i8] }
+  store { i64, [8 x i8] } %ext8, ptr %unpack.slot11
+  %unpack12 = load %evid.type.ListCardinalityFailure, ptr %unpack.slot11
+  switch i8 %ext7, label %bb.trap.2 [
+    i8 0, label %bb.invoke.ok.0
+    i8 1, label %bb.invoke.fail.1
+  ]
+
+bb1:
+  %load13 = load { ptr, i64 }, ptr %slot5
+  store { ptr, i64 } %load13, ptr %slot7
+  %load14 = load { ptr, i64 }, ptr %slot7
+  store { ptr, i64 } %load14, ptr %slot4
+  br label %bb3
+
+bb2:
+  %load15 = load %evid.type.ListCardinalityFailure, ptr %slot6
+  %ext16 = extractvalue %evid.type.ListCardinalityFailure %load15, 0
+  switch i32 %ext16, label %bb.trap.3 [
+    i32 1, label %bb4
+  ]
+
+bb3:
+  %load17 = load { ptr, i64 }, ptr %slot4
+  %call18 = call i64 @evid$test$first_value({ ptr, i64 } %load17)
+  store i64 %call18, ptr %slot0
+  %load19 = load i64, ptr %slot0
+  ret i64 %load19
+
+bb4:
+  %call20 = call { ptr, i64 } @evid$test$single_list()
+  store { ptr, i64 } %call20, ptr %slot4
+  br label %bb3
+
+bb.invoke.ok.0:
+  store { ptr, i64 } %unpack10, ptr %slot5
+  br label %bb1
+
+bb.invoke.fail.1:
+  store %evid.type.ListCardinalityFailure %unpack12, ptr %slot6
+  br label %bb2
+
+bb.trap.2:
+  unreachable
+
+bb.trap.3:
+  unreachable
+
+}
+
 define i64 @evid$test$main() {
 entry:
   %slot0 = alloca i64
+  %slot1 = alloca i64
   br label %bb0
 
 bb0:
   %call0 = call i64 @evid$test$require_empty_collections()
-  store i64 %call0, ptr %slot0
-  %load1 = load i64, ptr %slot0
-  ret i64 %load1
+  store i64 %call0, ptr %slot1
+  %call1 = call i64 @evid$test$require_single_list()
+  store i64 %call1, ptr %slot0
+  %load2 = load i64, ptr %slot0
+  ret i64 %load2
 
 }
 
@@ -334,6 +446,22 @@ define i64 @evid$nonempty_map_count_copy$Text$Int({ ptr, i64 } %arg0) {
 entry:
   %count0 = extractvalue { ptr, i64 } %arg0, 1
   ret i64 %count0
+}
+
+define { ptr, i64 } @evid$list_single$Int(i64 %arg0) {
+entry:
+  %data0 = call ptr @malloc(i64 8)
+  store i64 %arg0, ptr %data0
+  %carrier0 = insertvalue { ptr, i64 } zeroinitializer, ptr %data0, 0
+  %carrier1 = insertvalue { ptr, i64 } %carrier0, i64 1, 1
+  ret { ptr, i64 } %carrier1
+}
+
+define i64 @evid$nonempty_list_first_copy$Int({ ptr, i64 } %arg0) {
+entry:
+  %data0 = extractvalue { ptr, i64 } %arg0, 0
+  %first0 = load i64, ptr %data0
+  ret i64 %first0
 }
 
 define %evid.yield.map_require_nonempty$Text$Int @evid$map_require_nonempty$Text$Int({ ptr, i64 } %arg0) {
