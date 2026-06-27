@@ -1,0 +1,64 @@
+import bootstrap_source;
+import bootstrap_lexing;
+import bootstrap_parsing;
+
+domain module bootstrap_semantics {
+public record SymbolName {
+    public text: Text,
+}
+
+public state SymbolCategory {
+    ModuleScopeAvailable,
+    ProductShapeAvailable,
+    RuntimeAlternativeAvailable,
+    FailureExplanationAvailable,
+    ProofWitnessAvailable,
+    AuthorityScopeAvailable,
+    LifecyclePositionsAvailable,
+    BehaviorAvailable,
+}
+
+public record Symbol {
+    public name: SymbolName,
+    public category: SymbolCategory,
+    public declared_at: bootstrap_lexing::SourceSpan,
+}
+
+public record SymbolCatalog {
+    public symbols_by_name: NonEmptyMap<Text, Symbol>,
+}
+
+public reason SemanticRejection {
+    PackageDeclaredConflictingName { name: SymbolName },
+    SyntaxNameCouldNotResolve { name: SymbolName },
+}
+
+public fn symbol_name(text: Text) -> SymbolName {
+    SymbolName { text }
+}
+
+public fn symbol(name: SymbolName, category: SymbolCategory, declared_at: bootstrap_lexing::SourceSpan) -> Symbol {
+    Symbol {
+        name,
+        category,
+        declared_at,
+    }
+}
+
+public fn seed_symbol_catalog(syntax: bootstrap_parsing::PackageSyntax) -> SymbolCatalog {
+    let source_path = bootstrap_source::SourcePath { text: "bootstrap/compiler/src/source.evd" };
+    let declared_at = bootstrap_lexing::source_span(source_path, 0, 30);
+    let name = symbol_name("bootstrap_source");
+    let first_symbol = symbol(name, ModuleScopeAvailable, declared_at);
+
+    SymbolCatalog {
+        symbols_by_name: map_single<Text, Symbol>(name.text, first_symbol),
+    }
+}
+
+public fn seed_symbol_catalog_entry_count() -> Nat {
+    let syntax = bootstrap_parsing::seed_package_syntax(bootstrap_lexing::seed_token_stream());
+    let catalog = seed_symbol_catalog(syntax);
+    nonempty_map_count_copy<Text, Symbol>(catalog.symbols_by_name)
+}
+}

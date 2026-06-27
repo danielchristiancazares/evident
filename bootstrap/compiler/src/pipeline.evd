@@ -1,12 +1,14 @@
 import bootstrap_source;
 import bootstrap_lexing;
 import bootstrap_parsing;
+import bootstrap_semantics;
 
 domain module bootstrap_pipeline {
 public record PackageOutline {
     public source: bootstrap_source::PackageSource,
     public tokens: bootstrap_lexing::TokenStream,
     public syntax: bootstrap_parsing::PackageSyntax,
+    public symbols: bootstrap_semantics::SymbolCatalog,
 }
 
 public phase CompilerPipeline {
@@ -34,13 +36,15 @@ public record StageReceipt {
 
 public fn outline(source: bootstrap_source::PackageSource) -> CompilerPipeline::SourceOutlined {
     let tokens = bootstrap_lexing::seed_token_stream();
+    let syntax = bootstrap_parsing::seed_package_syntax(tokens);
 
     CompilerPipeline::SourceOutlined {
         package_name: source.identity.name,
         outline: PackageOutline {
             source,
             tokens,
-            syntax: bootstrap_parsing::seed_package_syntax(tokens),
+            syntax,
+            symbols: bootstrap_semantics::seed_symbol_catalog(syntax),
         },
     }
 }

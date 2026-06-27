@@ -3,6 +3,7 @@
 src/source.evd
 src/lexing.evd
 src/parsing.evd
+src/semantics.evd
 src/diagnostics.evd
 src/host.evd
 src/pipeline.evd
