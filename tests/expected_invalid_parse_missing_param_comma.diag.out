@@ -1,0 +1,3 @@
+<input>:2:26: error: expected ',' between parameters
+    public fn pair(left: Int right: Int) -> Int {
+                             ^^^^^

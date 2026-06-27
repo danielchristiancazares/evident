@@ -16,6 +16,11 @@ enum class FieldSeparatorRecovery {
     ContinueWithNextField,
 };
 
+enum class ParameterSeparatorRecovery {
+    StopParameterList,
+    ContinueWithNextParameter,
+};
+
 DeclarationStartState declaration_start_state(TokenKind kind) {
     switch (kind) {
     case TokenKind::KeywordPublic:
@@ -56,6 +61,16 @@ FieldSeparatorRecovery field_after_missing_separator(TokenKind first, TokenKind 
         return FieldSeparatorRecovery::ContinueWithNextField;
     }
     return FieldSeparatorRecovery::StopFieldBlock;
+}
+
+ParameterSeparatorRecovery parameter_after_missing_separator(TokenKind first, TokenKind second, TokenKind third) {
+    if (first == TokenKind::Identifier && second == TokenKind::Colon) {
+        return ParameterSeparatorRecovery::ContinueWithNextParameter;
+    }
+    if (first == TokenKind::KeywordAs && second == TokenKind::Identifier && third == TokenKind::Colon) {
+        return ParameterSeparatorRecovery::ContinueWithNextParameter;
+    }
+    return ParameterSeparatorRecovery::StopParameterList;
 }
 
 } // namespace
@@ -565,6 +580,11 @@ std::vector<ast::Parameter> Parser::parse_parameter_list() {
             }
             continue;
         }
+        if (parameter_after_missing_separator(peek().kind(), peek(1).kind(), peek(2).kind())
+            == ParameterSeparatorRecovery::ContinueWithNextParameter) {
+            diagnostics_.error(peek().span(), "expected ',' between parameters");
+            continue;
+        }
         break;
     }
     expect(TokenKind::RightParen, "expected ')' after parameter list");
@@ -597,6 +617,11 @@ std::vector<ast::Parameter> Parser::parse_foreign_parameter_list() {
             if (token_check(TokenKind::RightParen) == TokenCheckState::Matches) {
                 break;
             }
+            continue;
+        }
+        if (parameter_after_missing_separator(peek().kind(), peek(1).kind(), peek(2).kind())
+            == ParameterSeparatorRecovery::ContinueWithNextParameter) {
+            diagnostics_.error(peek().span(), "expected ',' between parameters");
             continue;
         }
         break;

@@ -1,0 +1,5 @@
+domain module test {
+public fn pair(left: Int right: Int) -> Int {
+    left
+}
+}
