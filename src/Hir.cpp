@@ -100,6 +100,76 @@ const std::vector<std::pair<std::string_view, std::vector<std::string_view>>> kC
     {"MapMergeFailure", {"InputsHadSharedKey"}},
 };
 
+enum class CollectionTypeTemplate {
+    GenericT,
+    Nat,
+    ListT,
+    NonEmptyListT,
+    ListFirstAndRestT,
+};
+
+struct CollectionFunctionParamSpec {
+    std::string_view name;
+    CollectionTypeTemplate type;
+};
+
+struct CollectionFunctionSpec {
+    std::string_view name;
+    std::vector<CollectionFunctionParamSpec> params;
+    CollectionTypeTemplate return_type;
+    std::string_view failure_reason;
+};
+
+const std::vector<CollectionFunctionSpec> kCompilerOwnedListFunctionSpecs = {
+    {"list_empty", {}, CollectionTypeTemplate::ListT, {}},
+    {"list_single", {{"value", CollectionTypeTemplate::GenericT}}, CollectionTypeTemplate::NonEmptyListT, {}},
+    {"list_prepend",
+     {{"value", CollectionTypeTemplate::GenericT}, {"values", CollectionTypeTemplate::ListT}},
+     CollectionTypeTemplate::NonEmptyListT,
+     {}},
+    {"list_append",
+     {{"values", CollectionTypeTemplate::ListT}, {"value", CollectionTypeTemplate::GenericT}},
+     CollectionTypeTemplate::NonEmptyListT,
+     {}},
+    {"list_concat",
+     {{"left", CollectionTypeTemplate::ListT}, {"right", CollectionTypeTemplate::ListT}},
+     CollectionTypeTemplate::ListT,
+     {}},
+    {"nonempty_list_concat_left",
+     {{"left", CollectionTypeTemplate::NonEmptyListT}, {"right", CollectionTypeTemplate::ListT}},
+     CollectionTypeTemplate::NonEmptyListT,
+     {}},
+    {"nonempty_list_concat_right",
+     {{"left", CollectionTypeTemplate::ListT}, {"right", CollectionTypeTemplate::NonEmptyListT}},
+     CollectionTypeTemplate::NonEmptyListT,
+     {}},
+    {"nonempty_list_concat",
+     {{"left", CollectionTypeTemplate::NonEmptyListT}, {"right", CollectionTypeTemplate::NonEmptyListT}},
+     CollectionTypeTemplate::NonEmptyListT,
+     {}},
+    {"list_require_nonempty",
+     {{"values", CollectionTypeTemplate::ListT}},
+     CollectionTypeTemplate::NonEmptyListT,
+     "ListCardinalityFailure"},
+    {"nonempty_list_widen",
+     {{"values", CollectionTypeTemplate::NonEmptyListT}},
+     CollectionTypeTemplate::ListT,
+     {}},
+    {"list_count_copy", {{"values", CollectionTypeTemplate::ListT}}, CollectionTypeTemplate::Nat, {}},
+    {"nonempty_list_count_copy",
+     {{"values", CollectionTypeTemplate::NonEmptyListT}},
+     CollectionTypeTemplate::Nat,
+     {}},
+    {"nonempty_list_first_copy",
+     {{"values", CollectionTypeTemplate::NonEmptyListT}},
+     CollectionTypeTemplate::GenericT,
+     {}},
+    {"nonempty_list_consume_first",
+     {{"values", CollectionTypeTemplate::NonEmptyListT}},
+     CollectionTypeTemplate::ListFirstAndRestT,
+     {}},
+};
+
 struct Scope;
 
 struct Symbol {
@@ -296,6 +366,7 @@ struct Lowerer {
     Package package;
     Scope root;
     std::vector<std::unique_ptr<ast::ReasonDecl>> collection_reason_decls;
+    std::vector<std::unique_ptr<ast::FunctionDecl>> collection_function_decls;
     std::unordered_map<const ast::Decl*, std::string> qualified_names;
     std::unordered_map<const ast::Decl*, const Scope*> decl_scopes;
     std::unordered_map<const ast::Decl*, TypeId> type_ids;
@@ -321,6 +392,15 @@ private:
     [[nodiscard]] const std::vector<std::string_view>* collection_reason_variant_names(
         std::string_view reason_name) const;
     [[nodiscard]] std::string_view collection_reason_name_for_type_ref(const ast::TypeRef& type_ref) const;
+    void declare_referenced_collection_functions(const std::vector<std::unique_ptr<ast::Decl>>& decls);
+    void declare_referenced_collection_functions(const ast::BlockExpr& block);
+    void declare_referenced_collection_functions(const ast::Expr& expr);
+    void declare_collection_function(std::string_view function_name);
+    [[nodiscard]] const CollectionFunctionSpec* collection_function_spec(std::string_view function_name) const;
+    [[nodiscard]] ast::TypeRef collection_type_ref(CollectionTypeTemplate type_template) const;
+    [[nodiscard]] ast::TypeRef collection_reason_type_ref(std::string_view reason_name) const;
+    [[nodiscard]] std::unique_ptr<ast::FunctionDecl> make_collection_function_decl(
+        const CollectionFunctionSpec& spec) const;
     void declare_decls(const std::vector<std::unique_ptr<ast::Decl>>& decls,
                        Scope& scope,
                        const std::string& prefix);
@@ -418,6 +498,7 @@ private:
 
 Package Lowerer::lower(const ast::TranslationUnit& unit) {
     declare_referenced_collection_reasons(unit.decls);
+    declare_referenced_collection_functions(unit.decls);
     declare_decls(unit.decls, root, "");
     populate_types(unit.decls, root);
     populate_functions(unit.decls, root);
@@ -505,6 +586,252 @@ void Lowerer::declare_referenced_collection_reasons(const std::vector<std::uniqu
                 declare_collection_reason(reason_name);
             }
         }
+    }
+}
+
+const CollectionFunctionSpec* Lowerer::collection_function_spec(std::string_view function_name) const {
+    for (const CollectionFunctionSpec& spec : kCompilerOwnedListFunctionSpecs) {
+        if (spec.name == function_name) {
+            return &spec;
+        }
+    }
+    return nullptr;
+}
+
+ast::TypeRef Lowerer::collection_reason_type_ref(std::string_view reason_name) const {
+    ast::TypeRef type;
+    type.path.push_back(std::string(reason_name));
+    return type;
+}
+
+ast::TypeRef Lowerer::collection_type_ref(CollectionTypeTemplate type_template) const {
+    auto named_type = [](std::string_view name) {
+        ast::TypeRef type;
+        type.path.push_back(std::string(name));
+        return type;
+    };
+
+    auto single_arg_type = [&](std::string_view name) {
+        ast::TypeRef type = named_type(name);
+        type.args.push_back(named_type("T"));
+        return type;
+    };
+
+    switch (type_template) {
+    case CollectionTypeTemplate::GenericT:
+        return named_type("T");
+    case CollectionTypeTemplate::Nat:
+        return named_type("Nat");
+    case CollectionTypeTemplate::ListT:
+        return single_arg_type("List");
+    case CollectionTypeTemplate::NonEmptyListT:
+        return single_arg_type("NonEmptyList");
+    case CollectionTypeTemplate::ListFirstAndRestT:
+        return single_arg_type("ListFirstAndRest");
+    }
+    return named_type("T");
+}
+
+std::unique_ptr<ast::FunctionDecl> Lowerer::make_collection_function_decl(
+    const CollectionFunctionSpec& spec) const {
+    auto function = std::make_unique<ast::FunctionDecl>(
+        ast::Visibility::Public,
+        std::string(spec.name),
+        ast::FunctionImplementation::EvidentBody);
+    function->signature.name = function->name;
+    function->signature.generic_params.push_back(ast::GenericParam{"T", SourceSpan{}});
+    function->signature.return_type = collection_type_ref(spec.return_type);
+    if (!spec.failure_reason.empty()) {
+        function->signature.failure = ast::FunctionFailureContract::yields_reason(
+            collection_reason_type_ref(spec.failure_reason));
+    }
+    function->signature.params.reserve(spec.params.size());
+    for (const CollectionFunctionParamSpec& param_spec : spec.params) {
+        function->signature.params.push_back(ast::Parameter{
+            std::string(param_spec.name),
+            collection_type_ref(param_spec.type),
+            ast::ParameterAuthority::OrdinaryValue,
+            SourceSpan{},
+        });
+    }
+    return function;
+}
+
+void Lowerer::declare_collection_function(std::string_view function_name) {
+    const CollectionFunctionSpec* spec = collection_function_spec(function_name);
+    if (spec == nullptr) {
+        return;
+    }
+
+    const std::string name(function_name);
+    if (root.symbols.contains(name)) {
+        return;
+    }
+
+    if (!spec->failure_reason.empty()) {
+        declare_collection_reason(spec->failure_reason);
+    }
+
+    auto function = make_collection_function_decl(*spec);
+    const ast::FunctionDecl* function_ptr = function.get();
+    qualified_names[function_ptr] = function_ptr->name;
+    decl_scopes[function_ptr] = &root;
+    root.symbols.emplace(function_ptr->name,
+                         Symbol{function_ptr, function_ptr->kind, function_ptr->visibility, nullptr});
+
+    FunctionDecl lowered;
+    lowered.id = package.functions.size();
+    lowered.visibility = function_ptr->visibility;
+    lowered.qualified_name = function_ptr->name;
+    lowered.implementation = function_ptr->implementation();
+    for (const ast::GenericParam& generic : function_ptr->signature.generic_params) {
+        lowered.generics.push_back(generic.name);
+    }
+    for (const ast::Parameter& param : function_ptr->signature.params) {
+        lowered.params.push_back(Parameter{
+            param.name,
+            lower_type_ref(root, lowered.generics, param.type),
+            param.authority,
+        });
+    }
+    lowered.return_type = lower_type_ref(root, lowered.generics, function_ptr->signature.return_type);
+    if (function_ptr->signature.failure.behavior() == ast::FunctionFailureBehavior::YieldsReason) {
+        TypeRef fails_type = lower_type_ref(root, lowered.generics, function_ptr->signature.failure.reason_type());
+        if (fails_type.identity.source() == TypeIdentitySource::PackageTypeDeclaration) {
+            lowered.failure = FunctionFailureContract::yields_reason(fails_type.identity.package_type_id());
+        }
+    }
+    package.functions.push_back(std::move(lowered));
+    function_ids[function_ptr] = package.functions.back().id;
+    collection_function_decls.push_back(std::move(function));
+}
+
+void Lowerer::declare_referenced_collection_functions(const std::vector<std::unique_ptr<ast::Decl>>& decls) {
+    for (const auto& decl_ptr : decls) {
+        const ast::Decl& decl = *decl_ptr;
+        if (decl.kind == ast::DeclKind::Module) {
+            const auto& module_decl = static_cast<const ast::ModuleDecl&>(decl);
+            declare_referenced_collection_functions(module_decl.members);
+            continue;
+        }
+        if (decl.kind != ast::DeclKind::Function && decl.kind != ast::DeclKind::ForeignFunction) {
+            continue;
+        }
+
+        const auto& function_decl = static_cast<const ast::FunctionDecl&>(decl);
+        if (function_decl.body != nullptr) {
+            declare_referenced_collection_functions(*function_decl.body);
+        }
+    }
+}
+
+void Lowerer::declare_referenced_collection_functions(const ast::BlockExpr& block) {
+    for (const auto& stmt : block.statements) {
+        if (stmt->kind == ast::StmtKind::Let) {
+            const auto& let_stmt = static_cast<const ast::LetStmt&>(*stmt);
+            if (let_stmt.initializer != nullptr) {
+                declare_referenced_collection_functions(*let_stmt.initializer);
+            }
+            continue;
+        }
+        if (stmt->kind == ast::StmtKind::Expr) {
+            const auto& expr_stmt = static_cast<const ast::ExprStmt&>(*stmt);
+            if (expr_stmt.expr != nullptr) {
+                declare_referenced_collection_functions(*expr_stmt.expr);
+            }
+        }
+    }
+    if (block.result != nullptr) {
+        declare_referenced_collection_functions(*block.result);
+    }
+}
+
+void Lowerer::declare_referenced_collection_functions(const ast::Expr& expr) {
+    switch (expr.kind) {
+    case ast::ExprKind::NumberLiteral:
+    case ast::ExprKind::StringLiteral:
+    case ast::ExprKind::Path:
+        break;
+    case ast::ExprKind::Call: {
+        const auto& call = static_cast<const ast::CallExpr&>(expr);
+        if (call.callee != nullptr) {
+            if (const ast::PathExpr* callee_path = path_expr(*call.callee);
+                callee_path != nullptr && callee_path->path.size() == 1) {
+                declare_collection_function(callee_path->path.front());
+            }
+            declare_referenced_collection_functions(*call.callee);
+        }
+        for (const auto& arg : call.args) {
+            declare_referenced_collection_functions(*arg);
+        }
+        break;
+    }
+    case ast::ExprKind::Construct: {
+        const auto& construct = static_cast<const ast::ConstructExpr&>(expr);
+        for (const ast::RecordFieldInit& field : construct.fields) {
+            if (field.value != nullptr) {
+                declare_referenced_collection_functions(*field.value);
+            }
+        }
+        break;
+    }
+    case ast::ExprKind::Try: {
+        const auto& try_expr = static_cast<const ast::TryExpr&>(expr);
+        if (try_expr.operand != nullptr) {
+            declare_referenced_collection_functions(*try_expr.operand);
+        }
+        break;
+    }
+    case ast::ExprKind::Match: {
+        const auto& match_expr = static_cast<const ast::MatchExpr&>(expr);
+        if (match_expr.scrutinee != nullptr) {
+            declare_referenced_collection_functions(*match_expr.scrutinee);
+        }
+        for (const ast::MatchArm& arm : match_expr.arms) {
+            if (arm.body != nullptr) {
+                declare_referenced_collection_functions(*arm.body);
+            }
+        }
+        break;
+    }
+    case ast::ExprKind::Block:
+        declare_referenced_collection_functions(static_cast<const ast::BlockExpr&>(expr));
+        break;
+    case ast::ExprKind::Fail: {
+        const auto& fail_expr = static_cast<const ast::FailExpr&>(expr);
+        for (const ast::RecordFieldInit& field : fail_expr.fields) {
+            if (field.value != nullptr) {
+                declare_referenced_collection_functions(*field.value);
+            }
+        }
+        break;
+    }
+    case ast::ExprKind::Grant: {
+        const auto& grant_expr = static_cast<const ast::GrantExpr&>(expr);
+        if (grant_expr.grant_call != nullptr) {
+            declare_referenced_collection_functions(*grant_expr.grant_call);
+        }
+        if (grant_expr.body != nullptr) {
+            declare_referenced_collection_functions(*grant_expr.body);
+        }
+        break;
+    }
+    case ast::ExprKind::Prove: {
+        const auto& prove_expr = static_cast<const ast::ProveExpr&>(expr);
+        for (const ast::RecordFieldInit& field : prove_expr.fields) {
+            if (field.value != nullptr) {
+                declare_referenced_collection_functions(*field.value);
+            }
+        }
+        break;
+    }
+    case ast::ExprKind::FieldAccess: {
+        const auto& field_access = static_cast<const ast::FieldAccessExpr&>(expr);
+        if (field_access.object != nullptr) {
+            declare_referenced_collection_functions(*field_access.object);
+        }
+        break;
+    }
     }
 }
 

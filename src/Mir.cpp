@@ -731,7 +731,7 @@ Function Builder::lower(const hir::FunctionDecl& source) {
                                   param.type.discipline);
         env.locals.emplace(param.name, local);
     }
-    if (source.implementation == ast::FunctionImplementation::ForeignImport) {
+    if (source.implementation == ast::FunctionImplementation::ForeignImport || source.body == nullptr) {
         return std::move(function);
     }
 

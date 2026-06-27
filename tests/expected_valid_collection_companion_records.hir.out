@@ -14,6 +14,20 @@ types:
       field first_entry: MapFirstEntryAndRest<Text, Int>
       field bound_value: MapBoundValueAndRest<Bytes, Text>
 functions:
+  - public fn list_empty<T>() -> List<T>
+  - public fn list_single<T>(value: T) -> NonEmptyList<T>
+  - public fn list_prepend<T>(value: T, values: List<T>) -> NonEmptyList<T>
+  - public fn list_append<T>(values: List<T>, value: T) -> NonEmptyList<T>
+  - public fn list_concat<T>(left: List<T>, right: List<T>) -> List<T>
+  - public fn nonempty_list_concat_left<T>(left: NonEmptyList<T>, right: List<T>) -> NonEmptyList<T>
+  - public fn nonempty_list_concat_right<T>(left: List<T>, right: NonEmptyList<T>) -> NonEmptyList<T>
+  - public fn nonempty_list_concat<T>(left: NonEmptyList<T>, right: NonEmptyList<T>) -> NonEmptyList<T>
+  - public fn list_require_nonempty<T>(values: List<T>) -> NonEmptyList<T> fails ListCardinalityFailure
+  - public fn nonempty_list_widen<T>(values: NonEmptyList<T>) -> List<T>
+  - public fn list_count_copy<T>(values: List<T>) -> Nat
+  - public fn nonempty_list_count_copy<T>(values: NonEmptyList<T>) -> Nat
+  - public fn nonempty_list_first_copy<T>(values: NonEmptyList<T>) -> T
+  - public fn nonempty_list_consume_first<T>(values: NonEmptyList<T>) -> ListFirstAndRest<T>
   - public fn test::keep_first(first: ListFirstAndRest<Int>) -> ListFirstAndRest<Int>
       block -> ListFirstAndRest<Int>
         result
@@ -105,3 +119,61 @@ functions:
       block -> Never
         result
           fail MapMergeFailure::InputsHadSharedKey
+  - public fn test::use_list_operations(values: List<Int>, more: List<Int>, nonempty: NonEmptyList<Int>, value: Int) -> ListFirstAndRest<Int>
+      block -> ListFirstAndRest<Int>
+        let empty: List<Int>
+          call list_empty<Int> -> List<Int>
+        let single: NonEmptyList<Int>
+          call list_single<Int> -> NonEmptyList<Int>
+            local value : Int
+        let prepended: NonEmptyList<Int>
+          call list_prepend<Int> -> NonEmptyList<Int>
+            local value : Int
+            local values : List<Int>
+        let appended: NonEmptyList<Int>
+          call list_append<Int> -> NonEmptyList<Int>
+            local values : List<Int>
+            local value : Int
+        let concatenated: List<Int>
+          call list_concat<Int> -> List<Int>
+            local values : List<Int>
+            local more : List<Int>
+        let left_nonempty: NonEmptyList<Int>
+          call nonempty_list_concat_left<Int> -> NonEmptyList<Int>
+            local nonempty : NonEmptyList<Int>
+            local values : List<Int>
+        let right_nonempty: NonEmptyList<Int>
+          call nonempty_list_concat_right<Int> -> NonEmptyList<Int>
+            local values : List<Int>
+            local nonempty : NonEmptyList<Int>
+        let both_nonempty: NonEmptyList<Int>
+          call nonempty_list_concat<Int> -> NonEmptyList<Int>
+            local nonempty : NonEmptyList<Int>
+            local nonempty : NonEmptyList<Int>
+        let required: NonEmptyList<Int>
+          match -> NonEmptyList<Int>
+            scrutinee
+              call list_require_nonempty<Int> -> NonEmptyList<Int> fails
+                local values : List<Int>
+            arm
+              pattern succeeded(actual)
+              local actual : NonEmptyList<Int>
+            arm
+              pattern failed
+                pattern ListCardinalityFailure::ListHadNoElements
+              local single : NonEmptyList<Int>
+        let widened: List<Int>
+          call nonempty_list_widen<Int> -> List<Int>
+            local required : NonEmptyList<Int>
+        let count: Nat
+          call list_count_copy<Int> -> Nat
+            local widened : List<Int>
+        let nonempty_count: Nat
+          call nonempty_list_count_copy<Int> -> Nat
+            local both_nonempty : NonEmptyList<Int>
+        let first: Int
+          call nonempty_list_first_copy<Int> -> Int
+            local nonempty : NonEmptyList<Int>
+        result
+          call nonempty_list_consume_first<Int> -> ListFirstAndRest<Int>
+            local nonempty : NonEmptyList<Int>

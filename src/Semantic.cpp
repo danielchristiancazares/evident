@@ -148,6 +148,76 @@ const std::unordered_map<std::string_view, std::vector<std::string_view>> kCompi
     {"MapMergeFailure", {"InputsHadSharedKey"}},
 };
 
+enum class CollectionTypeTemplate {
+    GenericT,
+    Nat,
+    ListT,
+    NonEmptyListT,
+    ListFirstAndRestT,
+};
+
+struct CollectionFunctionParamSpec {
+    std::string_view name;
+    CollectionTypeTemplate type;
+};
+
+struct CollectionFunctionSpec {
+    std::string_view name;
+    std::vector<CollectionFunctionParamSpec> params;
+    CollectionTypeTemplate return_type;
+    std::string_view failure_reason;
+};
+
+const std::vector<CollectionFunctionSpec> kCompilerOwnedListFunctionSpecs = {
+    {"list_empty", {}, CollectionTypeTemplate::ListT, {}},
+    {"list_single", {{"value", CollectionTypeTemplate::GenericT}}, CollectionTypeTemplate::NonEmptyListT, {}},
+    {"list_prepend",
+     {{"value", CollectionTypeTemplate::GenericT}, {"values", CollectionTypeTemplate::ListT}},
+     CollectionTypeTemplate::NonEmptyListT,
+     {}},
+    {"list_append",
+     {{"values", CollectionTypeTemplate::ListT}, {"value", CollectionTypeTemplate::GenericT}},
+     CollectionTypeTemplate::NonEmptyListT,
+     {}},
+    {"list_concat",
+     {{"left", CollectionTypeTemplate::ListT}, {"right", CollectionTypeTemplate::ListT}},
+     CollectionTypeTemplate::ListT,
+     {}},
+    {"nonempty_list_concat_left",
+     {{"left", CollectionTypeTemplate::NonEmptyListT}, {"right", CollectionTypeTemplate::ListT}},
+     CollectionTypeTemplate::NonEmptyListT,
+     {}},
+    {"nonempty_list_concat_right",
+     {{"left", CollectionTypeTemplate::ListT}, {"right", CollectionTypeTemplate::NonEmptyListT}},
+     CollectionTypeTemplate::NonEmptyListT,
+     {}},
+    {"nonempty_list_concat",
+     {{"left", CollectionTypeTemplate::NonEmptyListT}, {"right", CollectionTypeTemplate::NonEmptyListT}},
+     CollectionTypeTemplate::NonEmptyListT,
+     {}},
+    {"list_require_nonempty",
+     {{"values", CollectionTypeTemplate::ListT}},
+     CollectionTypeTemplate::NonEmptyListT,
+     "ListCardinalityFailure"},
+    {"nonempty_list_widen",
+     {{"values", CollectionTypeTemplate::NonEmptyListT}},
+     CollectionTypeTemplate::ListT,
+     {}},
+    {"list_count_copy", {{"values", CollectionTypeTemplate::ListT}}, CollectionTypeTemplate::Nat, {}},
+    {"nonempty_list_count_copy",
+     {{"values", CollectionTypeTemplate::NonEmptyListT}},
+     CollectionTypeTemplate::Nat,
+     {}},
+    {"nonempty_list_first_copy",
+     {{"values", CollectionTypeTemplate::NonEmptyListT}},
+     CollectionTypeTemplate::GenericT,
+     {}},
+    {"nonempty_list_consume_first",
+     {{"values", CollectionTypeTemplate::NonEmptyListT}},
+     CollectionTypeTemplate::ListFirstAndRestT,
+     {}},
+};
+
 std::string final_path_segment_or_malformed_path(const std::vector<std::string>& path) {
     if (path.empty()) {
         return "<malformed path>";
@@ -456,6 +526,7 @@ public:
     void analyze(const ast::TranslationUnit& unit) {
         build_scope(unit.decls, root_, "");
         inject_collection_reason_decls();
+        inject_collection_function_decls();
         validate_imports(unit.imports);
         analyze_scope(unit.decls,
                       root_,
@@ -613,6 +684,7 @@ private:
     const SourceFile& source_;
     Scope root_;
     std::vector<std::unique_ptr<ast::ReasonDecl>> collection_reason_decls_;
+    std::vector<std::unique_ptr<ast::FunctionDecl>> collection_function_decls_;
     std::unordered_map<const ast::Decl*, std::string> qualified_names_;
     std::unordered_map<const ast::Decl*, const Scope*> decl_scopes_;
     std::unordered_map<std::string, std::vector<std::vector<std::string>>> imported_module_paths_by_file_;
@@ -682,6 +754,82 @@ private:
             qualified_names_[reason_ptr] = reason_ptr->name;
             decl_scopes_[reason_ptr] = &root_;
             collection_reason_decls_.push_back(std::move(reason));
+        }
+    }
+
+    ast::TypeRef collection_type_ref(CollectionTypeTemplate type_template) const {
+        auto named_type = [](std::string_view name) {
+            ast::TypeRef type;
+            type.path.push_back(std::string(name));
+            return type;
+        };
+
+        auto single_arg_type = [&](std::string_view name) {
+            ast::TypeRef type = named_type(name);
+            type.args.push_back(named_type("T"));
+            return type;
+        };
+
+        switch (type_template) {
+        case CollectionTypeTemplate::GenericT:
+            return named_type("T");
+        case CollectionTypeTemplate::Nat:
+            return named_type("Nat");
+        case CollectionTypeTemplate::ListT:
+            return single_arg_type("List");
+        case CollectionTypeTemplate::NonEmptyListT:
+            return single_arg_type("NonEmptyList");
+        case CollectionTypeTemplate::ListFirstAndRestT:
+            return single_arg_type("ListFirstAndRest");
+        }
+        return named_type("T");
+    }
+
+    std::unique_ptr<ast::FunctionDecl> make_collection_function_decl(
+        const CollectionFunctionSpec& spec) const {
+        auto function = std::make_unique<ast::FunctionDecl>(
+            ast::Visibility::Public,
+            std::string(spec.name),
+            ast::FunctionImplementation::EvidentBody);
+        function->signature.name = function->name;
+        function->signature.generic_params.push_back(ast::GenericParam{"T", SourceSpan{}});
+        function->signature.return_type = collection_type_ref(spec.return_type);
+        if (!spec.failure_reason.empty()) {
+            function->signature.failure = ast::FunctionFailureContract::yields_reason(
+                collection_type_ref_for_named_reason(spec.failure_reason));
+        }
+        function->signature.params.reserve(spec.params.size());
+        for (const CollectionFunctionParamSpec& param_spec : spec.params) {
+            function->signature.params.push_back(ast::Parameter{
+                std::string(param_spec.name),
+                collection_type_ref(param_spec.type),
+                ast::ParameterAuthority::OrdinaryValue,
+                SourceSpan{},
+            });
+        }
+        return function;
+    }
+
+    ast::TypeRef collection_type_ref_for_named_reason(std::string_view reason_name) const {
+        ast::TypeRef type;
+        type.path.push_back(std::string(reason_name));
+        return type;
+    }
+
+    void inject_collection_function_decls() {
+        for (const CollectionFunctionSpec& spec : kCompilerOwnedListFunctionSpecs) {
+            const std::string name(spec.name);
+            if (root_.symbols.contains(name)) {
+                continue;
+            }
+
+            auto function = make_collection_function_decl(spec);
+            const ast::FunctionDecl* function_ptr = function.get();
+            root_.symbols.emplace(function_ptr->name,
+                                  Symbol{function_ptr, function_ptr->kind, function_ptr->visibility, nullptr});
+            qualified_names_[function_ptr] = function_ptr->name;
+            decl_scopes_[function_ptr] = &root_;
+            collection_function_decls_.push_back(std::move(function));
         }
     }
 

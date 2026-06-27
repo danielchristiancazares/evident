@@ -1,3 +1,6 @@
 <input>:9:5: error: generic function 'identity' requires explicit type arguments
         support::identity(7)
         ^^^^^^^^^^^^^^^^^^^^
+<input>:13:5: error: generic function 'list_empty' requires explicit type arguments
+        list_empty()
+        ^^^^^^^^^^^^

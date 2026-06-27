@@ -77,4 +77,24 @@ public fn recover_binding() -> Int {
 public fn fail_shared_key() -> Int fails MapMergeFailure {
     fail InputsHadSharedKey
 }
+
+public fn use_list_operations(values: List<Int>, more: List<Int>, nonempty: NonEmptyList<Int>, value: Int) -> ListFirstAndRest<Int> {
+    let empty = list_empty<Int>()
+    let single = list_single<Int>(value)
+    let prepended = list_prepend<Int>(value, values)
+    let appended = list_append<Int>(values, value)
+    let concatenated = list_concat<Int>(values, more)
+    let left_nonempty = nonempty_list_concat_left<Int>(nonempty, values)
+    let right_nonempty = nonempty_list_concat_right<Int>(values, nonempty)
+    let both_nonempty = nonempty_list_concat<Int>(nonempty, nonempty)
+    let required = match list_require_nonempty<Int>(values) {
+        succeeded(actual) => actual,
+        failed(ListHadNoElements) => single,
+    }
+    let widened = nonempty_list_widen<Int>(required)
+    let count = list_count_copy<Int>(widened)
+    let nonempty_count = nonempty_list_count_copy<Int>(both_nonempty)
+    let first = nonempty_list_first_copy<Int>(nonempty)
+    nonempty_list_consume_first<Int>(nonempty)
+}
 }

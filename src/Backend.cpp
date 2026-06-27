@@ -2850,6 +2850,11 @@ std::expected<std::string, std::string> FunctionEmitter::emit() {
         return out.str();
     }
 
+    if (hir_function_.body == nullptr) {
+        return std::unexpected("backend does not yet support compiler-owned function '"
+                               + hir_function_.qualified_name + "'");
+    }
+
     const std::string linkage = hir_function_.visibility == ast::Visibility::Public ? "" : "internal ";
     out << "define " << linkage << signature_return_type->llvm_type() << " @" << model_.function_symbol(hir_function_.id)
         << '(';

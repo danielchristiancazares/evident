@@ -8,4 +8,8 @@ domain module app {
 public fn main() -> Int {
     support::identity(7)
 }
+
+public fn collection_missing_type_args() -> List<Int> {
+    list_empty()
+}
 }
