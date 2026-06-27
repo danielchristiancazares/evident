@@ -80,7 +80,7 @@ add_dependencies(package_checksum package)
 
 include(CTest)
 if(BUILD_TESTING)
-    set(EVIDENT_EXPECTED_CTEST_TOTAL 362)
+    set(EVIDENT_EXPECTED_CTEST_TOTAL 363)
 
     add_test(NAME parse_valid_example
         COMMAND evidc --dump-hir ${CMAKE_CURRENT_SOURCE_DIR}/examples/feature_mode.evd)
@@ -1279,6 +1279,10 @@ if(BUILD_TESTING)
         native_invalid_materialized_never.evd
         expected_backend_materialized_never.diag.out
         diag_backend_materialized_never.exe)
+    add_backend_diagnostic_compare_test(diag_backend_compiler_owned_collection_operation
+        native_invalid_compiler_owned_collection_operation.evd
+        expected_backend_compiler_owned_collection_operation.diag.out
+        diag_backend_compiler_owned_collection_operation.exe)
     add_backend_target_diagnostic_compare_test(diag_backend_unsupported_target
         native_main_constant.evd
         expected_backend_unsupported_target.diag.out
