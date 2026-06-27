@@ -93,6 +93,13 @@ const std::unordered_set<std::string_view> kCompilerOwnedCollectionCompanionReco
     "MapBoundValueAndRest",
 };
 
+const std::vector<std::pair<std::string_view, std::vector<std::string_view>>> kCompilerOwnedCollectionReasonVariants = {
+    {"ListCardinalityFailure", {"ListHadNoElements"}},
+    {"MapCardinalityFailure", {"MapHadNoEntries"}},
+    {"MapBindingFailure", {"RequestedKeyHadNoBinding", "RequestedKeyAlreadyHadBinding"}},
+    {"MapMergeFailure", {"InputsHadSharedKey"}},
+};
+
 struct Scope;
 
 struct Symbol {
@@ -288,6 +295,7 @@ TypeRef builtin_type_ref(std::string name, std::vector<TypeRef> args = {}) {
 struct Lowerer {
     Package package;
     Scope root;
+    std::vector<std::unique_ptr<ast::ReasonDecl>> collection_reason_decls;
     std::unordered_map<const ast::Decl*, std::string> qualified_names;
     std::unordered_map<const ast::Decl*, const Scope*> decl_scopes;
     std::unordered_map<const ast::Decl*, TypeId> type_ids;
@@ -308,6 +316,11 @@ struct Lowerer {
     [[nodiscard]] Package lower(const ast::TranslationUnit& unit);
 
 private:
+    void declare_referenced_collection_reasons(const std::vector<std::unique_ptr<ast::Decl>>& decls);
+    void declare_collection_reason(std::string_view reason_name);
+    [[nodiscard]] const std::vector<std::string_view>* collection_reason_variant_names(
+        std::string_view reason_name) const;
+    [[nodiscard]] std::string_view collection_reason_name_for_type_ref(const ast::TypeRef& type_ref) const;
     void declare_decls(const std::vector<std::unique_ptr<ast::Decl>>& decls,
                        Scope& scope,
                        const std::string& prefix);
@@ -404,11 +417,95 @@ private:
 };
 
 Package Lowerer::lower(const ast::TranslationUnit& unit) {
+    declare_referenced_collection_reasons(unit.decls);
     declare_decls(unit.decls, root, "");
     populate_types(unit.decls, root);
     populate_functions(unit.decls, root);
     lower_function_bodies(unit.decls, root);
     return std::move(package);
+}
+
+const std::vector<std::string_view>* Lowerer::collection_reason_variant_names(
+    std::string_view reason_name) const {
+    for (const auto& [candidate_name, variant_names] : kCompilerOwnedCollectionReasonVariants) {
+        if (candidate_name == reason_name) {
+            return &variant_names;
+        }
+    }
+    return nullptr;
+}
+
+std::string_view Lowerer::collection_reason_name_for_type_ref(const ast::TypeRef& type_ref) const {
+    if (type_ref.path.size() != 1 || !type_ref.args.empty()) {
+        return {};
+    }
+    const std::string& reason_name = type_ref.path.front();
+    return collection_reason_variant_names(reason_name) != nullptr ? std::string_view(reason_name) : std::string_view{};
+}
+
+void Lowerer::declare_collection_reason(std::string_view reason_name) {
+    const std::vector<std::string_view>* variant_names = collection_reason_variant_names(reason_name);
+    if (variant_names == nullptr) {
+        return;
+    }
+
+    const std::string name(reason_name);
+    if (root.symbols.contains(name)) {
+        return;
+    }
+
+    auto reason = std::make_unique<ast::ReasonDecl>(ast::Visibility::Public, name);
+    for (std::string_view variant_name : *variant_names) {
+        ast::Variant variant;
+        variant.name = std::string(variant_name);
+        reason->variants.push_back(std::move(variant));
+    }
+
+    const ast::ReasonDecl* reason_ptr = reason.get();
+    qualified_names[reason_ptr] = reason_ptr->name;
+    decl_scopes[reason_ptr] = &root;
+    root.symbols.emplace(reason_ptr->name,
+                         Symbol{reason_ptr, reason_ptr->kind, reason_ptr->visibility, nullptr});
+
+    TypeDecl type;
+    type.id = package.types.size();
+    type.kind = TypeKind::Reason;
+    type.visibility = reason_ptr->visibility;
+    type.qualified_name = reason_ptr->name;
+    type.discipline = TypeDisciplineResolution::concrete_use_discipline(typesys::UseDiscipline::Copyable);
+    package.types.push_back(std::move(type));
+    type_ids[reason_ptr] = package.types.back().id;
+    decl_by_type_id[package.types.back().id] = reason_ptr;
+    qualified_type_ids[reason_ptr->name] = package.types.back().id;
+
+    for (const ast::Variant& variant : reason_ptr->variants) {
+        package.types.back().variants.push_back(add_variant(package.types.back().id, variant, root));
+    }
+
+    collection_reason_decls.push_back(std::move(reason));
+}
+
+void Lowerer::declare_referenced_collection_reasons(const std::vector<std::unique_ptr<ast::Decl>>& decls) {
+    for (const auto& decl_ptr : decls) {
+        const ast::Decl& decl = *decl_ptr;
+        if (decl.kind == ast::DeclKind::Module) {
+            const auto& module_decl = static_cast<const ast::ModuleDecl&>(decl);
+            declare_referenced_collection_reasons(module_decl.members);
+            continue;
+        }
+        if (decl.kind != ast::DeclKind::Function && decl.kind != ast::DeclKind::ForeignFunction) {
+            continue;
+        }
+
+        const auto& function_decl = static_cast<const ast::FunctionDecl&>(decl);
+        if (function_decl.signature.failure.behavior() == ast::FunctionFailureBehavior::YieldsReason) {
+            const std::string_view reason_name =
+                collection_reason_name_for_type_ref(function_decl.signature.failure.reason_type());
+            if (!reason_name.empty()) {
+                declare_collection_reason(reason_name);
+            }
+        }
+    }
 }
 
 void Lowerer::declare_decls(const std::vector<std::unique_ptr<ast::Decl>>& decls,

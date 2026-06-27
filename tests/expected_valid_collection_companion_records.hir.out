@@ -1,4 +1,13 @@
 types:
+  - public reason ListCardinalityFailure
+      variant ListHadNoElements
+  - public reason MapCardinalityFailure
+      variant MapHadNoEntries
+  - public reason MapBindingFailure
+      variant RequestedKeyHadNoBinding
+      variant RequestedKeyAlreadyHadBinding
+  - public reason MapMergeFailure
+      variant InputsHadSharedKey
   - public record test::CollectionCompanions
       field first_int: ListFirstAndRest<Int>
       field text_entry: MapEntry<Text, Int>
@@ -59,3 +68,40 @@ functions:
         result
           field-access .rest : Map<Bytes, Text>
             local bound : MapBoundValueAndRest<Bytes, Text>
+  - public fn test::fail_empty_list() -> Int fails ListCardinalityFailure
+      block -> Never
+        result
+          fail ListCardinalityFailure::ListHadNoElements
+  - public fn test::fail_empty_map() -> Int fails MapCardinalityFailure
+      block -> Never
+        result
+          fail MapCardinalityFailure::MapHadNoEntries
+  - public fn test::fail_missing_binding() -> Int fails MapBindingFailure
+      block -> Never
+        result
+          fail MapBindingFailure::RequestedKeyHadNoBinding
+  - public fn test::fail_existing_binding() -> Int fails MapBindingFailure
+      block -> Never
+        result
+          fail MapBindingFailure::RequestedKeyAlreadyHadBinding
+  - public fn test::recover_binding() -> Int
+      block -> Int
+        result
+          match -> Int
+            scrutinee
+              call test::fail_missing_binding -> Int fails
+            arm
+              pattern succeeded(value)
+              local value : Int
+            arm
+              pattern failed
+                pattern MapBindingFailure::RequestedKeyHadNoBinding
+              number 1 : Int
+            arm
+              pattern failed
+                pattern MapBindingFailure::RequestedKeyAlreadyHadBinding
+              number 2 : Int
+  - public fn test::fail_shared_key() -> Int fails MapMergeFailure
+      block -> Never
+        result
+          fail MapMergeFailure::InputsHadSharedKey

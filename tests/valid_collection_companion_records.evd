@@ -49,4 +49,32 @@ public fn bound_value(bound: MapBoundValueAndRest<Bytes, Text>) -> Text {
 public fn bound_rest(bound: MapBoundValueAndRest<Bytes, Text>) -> Map<Bytes, Text> {
     bound.rest
 }
+
+public fn fail_empty_list() -> Int fails ListCardinalityFailure {
+    fail ListHadNoElements
+}
+
+public fn fail_empty_map() -> Int fails MapCardinalityFailure {
+    fail MapHadNoEntries
+}
+
+public fn fail_missing_binding() -> Int fails MapBindingFailure {
+    fail RequestedKeyHadNoBinding
+}
+
+public fn fail_existing_binding() -> Int fails MapBindingFailure {
+    fail MapBindingFailure::RequestedKeyAlreadyHadBinding
+}
+
+public fn recover_binding() -> Int {
+    match fail_missing_binding() {
+        succeeded(value) => value,
+        failed(RequestedKeyHadNoBinding) => 1,
+        failed(RequestedKeyAlreadyHadBinding) => 2,
+    }
+}
+
+public fn fail_shared_key() -> Int fails MapMergeFailure {
+    fail InputsHadSharedKey
+}
 }

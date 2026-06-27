@@ -141,6 +141,13 @@ const std::unordered_set<std::string_view> kCompilerOwnedCollectionCompanionReco
     "MapBoundValueAndRest",
 };
 
+const std::unordered_map<std::string_view, std::vector<std::string_view>> kCompilerOwnedCollectionReasonVariants = {
+    {"ListCardinalityFailure", {"ListHadNoElements"}},
+    {"MapCardinalityFailure", {"MapHadNoEntries"}},
+    {"MapBindingFailure", {"RequestedKeyHadNoBinding", "RequestedKeyAlreadyHadBinding"}},
+    {"MapMergeFailure", {"InputsHadSharedKey"}},
+};
+
 std::string final_path_segment_or_malformed_path(const std::vector<std::string>& path) {
     if (path.empty()) {
         return "<malformed path>";
@@ -448,6 +455,7 @@ public:
 
     void analyze(const ast::TranslationUnit& unit) {
         build_scope(unit.decls, root_, "");
+        inject_collection_reason_decls();
         validate_imports(unit.imports);
         analyze_scope(unit.decls,
                       root_,
@@ -604,6 +612,7 @@ private:
     DiagnosticSink& diagnostics_;
     const SourceFile& source_;
     Scope root_;
+    std::vector<std::unique_ptr<ast::ReasonDecl>> collection_reason_decls_;
     std::unordered_map<const ast::Decl*, std::string> qualified_names_;
     std::unordered_map<const ast::Decl*, const Scope*> decl_scopes_;
     std::unordered_map<std::string, std::vector<std::vector<std::string>>> imported_module_paths_by_file_;
@@ -650,6 +659,29 @@ private:
                 const auto& module_decl = static_cast<const ast::ModuleDecl&>(decl);
                 build_scope(module_decl.members, *it->second.child_scope, qualified);
             }
+        }
+    }
+
+    void inject_collection_reason_decls() {
+        for (const auto& [reason_name, variant_names] : kCompilerOwnedCollectionReasonVariants) {
+            const std::string name(reason_name);
+            if (root_.symbols.contains(name)) {
+                continue;
+            }
+
+            auto reason = std::make_unique<ast::ReasonDecl>(ast::Visibility::Public, name);
+            for (std::string_view variant_name : variant_names) {
+                ast::Variant variant;
+                variant.name = std::string(variant_name);
+                reason->variants.push_back(std::move(variant));
+            }
+
+            const ast::ReasonDecl* reason_ptr = reason.get();
+            root_.symbols.emplace(reason_ptr->name,
+                                  Symbol{reason_ptr, reason_ptr->kind, reason_ptr->visibility, nullptr});
+            qualified_names_[reason_ptr] = reason_ptr->name;
+            decl_scopes_[reason_ptr] = &root_;
+            collection_reason_decls_.push_back(std::move(reason));
         }
     }
 

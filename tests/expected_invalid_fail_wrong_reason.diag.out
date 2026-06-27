@@ -1,3 +1,6 @@
 <input>:15:5: error: 'fail' must use a variant of failure reason 'OpenFailure'
         fail BadSyntax
         ^^^^^^^^^^^^^^
+<input>:19:5: error: 'fail' must use a variant of failure reason 'MapBindingFailure'
+        fail ListHadNoElements
+        ^^^^^^^^^^^^^^^^^^^^^^
