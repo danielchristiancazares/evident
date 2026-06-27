@@ -1,0 +1,11 @@
+foundation module support {
+public fn first<T, U>(left: T, right: U) -> T {
+    left
+}
+}
+
+domain module app {
+public fn main() -> Int {
+    support::first<Int Text>(1, "two")
+}
+}

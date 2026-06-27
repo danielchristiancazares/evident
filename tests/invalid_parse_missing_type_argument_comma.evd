@@ -1,0 +1,5 @@
+domain module test {
+public record Holder {
+    values: Map<Text Int>,
+}
+}

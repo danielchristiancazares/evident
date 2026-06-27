@@ -41,6 +41,11 @@ enum class RecordInitializerSeparatorRecovery {
     ContinueWithNextField,
 };
 
+enum class TypeArgumentSeparatorRecovery {
+    StopTypeArgumentList,
+    ContinueWithNextType,
+};
+
 DeclarationStartState declaration_start_state(TokenKind kind) {
     switch (kind) {
     case TokenKind::KeywordPublic:
@@ -144,6 +149,22 @@ RecordInitializerSeparatorRecovery record_initializer_after_missing_separator(To
         return RecordInitializerSeparatorRecovery::ContinueWithNextField;
     default:
         return RecordInitializerSeparatorRecovery::StopInitializerList;
+    }
+}
+
+TypeArgumentSeparatorRecovery type_argument_after_missing_separator(TokenKind first,
+                                                                   TokenKind second) {
+    if (first != TokenKind::Identifier) {
+        return TypeArgumentSeparatorRecovery::StopTypeArgumentList;
+    }
+    switch (second) {
+    case TokenKind::Comma:
+    case TokenKind::DoubleColon:
+    case TokenKind::LeftAngle:
+    case TokenKind::RightAngle:
+        return TypeArgumentSeparatorRecovery::ContinueWithNextType;
+    default:
+        return TypeArgumentSeparatorRecovery::StopTypeArgumentList;
     }
 }
 
@@ -824,9 +845,18 @@ ast::TypeRef Parser::parse_type() {
     }
 
     if (consume_if(TokenKind::LeftAngle) == TokenConsumptionState::Consumed) {
-        do {
+        for (;;) {
             type.args.push_back(parse_type());
-        } while (consume_if(TokenKind::Comma) == TokenConsumptionState::Consumed);
+            if (consume_if(TokenKind::Comma) == TokenConsumptionState::Consumed) {
+                continue;
+            }
+            if (type_argument_after_missing_separator(peek().kind(), peek(1).kind())
+                == TypeArgumentSeparatorRecovery::ContinueWithNextType) {
+                diagnostics_.error(peek().span(), "expected ',' between type arguments");
+                continue;
+            }
+            break;
+        }
         const Token end = expect(TokenKind::RightAngle, "expected '>' after type arguments");
         type.span.end = end.span().end;
     } else {
@@ -839,9 +869,18 @@ ast::TypeRef Parser::parse_type() {
 std::vector<ast::TypeRef> Parser::parse_type_argument_list() {
     std::vector<ast::TypeRef> args;
     expect(TokenKind::LeftAngle, "expected '<' before type argument list");
-    do {
+    for (;;) {
         args.push_back(parse_type());
-    } while (consume_if(TokenKind::Comma) == TokenConsumptionState::Consumed);
+        if (consume_if(TokenKind::Comma) == TokenConsumptionState::Consumed) {
+            continue;
+        }
+        if (type_argument_after_missing_separator(peek().kind(), peek(1).kind())
+            == TypeArgumentSeparatorRecovery::ContinueWithNextType) {
+            diagnostics_.error(peek().span(), "expected ',' between type arguments");
+            continue;
+        }
+        break;
+    }
     expect(TokenKind::RightAngle, "expected '>' after type argument list");
     return args;
 }

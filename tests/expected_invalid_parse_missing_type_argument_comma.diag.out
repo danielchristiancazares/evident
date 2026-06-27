@@ -1,0 +1,3 @@
+<input>:3:22: error: expected ',' between type arguments
+        values: Map<Text Int>,
+                         ^^^
