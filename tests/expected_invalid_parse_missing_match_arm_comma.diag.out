@@ -1,0 +1,3 @@
+<input>:10:9: error: expected ',' between match arms
+            Off => 2,
+            ^^^

@@ -31,6 +31,11 @@ enum class PhasePositionSeparatorRecovery {
     ContinueWithNextPosition,
 };
 
+enum class MatchArmSeparatorRecovery {
+    StopMatchArms,
+    ContinueWithNextArm,
+};
+
 DeclarationStartState declaration_start_state(TokenKind kind) {
     switch (kind) {
     case TokenKind::KeywordPublic:
@@ -102,6 +107,24 @@ PhasePositionSeparatorRecovery phase_position_after_missing_separator(TokenKind 
         return PhasePositionSeparatorRecovery::ContinueWithNextPosition;
     }
     return PhasePositionSeparatorRecovery::StopPositionList;
+}
+
+MatchArmSeparatorRecovery match_arm_after_missing_separator(TokenKind first, TokenKind second) {
+    if ((first == TokenKind::KeywordSucceeded || first == TokenKind::KeywordFailed)
+        && second == TokenKind::LeftParen) {
+        return MatchArmSeparatorRecovery::ContinueWithNextArm;
+    }
+    if (first != TokenKind::Identifier) {
+        return MatchArmSeparatorRecovery::StopMatchArms;
+    }
+    switch (second) {
+    case TokenKind::FatArrow:
+    case TokenKind::DoubleColon:
+    case TokenKind::LeftBrace:
+        return MatchArmSeparatorRecovery::ContinueWithNextArm;
+    default:
+        return MatchArmSeparatorRecovery::StopMatchArms;
+    }
 }
 
 } // namespace
@@ -948,6 +971,11 @@ std::unique_ptr<ast::Expr> Parser::parse_match_expr() {
             if (token_check(TokenKind::RightBrace) == TokenCheckState::Matches) {
                 break;
             }
+            continue;
+        }
+        if (match_arm_after_missing_separator(peek().kind(), peek(1).kind())
+            == MatchArmSeparatorRecovery::ContinueWithNextArm) {
+            diagnostics_.error(peek().span(), "expected ',' between match arms");
             continue;
         }
         break;
