@@ -1,10 +1,13 @@
 domain module test {
+public proof Receipt {
+    count: Int,
+}
+
+public fn bad(entries: NonEmptyList<MapEntry<Text, Receipt>>) -> NonEmptyMap<Text, Receipt> {
+    nonempty_map_from_entries_using_last_bindings<Text, Receipt>(entries)
+}
+
 public fn main() -> Int {
-    let empty = map_empty<Text, Int>()
-    let entries = map_entries_copy<Text, Int>(empty)
-    match map_from_entries_rejecting_shared_keys<Text, Int>(entries) {
-        succeeded(entries) => 0,
-        failed(InputsHadSharedKey) => 1,
-    }
+    0
 }
 }

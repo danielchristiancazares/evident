@@ -1,1 +1,3 @@
-backend does not yet support compiler-owned function 'map_from_entries_rejecting_shared_keys$Text$Int'
+<input>:7:57: error: collection operation 'nonempty_map_from_entries_using_last_bindings' requires copyable map value type 'V', got affine-bearing 'test::Receipt'
+        nonempty_map_from_entries_using_last_bindings<Text, Receipt>(entries)
+                                                            ^^^^^^^

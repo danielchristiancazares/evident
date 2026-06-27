@@ -411,6 +411,7 @@ enum class CompilerOwnedFunctionLowering {
     MapRemoveBound,
     MapConsumeBoundValue,
     MapMerge,
+    MapFromEntries,
     ListConsumeFirst,
     MapConsumeFirstEntry,
     MapEntries,
@@ -434,6 +435,12 @@ enum class MapMergeCollisionPolicy {
     RejectSharedKeys,
     UseLeftBinding,
     UseRightBinding,
+};
+
+enum class MapFromEntriesDuplicatePolicy {
+    RejectSharedKeys,
+    UseFirstBinding,
+    UseLastBinding,
 };
 
 CompilerOwnedFunctionLowering compiler_owned_function_lowering(std::string_view qualified_name) {
@@ -494,6 +501,14 @@ CompilerOwnedFunctionLowering compiler_owned_function_lowering(std::string_view 
         || base_name == "map_merge_right_nonempty_using_right_bindings_for_shared_keys"
         || base_name == "nonempty_map_merge_using_right_bindings_for_shared_keys") {
         return CompilerOwnedFunctionLowering::MapMerge;
+    }
+    if (base_name == "map_from_entries_rejecting_shared_keys"
+        || base_name == "nonempty_map_from_entries_rejecting_shared_keys"
+        || base_name == "map_from_entries_using_first_bindings"
+        || base_name == "nonempty_map_from_entries_using_first_bindings"
+        || base_name == "map_from_entries_using_last_bindings"
+        || base_name == "nonempty_map_from_entries_using_last_bindings") {
+        return CompilerOwnedFunctionLowering::MapFromEntries;
     }
     if (base_name == "nonempty_list_consume_first") {
         return CompilerOwnedFunctionLowering::ListConsumeFirst;
@@ -4409,6 +4424,418 @@ std::expected<std::string, std::string> FunctionEmitter::emit_compiler_owned_fun
         out << "  %merged_count0 = load i64, ptr %out_index_slot\n";
         out << "  %carrier0 = insertvalue " << success_type->llvm_type() << " zeroinitializer, ptr %data0, 0\n";
         out << "  %carrier1 = insertvalue " << success_type->llvm_type() << " %carrier0, i64 %merged_count0, 1\n";
+        emit_success_return("ok", "%carrier1");
+        out << "}\n";
+        return out.str();
+    }
+
+    case CompilerOwnedFunctionLowering::MapFromEntries: {
+        if (param_types.size() != 1) {
+            return std::unexpected("internal backend error: map-from-entries function '"
+                                   + hir_function_.qualified_name + "' expected one parameter");
+        }
+
+        const std::string_view base_name = function_base_name(hir_function_.qualified_name);
+        MapFromEntriesDuplicatePolicy duplicate_policy = MapFromEntriesDuplicatePolicy::UseLastBinding;
+        if (base_name == "map_from_entries_rejecting_shared_keys"
+            || base_name == "nonempty_map_from_entries_rejecting_shared_keys") {
+            duplicate_policy = MapFromEntriesDuplicatePolicy::RejectSharedKeys;
+        } else if (base_name == "map_from_entries_using_first_bindings"
+                   || base_name == "nonempty_map_from_entries_using_first_bindings") {
+            duplicate_policy = MapFromEntriesDuplicatePolicy::UseFirstBinding;
+        } else if (base_name == "map_from_entries_using_last_bindings"
+                   || base_name == "nonempty_map_from_entries_using_last_bindings") {
+            duplicate_policy = MapFromEntriesDuplicatePolicy::UseLastBinding;
+        } else {
+            return std::unexpected("internal backend error: map-from-entries function '"
+                                   + hir_function_.qualified_name + "' has unknown duplicate policy");
+        }
+
+        const BuiltinKind expected_param_kind = base_name.starts_with("nonempty_map_from_entries_")
+            ? BuiltinKind::NonEmptyList
+            : BuiltinKind::List;
+        const BuiltinKind expected_return_kind = expected_param_kind == BuiltinKind::NonEmptyList
+            ? BuiltinKind::NonEmptyMap
+            : BuiltinKind::Map;
+        if (!has_builtin_kind(param_types[0], expected_param_kind)) {
+            return std::unexpected("internal backend error: map-from-entries function '"
+                                   + hir_function_.qualified_name + "' has unsupported parameter type '"
+                                   + param_types[0].source_name() + "'");
+        }
+        if (hir_function_.params.size() != 1 || hir_function_.params[0].type.args.size() != 1
+            || hir_function_.return_type.args.size() != 2) {
+            return std::unexpected("internal backend error: map-from-entries function '"
+                                   + hir_function_.qualified_name + "' has malformed HIR types");
+        }
+
+        const hir::TypeRef& entry_ref = hir_function_.params[0].type.args[0];
+        if (type_base_name(entry_ref.text) != "MapEntry" || entry_ref.args.size() != 2) {
+            return std::unexpected("internal backend error: map-from-entries function '"
+                                   + hir_function_.qualified_name + "' expected MapEntry<K, V> input entries");
+        }
+        const std::string key_source_name = entry_ref.args[0].text;
+        const std::string value_source_name = entry_ref.args[1].text;
+        if (hir_function_.return_type.args[0].text != key_source_name
+            || hir_function_.return_type.args[1].text != value_source_name) {
+            return std::unexpected("internal backend error: map-from-entries function '"
+                                   + hir_function_.qualified_name + "' has mismatched entry and return types");
+        }
+
+        const std::expected<ResolvedType, std::string> key_type = model_.resolve_type_name(key_source_name);
+        if (!key_type.has_value()) {
+            return std::unexpected(key_type.error());
+        }
+        if (key_type->identity().category() != ResolvedTypeCategory::BuiltinType) {
+            return std::unexpected("internal backend error: map-from-entries function '"
+                                   + hir_function_.qualified_name + "' uses non-builtin key type '"
+                                   + key_type->source_name() + "'");
+        }
+        const BuiltinKind key_kind = key_type->identity().builtin_kind();
+        switch (key_kind) {
+        case BuiltinKind::Int:
+        case BuiltinKind::Nat:
+        case BuiltinKind::Byte:
+        case BuiltinKind::Char:
+        case BuiltinKind::Text:
+        case BuiltinKind::Bytes:
+            break;
+        case BuiltinKind::Float:
+        case BuiltinKind::CInt:
+        case BuiltinKind::CSize:
+        case BuiltinKind::CString:
+        case BuiltinKind::List:
+        case BuiltinKind::NonEmptyList:
+        case BuiltinKind::Map:
+        case BuiltinKind::NonEmptyMap:
+        case BuiltinKind::Unit:
+        case BuiltinKind::Never:
+            return std::unexpected("internal backend error: map-from-entries function '"
+                                   + hir_function_.qualified_name + "' uses unsupported key type '"
+                                   + key_type->source_name() + "'");
+        }
+
+        if (key_kind == BuiltinKind::Text || key_kind == BuiltinKind::Bytes) {
+            module_.require_runtime_helper(RuntimeHelper::Memcmp);
+        }
+
+        const std::expected<ResolvedType, std::string> success_type =
+            model_.resolve_type_name(hir_function_.return_type.text);
+        if (!success_type.has_value()) {
+            return std::unexpected(success_type.error());
+        }
+        if (!has_builtin_kind(*success_type, expected_return_kind)) {
+            return std::unexpected("internal backend error: map-from-entries function '"
+                                   + hir_function_.qualified_name + "' returns '"
+                                   + success_type->source_name() + "'");
+        }
+
+        const std::expected<ResolvedType, std::string> entry_type = model_.resolve_type_name(entry_ref.text);
+        if (!entry_type.has_value()) {
+            return std::unexpected(entry_type.error());
+        }
+        const std::expected<const TypeLayout*, std::string> entry_layout_result =
+            model_.ensure_backend_aggregate_layout(entry_ref.text);
+        if (!entry_layout_result.has_value()) {
+            return std::unexpected(entry_layout_result.error());
+        }
+        const TypeLayout& entry_layout = **entry_layout_result;
+        const auto key_field_it = entry_layout.field_indices.find("key");
+        if (key_field_it == entry_layout.field_indices.end()) {
+            return std::unexpected("internal backend error: map-from-entries entry layout for '"
+                                   + entry_ref.text + "' is missing expected key field");
+        }
+
+        const YieldLayout* yield_layout = nullptr;
+        ResolvedType failure_type = ResolvedType::runtime_value("",
+                                                                "i8",
+                                                                1,
+                                                                1,
+                                                                RuntimeStorageShape::Scalar,
+                                                                ResolvedTypeIdentity::builtin_type(BuiltinKind::Unit));
+        std::uint32_t failure_variant_tag = 0;
+        if (duplicate_policy == MapFromEntriesDuplicatePolicy::RejectSharedKeys) {
+            if (hir_function_.failure.behavior() != hir::FunctionFailureBehavior::YieldsReason) {
+                return std::unexpected("internal backend error: map-from-entries function '"
+                                       + hir_function_.qualified_name + "' does not declare fails");
+            }
+
+            const std::expected<const YieldLayout*, std::string> yield_layout_result =
+                model_.ensure_yield_layout(hir_function_.id);
+            if (!yield_layout_result.has_value()) {
+                return std::unexpected(yield_layout_result.error());
+            }
+            yield_layout = *yield_layout_result;
+            if (return_type.llvm_type() != yield_layout->llvm_type) {
+                return std::unexpected("internal backend error: map-from-entries function '"
+                                       + hir_function_.qualified_name + "' has mismatched yield return type");
+            }
+
+            const hir::TypeDecl& reason_decl = model_.type(hir_function_.failure.reason_type_id());
+            if (reason_decl.qualified_name != "MapMergeFailure") {
+                return std::unexpected("internal backend error: map-from-entries function '"
+                                       + hir_function_.qualified_name + "' fails with '"
+                                       + reason_decl.qualified_name + "'");
+            }
+            const std::expected<ResolvedType, std::string> failure_type_result =
+                model_.resolve_type_name(reason_decl.qualified_name);
+            if (!failure_type_result.has_value()) {
+                return std::unexpected(failure_type_result.error());
+            }
+            failure_type = *failure_type_result;
+            const std::expected<const TypeLayout*, std::string> failure_layout_result =
+                model_.ensure_type_layout(reason_decl.id);
+            if (!failure_layout_result.has_value()) {
+                return std::unexpected(failure_layout_result.error());
+            }
+            const TypeLayout& failure_layout = **failure_layout_result;
+
+            const std::expected<std::uint32_t, std::string> failure_variant_tag_result =
+                [&]() -> std::expected<std::uint32_t, std::string> {
+                for (const hir::VariantId variant_id : reason_decl.variants) {
+                    const hir::VariantDecl& variant_decl = model_.variant(variant_id);
+                    if (variant_decl.name != "InputsHadSharedKey") {
+                        continue;
+                    }
+                    const auto layout_it = failure_layout.variants.find(variant_id);
+                    if (layout_it == failure_layout.variants.end()) {
+                        return std::unexpected("internal backend error: missing layout for failure variant '"
+                                               + variant_decl.qualified_name + "'");
+                    }
+                    return layout_it->second.tag_value;
+                }
+                return std::unexpected("internal backend error: map-from-entries function '"
+                                       + hir_function_.qualified_name
+                                       + "' could not find failure variant 'InputsHadSharedKey'");
+            }();
+            if (!failure_variant_tag_result.has_value()) {
+                return std::unexpected(failure_variant_tag_result.error());
+            }
+            failure_variant_tag = *failure_variant_tag_result;
+        } else {
+            if (hir_function_.failure.behavior() == hir::FunctionFailureBehavior::YieldsReason) {
+                return std::unexpected("internal backend error: map-from-entries policy function '"
+                                       + hir_function_.qualified_name + "' unexpectedly declares fails");
+            }
+            if (return_type.llvm_type() != success_type->llvm_type()) {
+                return std::unexpected("internal backend error: map-from-entries policy function '"
+                                       + hir_function_.qualified_name + "' has mismatched return type");
+            }
+        }
+
+        module_.require_runtime_helper(RuntimeHelper::Malloc);
+
+        const auto emit_yield_return =
+            [&](std::string_view prefix,
+                std::string_view wrapper_tag,
+                const ResolvedType& payload_type,
+                const std::string& payload_value) {
+            out << "  %" << prefix << ".tag = insertvalue " << yield_layout->llvm_type
+                << " zeroinitializer, i8 " << wrapper_tag << ", 0\n";
+            if (yield_layout->payload_size == 0) {
+                out << "  ret " << yield_layout->llvm_type << " %" << prefix << ".tag\n";
+                return;
+            }
+            out << "  %" << prefix << ".pack.slot = alloca " << yield_layout->payload_storage_type << "\n";
+            out << "  store " << yield_layout->payload_storage_type << " zeroinitializer, ptr %"
+                << prefix << ".pack.slot\n";
+            out << "  store " << payload_type.llvm_type() << " " << payload_value << ", ptr %"
+                << prefix << ".pack.slot\n";
+            out << "  %" << prefix << ".pack = load " << yield_layout->payload_storage_type
+                << ", ptr %" << prefix << ".pack.slot\n";
+            out << "  %" << prefix << ".value = insertvalue " << yield_layout->llvm_type
+                << " %" << prefix << ".tag, " << yield_layout->payload_storage_type << " %"
+                << prefix << ".pack, " << yield_layout->payload_field_index << "\n";
+            out << "  ret " << yield_layout->llvm_type << " %" << prefix << ".value\n";
+        };
+
+        const auto emit_success_return =
+            [&](std::string_view prefix, const std::string& carrier_value) {
+            if (duplicate_policy == MapFromEntriesDuplicatePolicy::RejectSharedKeys) {
+                emit_yield_return(prefix, "0", *success_type, carrier_value);
+                return;
+            }
+            out << "  ret " << success_type->llvm_type() << " " << carrier_value << "\n";
+        };
+
+        const auto emit_failure_return = [&]() {
+            out << "  %reason0 = insertvalue " << failure_type.llvm_type()
+                << " zeroinitializer, i32 " << failure_variant_tag << ", 0\n";
+            emit_yield_return("fail", "1", failure_type, "%reason0");
+        };
+
+        const std::size_t entry_stride = element_storage_stride(*entry_type);
+        out << "define " << linkage << return_type.llvm_type() << " @"
+            << model_.function_symbol(hir_function_.id) << "(" << param_types[0].llvm_type()
+            << " %arg0) {\n";
+        out << "entry:\n";
+        out << "  %input_data0 = extractvalue " << param_types[0].llvm_type() << " %arg0, 0\n";
+        out << "  %input_count0 = extractvalue " << param_types[0].llvm_type() << " %arg0, 1\n";
+        out << "  %input_empty0 = icmp eq i64 %input_count0, 0\n";
+        out << "  br i1 %input_empty0, label %return_empty, label %allocate\n";
+        out << "\n";
+        out << "return_empty:\n";
+        emit_success_return("ok_empty", "zeroinitializer");
+        out << "\n";
+        out << "allocate:\n";
+        out << "  %alloc_bytes0 = mul i64 %input_count0, " << entry_stride << "\n";
+        out << "  %data0 = call ptr @malloc(i64 %alloc_bytes0)\n";
+        out << "  %input_index_slot = alloca i64\n";
+        out << "  %out_count_slot = alloca i64\n";
+        out << "  %scan_index_slot = alloca i64\n";
+        out << "  %insert_index_slot = alloca i64\n";
+        out << "  %shift_index_slot = alloca i64\n";
+        out << "  store i64 0, ptr %input_index_slot\n";
+        out << "  store i64 0, ptr %out_count_slot\n";
+        out << "  br label %process_next\n";
+        out << "\n";
+        out << "process_next:\n";
+        out << "  %input_index0 = load i64, ptr %input_index_slot\n";
+        out << "  %input_done0 = icmp eq i64 %input_index0, %input_count0\n";
+        out << "  br i1 %input_done0, label %done, label %load_input\n";
+        out << "\n";
+        out << "load_input:\n";
+        out << "  %input_offset0 = mul i64 %input_index0, " << entry_stride << "\n";
+        out << "  %input_entry_ptr0 = getelementptr i8, ptr %input_data0, i64 %input_offset0\n";
+        out << "  %current_entry0 = load " << entry_type->llvm_type() << ", ptr %input_entry_ptr0\n";
+        out << "  %current_key0 = extractvalue " << entry_type->llvm_type()
+            << " %current_entry0, " << key_field_it->second << "\n";
+        out << "  store i64 0, ptr %scan_index_slot\n";
+        out << "  br label %scan_output\n";
+        out << "\n";
+        out << "scan_output:\n";
+        out << "  %scan_index0 = load i64, ptr %scan_index_slot\n";
+        out << "  %out_count0 = load i64, ptr %out_count_slot\n";
+        out << "  %scan_done0 = icmp eq i64 %scan_index0, %out_count0\n";
+        out << "  br i1 %scan_done0, label %insert_current, label %compare_existing\n";
+        out << "\n";
+        out << "compare_existing:\n";
+        out << "  %output_offset0 = mul i64 %scan_index0, " << entry_stride << "\n";
+        out << "  %existing_entry_ptr0 = getelementptr i8, ptr %data0, i64 %output_offset0\n";
+        out << "  %existing_entry0 = load " << entry_type->llvm_type() << ", ptr %existing_entry_ptr0\n";
+        out << "  %existing_key0 = extractvalue " << entry_type->llvm_type()
+            << " %existing_entry0, " << key_field_it->second << "\n";
+        switch (key_kind) {
+        case BuiltinKind::Int:
+        case BuiltinKind::Nat:
+        case BuiltinKind::Byte:
+        case BuiltinKind::Char: {
+            const std::string less_predicate = key_kind == BuiltinKind::Int ? "slt" : "ult";
+            out << "  %key_equal0 = icmp eq " << key_type->llvm_type() << " %current_key0, %existing_key0\n";
+            out << "  br i1 %key_equal0, label %duplicate_key, label %key_not_equal\n";
+            out << "\n";
+            out << "key_not_equal:\n";
+            out << "  %current_key_less0 = icmp " << less_predicate << " "
+                << key_type->llvm_type() << " %current_key0, %existing_key0\n";
+            out << "  br i1 %current_key_less0, label %insert_current, label %scan_next\n";
+            break;
+        }
+        case BuiltinKind::Text:
+        case BuiltinKind::Bytes:
+            out << "  %current_key_data0 = extractvalue " << key_type->llvm_type() << " %current_key0, 0\n";
+            out << "  %current_key_count0 = extractvalue " << key_type->llvm_type() << " %current_key0, 1\n";
+            out << "  %existing_key_data0 = extractvalue " << key_type->llvm_type() << " %existing_key0, 0\n";
+            out << "  %existing_key_count0 = extractvalue " << key_type->llvm_type() << " %existing_key0, 1\n";
+            out << "  %current_key_shorter0 = icmp ult i64 %current_key_count0, %existing_key_count0\n";
+            out << "  %min_key_count0 = select i1 %current_key_shorter0, i64 %current_key_count0, i64 %existing_key_count0\n";
+            out << "  %min_key_empty0 = icmp eq i64 %min_key_count0, 0\n";
+            out << "  br i1 %min_key_empty0, label %key_bytes_equal_prefix, label %key_bytes_compare\n";
+            out << "\n";
+            out << "key_bytes_compare:\n";
+            out << "  %key_cmp0 = call i32 @memcmp(ptr %current_key_data0, ptr %existing_key_data0, i64 %min_key_count0)\n";
+            out << "  %key_bytes_equal0 = icmp eq i32 %key_cmp0, 0\n";
+            out << "  br i1 %key_bytes_equal0, label %key_bytes_equal_prefix, label %key_bytes_ordered\n";
+            out << "\n";
+            out << "key_bytes_ordered:\n";
+            out << "  %current_key_bytes_less0 = icmp slt i32 %key_cmp0, 0\n";
+            out << "  br i1 %current_key_bytes_less0, label %insert_current, label %scan_next\n";
+            out << "\n";
+            out << "key_bytes_equal_prefix:\n";
+            out << "  %key_equal0 = icmp eq i64 %current_key_count0, %existing_key_count0\n";
+            out << "  br i1 %key_equal0, label %duplicate_key, label %key_prefix_not_equal\n";
+            out << "\n";
+            out << "key_prefix_not_equal:\n";
+            out << "  br i1 %current_key_shorter0, label %insert_current, label %scan_next\n";
+            break;
+        case BuiltinKind::Float:
+        case BuiltinKind::CInt:
+        case BuiltinKind::CSize:
+        case BuiltinKind::CString:
+        case BuiltinKind::List:
+        case BuiltinKind::NonEmptyList:
+        case BuiltinKind::Map:
+        case BuiltinKind::NonEmptyMap:
+        case BuiltinKind::Unit:
+        case BuiltinKind::Never:
+            return std::unexpected("internal backend error: map-from-entries function '"
+                                   + hir_function_.qualified_name + "' reached unsupported key lowering");
+        }
+        out << "\n";
+        out << "scan_next:\n";
+        out << "  %scan_next0 = add i64 %scan_index0, 1\n";
+        out << "  store i64 %scan_next0, ptr %scan_index_slot\n";
+        out << "  br label %scan_output\n";
+        out << "\n";
+        out << "duplicate_key:\n";
+        if (duplicate_policy == MapFromEntriesDuplicatePolicy::RejectSharedKeys) {
+            emit_failure_return();
+            out << "\n";
+        } else if (duplicate_policy == MapFromEntriesDuplicatePolicy::UseFirstBinding) {
+            out << "  br label %next_input\n";
+            out << "\n";
+        } else {
+            out << "  store " << entry_type->llvm_type() << " %current_entry0, ptr %existing_entry_ptr0\n";
+            out << "  br label %next_input\n";
+            out << "\n";
+        }
+        out << "insert_current:\n";
+        out << "  %insert_index0 = load i64, ptr %scan_index_slot\n";
+        out << "  %out_count1 = load i64, ptr %out_count_slot\n";
+        out << "  store i64 %insert_index0, ptr %insert_index_slot\n";
+        out << "  %suffix_count0 = sub i64 %out_count1, %insert_index0\n";
+        out << "  %suffix_empty0 = icmp eq i64 %suffix_count0, 0\n";
+        out << "  br i1 %suffix_empty0, label %store_current, label %shift_setup\n";
+        out << "\n";
+        out << "shift_setup:\n";
+        out << "  store i64 %out_count1, ptr %shift_index_slot\n";
+        out << "  br label %shift_loop\n";
+        out << "\n";
+        out << "shift_loop:\n";
+        out << "  %shift_index0 = load i64, ptr %shift_index_slot\n";
+        out << "  %insert_index1 = load i64, ptr %insert_index_slot\n";
+        out << "  %shift_done0 = icmp eq i64 %shift_index0, %insert_index1\n";
+        out << "  br i1 %shift_done0, label %store_current, label %shift_one\n";
+        out << "\n";
+        out << "shift_one:\n";
+        out << "  %shift_source_index0 = sub i64 %shift_index0, 1\n";
+        out << "  %shift_source_offset0 = mul i64 %shift_source_index0, " << entry_stride << "\n";
+        out << "  %shift_source_ptr0 = getelementptr i8, ptr %data0, i64 %shift_source_offset0\n";
+        out << "  %shift_entry0 = load " << entry_type->llvm_type() << ", ptr %shift_source_ptr0\n";
+        out << "  %shift_dest_offset0 = mul i64 %shift_index0, " << entry_stride << "\n";
+        out << "  %shift_dest_ptr0 = getelementptr i8, ptr %data0, i64 %shift_dest_offset0\n";
+        out << "  store " << entry_type->llvm_type() << " %shift_entry0, ptr %shift_dest_ptr0\n";
+        out << "  store i64 %shift_source_index0, ptr %shift_index_slot\n";
+        out << "  br label %shift_loop\n";
+        out << "\n";
+        out << "store_current:\n";
+        out << "  %insert_index2 = load i64, ptr %insert_index_slot\n";
+        out << "  %insert_offset0 = mul i64 %insert_index2, " << entry_stride << "\n";
+        out << "  %insert_ptr0 = getelementptr i8, ptr %data0, i64 %insert_offset0\n";
+        out << "  store " << entry_type->llvm_type() << " %current_entry0, ptr %insert_ptr0\n";
+        out << "  %out_count2 = load i64, ptr %out_count_slot\n";
+        out << "  %new_out_count0 = add i64 %out_count2, 1\n";
+        out << "  store i64 %new_out_count0, ptr %out_count_slot\n";
+        out << "  br label %next_input\n";
+        out << "\n";
+        out << "next_input:\n";
+        out << "  %input_index1 = load i64, ptr %input_index_slot\n";
+        out << "  %input_next0 = add i64 %input_index1, 1\n";
+        out << "  store i64 %input_next0, ptr %input_index_slot\n";
+        out << "  br label %process_next\n";
+        out << "\n";
+        out << "done:\n";
+        out << "  %final_count0 = load i64, ptr %out_count_slot\n";
+        out << "  %carrier0 = insertvalue " << success_type->llvm_type() << " zeroinitializer, ptr %data0, 0\n";
+        out << "  %carrier1 = insertvalue " << success_type->llvm_type() << " %carrier0, i64 %final_count0, 1\n";
         emit_success_return("ok", "%carrier1");
         out << "}\n";
         return out.str();

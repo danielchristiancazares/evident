@@ -38,6 +38,8 @@ target triple = "x86_64-pc-windows-msvc"
 %evid.yield.map_merge_left_nonempty_rejecting_shared_keys$Text$Int = type { i8, [7 x i8], { i64, [8 x i8] } }
 %evid.yield.map_merge_right_nonempty_rejecting_shared_keys$Text$Int = type { i8, [7 x i8], { i64, [8 x i8] } }
 %evid.yield.nonempty_map_merge_rejecting_shared_keys$Text$Int = type { i8, [7 x i8], { i64, [8 x i8] } }
+%evid.yield.map_from_entries_rejecting_shared_keys$Text$Int = type { i8, [7 x i8], { i64, [8 x i8] } }
+%evid.yield.nonempty_map_from_entries_rejecting_shared_keys$Text$Int = type { i8, [7 x i8], { i64, [8 x i8] } }
 %evid.yield.list_require_nonempty$MapEntry_Text__Int_ = type { i8, [7 x i8], { i64, [8 x i8] } }
 
 @evid.str.0 = private unnamed_addr constant [4 x i8] c"\6F\6E\65\00", align 1
@@ -4213,6 +4215,690 @@ bb.trap.3:
 
 }
 
+define { ptr, i64 } @evid$test$one_then_alpha_entries() {
+entry:
+  %slot0 = alloca { ptr, i64 }
+  %slot1 = alloca { ptr, i64 }
+  %slot2 = alloca { ptr, i64 }
+  %slot3 = alloca { ptr, i64 }
+  %slot4 = alloca { ptr, i64 }
+  br label %bb0
+
+bb0:
+  %call0 = call { ptr, i64 } @evid$test$single_map()
+  store { ptr, i64 } %call0, ptr %slot2
+  %load1 = load { ptr, i64 }, ptr %slot2
+  %call2 = call { ptr, i64 } @evid$nonempty_map_entries_copy$Text$Int({ ptr, i64 } %load1)
+  store { ptr, i64 } %call2, ptr %slot1
+  %call3 = call { ptr, i64 } @evid$test$alpha_map()
+  store { ptr, i64 } %call3, ptr %slot4
+  %load4 = load { ptr, i64 }, ptr %slot4
+  %call5 = call { ptr, i64 } @evid$nonempty_map_entries_copy$Text$Int({ ptr, i64 } %load4)
+  store { ptr, i64 } %call5, ptr %slot3
+  %load6 = load { ptr, i64 }, ptr %slot1
+  %load7 = load { ptr, i64 }, ptr %slot3
+  %call8 = call { ptr, i64 } @evid$nonempty_list_concat$MapEntry_Text__Int_({ ptr, i64 } %load6, { ptr, i64 } %load7)
+  store { ptr, i64 } %call8, ptr %slot0
+  %load9 = load { ptr, i64 }, ptr %slot0
+  ret { ptr, i64 } %load9
+
+}
+
+define { ptr, i64 } @evid$test$duplicate_text_entries() {
+entry:
+  %slot0 = alloca { ptr, i64 }
+  %slot1 = alloca { ptr, i64 }
+  %slot2 = alloca { ptr, i64 }
+  %slot3 = alloca { ptr, i64 }
+  %slot4 = alloca { ptr, i64 }
+  br label %bb0
+
+bb0:
+  %call0 = call { ptr, i64 } @evid$test$single_map()
+  store { ptr, i64 } %call0, ptr %slot2
+  %load1 = load { ptr, i64 }, ptr %slot2
+  %call2 = call { ptr, i64 } @evid$nonempty_map_entries_copy$Text$Int({ ptr, i64 } %load1)
+  store { ptr, i64 } %call2, ptr %slot1
+  %call3 = call { ptr, i64 } @evid$test$replacement_map()
+  store { ptr, i64 } %call3, ptr %slot4
+  %load4 = load { ptr, i64 }, ptr %slot4
+  %call5 = call { ptr, i64 } @evid$nonempty_map_entries_copy$Text$Int({ ptr, i64 } %load4)
+  store { ptr, i64 } %call5, ptr %slot3
+  %load6 = load { ptr, i64 }, ptr %slot1
+  %load7 = load { ptr, i64 }, ptr %slot3
+  %call8 = call { ptr, i64 } @evid$nonempty_list_concat$MapEntry_Text__Int_({ ptr, i64 } %load6, { ptr, i64 } %load7)
+  store { ptr, i64 } %call8, ptr %slot0
+  %load9 = load { ptr, i64 }, ptr %slot0
+  ret { ptr, i64 } %load9
+
+}
+
+define { ptr, i64 } @evid$test$duplicate_int_entries() {
+entry:
+  %slot0 = alloca { ptr, i64 }
+  %slot1 = alloca { ptr, i64 }
+  %slot2 = alloca { ptr, i64 }
+  %slot3 = alloca { ptr, i64 }
+  %slot4 = alloca { ptr, i64 }
+  br label %bb0
+
+bb0:
+  %call0 = call { ptr, i64 } @evid$test$replacement_int_map()
+  store { ptr, i64 } %call0, ptr %slot2
+  %load1 = load { ptr, i64 }, ptr %slot2
+  %call2 = call { ptr, i64 } @evid$nonempty_map_entries_copy$Int$Int({ ptr, i64 } %load1)
+  store { ptr, i64 } %call2, ptr %slot1
+  %call3 = call { ptr, i64 } @evid$test$single_int_map()
+  store { ptr, i64 } %call3, ptr %slot4
+  %load4 = load { ptr, i64 }, ptr %slot4
+  %call5 = call { ptr, i64 } @evid$nonempty_map_entries_copy$Int$Int({ ptr, i64 } %load4)
+  store { ptr, i64 } %call5, ptr %slot3
+  %load6 = load { ptr, i64 }, ptr %slot1
+  %load7 = load { ptr, i64 }, ptr %slot3
+  %call8 = call { ptr, i64 } @evid$nonempty_list_concat$MapEntry_Int__Int_({ ptr, i64 } %load6, { ptr, i64 } %load7)
+  store { ptr, i64 } %call8, ptr %slot0
+  %load9 = load { ptr, i64 }, ptr %slot0
+  ret { ptr, i64 } %load9
+
+}
+
+define i64 @evid$test$from_empty_entries_count() {
+entry:
+  %slot0 = alloca i64
+  %slot1 = alloca { ptr, i64 }
+  %slot2 = alloca { ptr, i64 }
+  br label %bb0
+
+bb0:
+  %call0 = call { ptr, i64 } @evid$list_empty$MapEntry_Text__Int_()
+  store { ptr, i64 } %call0, ptr %slot2
+  %load1 = load { ptr, i64 }, ptr %slot2
+  %call2 = call { ptr, i64 } @evid$map_from_entries_using_first_bindings$Text$Int({ ptr, i64 } %load1)
+  store { ptr, i64 } %call2, ptr %slot1
+  %load3 = load { ptr, i64 }, ptr %slot1
+  %call4 = call i64 @evid$map_count_copy$Text$Int({ ptr, i64 } %load3)
+  store i64 %call4, ptr %slot0
+  %load5 = load i64, ptr %slot0
+  ret i64 %load5
+
+}
+
+define i64 @evid$test$from_entries_reject_disjoint_first_value() {
+entry:
+  %slot0 = alloca i64
+  %slot1 = alloca { ptr, i64 }
+  %slot2 = alloca %evid.type.MapMergeFailure
+  %slot3 = alloca { ptr, i64 }
+  %slot4 = alloca { ptr, i64 }
+  %slot5 = alloca { ptr, i64 }
+  %slot6 = alloca { ptr, i64 }
+  %slot7 = alloca { ptr, i64 }
+  %slot8 = alloca %evid.type.MapCardinalityFailure
+  %slot9 = alloca { ptr, i64 }
+  %slot10 = alloca %evid.type.MapEntry_Text__Int_
+  br label %bb0
+
+bb0:
+  %call0 = call { ptr, i64 } @evid$test$one_then_alpha_entries()
+  store { ptr, i64 } %call0, ptr %slot4
+  %load1 = load { ptr, i64 }, ptr %slot4
+  %call2 = call { ptr, i64 } @evid$nonempty_list_widen$MapEntry_Text__Int_({ ptr, i64 } %load1)
+  store { ptr, i64 } %call2, ptr %slot3
+  %load3 = load { ptr, i64 }, ptr %slot3
+  %invoke4 = call %evid.yield.map_from_entries_rejecting_shared_keys$Text$Int @evid$map_from_entries_rejecting_shared_keys$Text$Int({ ptr, i64 } %load3)
+  %ext5 = extractvalue %evid.yield.map_from_entries_rejecting_shared_keys$Text$Int %invoke4, 0
+  %ext6 = extractvalue %evid.yield.map_from_entries_rejecting_shared_keys$Text$Int %invoke4, 2
+  %unpack.slot7 = alloca { i64, [8 x i8] }
+  store { i64, [8 x i8] } %ext6, ptr %unpack.slot7
+  %unpack8 = load { ptr, i64 }, ptr %unpack.slot7
+  %unpack.slot9 = alloca { i64, [8 x i8] }
+  store { i64, [8 x i8] } %ext6, ptr %unpack.slot9
+  %unpack10 = load %evid.type.MapMergeFailure, ptr %unpack.slot9
+  switch i8 %ext5, label %bb.trap.2 [
+    i8 0, label %bb.invoke.ok.0
+    i8 1, label %bb.invoke.fail.1
+  ]
+
+bb1:
+  %load11 = load { ptr, i64 }, ptr %slot1
+  store { ptr, i64 } %load11, ptr %slot5
+  %load12 = load { ptr, i64 }, ptr %slot5
+  %invoke13 = call %evid.yield.map_require_nonempty$Text$Int @evid$map_require_nonempty$Text$Int({ ptr, i64 } %load12)
+  %ext14 = extractvalue %evid.yield.map_require_nonempty$Text$Int %invoke13, 0
+  %ext15 = extractvalue %evid.yield.map_require_nonempty$Text$Int %invoke13, 2
+  %unpack.slot16 = alloca { i64, [8 x i8] }
+  store { i64, [8 x i8] } %ext15, ptr %unpack.slot16
+  %unpack17 = load { ptr, i64 }, ptr %unpack.slot16
+  %unpack.slot18 = alloca { i64, [8 x i8] }
+  store { i64, [8 x i8] } %ext15, ptr %unpack.slot18
+  %unpack19 = load %evid.type.MapCardinalityFailure, ptr %unpack.slot18
+  switch i8 %ext14, label %bb.trap.5 [
+    i8 0, label %bb.invoke.ok.3
+    i8 1, label %bb.invoke.fail.4
+  ]
+
+bb2:
+  %load20 = load %evid.type.MapMergeFailure, ptr %slot2
+  %ext21 = extractvalue %evid.type.MapMergeFailure %load20, 0
+  switch i32 %ext21, label %bb.trap.6 [
+    i32 4, label %bb8
+  ]
+
+bb3:
+  %load22 = load { ptr, i64 }, ptr %slot7
+  store { ptr, i64 } %load22, ptr %slot9
+  %load23 = load { ptr, i64 }, ptr %slot9
+  store { ptr, i64 } %load23, ptr %slot6
+  br label %bb5
+
+bb4:
+  %load24 = load %evid.type.MapCardinalityFailure, ptr %slot8
+  %ext25 = extractvalue %evid.type.MapCardinalityFailure %load24, 0
+  switch i32 %ext25, label %bb.trap.7 [
+    i32 0, label %bb6
+  ]
+
+bb5:
+  %load26 = load { ptr, i64 }, ptr %slot6
+  %call27 = call %evid.type.MapEntry_Text__Int_ @evid$nonempty_map_first_entry_copy$Text$Int({ ptr, i64 } %load26)
+  store %evid.type.MapEntry_Text__Int_ %call27, ptr %slot10
+  %load28 = load %evid.type.MapEntry_Text__Int_, ptr %slot10
+  %ext29 = extractvalue %evid.type.MapEntry_Text__Int_ %load28, 1
+  store i64 %ext29, ptr %slot0
+  br label %bb7
+
+bb6:
+  %call30 = call { ptr, i64 } @evid$test$single_map()
+  store { ptr, i64 } %call30, ptr %slot6
+  br label %bb5
+
+bb7:
+  %load31 = load i64, ptr %slot0
+  ret i64 %load31
+
+bb8:
+  store i64 3, ptr %slot0
+  br label %bb7
+
+bb.invoke.ok.0:
+  store { ptr, i64 } %unpack8, ptr %slot1
+  br label %bb1
+
+bb.invoke.fail.1:
+  store %evid.type.MapMergeFailure %unpack10, ptr %slot2
+  br label %bb2
+
+bb.trap.2:
+  unreachable
+
+bb.invoke.ok.3:
+  store { ptr, i64 } %unpack17, ptr %slot7
+  br label %bb3
+
+bb.invoke.fail.4:
+  store %evid.type.MapCardinalityFailure %unpack19, ptr %slot8
+  br label %bb4
+
+bb.trap.5:
+  unreachable
+
+bb.trap.6:
+  unreachable
+
+bb.trap.7:
+  unreachable
+
+}
+
+define i64 @evid$test$from_entries_reject_duplicate_value() {
+entry:
+  %slot0 = alloca i64
+  %slot1 = alloca { ptr, i64 }
+  %slot2 = alloca %evid.type.MapMergeFailure
+  %slot3 = alloca { ptr, i64 }
+  %slot4 = alloca { ptr, i64 }
+  %slot5 = alloca %evid.type.MapEntry_Text__Int_
+  br label %bb0
+
+bb0:
+  %call0 = call { ptr, i64 } @evid$test$duplicate_text_entries()
+  store { ptr, i64 } %call0, ptr %slot3
+  %load1 = load { ptr, i64 }, ptr %slot3
+  %invoke2 = call %evid.yield.nonempty_map_from_entries_rejecting_shared_keys$Text$Int @evid$nonempty_map_from_entries_rejecting_shared_keys$Text$Int({ ptr, i64 } %load1)
+  %ext3 = extractvalue %evid.yield.nonempty_map_from_entries_rejecting_shared_keys$Text$Int %invoke2, 0
+  %ext4 = extractvalue %evid.yield.nonempty_map_from_entries_rejecting_shared_keys$Text$Int %invoke2, 2
+  %unpack.slot5 = alloca { i64, [8 x i8] }
+  store { i64, [8 x i8] } %ext4, ptr %unpack.slot5
+  %unpack6 = load { ptr, i64 }, ptr %unpack.slot5
+  %unpack.slot7 = alloca { i64, [8 x i8] }
+  store { i64, [8 x i8] } %ext4, ptr %unpack.slot7
+  %unpack8 = load %evid.type.MapMergeFailure, ptr %unpack.slot7
+  switch i8 %ext3, label %bb.trap.2 [
+    i8 0, label %bb.invoke.ok.0
+    i8 1, label %bb.invoke.fail.1
+  ]
+
+bb1:
+  %load9 = load { ptr, i64 }, ptr %slot1
+  store { ptr, i64 } %load9, ptr %slot4
+  %load10 = load { ptr, i64 }, ptr %slot4
+  %call11 = call %evid.type.MapEntry_Text__Int_ @evid$nonempty_map_first_entry_copy$Text$Int({ ptr, i64 } %load10)
+  store %evid.type.MapEntry_Text__Int_ %call11, ptr %slot5
+  %load12 = load %evid.type.MapEntry_Text__Int_, ptr %slot5
+  %ext13 = extractvalue %evid.type.MapEntry_Text__Int_ %load12, 1
+  store i64 %ext13, ptr %slot0
+  br label %bb3
+
+bb2:
+  %load14 = load %evid.type.MapMergeFailure, ptr %slot2
+  %ext15 = extractvalue %evid.type.MapMergeFailure %load14, 0
+  switch i32 %ext15, label %bb.trap.3 [
+    i32 4, label %bb4
+  ]
+
+bb3:
+  %load16 = load i64, ptr %slot0
+  ret i64 %load16
+
+bb4:
+  store i64 7, ptr %slot0
+  br label %bb3
+
+bb.invoke.ok.0:
+  store { ptr, i64 } %unpack6, ptr %slot1
+  br label %bb1
+
+bb.invoke.fail.1:
+  store %evid.type.MapMergeFailure %unpack8, ptr %slot2
+  br label %bb2
+
+bb.trap.2:
+  unreachable
+
+bb.trap.3:
+  unreachable
+
+}
+
+define i64 @evid$test$from_entries_first_policy_value() {
+entry:
+  %slot0 = alloca i64
+  %slot1 = alloca { ptr, i64 }
+  %slot2 = alloca { ptr, i64 }
+  %slot3 = alloca { ptr, i64 }
+  %slot4 = alloca i64
+  %slot5 = alloca %evid.type.MapBindingFailure
+  %slot6 = alloca i64
+  br label %bb0
+
+bb0:
+  %call0 = call { ptr, i64 } @evid$test$duplicate_text_entries()
+  store { ptr, i64 } %call0, ptr %slot3
+  %load1 = load { ptr, i64 }, ptr %slot3
+  %call2 = call { ptr, i64 } @evid$nonempty_list_widen$MapEntry_Text__Int_({ ptr, i64 } %load1)
+  store { ptr, i64 } %call2, ptr %slot2
+  %load3 = load { ptr, i64 }, ptr %slot2
+  %call4 = call { ptr, i64 } @evid$map_from_entries_using_first_bindings$Text$Int({ ptr, i64 } %load3)
+  store { ptr, i64 } %call4, ptr %slot1
+  %load5 = load { ptr, i64 }, ptr %slot1
+  %strptr6 = getelementptr inbounds [4 x i8], ptr @evid.str.0, i64 0, i64 0
+  %ins7 = insertvalue { ptr, i64 } zeroinitializer, ptr %strptr6, 0
+  %ins8 = insertvalue { ptr, i64 } %ins7, i64 3, 1
+  %invoke9 = call %evid.yield.map_lookup_copy$Text$Int @evid$map_lookup_copy$Text$Int({ ptr, i64 } %load5, { ptr, i64 } %ins8)
+  %ext10 = extractvalue %evid.yield.map_lookup_copy$Text$Int %invoke9, 0
+  %ext11 = extractvalue %evid.yield.map_lookup_copy$Text$Int %invoke9, 2
+  %unpack.slot12 = alloca i64
+  store i64 %ext11, ptr %unpack.slot12
+  %unpack13 = load %evid.type.MapBindingFailure, ptr %unpack.slot12
+  switch i8 %ext10, label %bb.trap.2 [
+    i8 0, label %bb.invoke.ok.0
+    i8 1, label %bb.invoke.fail.1
+  ]
+
+bb1:
+  %load14 = load i64, ptr %slot4
+  store i64 %load14, ptr %slot6
+  %load15 = load i64, ptr %slot6
+  store i64 %load15, ptr %slot0
+  br label %bb3
+
+bb2:
+  %load16 = load %evid.type.MapBindingFailure, ptr %slot5
+  %ext17 = extractvalue %evid.type.MapBindingFailure %load16, 0
+  switch i32 %ext17, label %bb.trap.3 [
+    i32 2, label %bb4
+    i32 3, label %bb5
+  ]
+
+bb3:
+  %load18 = load i64, ptr %slot0
+  ret i64 %load18
+
+bb4:
+  store i64 3, ptr %slot0
+  br label %bb3
+
+bb5:
+  store i64 3, ptr %slot0
+  br label %bb3
+
+bb.invoke.ok.0:
+  store i64 %ext11, ptr %slot4
+  br label %bb1
+
+bb.invoke.fail.1:
+  store %evid.type.MapBindingFailure %unpack13, ptr %slot5
+  br label %bb2
+
+bb.trap.2:
+  unreachable
+
+bb.trap.3:
+  unreachable
+
+}
+
+define i64 @evid$test$from_entries_nonempty_first_policy_value() {
+entry:
+  %slot0 = alloca i64
+  %slot1 = alloca { ptr, i64 }
+  %slot2 = alloca { ptr, i64 }
+  %slot3 = alloca i64
+  %slot4 = alloca %evid.type.MapBindingFailure
+  %slot5 = alloca i64
+  br label %bb0
+
+bb0:
+  %call0 = call { ptr, i64 } @evid$test$duplicate_text_entries()
+  store { ptr, i64 } %call0, ptr %slot2
+  %load1 = load { ptr, i64 }, ptr %slot2
+  %call2 = call { ptr, i64 } @evid$nonempty_map_from_entries_using_first_bindings$Text$Int({ ptr, i64 } %load1)
+  store { ptr, i64 } %call2, ptr %slot1
+  %load3 = load { ptr, i64 }, ptr %slot1
+  %strptr4 = getelementptr inbounds [4 x i8], ptr @evid.str.0, i64 0, i64 0
+  %ins5 = insertvalue { ptr, i64 } zeroinitializer, ptr %strptr4, 0
+  %ins6 = insertvalue { ptr, i64 } %ins5, i64 3, 1
+  %invoke7 = call %evid.yield.nonempty_map_lookup_copy$Text$Int @evid$nonempty_map_lookup_copy$Text$Int({ ptr, i64 } %load3, { ptr, i64 } %ins6)
+  %ext8 = extractvalue %evid.yield.nonempty_map_lookup_copy$Text$Int %invoke7, 0
+  %ext9 = extractvalue %evid.yield.nonempty_map_lookup_copy$Text$Int %invoke7, 2
+  %unpack.slot10 = alloca i64
+  store i64 %ext9, ptr %unpack.slot10
+  %unpack11 = load %evid.type.MapBindingFailure, ptr %unpack.slot10
+  switch i8 %ext8, label %bb.trap.2 [
+    i8 0, label %bb.invoke.ok.0
+    i8 1, label %bb.invoke.fail.1
+  ]
+
+bb1:
+  %load12 = load i64, ptr %slot3
+  store i64 %load12, ptr %slot5
+  %load13 = load i64, ptr %slot5
+  store i64 %load13, ptr %slot0
+  br label %bb3
+
+bb2:
+  %load14 = load %evid.type.MapBindingFailure, ptr %slot4
+  %ext15 = extractvalue %evid.type.MapBindingFailure %load14, 0
+  switch i32 %ext15, label %bb.trap.3 [
+    i32 2, label %bb4
+    i32 3, label %bb5
+  ]
+
+bb3:
+  %load16 = load i64, ptr %slot0
+  ret i64 %load16
+
+bb4:
+  store i64 3, ptr %slot0
+  br label %bb3
+
+bb5:
+  store i64 3, ptr %slot0
+  br label %bb3
+
+bb.invoke.ok.0:
+  store i64 %ext9, ptr %slot3
+  br label %bb1
+
+bb.invoke.fail.1:
+  store %evid.type.MapBindingFailure %unpack11, ptr %slot4
+  br label %bb2
+
+bb.trap.2:
+  unreachable
+
+bb.trap.3:
+  unreachable
+
+}
+
+define i64 @evid$test$from_entries_last_policy_value() {
+entry:
+  %slot0 = alloca i64
+  %slot1 = alloca { ptr, i64 }
+  %slot2 = alloca { ptr, i64 }
+  %slot3 = alloca { ptr, i64 }
+  %slot4 = alloca i64
+  %slot5 = alloca %evid.type.MapBindingFailure
+  %slot6 = alloca i64
+  br label %bb0
+
+bb0:
+  %call0 = call { ptr, i64 } @evid$test$duplicate_text_entries()
+  store { ptr, i64 } %call0, ptr %slot3
+  %load1 = load { ptr, i64 }, ptr %slot3
+  %call2 = call { ptr, i64 } @evid$nonempty_list_widen$MapEntry_Text__Int_({ ptr, i64 } %load1)
+  store { ptr, i64 } %call2, ptr %slot2
+  %load3 = load { ptr, i64 }, ptr %slot2
+  %call4 = call { ptr, i64 } @evid$map_from_entries_using_last_bindings$Text$Int({ ptr, i64 } %load3)
+  store { ptr, i64 } %call4, ptr %slot1
+  %load5 = load { ptr, i64 }, ptr %slot1
+  %strptr6 = getelementptr inbounds [4 x i8], ptr @evid.str.0, i64 0, i64 0
+  %ins7 = insertvalue { ptr, i64 } zeroinitializer, ptr %strptr6, 0
+  %ins8 = insertvalue { ptr, i64 } %ins7, i64 3, 1
+  %invoke9 = call %evid.yield.map_lookup_copy$Text$Int @evid$map_lookup_copy$Text$Int({ ptr, i64 } %load5, { ptr, i64 } %ins8)
+  %ext10 = extractvalue %evid.yield.map_lookup_copy$Text$Int %invoke9, 0
+  %ext11 = extractvalue %evid.yield.map_lookup_copy$Text$Int %invoke9, 2
+  %unpack.slot12 = alloca i64
+  store i64 %ext11, ptr %unpack.slot12
+  %unpack13 = load %evid.type.MapBindingFailure, ptr %unpack.slot12
+  switch i8 %ext10, label %bb.trap.2 [
+    i8 0, label %bb.invoke.ok.0
+    i8 1, label %bb.invoke.fail.1
+  ]
+
+bb1:
+  %load14 = load i64, ptr %slot4
+  store i64 %load14, ptr %slot6
+  %load15 = load i64, ptr %slot6
+  store i64 %load15, ptr %slot0
+  br label %bb3
+
+bb2:
+  %load16 = load %evid.type.MapBindingFailure, ptr %slot5
+  %ext17 = extractvalue %evid.type.MapBindingFailure %load16, 0
+  switch i32 %ext17, label %bb.trap.3 [
+    i32 2, label %bb4
+    i32 3, label %bb5
+  ]
+
+bb3:
+  %load18 = load i64, ptr %slot0
+  ret i64 %load18
+
+bb4:
+  store i64 3, ptr %slot0
+  br label %bb3
+
+bb5:
+  store i64 3, ptr %slot0
+  br label %bb3
+
+bb.invoke.ok.0:
+  store i64 %ext11, ptr %slot4
+  br label %bb1
+
+bb.invoke.fail.1:
+  store %evid.type.MapBindingFailure %unpack13, ptr %slot5
+  br label %bb2
+
+bb.trap.2:
+  unreachable
+
+bb.trap.3:
+  unreachable
+
+}
+
+define i64 @evid$test$from_entries_nonempty_last_policy_value() {
+entry:
+  %slot0 = alloca i64
+  %slot1 = alloca { ptr, i64 }
+  %slot2 = alloca { ptr, i64 }
+  %slot3 = alloca i64
+  %slot4 = alloca %evid.type.MapBindingFailure
+  %slot5 = alloca i64
+  br label %bb0
+
+bb0:
+  %call0 = call { ptr, i64 } @evid$test$duplicate_text_entries()
+  store { ptr, i64 } %call0, ptr %slot2
+  %load1 = load { ptr, i64 }, ptr %slot2
+  %call2 = call { ptr, i64 } @evid$nonempty_map_from_entries_using_last_bindings$Text$Int({ ptr, i64 } %load1)
+  store { ptr, i64 } %call2, ptr %slot1
+  %load3 = load { ptr, i64 }, ptr %slot1
+  %strptr4 = getelementptr inbounds [4 x i8], ptr @evid.str.0, i64 0, i64 0
+  %ins5 = insertvalue { ptr, i64 } zeroinitializer, ptr %strptr4, 0
+  %ins6 = insertvalue { ptr, i64 } %ins5, i64 3, 1
+  %invoke7 = call %evid.yield.nonempty_map_lookup_copy$Text$Int @evid$nonempty_map_lookup_copy$Text$Int({ ptr, i64 } %load3, { ptr, i64 } %ins6)
+  %ext8 = extractvalue %evid.yield.nonempty_map_lookup_copy$Text$Int %invoke7, 0
+  %ext9 = extractvalue %evid.yield.nonempty_map_lookup_copy$Text$Int %invoke7, 2
+  %unpack.slot10 = alloca i64
+  store i64 %ext9, ptr %unpack.slot10
+  %unpack11 = load %evid.type.MapBindingFailure, ptr %unpack.slot10
+  switch i8 %ext8, label %bb.trap.2 [
+    i8 0, label %bb.invoke.ok.0
+    i8 1, label %bb.invoke.fail.1
+  ]
+
+bb1:
+  %load12 = load i64, ptr %slot3
+  store i64 %load12, ptr %slot5
+  %load13 = load i64, ptr %slot5
+  store i64 %load13, ptr %slot0
+  br label %bb3
+
+bb2:
+  %load14 = load %evid.type.MapBindingFailure, ptr %slot4
+  %ext15 = extractvalue %evid.type.MapBindingFailure %load14, 0
+  switch i32 %ext15, label %bb.trap.3 [
+    i32 2, label %bb4
+    i32 3, label %bb5
+  ]
+
+bb3:
+  %load16 = load i64, ptr %slot0
+  ret i64 %load16
+
+bb4:
+  store i64 3, ptr %slot0
+  br label %bb3
+
+bb5:
+  store i64 3, ptr %slot0
+  br label %bb3
+
+bb.invoke.ok.0:
+  store i64 %ext9, ptr %slot3
+  br label %bb1
+
+bb.invoke.fail.1:
+  store %evid.type.MapBindingFailure %unpack11, ptr %slot4
+  br label %bb2
+
+bb.trap.2:
+  unreachable
+
+bb.trap.3:
+  unreachable
+
+}
+
+define i64 @evid$test$from_entries_int_last_policy_value() {
+entry:
+  %slot0 = alloca i64
+  %slot1 = alloca { ptr, i64 }
+  %slot2 = alloca { ptr, i64 }
+  %slot3 = alloca { ptr, i64 }
+  %slot4 = alloca i64
+  %slot5 = alloca %evid.type.MapBindingFailure
+  %slot6 = alloca i64
+  br label %bb0
+
+bb0:
+  %call0 = call { ptr, i64 } @evid$test$duplicate_int_entries()
+  store { ptr, i64 } %call0, ptr %slot3
+  %load1 = load { ptr, i64 }, ptr %slot3
+  %call2 = call { ptr, i64 } @evid$nonempty_list_widen$MapEntry_Int__Int_({ ptr, i64 } %load1)
+  store { ptr, i64 } %call2, ptr %slot2
+  %load3 = load { ptr, i64 }, ptr %slot2
+  %call4 = call { ptr, i64 } @evid$map_from_entries_using_last_bindings$Int$Int({ ptr, i64 } %load3)
+  store { ptr, i64 } %call4, ptr %slot1
+  %load5 = load { ptr, i64 }, ptr %slot1
+  %invoke6 = call %evid.yield.map_lookup_copy$Int$Int @evid$map_lookup_copy$Int$Int({ ptr, i64 } %load5, i64 4)
+  %ext7 = extractvalue %evid.yield.map_lookup_copy$Int$Int %invoke6, 0
+  %ext8 = extractvalue %evid.yield.map_lookup_copy$Int$Int %invoke6, 2
+  %unpack.slot9 = alloca i64
+  store i64 %ext8, ptr %unpack.slot9
+  %unpack10 = load %evid.type.MapBindingFailure, ptr %unpack.slot9
+  switch i8 %ext7, label %bb.trap.2 [
+    i8 0, label %bb.invoke.ok.0
+    i8 1, label %bb.invoke.fail.1
+  ]
+
+bb1:
+  %load11 = load i64, ptr %slot4
+  store i64 %load11, ptr %slot6
+  %load12 = load i64, ptr %slot6
+  store i64 %load12, ptr %slot0
+  br label %bb3
+
+bb2:
+  %load13 = load %evid.type.MapBindingFailure, ptr %slot5
+  %ext14 = extractvalue %evid.type.MapBindingFailure %load13, 0
+  switch i32 %ext14, label %bb.trap.3 [
+    i32 2, label %bb4
+    i32 3, label %bb5
+  ]
+
+bb3:
+  %load15 = load i64, ptr %slot0
+  ret i64 %load15
+
+bb4:
+  store i64 3, ptr %slot0
+  br label %bb3
+
+bb5:
+  store i64 3, ptr %slot0
+  br label %bb3
+
+bb.invoke.ok.0:
+  store i64 %ext8, ptr %slot4
+  br label %bb1
+
+bb.invoke.fail.1:
+  store %evid.type.MapBindingFailure %unpack10, ptr %slot5
+  br label %bb2
+
+bb.trap.2:
+  unreachable
+
+bb.trap.3:
+  unreachable
+
+}
+
 define i64 @evid$test$copied_empty_map_entries_count() {
 entry:
   %slot0 = alloca i64
@@ -4745,6 +5431,14 @@ entry:
   %slot42 = alloca i64
   %slot43 = alloca i64
   %slot44 = alloca i64
+  %slot45 = alloca i64
+  %slot46 = alloca i64
+  %slot47 = alloca i64
+  %slot48 = alloca i64
+  %slot49 = alloca i64
+  %slot50 = alloca i64
+  %slot51 = alloca i64
+  %slot52 = alloca i64
   br label %bb0
 
 bb0:
@@ -4837,9 +5531,25 @@ bb0:
   %call43 = call i64 @evid$test$merge_nonempty_right_policy_value()
   store i64 %call43, ptr %slot44
   %call44 = call i64 @evid$test$merge_int_right_policy_value()
-  store i64 %call44, ptr %slot0
-  %load45 = load i64, ptr %slot0
-  ret i64 %load45
+  store i64 %call44, ptr %slot45
+  %call45 = call i64 @evid$test$from_empty_entries_count()
+  store i64 %call45, ptr %slot46
+  %call46 = call i64 @evid$test$from_entries_reject_disjoint_first_value()
+  store i64 %call46, ptr %slot47
+  %call47 = call i64 @evid$test$from_entries_reject_duplicate_value()
+  store i64 %call47, ptr %slot48
+  %call48 = call i64 @evid$test$from_entries_first_policy_value()
+  store i64 %call48, ptr %slot49
+  %call49 = call i64 @evid$test$from_entries_nonempty_first_policy_value()
+  store i64 %call49, ptr %slot50
+  %call50 = call i64 @evid$test$from_entries_last_policy_value()
+  store i64 %call50, ptr %slot51
+  %call51 = call i64 @evid$test$from_entries_nonempty_last_policy_value()
+  store i64 %call51, ptr %slot52
+  %call52 = call i64 @evid$test$from_entries_int_last_policy_value()
+  store i64 %call52, ptr %slot0
+  %load53 = load i64, ptr %slot0
+  ret i64 %load53
 
 }
 
@@ -8094,6 +8804,1009 @@ merge_done:
   ret { ptr, i64 } %carrier1
 }
 
+define { ptr, i64 } @evid$nonempty_list_concat$MapEntry_Text__Int_({ ptr, i64 } %arg0, { ptr, i64 } %arg1) {
+entry:
+  %left_data0 = extractvalue { ptr, i64 } %arg0, 0
+  %left_count0 = extractvalue { ptr, i64 } %arg0, 1
+  %right_data0 = extractvalue { ptr, i64 } %arg1, 0
+  %right_count0 = extractvalue { ptr, i64 } %arg1, 1
+  %new_count0 = add i64 %left_count0, %right_count0
+  %left_bytes0 = mul i64 %left_count0, 24
+  %right_bytes0 = mul i64 %right_count0, 24
+  %alloc_bytes0 = mul i64 %new_count0, 24
+  %data0 = call ptr @malloc(i64 %alloc_bytes0)
+  call void @llvm.memcpy.p0.p0.i64(ptr %data0, ptr %left_data0, i64 %left_bytes0, i1 false)
+  %right_dest0 = getelementptr i8, ptr %data0, i64 %left_bytes0
+  call void @llvm.memcpy.p0.p0.i64(ptr %right_dest0, ptr %right_data0, i64 %right_bytes0, i1 false)
+  %carrier0 = insertvalue { ptr, i64 } zeroinitializer, ptr %data0, 0
+  %carrier1 = insertvalue { ptr, i64 } %carrier0, i64 %new_count0, 1
+  ret { ptr, i64 } %carrier1
+}
+
+define { ptr, i64 } @evid$nonempty_map_entries_copy$Text$Int({ ptr, i64 } %arg0) {
+entry:
+  ret { ptr, i64 } %arg0
+}
+
+define { ptr, i64 } @evid$nonempty_list_concat$MapEntry_Int__Int_({ ptr, i64 } %arg0, { ptr, i64 } %arg1) {
+entry:
+  %left_data0 = extractvalue { ptr, i64 } %arg0, 0
+  %left_count0 = extractvalue { ptr, i64 } %arg0, 1
+  %right_data0 = extractvalue { ptr, i64 } %arg1, 0
+  %right_count0 = extractvalue { ptr, i64 } %arg1, 1
+  %new_count0 = add i64 %left_count0, %right_count0
+  %left_bytes0 = mul i64 %left_count0, 16
+  %right_bytes0 = mul i64 %right_count0, 16
+  %alloc_bytes0 = mul i64 %new_count0, 16
+  %data0 = call ptr @malloc(i64 %alloc_bytes0)
+  call void @llvm.memcpy.p0.p0.i64(ptr %data0, ptr %left_data0, i64 %left_bytes0, i1 false)
+  %right_dest0 = getelementptr i8, ptr %data0, i64 %left_bytes0
+  call void @llvm.memcpy.p0.p0.i64(ptr %right_dest0, ptr %right_data0, i64 %right_bytes0, i1 false)
+  %carrier0 = insertvalue { ptr, i64 } zeroinitializer, ptr %data0, 0
+  %carrier1 = insertvalue { ptr, i64 } %carrier0, i64 %new_count0, 1
+  ret { ptr, i64 } %carrier1
+}
+
+define { ptr, i64 } @evid$nonempty_map_entries_copy$Int$Int({ ptr, i64 } %arg0) {
+entry:
+  ret { ptr, i64 } %arg0
+}
+
+define { ptr, i64 } @evid$map_from_entries_using_first_bindings$Text$Int({ ptr, i64 } %arg0) {
+entry:
+  %input_data0 = extractvalue { ptr, i64 } %arg0, 0
+  %input_count0 = extractvalue { ptr, i64 } %arg0, 1
+  %input_empty0 = icmp eq i64 %input_count0, 0
+  br i1 %input_empty0, label %return_empty, label %allocate
+
+return_empty:
+  ret { ptr, i64 } zeroinitializer
+
+allocate:
+  %alloc_bytes0 = mul i64 %input_count0, 24
+  %data0 = call ptr @malloc(i64 %alloc_bytes0)
+  %input_index_slot = alloca i64
+  %out_count_slot = alloca i64
+  %scan_index_slot = alloca i64
+  %insert_index_slot = alloca i64
+  %shift_index_slot = alloca i64
+  store i64 0, ptr %input_index_slot
+  store i64 0, ptr %out_count_slot
+  br label %process_next
+
+process_next:
+  %input_index0 = load i64, ptr %input_index_slot
+  %input_done0 = icmp eq i64 %input_index0, %input_count0
+  br i1 %input_done0, label %done, label %load_input
+
+load_input:
+  %input_offset0 = mul i64 %input_index0, 24
+  %input_entry_ptr0 = getelementptr i8, ptr %input_data0, i64 %input_offset0
+  %current_entry0 = load %evid.type.MapEntry_Text__Int_, ptr %input_entry_ptr0
+  %current_key0 = extractvalue %evid.type.MapEntry_Text__Int_ %current_entry0, 0
+  store i64 0, ptr %scan_index_slot
+  br label %scan_output
+
+scan_output:
+  %scan_index0 = load i64, ptr %scan_index_slot
+  %out_count0 = load i64, ptr %out_count_slot
+  %scan_done0 = icmp eq i64 %scan_index0, %out_count0
+  br i1 %scan_done0, label %insert_current, label %compare_existing
+
+compare_existing:
+  %output_offset0 = mul i64 %scan_index0, 24
+  %existing_entry_ptr0 = getelementptr i8, ptr %data0, i64 %output_offset0
+  %existing_entry0 = load %evid.type.MapEntry_Text__Int_, ptr %existing_entry_ptr0
+  %existing_key0 = extractvalue %evid.type.MapEntry_Text__Int_ %existing_entry0, 0
+  %current_key_data0 = extractvalue { ptr, i64 } %current_key0, 0
+  %current_key_count0 = extractvalue { ptr, i64 } %current_key0, 1
+  %existing_key_data0 = extractvalue { ptr, i64 } %existing_key0, 0
+  %existing_key_count0 = extractvalue { ptr, i64 } %existing_key0, 1
+  %current_key_shorter0 = icmp ult i64 %current_key_count0, %existing_key_count0
+  %min_key_count0 = select i1 %current_key_shorter0, i64 %current_key_count0, i64 %existing_key_count0
+  %min_key_empty0 = icmp eq i64 %min_key_count0, 0
+  br i1 %min_key_empty0, label %key_bytes_equal_prefix, label %key_bytes_compare
+
+key_bytes_compare:
+  %key_cmp0 = call i32 @memcmp(ptr %current_key_data0, ptr %existing_key_data0, i64 %min_key_count0)
+  %key_bytes_equal0 = icmp eq i32 %key_cmp0, 0
+  br i1 %key_bytes_equal0, label %key_bytes_equal_prefix, label %key_bytes_ordered
+
+key_bytes_ordered:
+  %current_key_bytes_less0 = icmp slt i32 %key_cmp0, 0
+  br i1 %current_key_bytes_less0, label %insert_current, label %scan_next
+
+key_bytes_equal_prefix:
+  %key_equal0 = icmp eq i64 %current_key_count0, %existing_key_count0
+  br i1 %key_equal0, label %duplicate_key, label %key_prefix_not_equal
+
+key_prefix_not_equal:
+  br i1 %current_key_shorter0, label %insert_current, label %scan_next
+
+scan_next:
+  %scan_next0 = add i64 %scan_index0, 1
+  store i64 %scan_next0, ptr %scan_index_slot
+  br label %scan_output
+
+duplicate_key:
+  br label %next_input
+
+insert_current:
+  %insert_index0 = load i64, ptr %scan_index_slot
+  %out_count1 = load i64, ptr %out_count_slot
+  store i64 %insert_index0, ptr %insert_index_slot
+  %suffix_count0 = sub i64 %out_count1, %insert_index0
+  %suffix_empty0 = icmp eq i64 %suffix_count0, 0
+  br i1 %suffix_empty0, label %store_current, label %shift_setup
+
+shift_setup:
+  store i64 %out_count1, ptr %shift_index_slot
+  br label %shift_loop
+
+shift_loop:
+  %shift_index0 = load i64, ptr %shift_index_slot
+  %insert_index1 = load i64, ptr %insert_index_slot
+  %shift_done0 = icmp eq i64 %shift_index0, %insert_index1
+  br i1 %shift_done0, label %store_current, label %shift_one
+
+shift_one:
+  %shift_source_index0 = sub i64 %shift_index0, 1
+  %shift_source_offset0 = mul i64 %shift_source_index0, 24
+  %shift_source_ptr0 = getelementptr i8, ptr %data0, i64 %shift_source_offset0
+  %shift_entry0 = load %evid.type.MapEntry_Text__Int_, ptr %shift_source_ptr0
+  %shift_dest_offset0 = mul i64 %shift_index0, 24
+  %shift_dest_ptr0 = getelementptr i8, ptr %data0, i64 %shift_dest_offset0
+  store %evid.type.MapEntry_Text__Int_ %shift_entry0, ptr %shift_dest_ptr0
+  store i64 %shift_source_index0, ptr %shift_index_slot
+  br label %shift_loop
+
+store_current:
+  %insert_index2 = load i64, ptr %insert_index_slot
+  %insert_offset0 = mul i64 %insert_index2, 24
+  %insert_ptr0 = getelementptr i8, ptr %data0, i64 %insert_offset0
+  store %evid.type.MapEntry_Text__Int_ %current_entry0, ptr %insert_ptr0
+  %out_count2 = load i64, ptr %out_count_slot
+  %new_out_count0 = add i64 %out_count2, 1
+  store i64 %new_out_count0, ptr %out_count_slot
+  br label %next_input
+
+next_input:
+  %input_index1 = load i64, ptr %input_index_slot
+  %input_next0 = add i64 %input_index1, 1
+  store i64 %input_next0, ptr %input_index_slot
+  br label %process_next
+
+done:
+  %final_count0 = load i64, ptr %out_count_slot
+  %carrier0 = insertvalue { ptr, i64 } zeroinitializer, ptr %data0, 0
+  %carrier1 = insertvalue { ptr, i64 } %carrier0, i64 %final_count0, 1
+  ret { ptr, i64 } %carrier1
+}
+
+define { ptr, i64 } @evid$list_empty$MapEntry_Text__Int_() {
+entry:
+  ret { ptr, i64 } zeroinitializer
+}
+
+define %evid.yield.map_from_entries_rejecting_shared_keys$Text$Int @evid$map_from_entries_rejecting_shared_keys$Text$Int({ ptr, i64 } %arg0) {
+entry:
+  %input_data0 = extractvalue { ptr, i64 } %arg0, 0
+  %input_count0 = extractvalue { ptr, i64 } %arg0, 1
+  %input_empty0 = icmp eq i64 %input_count0, 0
+  br i1 %input_empty0, label %return_empty, label %allocate
+
+return_empty:
+  %ok_empty.tag = insertvalue %evid.yield.map_from_entries_rejecting_shared_keys$Text$Int zeroinitializer, i8 0, 0
+  %ok_empty.pack.slot = alloca { i64, [8 x i8] }
+  store { i64, [8 x i8] } zeroinitializer, ptr %ok_empty.pack.slot
+  store { ptr, i64 } zeroinitializer, ptr %ok_empty.pack.slot
+  %ok_empty.pack = load { i64, [8 x i8] }, ptr %ok_empty.pack.slot
+  %ok_empty.value = insertvalue %evid.yield.map_from_entries_rejecting_shared_keys$Text$Int %ok_empty.tag, { i64, [8 x i8] } %ok_empty.pack, 2
+  ret %evid.yield.map_from_entries_rejecting_shared_keys$Text$Int %ok_empty.value
+
+allocate:
+  %alloc_bytes0 = mul i64 %input_count0, 24
+  %data0 = call ptr @malloc(i64 %alloc_bytes0)
+  %input_index_slot = alloca i64
+  %out_count_slot = alloca i64
+  %scan_index_slot = alloca i64
+  %insert_index_slot = alloca i64
+  %shift_index_slot = alloca i64
+  store i64 0, ptr %input_index_slot
+  store i64 0, ptr %out_count_slot
+  br label %process_next
+
+process_next:
+  %input_index0 = load i64, ptr %input_index_slot
+  %input_done0 = icmp eq i64 %input_index0, %input_count0
+  br i1 %input_done0, label %done, label %load_input
+
+load_input:
+  %input_offset0 = mul i64 %input_index0, 24
+  %input_entry_ptr0 = getelementptr i8, ptr %input_data0, i64 %input_offset0
+  %current_entry0 = load %evid.type.MapEntry_Text__Int_, ptr %input_entry_ptr0
+  %current_key0 = extractvalue %evid.type.MapEntry_Text__Int_ %current_entry0, 0
+  store i64 0, ptr %scan_index_slot
+  br label %scan_output
+
+scan_output:
+  %scan_index0 = load i64, ptr %scan_index_slot
+  %out_count0 = load i64, ptr %out_count_slot
+  %scan_done0 = icmp eq i64 %scan_index0, %out_count0
+  br i1 %scan_done0, label %insert_current, label %compare_existing
+
+compare_existing:
+  %output_offset0 = mul i64 %scan_index0, 24
+  %existing_entry_ptr0 = getelementptr i8, ptr %data0, i64 %output_offset0
+  %existing_entry0 = load %evid.type.MapEntry_Text__Int_, ptr %existing_entry_ptr0
+  %existing_key0 = extractvalue %evid.type.MapEntry_Text__Int_ %existing_entry0, 0
+  %current_key_data0 = extractvalue { ptr, i64 } %current_key0, 0
+  %current_key_count0 = extractvalue { ptr, i64 } %current_key0, 1
+  %existing_key_data0 = extractvalue { ptr, i64 } %existing_key0, 0
+  %existing_key_count0 = extractvalue { ptr, i64 } %existing_key0, 1
+  %current_key_shorter0 = icmp ult i64 %current_key_count0, %existing_key_count0
+  %min_key_count0 = select i1 %current_key_shorter0, i64 %current_key_count0, i64 %existing_key_count0
+  %min_key_empty0 = icmp eq i64 %min_key_count0, 0
+  br i1 %min_key_empty0, label %key_bytes_equal_prefix, label %key_bytes_compare
+
+key_bytes_compare:
+  %key_cmp0 = call i32 @memcmp(ptr %current_key_data0, ptr %existing_key_data0, i64 %min_key_count0)
+  %key_bytes_equal0 = icmp eq i32 %key_cmp0, 0
+  br i1 %key_bytes_equal0, label %key_bytes_equal_prefix, label %key_bytes_ordered
+
+key_bytes_ordered:
+  %current_key_bytes_less0 = icmp slt i32 %key_cmp0, 0
+  br i1 %current_key_bytes_less0, label %insert_current, label %scan_next
+
+key_bytes_equal_prefix:
+  %key_equal0 = icmp eq i64 %current_key_count0, %existing_key_count0
+  br i1 %key_equal0, label %duplicate_key, label %key_prefix_not_equal
+
+key_prefix_not_equal:
+  br i1 %current_key_shorter0, label %insert_current, label %scan_next
+
+scan_next:
+  %scan_next0 = add i64 %scan_index0, 1
+  store i64 %scan_next0, ptr %scan_index_slot
+  br label %scan_output
+
+duplicate_key:
+  %reason0 = insertvalue %evid.type.MapMergeFailure zeroinitializer, i32 4, 0
+  %fail.tag = insertvalue %evid.yield.map_from_entries_rejecting_shared_keys$Text$Int zeroinitializer, i8 1, 0
+  %fail.pack.slot = alloca { i64, [8 x i8] }
+  store { i64, [8 x i8] } zeroinitializer, ptr %fail.pack.slot
+  store %evid.type.MapMergeFailure %reason0, ptr %fail.pack.slot
+  %fail.pack = load { i64, [8 x i8] }, ptr %fail.pack.slot
+  %fail.value = insertvalue %evid.yield.map_from_entries_rejecting_shared_keys$Text$Int %fail.tag, { i64, [8 x i8] } %fail.pack, 2
+  ret %evid.yield.map_from_entries_rejecting_shared_keys$Text$Int %fail.value
+
+insert_current:
+  %insert_index0 = load i64, ptr %scan_index_slot
+  %out_count1 = load i64, ptr %out_count_slot
+  store i64 %insert_index0, ptr %insert_index_slot
+  %suffix_count0 = sub i64 %out_count1, %insert_index0
+  %suffix_empty0 = icmp eq i64 %suffix_count0, 0
+  br i1 %suffix_empty0, label %store_current, label %shift_setup
+
+shift_setup:
+  store i64 %out_count1, ptr %shift_index_slot
+  br label %shift_loop
+
+shift_loop:
+  %shift_index0 = load i64, ptr %shift_index_slot
+  %insert_index1 = load i64, ptr %insert_index_slot
+  %shift_done0 = icmp eq i64 %shift_index0, %insert_index1
+  br i1 %shift_done0, label %store_current, label %shift_one
+
+shift_one:
+  %shift_source_index0 = sub i64 %shift_index0, 1
+  %shift_source_offset0 = mul i64 %shift_source_index0, 24
+  %shift_source_ptr0 = getelementptr i8, ptr %data0, i64 %shift_source_offset0
+  %shift_entry0 = load %evid.type.MapEntry_Text__Int_, ptr %shift_source_ptr0
+  %shift_dest_offset0 = mul i64 %shift_index0, 24
+  %shift_dest_ptr0 = getelementptr i8, ptr %data0, i64 %shift_dest_offset0
+  store %evid.type.MapEntry_Text__Int_ %shift_entry0, ptr %shift_dest_ptr0
+  store i64 %shift_source_index0, ptr %shift_index_slot
+  br label %shift_loop
+
+store_current:
+  %insert_index2 = load i64, ptr %insert_index_slot
+  %insert_offset0 = mul i64 %insert_index2, 24
+  %insert_ptr0 = getelementptr i8, ptr %data0, i64 %insert_offset0
+  store %evid.type.MapEntry_Text__Int_ %current_entry0, ptr %insert_ptr0
+  %out_count2 = load i64, ptr %out_count_slot
+  %new_out_count0 = add i64 %out_count2, 1
+  store i64 %new_out_count0, ptr %out_count_slot
+  br label %next_input
+
+next_input:
+  %input_index1 = load i64, ptr %input_index_slot
+  %input_next0 = add i64 %input_index1, 1
+  store i64 %input_next0, ptr %input_index_slot
+  br label %process_next
+
+done:
+  %final_count0 = load i64, ptr %out_count_slot
+  %carrier0 = insertvalue { ptr, i64 } zeroinitializer, ptr %data0, 0
+  %carrier1 = insertvalue { ptr, i64 } %carrier0, i64 %final_count0, 1
+  %ok.tag = insertvalue %evid.yield.map_from_entries_rejecting_shared_keys$Text$Int zeroinitializer, i8 0, 0
+  %ok.pack.slot = alloca { i64, [8 x i8] }
+  store { i64, [8 x i8] } zeroinitializer, ptr %ok.pack.slot
+  store { ptr, i64 } %carrier1, ptr %ok.pack.slot
+  %ok.pack = load { i64, [8 x i8] }, ptr %ok.pack.slot
+  %ok.value = insertvalue %evid.yield.map_from_entries_rejecting_shared_keys$Text$Int %ok.tag, { i64, [8 x i8] } %ok.pack, 2
+  ret %evid.yield.map_from_entries_rejecting_shared_keys$Text$Int %ok.value
+}
+
+define { ptr, i64 } @evid$nonempty_list_widen$MapEntry_Text__Int_({ ptr, i64 } %arg0) {
+entry:
+  ret { ptr, i64 } %arg0
+}
+
+define %evid.yield.nonempty_map_from_entries_rejecting_shared_keys$Text$Int @evid$nonempty_map_from_entries_rejecting_shared_keys$Text$Int({ ptr, i64 } %arg0) {
+entry:
+  %input_data0 = extractvalue { ptr, i64 } %arg0, 0
+  %input_count0 = extractvalue { ptr, i64 } %arg0, 1
+  %input_empty0 = icmp eq i64 %input_count0, 0
+  br i1 %input_empty0, label %return_empty, label %allocate
+
+return_empty:
+  %ok_empty.tag = insertvalue %evid.yield.nonempty_map_from_entries_rejecting_shared_keys$Text$Int zeroinitializer, i8 0, 0
+  %ok_empty.pack.slot = alloca { i64, [8 x i8] }
+  store { i64, [8 x i8] } zeroinitializer, ptr %ok_empty.pack.slot
+  store { ptr, i64 } zeroinitializer, ptr %ok_empty.pack.slot
+  %ok_empty.pack = load { i64, [8 x i8] }, ptr %ok_empty.pack.slot
+  %ok_empty.value = insertvalue %evid.yield.nonempty_map_from_entries_rejecting_shared_keys$Text$Int %ok_empty.tag, { i64, [8 x i8] } %ok_empty.pack, 2
+  ret %evid.yield.nonempty_map_from_entries_rejecting_shared_keys$Text$Int %ok_empty.value
+
+allocate:
+  %alloc_bytes0 = mul i64 %input_count0, 24
+  %data0 = call ptr @malloc(i64 %alloc_bytes0)
+  %input_index_slot = alloca i64
+  %out_count_slot = alloca i64
+  %scan_index_slot = alloca i64
+  %insert_index_slot = alloca i64
+  %shift_index_slot = alloca i64
+  store i64 0, ptr %input_index_slot
+  store i64 0, ptr %out_count_slot
+  br label %process_next
+
+process_next:
+  %input_index0 = load i64, ptr %input_index_slot
+  %input_done0 = icmp eq i64 %input_index0, %input_count0
+  br i1 %input_done0, label %done, label %load_input
+
+load_input:
+  %input_offset0 = mul i64 %input_index0, 24
+  %input_entry_ptr0 = getelementptr i8, ptr %input_data0, i64 %input_offset0
+  %current_entry0 = load %evid.type.MapEntry_Text__Int_, ptr %input_entry_ptr0
+  %current_key0 = extractvalue %evid.type.MapEntry_Text__Int_ %current_entry0, 0
+  store i64 0, ptr %scan_index_slot
+  br label %scan_output
+
+scan_output:
+  %scan_index0 = load i64, ptr %scan_index_slot
+  %out_count0 = load i64, ptr %out_count_slot
+  %scan_done0 = icmp eq i64 %scan_index0, %out_count0
+  br i1 %scan_done0, label %insert_current, label %compare_existing
+
+compare_existing:
+  %output_offset0 = mul i64 %scan_index0, 24
+  %existing_entry_ptr0 = getelementptr i8, ptr %data0, i64 %output_offset0
+  %existing_entry0 = load %evid.type.MapEntry_Text__Int_, ptr %existing_entry_ptr0
+  %existing_key0 = extractvalue %evid.type.MapEntry_Text__Int_ %existing_entry0, 0
+  %current_key_data0 = extractvalue { ptr, i64 } %current_key0, 0
+  %current_key_count0 = extractvalue { ptr, i64 } %current_key0, 1
+  %existing_key_data0 = extractvalue { ptr, i64 } %existing_key0, 0
+  %existing_key_count0 = extractvalue { ptr, i64 } %existing_key0, 1
+  %current_key_shorter0 = icmp ult i64 %current_key_count0, %existing_key_count0
+  %min_key_count0 = select i1 %current_key_shorter0, i64 %current_key_count0, i64 %existing_key_count0
+  %min_key_empty0 = icmp eq i64 %min_key_count0, 0
+  br i1 %min_key_empty0, label %key_bytes_equal_prefix, label %key_bytes_compare
+
+key_bytes_compare:
+  %key_cmp0 = call i32 @memcmp(ptr %current_key_data0, ptr %existing_key_data0, i64 %min_key_count0)
+  %key_bytes_equal0 = icmp eq i32 %key_cmp0, 0
+  br i1 %key_bytes_equal0, label %key_bytes_equal_prefix, label %key_bytes_ordered
+
+key_bytes_ordered:
+  %current_key_bytes_less0 = icmp slt i32 %key_cmp0, 0
+  br i1 %current_key_bytes_less0, label %insert_current, label %scan_next
+
+key_bytes_equal_prefix:
+  %key_equal0 = icmp eq i64 %current_key_count0, %existing_key_count0
+  br i1 %key_equal0, label %duplicate_key, label %key_prefix_not_equal
+
+key_prefix_not_equal:
+  br i1 %current_key_shorter0, label %insert_current, label %scan_next
+
+scan_next:
+  %scan_next0 = add i64 %scan_index0, 1
+  store i64 %scan_next0, ptr %scan_index_slot
+  br label %scan_output
+
+duplicate_key:
+  %reason0 = insertvalue %evid.type.MapMergeFailure zeroinitializer, i32 4, 0
+  %fail.tag = insertvalue %evid.yield.nonempty_map_from_entries_rejecting_shared_keys$Text$Int zeroinitializer, i8 1, 0
+  %fail.pack.slot = alloca { i64, [8 x i8] }
+  store { i64, [8 x i8] } zeroinitializer, ptr %fail.pack.slot
+  store %evid.type.MapMergeFailure %reason0, ptr %fail.pack.slot
+  %fail.pack = load { i64, [8 x i8] }, ptr %fail.pack.slot
+  %fail.value = insertvalue %evid.yield.nonempty_map_from_entries_rejecting_shared_keys$Text$Int %fail.tag, { i64, [8 x i8] } %fail.pack, 2
+  ret %evid.yield.nonempty_map_from_entries_rejecting_shared_keys$Text$Int %fail.value
+
+insert_current:
+  %insert_index0 = load i64, ptr %scan_index_slot
+  %out_count1 = load i64, ptr %out_count_slot
+  store i64 %insert_index0, ptr %insert_index_slot
+  %suffix_count0 = sub i64 %out_count1, %insert_index0
+  %suffix_empty0 = icmp eq i64 %suffix_count0, 0
+  br i1 %suffix_empty0, label %store_current, label %shift_setup
+
+shift_setup:
+  store i64 %out_count1, ptr %shift_index_slot
+  br label %shift_loop
+
+shift_loop:
+  %shift_index0 = load i64, ptr %shift_index_slot
+  %insert_index1 = load i64, ptr %insert_index_slot
+  %shift_done0 = icmp eq i64 %shift_index0, %insert_index1
+  br i1 %shift_done0, label %store_current, label %shift_one
+
+shift_one:
+  %shift_source_index0 = sub i64 %shift_index0, 1
+  %shift_source_offset0 = mul i64 %shift_source_index0, 24
+  %shift_source_ptr0 = getelementptr i8, ptr %data0, i64 %shift_source_offset0
+  %shift_entry0 = load %evid.type.MapEntry_Text__Int_, ptr %shift_source_ptr0
+  %shift_dest_offset0 = mul i64 %shift_index0, 24
+  %shift_dest_ptr0 = getelementptr i8, ptr %data0, i64 %shift_dest_offset0
+  store %evid.type.MapEntry_Text__Int_ %shift_entry0, ptr %shift_dest_ptr0
+  store i64 %shift_source_index0, ptr %shift_index_slot
+  br label %shift_loop
+
+store_current:
+  %insert_index2 = load i64, ptr %insert_index_slot
+  %insert_offset0 = mul i64 %insert_index2, 24
+  %insert_ptr0 = getelementptr i8, ptr %data0, i64 %insert_offset0
+  store %evid.type.MapEntry_Text__Int_ %current_entry0, ptr %insert_ptr0
+  %out_count2 = load i64, ptr %out_count_slot
+  %new_out_count0 = add i64 %out_count2, 1
+  store i64 %new_out_count0, ptr %out_count_slot
+  br label %next_input
+
+next_input:
+  %input_index1 = load i64, ptr %input_index_slot
+  %input_next0 = add i64 %input_index1, 1
+  store i64 %input_next0, ptr %input_index_slot
+  br label %process_next
+
+done:
+  %final_count0 = load i64, ptr %out_count_slot
+  %carrier0 = insertvalue { ptr, i64 } zeroinitializer, ptr %data0, 0
+  %carrier1 = insertvalue { ptr, i64 } %carrier0, i64 %final_count0, 1
+  %ok.tag = insertvalue %evid.yield.nonempty_map_from_entries_rejecting_shared_keys$Text$Int zeroinitializer, i8 0, 0
+  %ok.pack.slot = alloca { i64, [8 x i8] }
+  store { i64, [8 x i8] } zeroinitializer, ptr %ok.pack.slot
+  store { ptr, i64 } %carrier1, ptr %ok.pack.slot
+  %ok.pack = load { i64, [8 x i8] }, ptr %ok.pack.slot
+  %ok.value = insertvalue %evid.yield.nonempty_map_from_entries_rejecting_shared_keys$Text$Int %ok.tag, { i64, [8 x i8] } %ok.pack, 2
+  ret %evid.yield.nonempty_map_from_entries_rejecting_shared_keys$Text$Int %ok.value
+}
+
+define { ptr, i64 } @evid$nonempty_map_from_entries_using_first_bindings$Text$Int({ ptr, i64 } %arg0) {
+entry:
+  %input_data0 = extractvalue { ptr, i64 } %arg0, 0
+  %input_count0 = extractvalue { ptr, i64 } %arg0, 1
+  %input_empty0 = icmp eq i64 %input_count0, 0
+  br i1 %input_empty0, label %return_empty, label %allocate
+
+return_empty:
+  ret { ptr, i64 } zeroinitializer
+
+allocate:
+  %alloc_bytes0 = mul i64 %input_count0, 24
+  %data0 = call ptr @malloc(i64 %alloc_bytes0)
+  %input_index_slot = alloca i64
+  %out_count_slot = alloca i64
+  %scan_index_slot = alloca i64
+  %insert_index_slot = alloca i64
+  %shift_index_slot = alloca i64
+  store i64 0, ptr %input_index_slot
+  store i64 0, ptr %out_count_slot
+  br label %process_next
+
+process_next:
+  %input_index0 = load i64, ptr %input_index_slot
+  %input_done0 = icmp eq i64 %input_index0, %input_count0
+  br i1 %input_done0, label %done, label %load_input
+
+load_input:
+  %input_offset0 = mul i64 %input_index0, 24
+  %input_entry_ptr0 = getelementptr i8, ptr %input_data0, i64 %input_offset0
+  %current_entry0 = load %evid.type.MapEntry_Text__Int_, ptr %input_entry_ptr0
+  %current_key0 = extractvalue %evid.type.MapEntry_Text__Int_ %current_entry0, 0
+  store i64 0, ptr %scan_index_slot
+  br label %scan_output
+
+scan_output:
+  %scan_index0 = load i64, ptr %scan_index_slot
+  %out_count0 = load i64, ptr %out_count_slot
+  %scan_done0 = icmp eq i64 %scan_index0, %out_count0
+  br i1 %scan_done0, label %insert_current, label %compare_existing
+
+compare_existing:
+  %output_offset0 = mul i64 %scan_index0, 24
+  %existing_entry_ptr0 = getelementptr i8, ptr %data0, i64 %output_offset0
+  %existing_entry0 = load %evid.type.MapEntry_Text__Int_, ptr %existing_entry_ptr0
+  %existing_key0 = extractvalue %evid.type.MapEntry_Text__Int_ %existing_entry0, 0
+  %current_key_data0 = extractvalue { ptr, i64 } %current_key0, 0
+  %current_key_count0 = extractvalue { ptr, i64 } %current_key0, 1
+  %existing_key_data0 = extractvalue { ptr, i64 } %existing_key0, 0
+  %existing_key_count0 = extractvalue { ptr, i64 } %existing_key0, 1
+  %current_key_shorter0 = icmp ult i64 %current_key_count0, %existing_key_count0
+  %min_key_count0 = select i1 %current_key_shorter0, i64 %current_key_count0, i64 %existing_key_count0
+  %min_key_empty0 = icmp eq i64 %min_key_count0, 0
+  br i1 %min_key_empty0, label %key_bytes_equal_prefix, label %key_bytes_compare
+
+key_bytes_compare:
+  %key_cmp0 = call i32 @memcmp(ptr %current_key_data0, ptr %existing_key_data0, i64 %min_key_count0)
+  %key_bytes_equal0 = icmp eq i32 %key_cmp0, 0
+  br i1 %key_bytes_equal0, label %key_bytes_equal_prefix, label %key_bytes_ordered
+
+key_bytes_ordered:
+  %current_key_bytes_less0 = icmp slt i32 %key_cmp0, 0
+  br i1 %current_key_bytes_less0, label %insert_current, label %scan_next
+
+key_bytes_equal_prefix:
+  %key_equal0 = icmp eq i64 %current_key_count0, %existing_key_count0
+  br i1 %key_equal0, label %duplicate_key, label %key_prefix_not_equal
+
+key_prefix_not_equal:
+  br i1 %current_key_shorter0, label %insert_current, label %scan_next
+
+scan_next:
+  %scan_next0 = add i64 %scan_index0, 1
+  store i64 %scan_next0, ptr %scan_index_slot
+  br label %scan_output
+
+duplicate_key:
+  br label %next_input
+
+insert_current:
+  %insert_index0 = load i64, ptr %scan_index_slot
+  %out_count1 = load i64, ptr %out_count_slot
+  store i64 %insert_index0, ptr %insert_index_slot
+  %suffix_count0 = sub i64 %out_count1, %insert_index0
+  %suffix_empty0 = icmp eq i64 %suffix_count0, 0
+  br i1 %suffix_empty0, label %store_current, label %shift_setup
+
+shift_setup:
+  store i64 %out_count1, ptr %shift_index_slot
+  br label %shift_loop
+
+shift_loop:
+  %shift_index0 = load i64, ptr %shift_index_slot
+  %insert_index1 = load i64, ptr %insert_index_slot
+  %shift_done0 = icmp eq i64 %shift_index0, %insert_index1
+  br i1 %shift_done0, label %store_current, label %shift_one
+
+shift_one:
+  %shift_source_index0 = sub i64 %shift_index0, 1
+  %shift_source_offset0 = mul i64 %shift_source_index0, 24
+  %shift_source_ptr0 = getelementptr i8, ptr %data0, i64 %shift_source_offset0
+  %shift_entry0 = load %evid.type.MapEntry_Text__Int_, ptr %shift_source_ptr0
+  %shift_dest_offset0 = mul i64 %shift_index0, 24
+  %shift_dest_ptr0 = getelementptr i8, ptr %data0, i64 %shift_dest_offset0
+  store %evid.type.MapEntry_Text__Int_ %shift_entry0, ptr %shift_dest_ptr0
+  store i64 %shift_source_index0, ptr %shift_index_slot
+  br label %shift_loop
+
+store_current:
+  %insert_index2 = load i64, ptr %insert_index_slot
+  %insert_offset0 = mul i64 %insert_index2, 24
+  %insert_ptr0 = getelementptr i8, ptr %data0, i64 %insert_offset0
+  store %evid.type.MapEntry_Text__Int_ %current_entry0, ptr %insert_ptr0
+  %out_count2 = load i64, ptr %out_count_slot
+  %new_out_count0 = add i64 %out_count2, 1
+  store i64 %new_out_count0, ptr %out_count_slot
+  br label %next_input
+
+next_input:
+  %input_index1 = load i64, ptr %input_index_slot
+  %input_next0 = add i64 %input_index1, 1
+  store i64 %input_next0, ptr %input_index_slot
+  br label %process_next
+
+done:
+  %final_count0 = load i64, ptr %out_count_slot
+  %carrier0 = insertvalue { ptr, i64 } zeroinitializer, ptr %data0, 0
+  %carrier1 = insertvalue { ptr, i64 } %carrier0, i64 %final_count0, 1
+  ret { ptr, i64 } %carrier1
+}
+
+define { ptr, i64 } @evid$map_from_entries_using_last_bindings$Text$Int({ ptr, i64 } %arg0) {
+entry:
+  %input_data0 = extractvalue { ptr, i64 } %arg0, 0
+  %input_count0 = extractvalue { ptr, i64 } %arg0, 1
+  %input_empty0 = icmp eq i64 %input_count0, 0
+  br i1 %input_empty0, label %return_empty, label %allocate
+
+return_empty:
+  ret { ptr, i64 } zeroinitializer
+
+allocate:
+  %alloc_bytes0 = mul i64 %input_count0, 24
+  %data0 = call ptr @malloc(i64 %alloc_bytes0)
+  %input_index_slot = alloca i64
+  %out_count_slot = alloca i64
+  %scan_index_slot = alloca i64
+  %insert_index_slot = alloca i64
+  %shift_index_slot = alloca i64
+  store i64 0, ptr %input_index_slot
+  store i64 0, ptr %out_count_slot
+  br label %process_next
+
+process_next:
+  %input_index0 = load i64, ptr %input_index_slot
+  %input_done0 = icmp eq i64 %input_index0, %input_count0
+  br i1 %input_done0, label %done, label %load_input
+
+load_input:
+  %input_offset0 = mul i64 %input_index0, 24
+  %input_entry_ptr0 = getelementptr i8, ptr %input_data0, i64 %input_offset0
+  %current_entry0 = load %evid.type.MapEntry_Text__Int_, ptr %input_entry_ptr0
+  %current_key0 = extractvalue %evid.type.MapEntry_Text__Int_ %current_entry0, 0
+  store i64 0, ptr %scan_index_slot
+  br label %scan_output
+
+scan_output:
+  %scan_index0 = load i64, ptr %scan_index_slot
+  %out_count0 = load i64, ptr %out_count_slot
+  %scan_done0 = icmp eq i64 %scan_index0, %out_count0
+  br i1 %scan_done0, label %insert_current, label %compare_existing
+
+compare_existing:
+  %output_offset0 = mul i64 %scan_index0, 24
+  %existing_entry_ptr0 = getelementptr i8, ptr %data0, i64 %output_offset0
+  %existing_entry0 = load %evid.type.MapEntry_Text__Int_, ptr %existing_entry_ptr0
+  %existing_key0 = extractvalue %evid.type.MapEntry_Text__Int_ %existing_entry0, 0
+  %current_key_data0 = extractvalue { ptr, i64 } %current_key0, 0
+  %current_key_count0 = extractvalue { ptr, i64 } %current_key0, 1
+  %existing_key_data0 = extractvalue { ptr, i64 } %existing_key0, 0
+  %existing_key_count0 = extractvalue { ptr, i64 } %existing_key0, 1
+  %current_key_shorter0 = icmp ult i64 %current_key_count0, %existing_key_count0
+  %min_key_count0 = select i1 %current_key_shorter0, i64 %current_key_count0, i64 %existing_key_count0
+  %min_key_empty0 = icmp eq i64 %min_key_count0, 0
+  br i1 %min_key_empty0, label %key_bytes_equal_prefix, label %key_bytes_compare
+
+key_bytes_compare:
+  %key_cmp0 = call i32 @memcmp(ptr %current_key_data0, ptr %existing_key_data0, i64 %min_key_count0)
+  %key_bytes_equal0 = icmp eq i32 %key_cmp0, 0
+  br i1 %key_bytes_equal0, label %key_bytes_equal_prefix, label %key_bytes_ordered
+
+key_bytes_ordered:
+  %current_key_bytes_less0 = icmp slt i32 %key_cmp0, 0
+  br i1 %current_key_bytes_less0, label %insert_current, label %scan_next
+
+key_bytes_equal_prefix:
+  %key_equal0 = icmp eq i64 %current_key_count0, %existing_key_count0
+  br i1 %key_equal0, label %duplicate_key, label %key_prefix_not_equal
+
+key_prefix_not_equal:
+  br i1 %current_key_shorter0, label %insert_current, label %scan_next
+
+scan_next:
+  %scan_next0 = add i64 %scan_index0, 1
+  store i64 %scan_next0, ptr %scan_index_slot
+  br label %scan_output
+
+duplicate_key:
+  store %evid.type.MapEntry_Text__Int_ %current_entry0, ptr %existing_entry_ptr0
+  br label %next_input
+
+insert_current:
+  %insert_index0 = load i64, ptr %scan_index_slot
+  %out_count1 = load i64, ptr %out_count_slot
+  store i64 %insert_index0, ptr %insert_index_slot
+  %suffix_count0 = sub i64 %out_count1, %insert_index0
+  %suffix_empty0 = icmp eq i64 %suffix_count0, 0
+  br i1 %suffix_empty0, label %store_current, label %shift_setup
+
+shift_setup:
+  store i64 %out_count1, ptr %shift_index_slot
+  br label %shift_loop
+
+shift_loop:
+  %shift_index0 = load i64, ptr %shift_index_slot
+  %insert_index1 = load i64, ptr %insert_index_slot
+  %shift_done0 = icmp eq i64 %shift_index0, %insert_index1
+  br i1 %shift_done0, label %store_current, label %shift_one
+
+shift_one:
+  %shift_source_index0 = sub i64 %shift_index0, 1
+  %shift_source_offset0 = mul i64 %shift_source_index0, 24
+  %shift_source_ptr0 = getelementptr i8, ptr %data0, i64 %shift_source_offset0
+  %shift_entry0 = load %evid.type.MapEntry_Text__Int_, ptr %shift_source_ptr0
+  %shift_dest_offset0 = mul i64 %shift_index0, 24
+  %shift_dest_ptr0 = getelementptr i8, ptr %data0, i64 %shift_dest_offset0
+  store %evid.type.MapEntry_Text__Int_ %shift_entry0, ptr %shift_dest_ptr0
+  store i64 %shift_source_index0, ptr %shift_index_slot
+  br label %shift_loop
+
+store_current:
+  %insert_index2 = load i64, ptr %insert_index_slot
+  %insert_offset0 = mul i64 %insert_index2, 24
+  %insert_ptr0 = getelementptr i8, ptr %data0, i64 %insert_offset0
+  store %evid.type.MapEntry_Text__Int_ %current_entry0, ptr %insert_ptr0
+  %out_count2 = load i64, ptr %out_count_slot
+  %new_out_count0 = add i64 %out_count2, 1
+  store i64 %new_out_count0, ptr %out_count_slot
+  br label %next_input
+
+next_input:
+  %input_index1 = load i64, ptr %input_index_slot
+  %input_next0 = add i64 %input_index1, 1
+  store i64 %input_next0, ptr %input_index_slot
+  br label %process_next
+
+done:
+  %final_count0 = load i64, ptr %out_count_slot
+  %carrier0 = insertvalue { ptr, i64 } zeroinitializer, ptr %data0, 0
+  %carrier1 = insertvalue { ptr, i64 } %carrier0, i64 %final_count0, 1
+  ret { ptr, i64 } %carrier1
+}
+
+define { ptr, i64 } @evid$nonempty_map_from_entries_using_last_bindings$Text$Int({ ptr, i64 } %arg0) {
+entry:
+  %input_data0 = extractvalue { ptr, i64 } %arg0, 0
+  %input_count0 = extractvalue { ptr, i64 } %arg0, 1
+  %input_empty0 = icmp eq i64 %input_count0, 0
+  br i1 %input_empty0, label %return_empty, label %allocate
+
+return_empty:
+  ret { ptr, i64 } zeroinitializer
+
+allocate:
+  %alloc_bytes0 = mul i64 %input_count0, 24
+  %data0 = call ptr @malloc(i64 %alloc_bytes0)
+  %input_index_slot = alloca i64
+  %out_count_slot = alloca i64
+  %scan_index_slot = alloca i64
+  %insert_index_slot = alloca i64
+  %shift_index_slot = alloca i64
+  store i64 0, ptr %input_index_slot
+  store i64 0, ptr %out_count_slot
+  br label %process_next
+
+process_next:
+  %input_index0 = load i64, ptr %input_index_slot
+  %input_done0 = icmp eq i64 %input_index0, %input_count0
+  br i1 %input_done0, label %done, label %load_input
+
+load_input:
+  %input_offset0 = mul i64 %input_index0, 24
+  %input_entry_ptr0 = getelementptr i8, ptr %input_data0, i64 %input_offset0
+  %current_entry0 = load %evid.type.MapEntry_Text__Int_, ptr %input_entry_ptr0
+  %current_key0 = extractvalue %evid.type.MapEntry_Text__Int_ %current_entry0, 0
+  store i64 0, ptr %scan_index_slot
+  br label %scan_output
+
+scan_output:
+  %scan_index0 = load i64, ptr %scan_index_slot
+  %out_count0 = load i64, ptr %out_count_slot
+  %scan_done0 = icmp eq i64 %scan_index0, %out_count0
+  br i1 %scan_done0, label %insert_current, label %compare_existing
+
+compare_existing:
+  %output_offset0 = mul i64 %scan_index0, 24
+  %existing_entry_ptr0 = getelementptr i8, ptr %data0, i64 %output_offset0
+  %existing_entry0 = load %evid.type.MapEntry_Text__Int_, ptr %existing_entry_ptr0
+  %existing_key0 = extractvalue %evid.type.MapEntry_Text__Int_ %existing_entry0, 0
+  %current_key_data0 = extractvalue { ptr, i64 } %current_key0, 0
+  %current_key_count0 = extractvalue { ptr, i64 } %current_key0, 1
+  %existing_key_data0 = extractvalue { ptr, i64 } %existing_key0, 0
+  %existing_key_count0 = extractvalue { ptr, i64 } %existing_key0, 1
+  %current_key_shorter0 = icmp ult i64 %current_key_count0, %existing_key_count0
+  %min_key_count0 = select i1 %current_key_shorter0, i64 %current_key_count0, i64 %existing_key_count0
+  %min_key_empty0 = icmp eq i64 %min_key_count0, 0
+  br i1 %min_key_empty0, label %key_bytes_equal_prefix, label %key_bytes_compare
+
+key_bytes_compare:
+  %key_cmp0 = call i32 @memcmp(ptr %current_key_data0, ptr %existing_key_data0, i64 %min_key_count0)
+  %key_bytes_equal0 = icmp eq i32 %key_cmp0, 0
+  br i1 %key_bytes_equal0, label %key_bytes_equal_prefix, label %key_bytes_ordered
+
+key_bytes_ordered:
+  %current_key_bytes_less0 = icmp slt i32 %key_cmp0, 0
+  br i1 %current_key_bytes_less0, label %insert_current, label %scan_next
+
+key_bytes_equal_prefix:
+  %key_equal0 = icmp eq i64 %current_key_count0, %existing_key_count0
+  br i1 %key_equal0, label %duplicate_key, label %key_prefix_not_equal
+
+key_prefix_not_equal:
+  br i1 %current_key_shorter0, label %insert_current, label %scan_next
+
+scan_next:
+  %scan_next0 = add i64 %scan_index0, 1
+  store i64 %scan_next0, ptr %scan_index_slot
+  br label %scan_output
+
+duplicate_key:
+  store %evid.type.MapEntry_Text__Int_ %current_entry0, ptr %existing_entry_ptr0
+  br label %next_input
+
+insert_current:
+  %insert_index0 = load i64, ptr %scan_index_slot
+  %out_count1 = load i64, ptr %out_count_slot
+  store i64 %insert_index0, ptr %insert_index_slot
+  %suffix_count0 = sub i64 %out_count1, %insert_index0
+  %suffix_empty0 = icmp eq i64 %suffix_count0, 0
+  br i1 %suffix_empty0, label %store_current, label %shift_setup
+
+shift_setup:
+  store i64 %out_count1, ptr %shift_index_slot
+  br label %shift_loop
+
+shift_loop:
+  %shift_index0 = load i64, ptr %shift_index_slot
+  %insert_index1 = load i64, ptr %insert_index_slot
+  %shift_done0 = icmp eq i64 %shift_index0, %insert_index1
+  br i1 %shift_done0, label %store_current, label %shift_one
+
+shift_one:
+  %shift_source_index0 = sub i64 %shift_index0, 1
+  %shift_source_offset0 = mul i64 %shift_source_index0, 24
+  %shift_source_ptr0 = getelementptr i8, ptr %data0, i64 %shift_source_offset0
+  %shift_entry0 = load %evid.type.MapEntry_Text__Int_, ptr %shift_source_ptr0
+  %shift_dest_offset0 = mul i64 %shift_index0, 24
+  %shift_dest_ptr0 = getelementptr i8, ptr %data0, i64 %shift_dest_offset0
+  store %evid.type.MapEntry_Text__Int_ %shift_entry0, ptr %shift_dest_ptr0
+  store i64 %shift_source_index0, ptr %shift_index_slot
+  br label %shift_loop
+
+store_current:
+  %insert_index2 = load i64, ptr %insert_index_slot
+  %insert_offset0 = mul i64 %insert_index2, 24
+  %insert_ptr0 = getelementptr i8, ptr %data0, i64 %insert_offset0
+  store %evid.type.MapEntry_Text__Int_ %current_entry0, ptr %insert_ptr0
+  %out_count2 = load i64, ptr %out_count_slot
+  %new_out_count0 = add i64 %out_count2, 1
+  store i64 %new_out_count0, ptr %out_count_slot
+  br label %next_input
+
+next_input:
+  %input_index1 = load i64, ptr %input_index_slot
+  %input_next0 = add i64 %input_index1, 1
+  store i64 %input_next0, ptr %input_index_slot
+  br label %process_next
+
+done:
+  %final_count0 = load i64, ptr %out_count_slot
+  %carrier0 = insertvalue { ptr, i64 } zeroinitializer, ptr %data0, 0
+  %carrier1 = insertvalue { ptr, i64 } %carrier0, i64 %final_count0, 1
+  ret { ptr, i64 } %carrier1
+}
+
+define { ptr, i64 } @evid$map_from_entries_using_last_bindings$Int$Int({ ptr, i64 } %arg0) {
+entry:
+  %input_data0 = extractvalue { ptr, i64 } %arg0, 0
+  %input_count0 = extractvalue { ptr, i64 } %arg0, 1
+  %input_empty0 = icmp eq i64 %input_count0, 0
+  br i1 %input_empty0, label %return_empty, label %allocate
+
+return_empty:
+  ret { ptr, i64 } zeroinitializer
+
+allocate:
+  %alloc_bytes0 = mul i64 %input_count0, 16
+  %data0 = call ptr @malloc(i64 %alloc_bytes0)
+  %input_index_slot = alloca i64
+  %out_count_slot = alloca i64
+  %scan_index_slot = alloca i64
+  %insert_index_slot = alloca i64
+  %shift_index_slot = alloca i64
+  store i64 0, ptr %input_index_slot
+  store i64 0, ptr %out_count_slot
+  br label %process_next
+
+process_next:
+  %input_index0 = load i64, ptr %input_index_slot
+  %input_done0 = icmp eq i64 %input_index0, %input_count0
+  br i1 %input_done0, label %done, label %load_input
+
+load_input:
+  %input_offset0 = mul i64 %input_index0, 16
+  %input_entry_ptr0 = getelementptr i8, ptr %input_data0, i64 %input_offset0
+  %current_entry0 = load %evid.type.MapEntry_Int__Int_, ptr %input_entry_ptr0
+  %current_key0 = extractvalue %evid.type.MapEntry_Int__Int_ %current_entry0, 0
+  store i64 0, ptr %scan_index_slot
+  br label %scan_output
+
+scan_output:
+  %scan_index0 = load i64, ptr %scan_index_slot
+  %out_count0 = load i64, ptr %out_count_slot
+  %scan_done0 = icmp eq i64 %scan_index0, %out_count0
+  br i1 %scan_done0, label %insert_current, label %compare_existing
+
+compare_existing:
+  %output_offset0 = mul i64 %scan_index0, 16
+  %existing_entry_ptr0 = getelementptr i8, ptr %data0, i64 %output_offset0
+  %existing_entry0 = load %evid.type.MapEntry_Int__Int_, ptr %existing_entry_ptr0
+  %existing_key0 = extractvalue %evid.type.MapEntry_Int__Int_ %existing_entry0, 0
+  %key_equal0 = icmp eq i64 %current_key0, %existing_key0
+  br i1 %key_equal0, label %duplicate_key, label %key_not_equal
+
+key_not_equal:
+  %current_key_less0 = icmp slt i64 %current_key0, %existing_key0
+  br i1 %current_key_less0, label %insert_current, label %scan_next
+
+scan_next:
+  %scan_next0 = add i64 %scan_index0, 1
+  store i64 %scan_next0, ptr %scan_index_slot
+  br label %scan_output
+
+duplicate_key:
+  store %evid.type.MapEntry_Int__Int_ %current_entry0, ptr %existing_entry_ptr0
+  br label %next_input
+
+insert_current:
+  %insert_index0 = load i64, ptr %scan_index_slot
+  %out_count1 = load i64, ptr %out_count_slot
+  store i64 %insert_index0, ptr %insert_index_slot
+  %suffix_count0 = sub i64 %out_count1, %insert_index0
+  %suffix_empty0 = icmp eq i64 %suffix_count0, 0
+  br i1 %suffix_empty0, label %store_current, label %shift_setup
+
+shift_setup:
+  store i64 %out_count1, ptr %shift_index_slot
+  br label %shift_loop
+
+shift_loop:
+  %shift_index0 = load i64, ptr %shift_index_slot
+  %insert_index1 = load i64, ptr %insert_index_slot
+  %shift_done0 = icmp eq i64 %shift_index0, %insert_index1
+  br i1 %shift_done0, label %store_current, label %shift_one
+
+shift_one:
+  %shift_source_index0 = sub i64 %shift_index0, 1
+  %shift_source_offset0 = mul i64 %shift_source_index0, 16
+  %shift_source_ptr0 = getelementptr i8, ptr %data0, i64 %shift_source_offset0
+  %shift_entry0 = load %evid.type.MapEntry_Int__Int_, ptr %shift_source_ptr0
+  %shift_dest_offset0 = mul i64 %shift_index0, 16
+  %shift_dest_ptr0 = getelementptr i8, ptr %data0, i64 %shift_dest_offset0
+  store %evid.type.MapEntry_Int__Int_ %shift_entry0, ptr %shift_dest_ptr0
+  store i64 %shift_source_index0, ptr %shift_index_slot
+  br label %shift_loop
+
+store_current:
+  %insert_index2 = load i64, ptr %insert_index_slot
+  %insert_offset0 = mul i64 %insert_index2, 16
+  %insert_ptr0 = getelementptr i8, ptr %data0, i64 %insert_offset0
+  store %evid.type.MapEntry_Int__Int_ %current_entry0, ptr %insert_ptr0
+  %out_count2 = load i64, ptr %out_count_slot
+  %new_out_count0 = add i64 %out_count2, 1
+  store i64 %new_out_count0, ptr %out_count_slot
+  br label %next_input
+
+next_input:
+  %input_index1 = load i64, ptr %input_index_slot
+  %input_next0 = add i64 %input_index1, 1
+  store i64 %input_next0, ptr %input_index_slot
+  br label %process_next
+
+done:
+  %final_count0 = load i64, ptr %out_count_slot
+  %carrier0 = insertvalue { ptr, i64 } zeroinitializer, ptr %data0, 0
+  %carrier1 = insertvalue { ptr, i64 } %carrier0, i64 %final_count0, 1
+  ret { ptr, i64 } %carrier1
+}
+
+define { ptr, i64 } @evid$nonempty_list_widen$MapEntry_Int__Int_({ ptr, i64 } %arg0) {
+entry:
+  ret { ptr, i64 } %arg0
+}
+
 define { ptr, i64 } @evid$map_entries_copy$Text$Int({ ptr, i64 } %arg0) {
 entry:
   ret { ptr, i64 } %arg0
@@ -8103,11 +9816,6 @@ define i64 @evid$list_count_copy$MapEntry_Text__Int_({ ptr, i64 } %arg0) {
 entry:
   %count0 = extractvalue { ptr, i64 } %arg0, 1
   ret i64 %count0
-}
-
-define { ptr, i64 } @evid$nonempty_map_entries_copy$Text$Int({ ptr, i64 } %arg0) {
-entry:
-  ret { ptr, i64 } %arg0
 }
 
 define %evid.type.MapEntry_Text__Int_ @evid$nonempty_list_first_copy$MapEntry_Text__Int_({ ptr, i64 } %arg0) {
