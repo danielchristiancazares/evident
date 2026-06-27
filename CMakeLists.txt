@@ -80,7 +80,7 @@ add_dependencies(package_checksum package)
 
 include(CTest)
 if(BUILD_TESTING)
-    set(EVIDENT_EXPECTED_CTEST_TOTAL 398)
+    set(EVIDENT_EXPECTED_CTEST_TOTAL 399)
 
     add_test(NAME parse_valid_example
         COMMAND evidc --dump-hir ${CMAKE_CURRENT_SOURCE_DIR}/examples/feature_mode.evd)
@@ -816,6 +816,10 @@ if(BUILD_TESTING)
         expected_cli_check_toolchain_with_input.stderr.out
         --check-toolchain
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/native_main_constant.evd)
+    add_cli_failure_compare_test(cli_toolchain_reporting_conflict
+        expected_cli_toolchain_reporting_conflict.stderr.out
+        --print-toolchain
+        --check-toolchain)
     add_cli_failure_compare_test(cli_no_input
         expected_cli_no_input.stderr.out)
     add_cli_failure_compare_test(cli_unknown_option
