@@ -122,6 +122,16 @@ types:
       field tool: bootstrap_host::HostToolInvocation
   - public record bootstrap_host::ExitStatus
       field code: Int
+  - public record bootstrap_environment::CompilerEnvironment
+      field workspace_root: bootstrap_host::HostPath
+      field package_root: bootstrap_host::HostPath
+      field manifest: bootstrap_host::HostPath
+      field source_root: bootstrap_host::HostPath
+      field build_root: bootstrap_host::HostPath
+      field target_triple: Text
+      field clang_driver: Text
+      field linker_driver: Text
+      field source_commit: Text
   - public record bootstrap_pipeline::PackageOutline
       field source: bootstrap_source::PackageSource
       field tokens: bootstrap_lexing::TokenStream
@@ -160,6 +170,7 @@ types:
       field equivalence: bootstrap_pipeline::BootstrapEquivalence
   - public record bootstrap_compiler::BootstrapStatus [affine]
       field host: bootstrap_host::CompilerHostSurface
+      field environment: bootstrap_environment::CompilerEnvironment
       field exit_status: bootstrap_host::ExitStatus
       field pipeline: bootstrap_pipeline::CompilerPipeline::StageTwoValidated [affine]
       field evidence: bootstrap_pipeline::BootstrapEvidence
@@ -227,9 +238,15 @@ functions:
             call bootstrap_source::source_file -> bootstrap_source::SourceFile
               string "src/host.evd" : Text
               string "host file, path, and tool boundary handles" : Text
-        let pipeline: NonEmptyList<bootstrap_source::SourceFile>
+        let environment: NonEmptyList<bootstrap_source::SourceFile>
           call bootstrap_source::append_source -> NonEmptyList<bootstrap_source::SourceFile>
             local host : NonEmptyList<bootstrap_source::SourceFile>
+            call bootstrap_source::source_file -> bootstrap_source::SourceFile
+              string "src/environment.evd" : Text
+              string "environment boundary handles" : Text
+        let pipeline: NonEmptyList<bootstrap_source::SourceFile>
+          call bootstrap_source::append_source -> NonEmptyList<bootstrap_source::SourceFile>
+            local environment : NonEmptyList<bootstrap_source::SourceFile>
             call bootstrap_source::source_file -> bootstrap_source::SourceFile
               string "src/pipeline.evd" : Text
               string "bootstrap pipeline phases and stage evidence" : Text
@@ -266,7 +283,7 @@ functions:
         let graph: bootstrap_source::SourceGraph
           call bootstrap_source::compiler_source_graph -> bootstrap_source::SourceGraph
         result
-          number 8 : Int
+          number 9 : Int
   - public fn bootstrap_lexing::source_offset(byte_index: Int) -> bootstrap_lexing::SourceOffset
       block -> bootstrap_lexing::SourceOffset
         result
@@ -537,6 +554,34 @@ functions:
           construct bootstrap_host::ExitStatus : bootstrap_host::ExitStatus
             init code
               number 0 : Int
+  - public foreign-fn bootstrap_environment::current_environment() -> bootstrap_environment::CompilerEnvironment
+  - public fn bootstrap_environment::bootstrap_environment_surface() -> bootstrap_environment::CompilerEnvironment
+      block -> bootstrap_environment::CompilerEnvironment
+        result
+          construct bootstrap_environment::CompilerEnvironment : bootstrap_environment::CompilerEnvironment
+            init workspace_root
+              call bootstrap_host::host_path -> bootstrap_host::HostPath
+                string "." : Text
+            init package_root
+              call bootstrap_host::host_path -> bootstrap_host::HostPath
+                string "bootstrap/compiler" : Text
+            init manifest
+              call bootstrap_host::host_path -> bootstrap_host::HostPath
+                string "bootstrap/compiler/evident.pkg" : Text
+            init source_root
+              call bootstrap_host::host_path -> bootstrap_host::HostPath
+                string "bootstrap/compiler/src" : Text
+            init build_root
+              call bootstrap_host::host_path -> bootstrap_host::HostPath
+                string "build/windows-x64-ninja" : Text
+            init target_triple
+              string "x86_64-pc-windows-msvc" : Text
+            init clang_driver
+              string "clang" : Text
+            init linker_driver
+              string "lld-link" : Text
+            init source_commit
+              string "source commit recorded in release evidence" : Text
   - public fn bootstrap_pipeline::outline(source: bootstrap_source::PackageSource) -> bootstrap_pipeline::CompilerPipeline::SourceOutlined [affine]
       block -> bootstrap_pipeline::CompilerPipeline::SourceOutlined [affine]
         let tokens: bootstrap_lexing::TokenStream
@@ -665,6 +710,8 @@ functions:
       block -> bootstrap_compiler::BootstrapStatus [affine]
         let host: bootstrap_host::CompilerHostSurface
           call bootstrap_host::bootstrap_host_surface -> bootstrap_host::CompilerHostSurface
+        let environment: bootstrap_environment::CompilerEnvironment
+          call bootstrap_environment::bootstrap_environment_surface -> bootstrap_environment::CompilerEnvironment
         let exit_status: bootstrap_host::ExitStatus
           call bootstrap_host::success_status -> bootstrap_host::ExitStatus
         let source: bootstrap_source::PackageSource
@@ -702,6 +749,8 @@ functions:
           construct bootstrap_compiler::BootstrapStatus : bootstrap_compiler::BootstrapStatus [affine]
             init host [shorthand]
               local host : bootstrap_host::CompilerHostSurface
+            init environment [shorthand]
+              local environment : bootstrap_environment::CompilerEnvironment
             init exit_status [shorthand]
               local exit_status : bootstrap_host::ExitStatus
             init pipeline

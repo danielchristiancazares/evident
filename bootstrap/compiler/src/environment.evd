@@ -1,0 +1,31 @@
+import bootstrap_host;
+
+hazard module bootstrap_environment {
+public record CompilerEnvironment {
+    public workspace_root: bootstrap_host::HostPath,
+    public package_root: bootstrap_host::HostPath,
+    public manifest: bootstrap_host::HostPath,
+    public source_root: bootstrap_host::HostPath,
+    public build_root: bootstrap_host::HostPath,
+    public target_triple: Text,
+    public clang_driver: Text,
+    public linker_driver: Text,
+    public source_commit: Text,
+}
+
+public foreign fn current_environment() -> CompilerEnvironment
+
+public fn bootstrap_environment_surface() -> CompilerEnvironment {
+    CompilerEnvironment {
+        workspace_root: bootstrap_host::host_path("."),
+        package_root: bootstrap_host::host_path("bootstrap/compiler"),
+        manifest: bootstrap_host::host_path("bootstrap/compiler/evident.pkg"),
+        source_root: bootstrap_host::host_path("bootstrap/compiler/src"),
+        build_root: bootstrap_host::host_path("build/windows-x64-ninja"),
+        target_triple: "x86_64-pc-windows-msvc",
+        clang_driver: "clang",
+        linker_driver: "lld-link",
+        source_commit: "source commit recorded in release evidence",
+    }
+}
+}

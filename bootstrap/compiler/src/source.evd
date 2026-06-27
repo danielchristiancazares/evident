@@ -42,7 +42,8 @@ public fn compiler_source_graph() -> SourceGraph {
     let semantics = append_source(parsing, source_file("src/semantics.evd", "semantic symbol catalog model"));
     let diagnostics = append_source(semantics, source_file("src/diagnostics.evd", "diagnostics and bootstrap failure reasons"));
     let host = append_source(diagnostics, source_file("src/host.evd", "host file, path, and tool boundary handles"));
-    let pipeline = append_source(host, source_file("src/pipeline.evd", "bootstrap pipeline phases and stage evidence"));
+    let environment = append_source(host, source_file("src/environment.evd", "environment boundary handles"));
+    let pipeline = append_source(environment, source_file("src/pipeline.evd", "bootstrap pipeline phases and stage evidence"));
     let main = append_source(pipeline, source_file("src/main.evd", "bootstrap package entrypoint and aggregate status"));
 
     SourceGraph {
@@ -63,6 +64,6 @@ public fn compiler_package() -> PackageSource {
 
 public fn compiler_source_count() -> Int {
     let graph = compiler_source_graph();
-    8
+    9
 }
 }

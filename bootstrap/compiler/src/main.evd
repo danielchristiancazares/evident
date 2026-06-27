@@ -1,10 +1,12 @@
 import bootstrap_host;
+import bootstrap_environment;
 import bootstrap_source;
 import bootstrap_pipeline;
 
 domain module bootstrap_compiler {
 public record BootstrapStatus {
     public host: bootstrap_host::CompilerHostSurface,
+    public environment: bootstrap_environment::CompilerEnvironment,
     public exit_status: bootstrap_host::ExitStatus,
     public pipeline: bootstrap_pipeline::CompilerPipeline::StageTwoValidated,
     public evidence: bootstrap_pipeline::BootstrapEvidence,
@@ -13,6 +15,7 @@ public record BootstrapStatus {
 
 public fn build_status() -> BootstrapStatus {
     let host = bootstrap_host::bootstrap_host_surface();
+    let environment = bootstrap_environment::bootstrap_environment_surface();
     let exit_status = bootstrap_host::success_status();
     let source = bootstrap_source::compiler_package();
     let outlined = bootstrap_pipeline::outline(source);
@@ -33,6 +36,7 @@ public fn build_status() -> BootstrapStatus {
 
     BootstrapStatus {
         host,
+        environment,
         exit_status,
         pipeline: stage_two,
         evidence,
