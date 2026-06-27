@@ -973,7 +973,7 @@ functions:
             init linker_driver
               string "lld-link" : Text
             init source_commit
-              string "source commit recorded in release evidence" : Text
+              string "97d70fbfe7316f57d03bb5ffa3954740f4a6663f" : Text
   - public fn bootstrap_discovery::source_manifest_entry(path: Text, summary: Text) -> bootstrap_discovery::SourceManifestEntry
       block -> bootstrap_discovery::SourceManifestEntry
         result

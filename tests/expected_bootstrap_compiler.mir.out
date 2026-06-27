@@ -577,7 +577,7 @@ functions:
         %3[tmp] = call bootstrap_host::host_path("bootstrap/compiler/evident.pkg")
         %4[tmp] = call bootstrap_host::host_path("bootstrap/compiler/src")
         %5[tmp] = call bootstrap_host::host_path("build/windows-x64-ninja")
-        %0[$return] = construct bootstrap_environment::CompilerEnvironment {workspace_root: %1[tmp], package_root: %2[tmp], manifest: %3[tmp], source_root: %4[tmp], build_root: %5[tmp], target_triple: "x86_64-pc-windows-msvc", clang_driver: "clang", linker_driver: "lld-link", source_commit: "source commit recorded in release evidence"}
+        %0[$return] = construct bootstrap_environment::CompilerEnvironment {workspace_root: %1[tmp], package_root: %2[tmp], manifest: %3[tmp], source_root: %4[tmp], build_root: %5[tmp], target_triple: "x86_64-pc-windows-msvc", clang_driver: "clang", linker_driver: "lld-link", source_commit: "97d70fbfe7316f57d03bb5ffa3954740f4a6663f"}
         return %0[$return]
   - public fn bootstrap_discovery::source_manifest_entry -> bootstrap_discovery::SourceManifestEntry
       locals:

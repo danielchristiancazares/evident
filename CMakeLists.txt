@@ -80,6 +80,32 @@ add_dependencies(package_checksum package)
 
 include(CTest)
 if(BUILD_TESTING)
+    set(EVIDENT_BOOTSTRAP_ENVIRONMENT_PATH "${CMAKE_CURRENT_BINARY_DIR}/bootstrap/compiler/src/environment.evd")
+    set(EVIDENT_BOOTSTRAP_PACKAGE_INPUTS
+        ${CMAKE_CURRENT_SOURCE_DIR}/bootstrap/compiler/src/source.evd
+        ${CMAKE_CURRENT_SOURCE_DIR}/bootstrap/compiler/src/lexing.evd
+        ${CMAKE_CURRENT_SOURCE_DIR}/bootstrap/compiler/src/parsing.evd
+        ${CMAKE_CURRENT_SOURCE_DIR}/bootstrap/compiler/src/semantics.evd
+        ${CMAKE_CURRENT_SOURCE_DIR}/bootstrap/compiler/src/diagnostics.evd
+        ${CMAKE_CURRENT_SOURCE_DIR}/bootstrap/compiler/src/host.evd
+        ${EVIDENT_BOOTSTRAP_ENVIRONMENT_PATH}
+        ${CMAKE_CURRENT_SOURCE_DIR}/bootstrap/compiler/src/discovery.evd
+        ${CMAKE_CURRENT_SOURCE_DIR}/bootstrap/compiler/src/pipeline.evd
+        ${CMAKE_CURRENT_SOURCE_DIR}/bootstrap/compiler/src/layout.evd
+        ${CMAKE_CURRENT_SOURCE_DIR}/bootstrap/compiler/src/manifest.evd
+        ${CMAKE_CURRENT_SOURCE_DIR}/bootstrap/compiler/src/release.evd
+        ${CMAKE_CURRENT_SOURCE_DIR}/bootstrap/compiler/src/main.evd)
+
+    add_custom_target(bootstrap_compiler_generated_environment ALL
+        COMMAND ${CMAKE_COMMAND}
+            -DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}
+            -DOUTPUT_PATH=${EVIDENT_BOOTSTRAP_ENVIRONMENT_PATH}
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/GenerateBootstrapCompilerEnvironment.cmake
+        COMMENT "Generating bootstrap compiler environment with build provenance"
+        VERBATIM)
+
+    add_dependencies(evidc bootstrap_compiler_generated_environment)
+
     set(EVIDENT_EXPECTED_CTEST_TOTAL 403)
 
     add_test(NAME parse_valid_example
@@ -693,12 +719,20 @@ if(BUILD_TESTING)
     add_package_hir_compare_test(compare_hir_package_manifest
         package_manifest
         expected_package_manifest.hir.out)
-    add_repo_package_hir_compare_test(compare_hir_bootstrap_compiler
-        bootstrap/compiler
-        expected_bootstrap_compiler.hir.out)
-    add_repo_package_mir_compare_test(compare_mir_bootstrap_compiler
-        bootstrap/compiler
-        expected_bootstrap_compiler.mir.out)
+    add_test(NAME compare_hir_bootstrap_compiler
+        COMMAND ${CMAKE_COMMAND}
+            -DCOMMAND_PATH=$<TARGET_FILE:evidc>
+            "-DINPUT_PATHS=${EVIDENT_BOOTSTRAP_PACKAGE_INPUTS}"
+            -DMODE=--dump-hir
+            -DEXPECTED_PATH=${CMAKE_CURRENT_SOURCE_DIR}/tests/expected_bootstrap_compiler.hir.out
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/RunAndCompareOutput.cmake)
+    add_test(NAME compare_mir_bootstrap_compiler
+        COMMAND ${CMAKE_COMMAND}
+            -DCOMMAND_PATH=$<TARGET_FILE:evidc>
+            "-DINPUT_PATHS=${EVIDENT_BOOTSTRAP_PACKAGE_INPUTS}"
+            -DMODE=--dump-mir
+            -DEXPECTED_PATH=${CMAKE_CURRENT_SOURCE_DIR}/tests/expected_bootstrap_compiler.mir.out
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/RunAndCompareOutput.cmake)
     add_test(NAME parse_valid_copyable_generic_wrapper
         COMMAND evidc ${CMAKE_CURRENT_SOURCE_DIR}/tests/valid_copyable_generic_wrapper.evd)
     add_test(NAME parse_valid_affine_branch_diverge
@@ -824,7 +858,7 @@ if(BUILD_TESTING)
     add_test(NAME run_bootstrap_compiler_scaffold
         COMMAND ${CMAKE_COMMAND}
             -DCOMMAND_PATH=$<TARGET_FILE:evidc>
-            -DPACKAGE_DIR=${CMAKE_CURRENT_SOURCE_DIR}/bootstrap/compiler
+            "-DINPUT_PATHS=${EVIDENT_BOOTSTRAP_PACKAGE_INPUTS}"
             -DOUTPUT_PATH=${CMAKE_CURRENT_BINARY_DIR}/bootstrap_compiler_scaffold.exe
             -DEXPECTED_EXIT=13
             -DTARGET_TRIPLE=x86_64-pc-windows-msvc
