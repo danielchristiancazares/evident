@@ -1,8 +1,20 @@
+foundation module support {
+public fn bad_generic<T>() -> Int fails T
+}
+
 domain module test {
+public reason Failure {
+    Bad,
+}
+
 public state NotAReason {
     Alpha,
     Beta,
 }
 
-public fn bad() -> Int fails NotAReason
+public fn bad_state() -> Int fails NotAReason
+
+public fn bad_builtin() -> Int fails Int
+
+public fn bad_collection() -> Int fails List<Failure>
 }

@@ -1294,6 +1294,40 @@ private:
         }
     }
 
+    void check_fails_clause_reason_type(const Scope& scope,
+                                        const std::vector<std::string>& generics,
+                                        const ast::TypeRef& reason_type) {
+        const TypeReferencePathRole path_role = type_reference_path_role(reason_type.path, generics);
+        if (path_role == TypeReferencePathRole::GenericParameter) {
+            diagnostics_.error(reason_type.span,
+                               "'fails' must reference a reason type, not generic parameter '"
+                                   + ast::format_type(reason_type) + "'");
+            return;
+        }
+
+        if (path_role == TypeReferencePathRole::BuiltinTypeName && reason_type.path.size() == 1) {
+            diagnostics_.error(reason_type.span,
+                               "'fails' must reference a reason type, not builtin type '"
+                                   + ast::format_type(reason_type) + "'");
+            return;
+        }
+
+        if (resolve_phase_position_type(scope, generics, reason_type.path).state
+            == PhasePositionResolutionState::PathNamesPhasePosition) {
+            diagnostics_.error(reason_type.span,
+                               "'fails' must reference a reason type, not concrete phase type '"
+                                   + ast::format_type(reason_type) + "'");
+            return;
+        }
+
+        if (const Symbol* symbol = resolve_symbol(scope, generics, reason_type.path);
+            symbol != nullptr && symbol->kind != ast::DeclKind::Reason) {
+            diagnostics_.error(reason_type.span,
+                               "'fails' must reference a reason type, not '"
+                                   + std::string(ast::decl_kind_name(symbol->kind)) + "'");
+        }
+    }
+
     void check_type_ref_usage(const Scope& scope,
                               const std::vector<std::string>& generics,
                               const ast::TypeRef& type,
@@ -1471,13 +1505,7 @@ private:
                                      ReasonTypePolicy::AllowReasonTypes,
                                      PermitTypePolicy::RejectPermitTypes,
                                      "fails clause"});
-            if (const Symbol* symbol = resolve_symbol(scope, generics, signature.failure.reason_type().path); symbol != nullptr) {
-                if (symbol->kind != ast::DeclKind::Reason) {
-                    diagnostics_.error(signature.failure.reason_type().span,
-                                      "'fails' must reference a reason type, not '"
-                                          + std::string(ast::decl_kind_name(symbol->kind)) + "'");
-                }
-            }
+            check_fails_clause_reason_type(scope, generics, signature.failure.reason_type());
             if (implementation == ast::FunctionImplementation::ForeignImport) {
                 diagnostics_.error(signature.failure.reason_type().span, "foreign functions may not use 'fails'");
             }
