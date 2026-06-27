@@ -82,6 +82,7 @@ This version does **not** yet implement:
 - package identity or external dependency metadata beyond the source-list manifest
 - broader generic user-defined type lowering cases beyond explicit, nested, and multiple concrete generic record construction
 - full typestate transition proofs beyond the current permit/proof/affine enforcement
+- self-hosting or bootstrapping; the current compiler is still a C++23 seed compiler, and `docs/BOOTSTRAP_PLAN.md` defines the required stage-1 / stage-2 bootstrap evidence
 - optimization passes
 - cross-target native backends beyond Windows x64 COFF
 - debug info or optimized native code generation
@@ -90,6 +91,7 @@ This version does **not** yet implement:
 
 - Language spec: `docs/EVIDENT_LANGUAGE_SPEC.md`
 - Finish plan: `docs/COMPILER_FINISH_PLAN.md`
+- Bootstrap plan: `docs/BOOTSTRAP_PLAN.md`
 - Native backend roadmap: `docs/NATIVE_BACKEND_PLAN.md`
 - Release checklist: `docs/RELEASE_CHECKLIST.md`
 

@@ -25,12 +25,17 @@ Ship the currently implemented language subset with strong diagnostics, reliable
 
 Expand the compiler until the language surface matches the broader design intent, including generics, trait implementations and dispatch, package-scale compilation, and a more complete proof/permit/typestate model.
 
+### 3. Self-Hosting Compiler
+
+Make the compiler bootstrap-capable: the C++ seed compiler builds an Evident implementation of the compiler, the resulting stage-1 compiler rebuilds the same Evident compiler package, and the stage-2 compiler passes the same conformance, diagnostics, native emission, package, and release-contract checks.
+
 ## Recommendation
 
-Finish the compiler in two stages:
+Finish the compiler in three stages:
 
 1. Reach "polished subset compiler" first.
 2. Use that stable baseline to drive the larger language roadmap.
+3. Move from the C++23 seed compiler to an Evident compiler package with documented stage-1 and stage-2 bootstrap evidence.
 
 This avoids polishing backend details that may need redesign once generics, trait dispatch, and package compilation settle the HIR/MIR shape.
 
@@ -57,6 +62,12 @@ This avoids polishing backend details that may need redesign once generics, trai
 - The backend still uses a straightforward alloca-heavy LLVM IR lowering rather than a cleaner SSA-friendly strategy.
 - Type/layout coverage is still first-pass quality, although the backend now covers all currently named primitive builtins plus opaque pointer/length ABI carriers for the compiler-owned collection families.
 - Toolchain discovery, provenance reporting, and failure reporting are usable: `EVIDENT_CLANG` selects the driver, `--print-toolchain` reports the configured native target and selected driver without compiling input or launching external tools, `--check-toolchain` rejects unsupported native targets before probing the selected driver and `lld-link` with `--version`, missing-driver diagnostics are golden-tested with native-emission reject smoke coverage, native missing-driver failures remove temporary emission files, whitespace-only clang overrides are rejected before toolchain probing or native artifact emission, the checked-toolchain path regression-tests missing `lld-link` on `PATH`, Windows launches the driver directly through `CreateProcessW`, and non-Windows launcher code now avoids shell interpolation via `posix_spawnp`. Broader host validation still deserves hardening.
+
+### Bootstrap
+
+- The repository is not self-hosting yet. The current compiler is a C++23 seed compiler.
+- `docs/BOOTSTRAP_PLAN.md` defines the bootstrap target: the seed compiler must compile an Evident compiler package into stage 1, stage 1 must compile the same package into stage 2, and stage 2 must pass the same required conformance, diagnostics, native emission, package, and release-contract checks.
+- Major bootstrap gaps remain: there is no Evident implementation package for the compiler, no bootstrap stage harness, no release evidence section for seed/stage-1/stage-2 provenance, and the language/runtime boundary for compiler-scale file I/O, diagnostics, path handling, and tool invocation is not yet complete.
 
 ### Testing and Productization
 
@@ -159,11 +170,26 @@ Dependencies:
 
 - Avoid major backend redesign until milestones 3 through 5 settle the language-facing IR shape.
 
+### Milestone 7: Self-Hosting / Bootstrap
+
+Goal: make Evident able to build its own compiler implementation.
+
+- Create an Evident compiler package with deterministic source discovery and package identity.
+- Add explicit boundary modules for host file I/O, environment, process exit, and tool invocation.
+- Port the compiler pipeline to Evident without weakening the explicit permit, proof, affine, naming, or boundary-collapse contracts.
+- Add a bootstrap validation target that builds stage 1 with the C++ seed compiler, builds stage 2 with stage 1, and validates stage 2 with the same conformance, diagnostics, native emission, package, and release-contract checks.
+- Record seed, stage-1, and stage-2 provenance in release evidence.
+
+Dependencies:
+
+- Milestones 2, 3, 5, and enough of Milestone 6 must be complete for a compiler-sized Evident package to be practical.
+
 ## Suggested Ordering Constraints
 
 - Do not invest heavily in optimization or cross-target work before the language surface is stable.
 - Do not implement trait dispatch before deciding generic instantiation.
 - Do not call the compiler product-finished while the package model lacks a settled dependency boundary story, source discovery, or cross-file authority/visibility coverage.
+- Do not call the compiler self-hosting or bootstrap-capable until the stage-1 and stage-2 evidence in `docs/BOOTSTRAP_PLAN.md` exists and passes the release gate.
 - Keep docs and tests moving with each milestone; do not leave them for a cleanup pass at the end.
 
 ## Definition Of Done
@@ -175,6 +201,7 @@ The compiler can reasonably be called "finished" when all of the following are t
 - Generics and traits are either fully implemented or explicitly removed from the language surface.
 - Proof/permit/typestate behavior is documented as a stable contract and regression-tested.
 - The backend has a clear supported target matrix and passes semantic regression tests, not just smoke tests.
+- The compiler can bootstrap itself through the documented seed, stage-1, and stage-2 process.
 - Docs, CI, and release workflow are accurate enough that a new contributor can build, test, and extend the compiler without archaeology.
 
 ## Near-Term Priority
@@ -184,4 +211,5 @@ If work resumes immediately, the best next sequence is:
 1. Complete Milestone 0.
 2. Push Milestone 1 to a true subset release bar.
 3. Decide whether Milestone 2 or Milestones 3 and 4 come next based on the intended language scope.
-4. Defer major backend polish until the language-facing IR contracts are stable.
+4. Keep `docs/BOOTSTRAP_PLAN.md` aligned with package, generics, proof/permit/typestate, and backend decisions.
+5. Defer major backend polish until the language-facing IR contracts are stable.

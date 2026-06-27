@@ -4,6 +4,8 @@ Evident should compile to native machine code.
 
 C is not treated as a backend target here. Emitting C would make Evident a transpiler, which may be useful for bootstrapping or debugging, but it is not the intended production architecture.
 
+Self-hosting does not change that production target. The bootstrap proof should show that an Evident compiler package can be compiled by the C++ seed compiler into a stage-1 native compiler, then compiled again by stage 1 into a stage-2 native compiler. C emission may be a temporary migration aid, but it is not the final bootstrap evidence.
+
 ## Correct terminology
 
 - The **target** is a concrete native platform, such as `x86_64-unknown-linux-gnu`.
@@ -31,6 +33,7 @@ C is not treated as a backend target here. Emitting C would make Evident a trans
 3. keep improving diagnostics, provenance, and portability around external tool discovery
 4. add debug info, optimization levels, and release-quality native output
 5. add additional target triples beyond Windows x64 COFF
+6. support the concrete layouts and runtime boundaries needed by the Evident compiler package described in `docs/BOOTSTRAP_PLAN.md`
 
 ## Two valid native strategies
 

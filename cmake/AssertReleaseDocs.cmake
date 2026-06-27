@@ -114,6 +114,8 @@ assert_doc_contains(README.md
     "tracked generated build, release, or local-only output before tagging"
     "release artifacts such as `evident-<version>-windows-x64.zip`, `<zip>.sha256`, `evident-release-evidence.txt`, and `release-artifact/`"
     "local-only artifacts such as `.vs/`, `.vscode/`, `.minimax/`, `.idea/`, `*.obj`, `.DS_Store`, and `repomix-output.txt`"
+    "self-hosting or bootstrapping; the current compiler is still a C++23 seed compiler"
+    "Bootstrap plan: `docs/BOOTSTRAP_PLAN.md`"
 )
 
 assert_doc_contains(.gitignore
@@ -225,6 +227,10 @@ assert_doc_contains(docs/RELEASE_CHECKLIST.md
     "persisted checkout credentials"
     "revalidates the downloaded release evidence file against the downloaded ZIP filename, byte size, SHA256, and `GITHUB_SHA` before provenance attestation generation and verification"
     "public GitHub Actions push or manual `workflow_dispatch` release-validation builds generate and verify artifact attestations"
+    "This scope is still a seed-compiler release."
+    "Do not describe a release as self-hosted or fully production-ready until the bootstrap evidence defined in `docs/BOOTSTRAP_PLAN.md` exists"
+    "seed, stage-1, and stage-2 compiler provenance plus the stage-2 validation summary"
+    "Do not describe a release as self-hosted or bootstrap-capable unless the additional gate in `docs/BOOTSTRAP_PLAN.md` passes"
 )
 
 assert_doc_contains(docs/TOOLCHAIN_REPRODUCIBILITY.md
@@ -289,6 +295,10 @@ assert_doc_contains(docs/TOOLCHAIN_REPRODUCIBILITY.md
     "CTest pass summary is recorded inside `[ctest output]`"
     "package filename, size, and SHA256 are recorded inside `[release ZIP]`"
     "GitHub artifact attestation status for public-repository push builds or manual `workflow_dispatch` release-validation runs"
+    "The current release path is not self-hosting evidence."
+    "stage-1 compiler built from the Evident compiler package"
+    "stage-2 compiler rebuilt by stage 1 from the same package"
+    "Any claim that a release is self-hosted or bootstrap-capable must include the seed, stage-1, and stage-2 evidence required by `docs/BOOTSTRAP_PLAN.md`."
     "validates the ZIP/checksum pair with `cmake/AssertPackageChecksum.cmake`"
     "checksum sidecar path to be the ZIP path plus `.sha256`"
     "same package checksum validator"
@@ -313,6 +323,10 @@ assert_doc_contains(docs/NATIVE_BACKEND_PLAN.md
     "object format: `COFF`"
     "linker: `lld-link` via `clang -fuse-ld=lld`"
     "The primary CI path is the Windows x64 workflow in `.github/workflows/ci.yml`."
+    "Self-hosting does not change that production target."
+    "stage-1 native compiler, then compiled again by stage 1 into a stage-2 native compiler"
+    "C emission may be a temporary migration aid, but it is not the final bootstrap evidence"
+    "support the concrete layouts and runtime boundaries needed by the Evident compiler package described in `docs/BOOTSTRAP_PLAN.md`"
     "runs the read-only release source-tree audit before configure/build/test"
     "records the release source-tree audit status, runner image OS identifying Windows plus non-empty image version, Visual Studio metadata, MSVC x64 compiler banner, resolved tool paths, tool-version output identifying CMake, Ninja, clang, and LLD, compiler version output matching the release ZIP version, expected compiler toolchain fields with a selected driver that identifies clang, and release ZIP filename, size, and SHA256 in validated release evidence before upload"
     "revalidates the downloaded ZIP, checksum sidecar, and release evidence before provenance attestation generation"
@@ -380,6 +394,26 @@ assert_doc_contains(docs/COMPILER_FINISH_PLAN.md
     "source-tree audit omissions or misordering"
     "`CMakePresets.json`, `.github/workflows/ci.yml`, and `docs/RELEASE_CHECKLIST.md` define the primary Windows x64 validation and release path"
     "Maintain the supported Windows x64 host/target matrix as a tested release-docs contract"
+    "### 3. Self-Hosting Compiler"
+    "stage-1 compiler rebuilds the same Evident compiler package"
+    "### Bootstrap"
+    "The repository is not self-hosting yet. The current compiler is a C++23 seed compiler."
+    "`docs/BOOTSTRAP_PLAN.md` defines the bootstrap target"
+    "### Milestone 7: Self-Hosting / Bootstrap"
+    "Do not call the compiler self-hosting or bootstrap-capable"
+    "The compiler can bootstrap itself through the documented seed, stage-1, and stage-2 process."
+)
+
+assert_doc_contains(docs/BOOTSTRAP_PLAN.md
+    "# Bootstrap Plan"
+    "The current repository is a C++23 seed compiler."
+    "Evident can be called bootstrap-capable only when all of the following are true"
+    "The C++ seed compiler can compile that Evident package into a stage-1 compiler executable."
+    "The stage-1 compiler can compile the same Evident compiler package into a stage-2 compiler executable."
+    "The stage-2 compiler passes the same required conformance, diagnostics, native emission, package, and release-contract tests as the seed-built compiler."
+    "The compiler is not yet self-hosting."
+    "C emission can remain a temporary debugging or migration aid, but it is not the production bootstrap proof."
+    "Bootstrap work must preserve explicit permits, proof construction, affine discipline, consequence-first naming, and boundary-local collapse of foreign ambiguity."
 )
 
 assert_doc_does_not_contain(docs/COMPILER_FINISH_PLAN.md

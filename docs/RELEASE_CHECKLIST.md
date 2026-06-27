@@ -14,6 +14,8 @@ See `docs/TOOLCHAIN_REPRODUCIBILITY.md` for the exact reproducibility promise. T
 
 Anything outside this matrix is development work unless the supported validation matrix is updated first.
 
+This scope is still a seed-compiler release. Do not describe a release as self-hosted or fully production-ready until the bootstrap evidence defined in `docs/BOOTSTRAP_PLAN.md` exists for the same source commit.
+
 ## Before Tagging
 
 1. Start from a clean intended release branch and inspect the worktree:
@@ -95,6 +97,7 @@ Record the following in the release notes or tag notes:
 - artifact attestation verification status when using a public GitHub Actions release build
 - any known deviations from the supported matrix
 - whether the release followed the evidence-bound hosted-runner path or a separately pinned toolchain path
+- for a bootstrap-capable release, the seed, stage-1, and stage-2 compiler provenance plus the stage-2 validation summary
 
 ## Release Gate
 
@@ -122,3 +125,5 @@ Do not describe a release as production-ready unless:
 - the attestation job revalidates the downloaded release evidence file against the downloaded ZIP filename, byte size, SHA256, and `GITHUB_SHA` before provenance attestation generation and verification
 - public GitHub Actions push or manual `workflow_dispatch` release-validation builds generate and verify artifact attestations for the ZIP, checksum sidecar, and evidence file
 - current known limitations are documented in `README.md` and `docs/COMPILER_FINISH_PLAN.md`
+
+Do not describe a release as self-hosted or bootstrap-capable unless the additional gate in `docs/BOOTSTRAP_PLAN.md` passes for that same source commit: the C++ seed compiler builds stage 1 from an Evident compiler package, stage 1 builds stage 2 from the same package, and stage 2 passes the required conformance, diagnostics, native emission, package, and release-contract checks.
