@@ -892,6 +892,12 @@ ast::FunctionSignature Parser::parse_function_signature(std::string name) {
 
 ast::TypeRef Parser::parse_return_type_after_parameter_list() {
     if (consume_if(TokenKind::Arrow) == TokenConsumptionState::Consumed) {
+        if (token_check(TokenKind::Identifier) == TokenCheckState::DifferentToken) {
+            diagnostics_.error(peek().span(), "expected return type after '->'");
+            ast::TypeRef missing_type;
+            missing_type.span = peek().span();
+            return missing_type;
+        }
         return parse_type();
     }
 

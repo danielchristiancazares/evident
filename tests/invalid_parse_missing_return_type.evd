@@ -1,0 +1,9 @@
+domain module test {
+public fn main() -> {
+    0
+}
+
+public fn after() -> Int {
+    1
+}
+}

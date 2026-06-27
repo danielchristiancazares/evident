@@ -1,0 +1,3 @@
+<input>:2:21: error: expected return type after '->'
+    public fn main() -> {
+                        ^

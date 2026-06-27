@@ -80,7 +80,7 @@ add_dependencies(package_checksum package)
 
 include(CTest)
 if(BUILD_TESTING)
-    set(EVIDENT_EXPECTED_CTEST_TOTAL 390)
+    set(EVIDENT_EXPECTED_CTEST_TOTAL 391)
 
     add_test(NAME parse_valid_example
         COMMAND evidc --dump-hir ${CMAKE_CURRENT_SOURCE_DIR}/examples/feature_mode.evd)
@@ -916,6 +916,9 @@ if(BUILD_TESTING)
     add_diagnostic_compare_test(diag_parse_missing_expression
         invalid_parse_missing_expression.evd
         expected_invalid_parse_missing_expression.diag.out)
+    add_diagnostic_compare_test(diag_parse_missing_return_type
+        invalid_parse_missing_return_type.evd
+        expected_invalid_parse_missing_return_type.diag.out)
     add_diagnostic_compare_test(diag_parse_missing_field_type
         invalid_parse_missing_field_type.evd
         expected_invalid_parse_missing_field_type.diag.out)
