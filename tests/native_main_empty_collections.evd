@@ -7,9 +7,35 @@ public fn empty_map() -> Map<Text, Int> {
     map_empty<Text, Int>()
 }
 
+public fn widened_list(values: NonEmptyList<Int>) -> List<Int> {
+    nonempty_list_widen<Int>(values)
+}
+
+public fn widened_map(entries: NonEmptyMap<Text, Int>) -> Map<Text, Int> {
+    nonempty_map_widen<Text, Int>(entries)
+}
+
+public fn list_count(values: List<Int>) -> Nat {
+    list_count_copy<Int>(values)
+}
+
+public fn nonempty_list_count(values: NonEmptyList<Int>) -> Nat {
+    nonempty_list_count_copy<Int>(values)
+}
+
+public fn map_count(entries: Map<Text, Int>) -> Nat {
+    map_count_copy<Text, Int>(entries)
+}
+
+public fn nonempty_map_count(entries: NonEmptyMap<Text, Int>) -> Nat {
+    nonempty_map_count_copy<Text, Int>(entries)
+}
+
 public fn main() -> Int {
     let values = empty_list()
     let entries = empty_map()
+    let value_count = list_count(values)
+    let entry_count = map_count(entries)
     7
 }
 }

@@ -321,12 +321,21 @@ enum class ResolvedTypeCategory {
 enum class CompilerOwnedFunctionLowering {
     Unsupported,
     EmptyCollection,
+    WidenCollection,
+    CountCollection,
 };
 
 CompilerOwnedFunctionLowering compiler_owned_function_lowering(std::string_view qualified_name) {
     const std::string_view base_name = function_base_name(qualified_name);
     if (base_name == "list_empty" || base_name == "map_empty") {
         return CompilerOwnedFunctionLowering::EmptyCollection;
+    }
+    if (base_name == "nonempty_list_widen" || base_name == "nonempty_map_widen") {
+        return CompilerOwnedFunctionLowering::WidenCollection;
+    }
+    if (base_name == "list_count_copy" || base_name == "nonempty_list_count_copy"
+        || base_name == "map_count_copy" || base_name == "nonempty_map_count_copy") {
+        return CompilerOwnedFunctionLowering::CountCollection;
     }
     return CompilerOwnedFunctionLowering::Unsupported;
 }
@@ -566,6 +575,7 @@ private:
     };
 
     [[nodiscard]] BackendStepResult prepare_locals();
+    [[nodiscard]] std::expected<std::vector<ResolvedType>, std::string> resolve_compiler_owned_parameter_types();
     [[nodiscard]] std::expected<std::string, std::string> emit_compiler_owned_function(const ResolvedType& return_type);
     [[nodiscard]] BackendStepResult emit_statement(const mir::Statement& statement);
     [[nodiscard]] BackendStepResult emit_assign_use(mir::LocalId dest, const mir::Operand& operand);
@@ -2131,33 +2141,113 @@ std::string FunctionEmitter::zero_value(const ResolvedType& type) const {
     return "0";
 }
 
+std::expected<std::vector<ResolvedType>, std::string> FunctionEmitter::resolve_compiler_owned_parameter_types() {
+    std::vector<ResolvedType> param_types;
+    param_types.reserve(hir_function_.params.size());
+    for (const hir::Parameter& param : hir_function_.params) {
+        if (materialization_of(param.type.discipline) == typesys::DisciplineMaterialization::CompileTimeOnly) {
+            return std::unexpected("internal backend error: compiler-owned function '"
+                                   + hir_function_.qualified_name + "' has compile-time-only parameter '"
+                                   + param.name + "'");
+        }
+        const std::expected<ResolvedType, std::string> param_type = model_.resolve_type_name(param.type.text);
+        if (!param_type.has_value()) {
+            return std::unexpected(param_type.error());
+        }
+        param_types.push_back(*param_type);
+    }
+    return param_types;
+}
+
 std::expected<std::string, std::string> FunctionEmitter::emit_compiler_owned_function(
     const ResolvedType& return_type) {
-    if (compiler_owned_function_lowering(hir_function_.qualified_name)
-        != CompilerOwnedFunctionLowering::EmptyCollection) {
+    const CompilerOwnedFunctionLowering lowering = compiler_owned_function_lowering(hir_function_.qualified_name);
+    if (lowering == CompilerOwnedFunctionLowering::Unsupported) {
         return std::unexpected("backend does not yet support compiler-owned function '"
                                + hir_function_.qualified_name + "'");
     }
-    if (!hir_function_.params.empty()) {
-        return std::unexpected("internal backend error: empty collection function '"
-                               + hir_function_.qualified_name + "' unexpectedly has parameters");
+
+    const std::expected<std::vector<ResolvedType>, std::string> param_types_result =
+        resolve_compiler_owned_parameter_types();
+    if (!param_types_result.has_value()) {
+        return std::unexpected(param_types_result.error());
     }
-    if (return_type.identity().category() != ResolvedTypeCategory::BuiltinType
-        || (return_type.identity().builtin_kind() != BuiltinKind::List
-            && return_type.identity().builtin_kind() != BuiltinKind::Map)) {
-        return std::unexpected("internal backend error: empty collection function '"
-                               + hir_function_.qualified_name + "' returns '"
-                               + return_type.source_name() + "'");
-    }
+    const std::vector<ResolvedType>& param_types = *param_types_result;
+    const auto has_builtin_kind = [](const ResolvedType& type, BuiltinKind kind) {
+        return type.identity().category() == ResolvedTypeCategory::BuiltinType
+            && type.identity().builtin_kind() == kind;
+    };
 
     const std::string linkage = hir_function_.visibility == ast::Visibility::Public ? "" : "internal ";
     std::ostringstream out;
-    out << "define " << linkage << return_type.llvm_type() << " @"
-        << model_.function_symbol(hir_function_.id) << "() {\n";
-    out << "entry:\n";
-    out << "  ret " << return_type.llvm_type() << " " << zero_value(return_type) << "\n";
-    out << "}\n";
-    return out.str();
+    switch (lowering) {
+    case CompilerOwnedFunctionLowering::EmptyCollection:
+        if (!param_types.empty()) {
+            return std::unexpected("internal backend error: empty collection function '"
+                                   + hir_function_.qualified_name + "' unexpectedly has parameters");
+        }
+        if (!has_builtin_kind(return_type, BuiltinKind::List) && !has_builtin_kind(return_type, BuiltinKind::Map)) {
+            return std::unexpected("internal backend error: empty collection function '"
+                                   + hir_function_.qualified_name + "' returns '"
+                                   + return_type.source_name() + "'");
+        }
+        out << "define " << linkage << return_type.llvm_type() << " @"
+            << model_.function_symbol(hir_function_.id) << "() {\n";
+        out << "entry:\n";
+        out << "  ret " << return_type.llvm_type() << " " << zero_value(return_type) << "\n";
+        out << "}\n";
+        return out.str();
+
+    case CompilerOwnedFunctionLowering::WidenCollection:
+        if (param_types.size() != 1) {
+            return std::unexpected("internal backend error: collection widen function '"
+                                   + hir_function_.qualified_name + "' expected one parameter");
+        }
+        if (!((has_builtin_kind(return_type, BuiltinKind::List)
+               && has_builtin_kind(param_types[0], BuiltinKind::NonEmptyList))
+              || (has_builtin_kind(return_type, BuiltinKind::Map)
+                  && has_builtin_kind(param_types[0], BuiltinKind::NonEmptyMap)))) {
+            return std::unexpected("internal backend error: collection widen function '"
+                                   + hir_function_.qualified_name + "' has unsupported signature");
+        }
+        out << "define " << linkage << return_type.llvm_type() << " @"
+            << model_.function_symbol(hir_function_.id) << "(" << param_types[0].llvm_type() << " %arg0) {\n";
+        out << "entry:\n";
+        out << "  ret " << return_type.llvm_type() << " %arg0\n";
+        out << "}\n";
+        return out.str();
+
+    case CompilerOwnedFunctionLowering::CountCollection:
+        if (param_types.size() != 1) {
+            return std::unexpected("internal backend error: collection count function '"
+                                   + hir_function_.qualified_name + "' expected one parameter");
+        }
+        if (!has_builtin_kind(return_type, BuiltinKind::Nat)) {
+            return std::unexpected("internal backend error: collection count function '"
+                                   + hir_function_.qualified_name + "' returns '"
+                                   + return_type.source_name() + "'");
+        }
+        if (!has_builtin_kind(param_types[0], BuiltinKind::List)
+            && !has_builtin_kind(param_types[0], BuiltinKind::NonEmptyList)
+            && !has_builtin_kind(param_types[0], BuiltinKind::Map)
+            && !has_builtin_kind(param_types[0], BuiltinKind::NonEmptyMap)) {
+            return std::unexpected("internal backend error: collection count function '"
+                                   + hir_function_.qualified_name + "' has unsupported parameter type '"
+                                   + param_types[0].source_name() + "'");
+        }
+        out << "define " << linkage << return_type.llvm_type() << " @"
+            << model_.function_symbol(hir_function_.id) << "(" << param_types[0].llvm_type() << " %arg0) {\n";
+        out << "entry:\n";
+        out << "  %count0 = extractvalue " << param_types[0].llvm_type() << " %arg0, 1\n";
+        out << "  ret " << return_type.llvm_type() << " %count0\n";
+        out << "}\n";
+        return out.str();
+
+    case CompilerOwnedFunctionLowering::Unsupported:
+        break;
+    }
+    return std::unexpected("backend does not yet support compiler-owned function '"
+                           + hir_function_.qualified_name + "'");
 }
 
 std::expected<FunctionEmitter::TypedValue, std::string> FunctionEmitter::materialize_operand(

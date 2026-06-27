@@ -27,11 +27,109 @@ bb0:
 
 }
 
+define { ptr, i64 } @evid$test$widened_list({ ptr, i64 } %arg0) {
+entry:
+  %slot0 = alloca { ptr, i64 }
+  %slot1 = alloca { ptr, i64 }
+  store { ptr, i64 } %arg0, ptr %slot0
+  br label %bb0
+
+bb0:
+  %load0 = load { ptr, i64 }, ptr %slot0
+  %call1 = call { ptr, i64 } @evid$nonempty_list_widen$Int({ ptr, i64 } %load0)
+  store { ptr, i64 } %call1, ptr %slot1
+  %load2 = load { ptr, i64 }, ptr %slot1
+  ret { ptr, i64 } %load2
+
+}
+
+define { ptr, i64 } @evid$test$widened_map({ ptr, i64 } %arg0) {
+entry:
+  %slot0 = alloca { ptr, i64 }
+  %slot1 = alloca { ptr, i64 }
+  store { ptr, i64 } %arg0, ptr %slot0
+  br label %bb0
+
+bb0:
+  %load0 = load { ptr, i64 }, ptr %slot0
+  %call1 = call { ptr, i64 } @evid$nonempty_map_widen$Text$Int({ ptr, i64 } %load0)
+  store { ptr, i64 } %call1, ptr %slot1
+  %load2 = load { ptr, i64 }, ptr %slot1
+  ret { ptr, i64 } %load2
+
+}
+
+define i64 @evid$test$list_count({ ptr, i64 } %arg0) {
+entry:
+  %slot0 = alloca { ptr, i64 }
+  %slot1 = alloca i64
+  store { ptr, i64 } %arg0, ptr %slot0
+  br label %bb0
+
+bb0:
+  %load0 = load { ptr, i64 }, ptr %slot0
+  %call1 = call i64 @evid$list_count_copy$Int({ ptr, i64 } %load0)
+  store i64 %call1, ptr %slot1
+  %load2 = load i64, ptr %slot1
+  ret i64 %load2
+
+}
+
+define i64 @evid$test$nonempty_list_count({ ptr, i64 } %arg0) {
+entry:
+  %slot0 = alloca { ptr, i64 }
+  %slot1 = alloca i64
+  store { ptr, i64 } %arg0, ptr %slot0
+  br label %bb0
+
+bb0:
+  %load0 = load { ptr, i64 }, ptr %slot0
+  %call1 = call i64 @evid$nonempty_list_count_copy$Int({ ptr, i64 } %load0)
+  store i64 %call1, ptr %slot1
+  %load2 = load i64, ptr %slot1
+  ret i64 %load2
+
+}
+
+define i64 @evid$test$map_count({ ptr, i64 } %arg0) {
+entry:
+  %slot0 = alloca { ptr, i64 }
+  %slot1 = alloca i64
+  store { ptr, i64 } %arg0, ptr %slot0
+  br label %bb0
+
+bb0:
+  %load0 = load { ptr, i64 }, ptr %slot0
+  %call1 = call i64 @evid$map_count_copy$Text$Int({ ptr, i64 } %load0)
+  store i64 %call1, ptr %slot1
+  %load2 = load i64, ptr %slot1
+  ret i64 %load2
+
+}
+
+define i64 @evid$test$nonempty_map_count({ ptr, i64 } %arg0) {
+entry:
+  %slot0 = alloca { ptr, i64 }
+  %slot1 = alloca i64
+  store { ptr, i64 } %arg0, ptr %slot0
+  br label %bb0
+
+bb0:
+  %load0 = load { ptr, i64 }, ptr %slot0
+  %call1 = call i64 @evid$nonempty_map_count_copy$Text$Int({ ptr, i64 } %load0)
+  store i64 %call1, ptr %slot1
+  %load2 = load i64, ptr %slot1
+  ret i64 %load2
+
+}
+
 define i64 @evid$test$main() {
 entry:
   %slot0 = alloca i64
   %slot1 = alloca { ptr, i64 }
   %slot2 = alloca { ptr, i64 }
+  %slot3 = alloca i64
+  %slot4 = alloca i64
   br label %bb0
 
 bb0:
@@ -39,9 +137,15 @@ bb0:
   store { ptr, i64 } %call0, ptr %slot1
   %call1 = call { ptr, i64 } @evid$test$empty_map()
   store { ptr, i64 } %call1, ptr %slot2
+  %load2 = load { ptr, i64 }, ptr %slot1
+  %call3 = call i64 @evid$test$list_count({ ptr, i64 } %load2)
+  store i64 %call3, ptr %slot3
+  %load4 = load { ptr, i64 }, ptr %slot2
+  %call5 = call i64 @evid$test$map_count({ ptr, i64 } %load4)
+  store i64 %call5, ptr %slot4
   store i64 7, ptr %slot0
-  %load2 = load i64, ptr %slot0
-  ret i64 %load2
+  %load6 = load i64, ptr %slot0
+  ret i64 %load6
 
 }
 
@@ -53,4 +157,38 @@ entry:
 define { ptr, i64 } @evid$map_empty$Text$Int() {
 entry:
   ret { ptr, i64 } zeroinitializer
+}
+
+define { ptr, i64 } @evid$nonempty_list_widen$Int({ ptr, i64 } %arg0) {
+entry:
+  ret { ptr, i64 } %arg0
+}
+
+define { ptr, i64 } @evid$nonempty_map_widen$Text$Int({ ptr, i64 } %arg0) {
+entry:
+  ret { ptr, i64 } %arg0
+}
+
+define i64 @evid$list_count_copy$Int({ ptr, i64 } %arg0) {
+entry:
+  %count0 = extractvalue { ptr, i64 } %arg0, 1
+  ret i64 %count0
+}
+
+define i64 @evid$nonempty_list_count_copy$Int({ ptr, i64 } %arg0) {
+entry:
+  %count0 = extractvalue { ptr, i64 } %arg0, 1
+  ret i64 %count0
+}
+
+define i64 @evid$map_count_copy$Text$Int({ ptr, i64 } %arg0) {
+entry:
+  %count0 = extractvalue { ptr, i64 } %arg0, 1
+  ret i64 %count0
+}
+
+define i64 @evid$nonempty_map_count_copy$Text$Int({ ptr, i64 } %arg0) {
+entry:
+  %count0 = extractvalue { ptr, i64 } %arg0, 1
+  ret i64 %count0
 }
