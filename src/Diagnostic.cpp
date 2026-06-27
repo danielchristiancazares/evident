@@ -72,11 +72,10 @@ void DiagnosticSink::print(const SourceFile& source, std::ostream& out) const {
     for (const Diagnostic& diagnostic : items_) {
         const SourceSpan span = diagnostic.span();
         const SourceLocation location = source.locate(span.begin);
-        out << source.path_at(span.begin) << ':' << location.line << ':' << location.column << ": "
+        out << source.path_at(span.begin) << ':' << location.line() << ':' << location.column() << ": "
             << severity_name(diagnostic.severity()) << ": " << diagnostic.message() << '\n';
 
-        const SourceLocation line_location = source.locate(span.begin);
-        const std::size_t line_start = source.locate(span.begin).offset - (line_location.column - 1);
+        const std::size_t line_start = location.offset() - (location.column() - 1);
         std::size_t line_end = line_start;
         while (line_end < source.text().size() && source.text()[line_end] != '\n') {
             ++line_end;
@@ -85,7 +84,7 @@ void DiagnosticSink::print(const SourceFile& source, std::ostream& out) const {
         const std::string_view line_text = source.slice(SourceSpan{line_start, line_end});
         out << "    " << line_text << '\n';
         out << "    ";
-        for (std::size_t i = 1; i < line_location.column; ++i) {
+        for (std::size_t i = 1; i < location.column(); ++i) {
             out << ' ';
         }
 

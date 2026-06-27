@@ -91,17 +91,17 @@ SourceLocation SourceFile::locate(std::size_t offset) const {
             ? 0
             : static_cast<std::size_t>((it - segment->line_starts.begin()) - 1);
         const std::size_t line_start = segment->line_starts[line_index];
-        return SourceLocation{clamped_offset, line_index + 1, local_offset - line_start + 1};
+        return SourceLocation::at(clamped_offset, line_index + 1, local_offset - line_start + 1);
     }
 
     if (line_starts_.empty()) {
-        return SourceLocation{offset, 1, offset + 1};
+        return SourceLocation::at(offset, 1, offset + 1);
     }
 
     const auto it = std::upper_bound(line_starts_.begin(), line_starts_.end(), clamped_offset);
     const std::size_t line_index = (it == line_starts_.begin()) ? 0 : static_cast<std::size_t>((it - line_starts_.begin()) - 1);
     const std::size_t line_start = line_starts_[line_index];
-    return SourceLocation{clamped_offset, line_index + 1, clamped_offset - line_start + 1};
+    return SourceLocation::at(clamped_offset, line_index + 1, clamped_offset - line_start + 1);
 }
 
 void SourceFile::build_line_index() {

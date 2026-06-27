@@ -13,10 +13,25 @@ struct SourceSpan {
     std::size_t end = 0;
 };
 
-struct SourceLocation {
-    std::size_t offset = 0;
-    std::size_t line = 1;
-    std::size_t column = 1;
+class SourceLocation final {
+public:
+    [[nodiscard]] static SourceLocation at(std::size_t offset, std::size_t line, std::size_t column) {
+        return SourceLocation(offset, line, column);
+    }
+
+    [[nodiscard]] std::size_t offset() const noexcept { return offset_; }
+    [[nodiscard]] std::size_t line() const noexcept { return line_; }
+    [[nodiscard]] std::size_t column() const noexcept { return column_; }
+
+private:
+    std::size_t offset_;
+    std::size_t line_;
+    std::size_t column_;
+
+    SourceLocation(std::size_t offset, std::size_t line, std::size_t column)
+        : offset_(offset),
+          line_(line),
+          column_(column) {}
 };
 
 class SourceFile {
