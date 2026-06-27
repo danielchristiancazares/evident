@@ -117,6 +117,7 @@ assert_doc_contains(README.md
     "self-hosting or bootstrapping; the current compiler is still a C++23 seed compiler"
     "Bootstrap plan: `docs/BOOTSTRAP_PLAN.md`"
     "The first bootstrap-oriented Evident package outline lives under `bootstrap/compiler`."
+    "package identity and a deterministic source graph"
     "`run_bootstrap_compiler_scaffold`"
 )
 
@@ -416,6 +417,7 @@ assert_doc_contains(docs/BOOTSTRAP_PLAN.md
     "The compiler is not yet self-hosting."
     "initial Evident package outline at `bootstrap/compiler`"
     "That package is a compilable bootstrap scaffold, not a compiler implementation."
+    "package identity and a deterministic source graph"
     "`run_bootstrap_compiler_scaffold`"
     "C emission can remain a temporary debugging or migration aid, but it is not the production bootstrap proof."
     "Bootstrap work must preserve explicit permits, proof construction, affine discipline, consequence-first naming, and boundary-local collapse of foreign ambiguity."

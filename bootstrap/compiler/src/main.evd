@@ -8,7 +8,7 @@ public record BootstrapStatus {
 }
 
 public fn build_status() -> BootstrapStatus {
-    let source = bootstrap_source::package_entry("bootstrap/compiler/evident.pkg", "seed package outline");
+    let source = bootstrap_source::compiler_package();
     let outlined = bootstrap_pipeline::outline(source);
     let seed = bootstrap_pipeline::compile_with_seed(outlined);
     let stage_one = bootstrap_pipeline::compile_stage_one(seed);
@@ -26,6 +26,6 @@ public fn bootstrap_stage_count() -> Int {
 }
 
 public fn main() -> Int {
-    bootstrap_stage_count()
+    bootstrap_source::compiler_source_count()
 }
 }

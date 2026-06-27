@@ -95,7 +95,7 @@ This version does **not** yet implement:
 - Native backend roadmap: `docs/NATIVE_BACKEND_PLAN.md`
 - Release checklist: `docs/RELEASE_CHECKLIST.md`
 
-The first bootstrap-oriented Evident package outline lives under `bootstrap/compiler`. It is a compilable scaffold for stage-oriented self-hosting work, not a self-hosted compiler implementation.
+The first bootstrap-oriented Evident package outline lives under `bootstrap/compiler`. It is a compilable scaffold for stage-oriented self-hosting work, with package identity and a deterministic source graph, not a self-hosted compiler implementation.
 The Windows CTest suite emits and runs that scaffold through `run_bootstrap_compiler_scaffold` so the seed compiler must keep the bootstrap package natively compilable while it grows.
 
 ## Build

@@ -4,7 +4,7 @@ domain module bootstrap_pipeline {
 public phase CompilerPipeline {
     fields {
         public package_name: Text,
-        public source: bootstrap_source::SourceSet,
+        public source: bootstrap_source::PackageSource,
     }
 
     positions {
@@ -24,9 +24,9 @@ public record StageReceipt {
     public compiler_name: Text,
 }
 
-public fn outline(source: bootstrap_source::SourceSet) -> CompilerPipeline::SourceOutlined {
+public fn outline(source: bootstrap_source::PackageSource) -> CompilerPipeline::SourceOutlined {
     CompilerPipeline::SourceOutlined {
-        package_name: "evident.compiler",
+        package_name: source.identity.name,
         source,
     }
 }
