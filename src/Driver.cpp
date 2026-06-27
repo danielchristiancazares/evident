@@ -55,7 +55,7 @@ std::expected<TextFileWriteSucceeded, std::string> write_text_file(const std::st
 }
 
 NativeEmitRequestState native_emit_request_state(const DriverOptions& options) {
-    if (options.native_artifact.kind() == NativeArtifactKind::Suppressed) {
+    if (options.native_artifact().kind() == NativeArtifactKind::Suppressed) {
         return NativeEmitRequestState::NoNativeArtifactRequested;
     }
     return NativeEmitRequestState::NativeArtifactRequested;
@@ -231,7 +231,7 @@ std::expected<std::vector<std::string>, std::string> discover_package_input_path
 }
 
 std::expected<SourceFile, std::string> load_package_source(const DriverOptions& options) {
-    std::expected<std::vector<std::string>, std::string> input_path_result = options.source_request.match(
+    std::expected<std::vector<std::string>, std::string> input_path_result = options.source_request().match(
         [](const std::vector<std::string>& explicit_paths) -> std::expected<std::vector<std::string>, std::string> {
             return explicit_paths;
         },
@@ -272,7 +272,7 @@ int run_driver(const DriverOptions& options) {
     DiagnosticSink diagnostics;
     Lexer lexer(source, diagnostics);
     std::vector<Token> tokens = lexer.lex();
-    if (options.dump_tokens == DumpRequest::Requested) {
+    if (options.dump_tokens() == DumpRequest::Requested) {
         dump_tokens(tokens);
     }
     if (diagnostics.error_state() == DiagnosticErrorState::ContainsErrors) {
@@ -286,7 +286,7 @@ int run_driver(const DriverOptions& options) {
         diagnostics.print(source, std::cerr);
         return 1;
     }
-    if (options.dump_ast == DumpRequest::Requested) {
+    if (options.dump_ast() == DumpRequest::Requested) {
         std::cout << ast::dump(unit, source.text());
     }
 
@@ -298,17 +298,17 @@ int run_driver(const DriverOptions& options) {
     }
 
     hir::Package package = hir::lower(unit);
-    if (options.dump_hir == DumpRequest::Requested) {
+    if (options.dump_hir() == DumpRequest::Requested) {
         std::cout << hir::dump(package);
     }
 
     const NativeEmitRequestState native_emit_request = native_emit_request_state(options);
-    if (options.dump_mir == DumpRequest::Requested
+    if (options.dump_mir() == DumpRequest::Requested
         || native_emit_request == NativeEmitRequestState::NativeArtifactRequested) {
         hir::Package backend_hir_package = hir::monomorphize_for_backend(package);
         mir::Package mir_package = mir::lower(backend_hir_package);
 
-        if (options.dump_mir == DumpRequest::Requested) {
+        if (options.dump_mir() == DumpRequest::Requested) {
             std::cout << mir::dump(mir_package);
         }
 
@@ -318,13 +318,13 @@ int run_driver(const DriverOptions& options) {
                     const backend::EmitOptions emit_options{
                         emit_kind,
                         output_path,
-                        options.target_triple,
+                        options.target_triple(),
                     };
                     return backend::emit_artifact(backend_hir_package, mir_package, emit_options);
                 };
 
             const std::expected<backend::ArtifactEmissionSucceeded, std::string> emitted =
-                options.native_artifact.match(
+                options.native_artifact().match(
                     []() -> std::expected<backend::ArtifactEmissionSucceeded, std::string> {
                         return backend::ArtifactEmissionSucceeded{};
                     },
@@ -347,7 +347,7 @@ int run_driver(const DriverOptions& options) {
         }
     }
 
-    const std::expected<TextFileWriteSucceeded, std::string> stub_written = options.stub_emission.match(
+    const std::expected<TextFileWriteSucceeded, std::string> stub_written = options.stub_emission().match(
         []() -> std::expected<TextFileWriteSucceeded, std::string> {
             return TextFileWriteSucceeded{};
         },

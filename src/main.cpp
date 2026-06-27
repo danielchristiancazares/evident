@@ -64,13 +64,13 @@ enum class ToolchainReportCompatibility {
 
 ToolchainReportCompatibility toolchain_report_compatibility(const evident::DriverOptions& options,
                                                             const std::vector<std::string>& positional) {
-    if (options.dump_tokens == evident::DumpRequest::Requested
-        || options.dump_ast == evident::DumpRequest::Requested
-        || options.dump_hir == evident::DumpRequest::Requested
-        || options.dump_mir == evident::DumpRequest::Requested
-        || options.stub_emission.kind() == evident::StubEmissionKind::WriteStub
-        || options.native_artifact.kind() != evident::NativeArtifactKind::Suppressed
-        || options.source_request.kind() == evident::SourceRequestKind::PackageDirectory
+    if (options.dump_tokens() == evident::DumpRequest::Requested
+        || options.dump_ast() == evident::DumpRequest::Requested
+        || options.dump_hir() == evident::DumpRequest::Requested
+        || options.dump_mir() == evident::DumpRequest::Requested
+        || options.stub_emission().kind() == evident::StubEmissionKind::WriteStub
+        || options.native_artifact().kind() != evident::NativeArtifactKind::Suppressed
+        || options.source_request().kind() == evident::SourceRequestKind::PackageDirectory
         || !positional.empty()) {
         return ToolchainReportCompatibility::CompilationWouldAlsoRun;
     }
@@ -78,7 +78,7 @@ ToolchainReportCompatibility toolchain_report_compatibility(const evident::Drive
 }
 
 void print_toolchain(const evident::DriverOptions& options, std::ostream& out) {
-    out << "native target: " << options.target_triple << '\n'
+    out << "native target: " << options.target_triple() << '\n'
         << "supported native target: " << evident::backend::supported_target_triple() << '\n'
         << "clang driver: " << evident::backend::selected_toolchain_driver() << '\n'
         << "clang override env: " << evident::backend::toolchain_driver_environment_variable() << '\n'
@@ -88,7 +88,7 @@ void print_toolchain(const evident::DriverOptions& options, std::ostream& out) {
 } // namespace
 
 int main(int argc, char** argv) {
-    evident::DriverOptions options;
+    evident::DriverOptions options = evident::DriverOptions::command_line_defaults();
     std::vector<std::string> positional;
     enum class ToolchainReportRequest {
         Suppressed,
@@ -106,32 +106,32 @@ int main(int argc, char** argv) {
     NativeEmitSelectionState native_emit_selection = NativeEmitSelectionState::NotSelected;
 
     auto request_native_artifact = [&](evident::NativeArtifactRequest request) {
-        if (options.native_artifact.kind() == evident::NativeArtifactKind::Suppressed) {
-            options.native_artifact = std::move(request);
+        if (options.native_artifact().kind() == evident::NativeArtifactKind::Suppressed) {
+            options.use_native_artifact(std::move(request));
             native_emit_selection = NativeEmitSelectionState::SingleMode;
             return;
         }
-        if (options.native_artifact.kind() != request.kind()) {
+        if (options.native_artifact().kind() != request.kind()) {
             native_emit_selection = NativeEmitSelectionState::ConflictingModes;
         }
-        options.native_artifact = std::move(request);
+        options.use_native_artifact(std::move(request));
     };
 
     for (int index = 1; index < argc; ++index) {
         const std::string arg = argv[index];
         if (arg == "--dump-tokens") {
-            options.dump_tokens = evident::DumpRequest::Requested;
+            options.request_token_dump();
         } else if (arg == "--dump-ast") {
-            options.dump_ast = evident::DumpRequest::Requested;
+            options.request_ast_dump();
         } else if (arg == "--dump-hir") {
-            options.dump_hir = evident::DumpRequest::Requested;
+            options.request_hir_dump();
         } else if (arg == "--dump-mir") {
-            options.dump_mir = evident::DumpRequest::Requested;
+            options.request_mir_dump();
         } else if (arg == "--target") {
             if (require_option_value(index, argc, arg) == OptionValueParseState::MissingArgumentReported) {
                 return 2;
             }
-            options.target_triple = std::string(argv[++index]);
+            options.use_target_triple(std::string(argv[++index]));
         } else if (arg == "--print-toolchain") {
             if (toolchain_report == ToolchainReportRequest::Check) {
                 toolchain_report = ToolchainReportRequest::Conflicting;
@@ -148,12 +148,12 @@ int main(int argc, char** argv) {
             if (require_option_value(index, argc, arg) == OptionValueParseState::MissingArgumentReported) {
                 return 2;
             }
-            options.source_request = evident::SourceRequest::package_directory(std::string(argv[++index]));
+            options.use_source_request(evident::SourceRequest::package_directory(std::string(argv[++index])));
         } else if (arg == "--emit-stub") {
             if (require_option_value(index, argc, arg) == OptionValueParseState::MissingArgumentReported) {
                 return 2;
             }
-            options.stub_emission = evident::StubEmissionRequest::write_to(std::string(argv[++index]));
+            options.use_stub_emission(evident::StubEmissionRequest::write_to(std::string(argv[++index])));
         } else if (arg == "--emit-llvm") {
             if (require_option_value(index, argc, arg) == OptionValueParseState::MissingArgumentReported) {
                 return 2;
@@ -213,10 +213,10 @@ int main(int argc, char** argv) {
             print_usage(std::cerr);
             return 2;
         }
-        if (options.target_triple != evident::backend::supported_target_triple()) {
+        if (options.target_triple() != evident::backend::supported_target_triple()) {
             std::cerr << "toolchain check failed:\n"
                       << "backend currently supports only target '" << evident::backend::supported_target_triple()
-                      << "' (selected target: '" << options.target_triple << "')\n";
+                      << "' (selected target: '" << options.target_triple() << "')\n";
             return 1;
         }
         print_toolchain(options, std::cout);
@@ -235,12 +235,12 @@ int main(int argc, char** argv) {
         return 0;
     }
 
-    if (positional.empty() && options.source_request.kind() != evident::SourceRequestKind::PackageDirectory) {
+    if (positional.empty() && options.source_request().kind() != evident::SourceRequestKind::PackageDirectory) {
         std::cerr << "no input file or package directory provided\n";
         print_usage(std::cerr);
         return 2;
     }
-    if (!positional.empty() && options.source_request.kind() == evident::SourceRequestKind::PackageDirectory) {
+    if (!positional.empty() && options.source_request().kind() == evident::SourceRequestKind::PackageDirectory) {
         std::cerr << "--package may not be combined with explicit input files\n";
         print_usage(std::cerr);
         return 2;
@@ -251,15 +251,15 @@ int main(int argc, char** argv) {
         print_usage(std::cerr);
         return 2;
     }
-    if (options.native_artifact.kind() != evident::NativeArtifactKind::Suppressed
-        && options.stub_emission.kind() == evident::StubEmissionKind::WriteStub) {
+    if (options.native_artifact().kind() != evident::NativeArtifactKind::Suppressed
+        && options.stub_emission().kind() == evident::StubEmissionKind::WriteStub) {
         std::cerr << "--emit-stub may not be combined with native emit modes\n";
         print_usage(std::cerr);
         return 2;
     }
 
     if (!positional.empty()) {
-        options.source_request = evident::SourceRequest::explicit_files(std::move(positional));
+        options.use_source_request(evident::SourceRequest::explicit_files(std::move(positional)));
     }
     return evident::run_driver(options);
 }
