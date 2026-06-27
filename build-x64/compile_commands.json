@@ -37,6 +37,12 @@
 },
 {
   "directory": "C:/Users/Daniel/Code/evident/build-x64",
+  "command": "C:\\PROGRA~2\\MICROS~2\\18\\BUILDT~1\\VC\\Tools\\MSVC\\1450~1.357\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -IC:\\Users\\Daniel\\Code\\evident\\include /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++latest -MDd /FoCMakeFiles\\evident_frontend.dir\\src\\ResolvedType.cpp.obj /FdCMakeFiles\\evident_frontend.dir\\evident_frontend.pdb /FS -c C:\\Users\\Daniel\\Code\\evident\\src\\ResolvedType.cpp",
+  "file": "C:/Users/Daniel/Code/evident/src/ResolvedType.cpp",
+  "output": "C:/Users/Daniel/Code/evident/build-x64/CMakeFiles/evident_frontend.dir/src/ResolvedType.cpp.obj"
+},
+{
+  "directory": "C:/Users/Daniel/Code/evident/build-x64",
   "command": "C:\\PROGRA~2\\MICROS~2\\18\\BUILDT~1\\VC\\Tools\\MSVC\\1450~1.357\\bin\\Hostx64\\x64\\cl.exe  /nologo /TP -IC:\\Users\\Daniel\\Code\\evident\\include /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++latest -MDd /FoCMakeFiles\\evident_frontend.dir\\src\\Semantic.cpp.obj /FdCMakeFiles\\evident_frontend.dir\\evident_frontend.pdb /FS -c C:\\Users\\Daniel\\Code\\evident\\src\\Semantic.cpp",
   "file": "C:/Users/Daniel/Code/evident/src/Semantic.cpp",
   "output": "C:/Users/Daniel/Code/evident/build-x64/CMakeFiles/evident_frontend.dir/src/Semantic.cpp.obj"

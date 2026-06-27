@@ -109,6 +109,16 @@ build CMakeFiles\evident_frontend.dir\src\Parser.cpp.obj: CXX_COMPILER__evident_
   TARGET_PDB = evident_frontend.pdb
   TARGET_SUPPORT_DIR = CMakeFiles\evident_frontend.dir
 
+build CMakeFiles\evident_frontend.dir\src\ResolvedType.cpp.obj: CXX_COMPILER__evident_frontend_unscanned_Debug C$:\Users\Daniel\Code\evident\src\ResolvedType.cpp || cmake_object_order_depends_target_evident_frontend
+  CONFIG = Debug
+  FLAGS = /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++latest -MDd
+  INCLUDES = -IC:\Users\Daniel\Code\evident\include
+  OBJECT_DIR = CMakeFiles\evident_frontend.dir
+  OBJECT_FILE_DIR = CMakeFiles\evident_frontend.dir\src
+  TARGET_COMPILE_PDB = CMakeFiles\evident_frontend.dir\evident_frontend.pdb
+  TARGET_PDB = evident_frontend.pdb
+  TARGET_SUPPORT_DIR = CMakeFiles\evident_frontend.dir
+
 build CMakeFiles\evident_frontend.dir\src\Semantic.cpp.obj: CXX_COMPILER__evident_frontend_unscanned_Debug C$:\Users\Daniel\Code\evident\src\Semantic.cpp || cmake_object_order_depends_target_evident_frontend
   CONFIG = Debug
   FLAGS = /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -std:c++latest -MDd
@@ -167,7 +177,7 @@ build CMakeFiles\evident_frontend.dir\src\Driver.cpp.obj: CXX_COMPILER__evident_
 #############################################
 # Link the static library evident_frontend.lib
 
-build evident_frontend.lib: CXX_STATIC_LIBRARY_LINKER__evident_frontend_Debug CMakeFiles\evident_frontend.dir\src\Source.cpp.obj CMakeFiles\evident_frontend.dir\src\Diagnostic.cpp.obj CMakeFiles\evident_frontend.dir\src\Token.cpp.obj CMakeFiles\evident_frontend.dir\src\Lexer.cpp.obj CMakeFiles\evident_frontend.dir\src\Ast.cpp.obj CMakeFiles\evident_frontend.dir\src\Parser.cpp.obj CMakeFiles\evident_frontend.dir\src\Semantic.cpp.obj CMakeFiles\evident_frontend.dir\src\Hir.cpp.obj CMakeFiles\evident_frontend.dir\src\Mir.cpp.obj CMakeFiles\evident_frontend.dir\src\Backend.cpp.obj CMakeFiles\evident_frontend.dir\src\Driver.cpp.obj
+build evident_frontend.lib: CXX_STATIC_LIBRARY_LINKER__evident_frontend_Debug CMakeFiles\evident_frontend.dir\src\Source.cpp.obj CMakeFiles\evident_frontend.dir\src\Diagnostic.cpp.obj CMakeFiles\evident_frontend.dir\src\Token.cpp.obj CMakeFiles\evident_frontend.dir\src\Lexer.cpp.obj CMakeFiles\evident_frontend.dir\src\Ast.cpp.obj CMakeFiles\evident_frontend.dir\src\Parser.cpp.obj CMakeFiles\evident_frontend.dir\src\ResolvedType.cpp.obj CMakeFiles\evident_frontend.dir\src\Semantic.cpp.obj CMakeFiles\evident_frontend.dir\src\Hir.cpp.obj CMakeFiles\evident_frontend.dir\src\Mir.cpp.obj CMakeFiles\evident_frontend.dir\src\Backend.cpp.obj CMakeFiles\evident_frontend.dir\src\Driver.cpp.obj
   CONFIG = Debug
   LANGUAGE_COMPILE_FLAGS = /DWIN32 /D_WINDOWS /EHsc /Zi /Ob0 /Od /RTC1 -MDd
   LINK_FLAGS = /machine:x64
