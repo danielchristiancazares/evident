@@ -5,6 +5,15 @@ public record Box<T> {
 }
 
 domain module test {
+public record KeyBox {
+    public value: Int,
+}
+
+public state KeyMode {
+    Strict,
+    Permissive,
+}
+
 public fn bare_list(values: List) -> Int {
     0
 }
@@ -26,6 +35,26 @@ public fn builtin_args(values: Int<Text>) -> Int {
 }
 
 public fn qualified_builtin(values: List::Thing) -> Int {
+    0
+}
+
+public fn float_map_key(values: Map<Float, Int>) -> Int {
+    0
+}
+
+public fn cstring_map_key(values: NonEmptyMap<CString, Int>) -> Int {
+    0
+}
+
+public fn record_map_key(values: Map<KeyBox, Int>) -> Int {
+    0
+}
+
+public fn state_map_key(values: NonEmptyMap<KeyMode, Int>) -> Int {
+    0
+}
+
+public fn collection_map_key(values: Map<List<Int>, Int>) -> Int {
     0
 }
 }

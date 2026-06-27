@@ -53,6 +53,15 @@ const std::unordered_set<std::string_view> kBuiltins = {
     "CInt",  "CSize", "Byte",   "Unit",
 };
 
+const std::unordered_set<std::string_view> kCanonicalMapKeyBuiltins = {
+    "Int",
+    "Nat",
+    "Byte",
+    "Char",
+    "Text",
+    "Bytes",
+};
+
 std::string final_path_segment_or_malformed_path(const std::vector<std::string>& path) {
     if (path.empty()) {
         return "<malformed path>";
@@ -144,6 +153,17 @@ enum class BuiltinTypeArgumentArity {
     TwoTypeArguments,
 };
 
+enum class BuiltinMapKeyAdmission {
+    CanonicalKeyType,
+    UnsupportedKnownType,
+    UnresolvedType,
+};
+
+enum class BuiltinMapFamily {
+    OtherBuiltinType,
+    MapFamily,
+};
+
 PublicNameReservation public_name_reservation(std::string_view name) {
     return name.size() == 1 || kReservedPublicNames.contains(name)
         ? PublicNameReservation::ReservedForPublicSurface
@@ -178,6 +198,11 @@ BuiltinTypeArgumentArity builtin_type_argument_arity(std::string_view name) {
         return BuiltinTypeArgumentArity::NoTypeArguments;
     }
     return BuiltinTypeArgumentArity::UserDeclaredTypeName;
+}
+
+BuiltinMapFamily builtin_map_family(std::string_view name) {
+    return name == "Map" || name == "NonEmptyMap" ? BuiltinMapFamily::MapFamily
+                                                   : BuiltinMapFamily::OtherBuiltinType;
 }
 
 std::size_t expected_builtin_type_arg_count(BuiltinTypeArgumentArity arity) {
@@ -1220,6 +1245,55 @@ private:
             : CrossModuleReferencePolicy::FileLocalImportsRequired;
     }
 
+    BuiltinMapKeyAdmission map_key_admission(const Scope& scope,
+                                             const std::vector<std::string>& generics,
+                                             const ast::TypeRef& key_type) const {
+        if (key_type.path.size() == 1 && key_type.args.empty()
+            && kCanonicalMapKeyBuiltins.contains(key_type.path.front())) {
+            return BuiltinMapKeyAdmission::CanonicalKeyType;
+        }
+
+        const TypeReferencePathRole path_role = type_reference_path_role(key_type.path, generics);
+        switch (path_role) {
+        case TypeReferencePathRole::EmptyPath:
+            return BuiltinMapKeyAdmission::UnresolvedType;
+        case TypeReferencePathRole::GenericParameter:
+        case TypeReferencePathRole::BuiltinTypeName:
+            return BuiltinMapKeyAdmission::UnsupportedKnownType;
+        case TypeReferencePathRole::NamedTypePath:
+            break;
+        }
+
+        if (resolve_phase_position_type(scope, generics, key_type.path).state
+            == PhasePositionResolutionState::PathNamesPhasePosition) {
+            return BuiltinMapKeyAdmission::UnsupportedKnownType;
+        }
+
+        if (resolve_symbol(scope, generics, key_type.path) != nullptr) {
+            return BuiltinMapKeyAdmission::UnsupportedKnownType;
+        }
+
+        return BuiltinMapKeyAdmission::UnresolvedType;
+    }
+
+    void check_builtin_map_key_type(const Scope& scope,
+                                    const std::vector<std::string>& generics,
+                                    const ast::TypeRef& map_type) {
+        if (map_type.path.size() != 1
+            || builtin_map_family(map_type.path.front()) != BuiltinMapFamily::MapFamily
+            || map_type.args.size() != 2) {
+            return;
+        }
+
+        const ast::TypeRef& key_type = map_type.args.front();
+        if (map_key_admission(scope, generics, key_type)
+            == BuiltinMapKeyAdmission::UnsupportedKnownType) {
+            diagnostics_.error(key_type.span,
+                               "map key type '" + ast::format_type(key_type)
+                                   + "' must be one of Int, Nat, Byte, Char, Text, or Bytes");
+        }
+    }
+
     void check_type_ref_usage(const Scope& scope,
                               const std::vector<std::string>& generics,
                               const ast::TypeRef& type,
@@ -1252,6 +1326,7 @@ private:
                                           + std::to_string(expected_builtin_args) + " type argument(s), got "
                                           + std::to_string(actual));
                 }
+                check_builtin_map_key_type(scope, generics, type);
             }
         }
 

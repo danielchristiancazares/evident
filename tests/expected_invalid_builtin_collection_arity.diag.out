@@ -1,21 +1,36 @@
 <input>:3:19: error: generic parameter 'T' may not have type arguments
         public value: T<Int>,
                       ^^^^^^
-<input>:8:29: error: builtin type 'List' requires 1 type argument(s)
+<input>:17:29: error: builtin type 'List' requires 1 type argument(s)
     public fn bare_list(values: List) -> Int {
                                 ^^^^
-<input>:12:33: error: builtin type 'List' expects 1 type argument(s), got 2
+<input>:21:33: error: builtin type 'List' expects 1 type argument(s), got 2
     public fn too_many_list(values: List<Int, Int>) -> Int {
                                     ^^^^^^^^^^^^^^
-<input>:16:29: error: builtin type 'Map' expects 2 type argument(s), got 1
+<input>:25:29: error: builtin type 'Map' expects 2 type argument(s), got 1
     public fn short_map(values: Map<Int>) -> Int {
                                 ^^^^^^^^
-<input>:20:32: error: builtin type 'Map' expects 2 type argument(s), got 3
+<input>:29:32: error: builtin type 'Map' expects 2 type argument(s), got 3
     public fn too_many_map(values: Map<Int, Int, Int>) -> Int {
                                    ^^^^^^^^^^^^^^^^^^
-<input>:24:32: error: builtin type 'Int' may not have type arguments
+<input>:33:32: error: builtin type 'Int' may not have type arguments
     public fn builtin_args(values: Int<Text>) -> Int {
                                    ^^^^^^^^^
-<input>:28:37: error: builtin type 'List' may not be used as a qualified type
+<input>:37:37: error: builtin type 'List' may not be used as a qualified type
     public fn qualified_builtin(values: List::Thing) -> Int {
                                         ^^^^^^^^^^^
+<input>:41:37: error: map key type 'Float' must be one of Int, Nat, Byte, Char, Text, or Bytes
+    public fn float_map_key(values: Map<Float, Int>) -> Int {
+                                        ^^^^^
+<input>:45:47: error: map key type 'CString' must be one of Int, Nat, Byte, Char, Text, or Bytes
+    public fn cstring_map_key(values: NonEmptyMap<CString, Int>) -> Int {
+                                                  ^^^^^^^
+<input>:49:38: error: map key type 'KeyBox' must be one of Int, Nat, Byte, Char, Text, or Bytes
+    public fn record_map_key(values: Map<KeyBox, Int>) -> Int {
+                                         ^^^^^^
+<input>:53:45: error: map key type 'KeyMode' must be one of Int, Nat, Byte, Char, Text, or Bytes
+    public fn state_map_key(values: NonEmptyMap<KeyMode, Int>) -> Int {
+                                                ^^^^^^^
+<input>:57:42: error: map key type 'List<Int>' must be one of Int, Nat, Byte, Char, Text, or Bytes
+    public fn collection_map_key(values: Map<List<Int>, Int>) -> Int {
+                                             ^^^^^^^^^
