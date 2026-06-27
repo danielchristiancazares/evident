@@ -3,6 +3,10 @@ public reason LoadFailure {
     Bad,
 }
 
+public proof Receipt {
+    count: Int,
+}
+
 public fn load() -> Int
     fails LoadFailure
 {
@@ -35,5 +39,25 @@ public fn bad_failing_argument() -> Int {
 
 public fn bad_non_path_callee() -> Int {
     takes_one.value()
+}
+
+public fn bad_list_copy(values: List<Receipt>) -> Nat {
+    list_count_copy<Receipt>(values)
+}
+
+public fn bad_map_lookup_copy(entries: Map<Text, Receipt>, key: Text) -> Receipt fails MapBindingFailure {
+    try map_lookup_copy<Text, Receipt>(entries, key)
+}
+
+public fn bad_map_replace(entries: Map<Text, Receipt>, key: Text, value: Receipt) -> NonEmptyMap<Text, Receipt> fails MapBindingFailure {
+    try map_replace_bound<Text, Receipt>(entries, key, value)
+}
+
+public fn bad_map_merge_policy(left: Map<Text, Receipt>, right: Map<Text, Receipt>) -> Map<Text, Receipt> {
+    map_merge_using_left_bindings_for_shared_keys<Text, Receipt>(left, right)
+}
+
+public fn bad_map_from_entries_policy(entries: List<MapEntry<Text, Receipt>>) -> Map<Text, Receipt> {
+    map_from_entries_using_first_bindings<Text, Receipt>(entries)
 }
 }

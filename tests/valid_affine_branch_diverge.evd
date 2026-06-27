@@ -23,6 +23,22 @@ public fn choose() -> Gate {
 public fn consume(receipt: Receipt) -> Unit {
 }
 
+public fn bind_new_entry(entries: Map<Text, Receipt>, key: Text, receipt: Receipt) -> NonEmptyMap<Text, Receipt> fails MapBindingFailure {
+    try map_bind_new<Text, Receipt>(entries, key, receipt)
+}
+
+public fn consume_first(values: NonEmptyList<Receipt>) -> ListFirstAndRest<Receipt> {
+    nonempty_list_consume_first<Receipt>(values)
+}
+
+public fn consume_bound_value(entries: Map<Text, Receipt>, key: Text) -> MapBoundValueAndRest<Text, Receipt> fails MapBindingFailure {
+    try map_consume_bound_value<Text, Receipt>(entries, key)
+}
+
+public fn merge_rejecting_shared_keys(left: Map<Text, Receipt>, right: Map<Text, Receipt>) -> Map<Text, Receipt> fails MapMergeFailure {
+    try map_merge_rejecting_shared_keys<Text, Receipt>(left, right)
+}
+
 public fn boot() -> Receipt fails Err {
     let receipt = mint();
     let gate = choose();

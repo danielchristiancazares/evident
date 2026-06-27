@@ -1,18 +1,33 @@
-<input>:17:5: error: unknown function 'missing_call'
+<input>:21:5: error: unknown function 'missing_call'
         missing_call()
         ^^^^^^^^^^^^^^
-<input>:21:5: error: function 'takes_one' expects 1 argument(s), got 0
+<input>:25:5: error: function 'takes_one' expects 1 argument(s), got 0
         takes_one()
         ^^^^^^^^^^^
-<input>:25:5: error: function 'takes_one' expects 1 argument(s), got 2
+<input>:29:5: error: function 'takes_one' expects 1 argument(s), got 2
         takes_one(1, 2)
         ^^^^^^^^^^^^^^^
-<input>:29:15: error: argument 1 to 'takes_one' has type 'Text', expected 'Int'
+<input>:33:15: error: argument 1 to 'takes_one' has type 'Text', expected 'Int'
         takes_one("seven")
                   ^^^^^^^
-<input>:33:15: error: failing expression must be handled with `try` or `match`
+<input>:37:15: error: failing expression must be handled with `try` or `match`
         takes_one(load())
                   ^^^^^^
-<input>:37:5: error: callee must be a named function
+<input>:41:5: error: callee must be a named function
         takes_one.value()
         ^^^^^^^^^^^^^^^^^
+<input>:45:21: error: collection operation 'list_count_copy' requires copyable payload type 'T', got affine-bearing 'test::Receipt'
+        list_count_copy<Receipt>(values)
+                        ^^^^^^^
+<input>:49:31: error: collection operation 'map_lookup_copy' requires copyable map value type 'V', got affine-bearing 'test::Receipt'
+        try map_lookup_copy<Text, Receipt>(entries, key)
+                                  ^^^^^^^
+<input>:53:33: error: collection operation 'map_replace_bound' requires copyable map value type 'V', got affine-bearing 'test::Receipt'
+        try map_replace_bound<Text, Receipt>(entries, key, value)
+                                    ^^^^^^^
+<input>:57:57: error: collection operation 'map_merge_using_left_bindings_for_shared_keys' requires copyable map value type 'V', got affine-bearing 'test::Receipt'
+        map_merge_using_left_bindings_for_shared_keys<Text, Receipt>(left, right)
+                                                            ^^^^^^^
+<input>:61:49: error: collection operation 'map_from_entries_using_first_bindings' requires copyable map value type 'V', got affine-bearing 'test::Receipt'
+        map_from_entries_using_first_bindings<Text, Receipt>(entries)
+                                                    ^^^^^^^

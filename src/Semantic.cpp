@@ -178,6 +178,11 @@ struct CollectionFunctionSpec {
     std::string_view failure_reason;
 };
 
+struct CollectionCopyabilityRequirement {
+    std::string_view generic_param;
+    std::string_view payload_description;
+};
+
 const std::vector<CollectionFunctionSpec> kCompilerOwnedCollectionFunctionSpecs = {
     {"list_empty", {"T"}, {}, CollectionTypeTemplate::ListT, {}},
     {"list_single", {"T"}, {{"value", CollectionTypeTemplate::GenericT}}, CollectionTypeTemplate::NonEmptyListT, {}},
@@ -452,6 +457,38 @@ const std::vector<CollectionFunctionSpec> kCompilerOwnedCollectionFunctionSpecs 
      CollectionTypeTemplate::NonEmptyMapKV,
      {}},
 };
+
+const std::unordered_map<std::string_view, CollectionCopyabilityRequirement>
+    kCompilerOwnedCollectionCopyabilityRequirements = {
+        {"list_count_copy", {"T", "payload"}},
+        {"nonempty_list_count_copy", {"T", "payload"}},
+        {"nonempty_list_first_copy", {"T", "payload"}},
+        {"map_replace_bound", {"V", "map value"}},
+        {"nonempty_map_replace_bound", {"V", "map value"}},
+        {"map_bind_or_replace", {"V", "map value"}},
+        {"nonempty_map_bind_or_replace", {"V", "map value"}},
+        {"map_remove_bound", {"V", "map value"}},
+        {"nonempty_map_remove_bound", {"V", "map value"}},
+        {"map_count_copy", {"V", "map value"}},
+        {"nonempty_map_count_copy", {"V", "map value"}},
+        {"map_lookup_copy", {"V", "map value"}},
+        {"nonempty_map_lookup_copy", {"V", "map value"}},
+        {"nonempty_map_first_entry_copy", {"V", "map value"}},
+        {"map_entries_copy", {"V", "map value"}},
+        {"nonempty_map_entries_copy", {"V", "map value"}},
+        {"map_merge_using_left_bindings_for_shared_keys", {"V", "map value"}},
+        {"map_merge_left_nonempty_using_left_bindings_for_shared_keys", {"V", "map value"}},
+        {"map_merge_right_nonempty_using_left_bindings_for_shared_keys", {"V", "map value"}},
+        {"nonempty_map_merge_using_left_bindings_for_shared_keys", {"V", "map value"}},
+        {"map_merge_using_right_bindings_for_shared_keys", {"V", "map value"}},
+        {"map_merge_left_nonempty_using_right_bindings_for_shared_keys", {"V", "map value"}},
+        {"map_merge_right_nonempty_using_right_bindings_for_shared_keys", {"V", "map value"}},
+        {"nonempty_map_merge_using_right_bindings_for_shared_keys", {"V", "map value"}},
+        {"map_from_entries_using_first_bindings", {"V", "map value"}},
+        {"nonempty_map_from_entries_using_first_bindings", {"V", "map value"}},
+        {"map_from_entries_using_last_bindings", {"V", "map value"}},
+        {"nonempty_map_from_entries_using_last_bindings", {"V", "map value"}},
+    };
 
 std::string final_path_segment_or_malformed_path(const std::vector<std::string>& path) {
     if (path.empty()) {
@@ -1693,6 +1730,56 @@ private:
         return TypeArgumentPreparation::ReadyForInstantiation;
     }
 
+    const Type* substituted_type_argument(const std::vector<std::pair<std::string, Type>>& substitutions,
+                                          std::string_view generic_name) const {
+        for (const auto& [name, type] : substitutions) {
+            if (name == generic_name) {
+                return &type;
+            }
+        }
+        return nullptr;
+    }
+
+    SourceSpan call_type_argument_span(const ast::FunctionDecl& function,
+                                       const ast::CallExpr& call,
+                                       std::string_view generic_name) const {
+        for (std::size_t index = 0; index < function.signature.generic_params.size(); ++index) {
+            if (function.signature.generic_params[index].name == generic_name
+                && index < call.type_args.size()) {
+                return call.type_args[index].span;
+            }
+        }
+        return call.span;
+    }
+
+    void check_collection_operation_availability(
+        const ast::FunctionDecl& function,
+        const ast::CallExpr& call,
+        const std::vector<std::pair<std::string, Type>>& substitutions) {
+        const auto requirement_it =
+            kCompilerOwnedCollectionCopyabilityRequirements.find(std::string_view(function.name));
+        if (requirement_it == kCompilerOwnedCollectionCopyabilityRequirements.end()) {
+            return;
+        }
+
+        const CollectionCopyabilityRequirement& requirement = requirement_it->second;
+        const Type* const payload_type = substituted_type_argument(substitutions, requirement.generic_param);
+        if (payload_type == nullptr
+            || type_error_state(*payload_type) == typesys::TypeErrorState::SuppressesFollowupDiagnostics) {
+            return;
+        }
+        if (typesys::discipline_movement(discipline(*payload_type)) == typesys::DisciplineMovement::Copyable) {
+            return;
+        }
+
+        diagnostics_.error(
+            call_type_argument_span(function, call, requirement.generic_param),
+            "collection operation '" + function.name + "' requires copyable "
+                + std::string(requirement.payload_description) + " type '"
+                + std::string(requirement.generic_param) + "', got affine-bearing '"
+                + type_name(*payload_type) + "'");
+    }
+
     TypeArgumentPreparation prepare_record_constructor_type_args(const ast::RecordDecl& record,
                                                                 const ast::ConstructExpr& construct,
                                                                 const FunctionContext& context,
@@ -2892,6 +2979,7 @@ private:
             return make_expr(error_type());
         }
         const std::vector<std::string> callee_generics = generic_names_for(function->signature.generic_params);
+        check_collection_operation_availability(*function, expr, substitutions);
         check_call_arguments(*function, expr.args, context, env, *callee_scope, callee_generics, substitutions, expr.span);
         check_generic_function_instantiation(*function, *callee_scope, substitutions);
 
