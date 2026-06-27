@@ -14,4 +14,16 @@ public fn settled<T>(value: T) -> T {
 public fn relay<draft>(value: draft) -> draft {
     value
 }
+
+public record Authority<T> {
+    value: T,
+}
+
+public record Envelope<Proof> {
+    value: Proof,
+}
+
+public fn validation<T>(value: T) -> T {
+    value
+}
 }

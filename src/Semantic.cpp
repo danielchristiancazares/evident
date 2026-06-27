@@ -43,8 +43,11 @@ const std::unordered_set<std::string_view> kPseudoOptionalNames = {
 };
 
 const std::unordered_set<std::string_view> kSemanticGenericNames = {
-    "Validated",  "Authorized",  "Settled",  "Draft",
-    "validated",  "authorized",  "settled",  "draft",
+    "Validated",     "Authorized",     "Settled",  "Draft",
+    "Validation",    "Authorization",  "Authority", "Proof",
+    "Permit",        "validated",      "authorized", "settled",
+    "draft",         "validation",     "authorization", "authority",
+    "proof",         "permit",
 };
 
 const std::unordered_set<std::string_view> kBuiltins = {

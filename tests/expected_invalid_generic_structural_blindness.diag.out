@@ -10,3 +10,12 @@
 <input>:14:17: error: generic parameter 'draft' is not structurally blind; lifecycle, authority, proof, or domain facts must use first-class language constructs
     public fn relay<draft>(value: draft) -> draft {
                     ^^^^^
+<input>:18:8: error: generic record 'Authority' is not structurally blind; lifecycle, authority, proof, or domain facts must use first-class language constructs
+    public record Authority<T> {
+           ^^^^^^^^^^^^^^^^^^^^^
+<input>:22:24: error: generic parameter 'Proof' is not structurally blind; lifecycle, authority, proof, or domain facts must use first-class language constructs
+    public record Envelope<Proof> {
+                           ^^^^^
+<input>:26:8: error: generic function 'validation' is not structurally blind; lifecycle, authority, proof, or domain facts must use first-class language constructs
+    public fn validation<T>(value: T) -> T {
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
