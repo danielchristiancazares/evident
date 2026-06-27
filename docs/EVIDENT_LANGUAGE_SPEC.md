@@ -807,14 +807,14 @@ Private declarations, and private fields of public declarations, are not subject
 The reserved set is closed. Each name is reserved because it expresses a category that Sections 10.1 through 10.4 forbid in public surfaces:
 
 * boolean encodings (Section 10.1): `Yes`, `No`, `True`, `False`
-* presence-or-absence wrappers (Section 10.2): `Some`, `None`, `Present`, `Absent`, `Missing`, `Unknown`
-* generic lifecycle or mechanism labels (Section 10.1): `Ready`, `Unavailable`, `Connected`, `Disconnected`
+* presence-or-absence wrappers (Section 10.2): `Some`, `None`, `Present`, `Absent`, `Missing`, `Unknown`, `Known`
+* generic lifecycle or mechanism labels (Section 10.1): `Ready`, `Unavailable`, `Connected`, `Disconnected`, `Reported`, `NotReported`
 * placeholder or sentinel labels (Section 10.4): `Default`, `Other`, `Invalid`, `Unset`
 * wildcard bypass variants (Section 10.3): `Any`, `All`, `Unrestricted`, `AllowAll`
 
 A single-character exported name is reserved because one character cannot describe a downstream consequence or an established fact, as Section 10.1 requires.
 
-Names such as `Ready`, `Connected`, `Disconnected`, and `Unavailable` are reserved as generic lifecycle and mechanism labels under Section 10.1. A model that must distinguish such runtime alternatives MUST name each alternative by its consequence rather than by its lifecycle stage or connection mechanism.
+Names such as `Ready`, `Connected`, `Disconnected`, `Unavailable`, `Reported`, and `NotReported` are reserved as generic lifecycle and mechanism labels under Section 10.1. A model that must distinguish such runtime alternatives MUST name each alternative by its consequence rather than by its lifecycle stage, connection mechanism, or reporting mechanism.
 
 This reserved set is the decidable core of the public-naming rules. The broader, judgment-based requirements in Sections 10.1 through 10.4 continue to apply to exported names that fall outside this set.
 

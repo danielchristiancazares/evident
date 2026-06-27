@@ -51,7 +51,7 @@ The compiler currently enforces:
 - duplicate fields, variants, parameters, and generic parameters
 - generic declarations quarantined to supported `foundation` forms
 - explicit generic call and record-construction type arguments
-- reserved or overly generic public names such as `Present`, `Missing`, and `AllowAll`
+- reserved or overly generic public names from the spec's closed set, including boolean encodings, presence wrappers, generic lifecycle or mechanism labels, sentinel labels, wildcard policy labels, and single-character exported names
 - empty `state` / `reason` declarations
 - pseudo-optional public/state shapes
 - unknown type references
