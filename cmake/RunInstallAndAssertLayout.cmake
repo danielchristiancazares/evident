@@ -254,6 +254,8 @@ function(assert_install_layout_contains_only_expected_entries)
     endforeach()
 endfunction()
 
+include("${CMAKE_CURRENT_LIST_DIR}/AssertPeExecutableFile.cmake")
+
 execute_process(
     COMMAND "${CMAKE_COMMAND}" "--install" "${BUILD_DIR}" "--prefix" "${INSTALL_PREFIX}"
     RESULT_VARIABLE install_result
@@ -269,14 +271,7 @@ endif()
 assert_install_layout_contains_only_expected_entries()
 
 set(installed_executable "${INSTALL_PREFIX}/${INSTALL_BINDIR}/${EXECUTABLE_NAME}")
-if(NOT EXISTS "${installed_executable}")
-    message(FATAL_ERROR "expected installed compiler does not exist: ${installed_executable}")
-endif()
-
-file(SIZE "${installed_executable}" installed_executable_size)
-if(installed_executable_size LESS 1)
-    message(FATAL_ERROR "expected installed compiler to be non-empty: ${installed_executable}")
-endif()
+assert_pe_executable_file("${installed_executable}")
 
 foreach(expected_doc IN LISTS EXPECTED_DOCS)
     set(source_doc "${SOURCE_DIR}/${expected_doc}")

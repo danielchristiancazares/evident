@@ -65,8 +65,8 @@ A release may use the current supported path only when all of these are true:
 2. The CI workflow runs the same release source-tree audit before configure/build/test.
 3. `ctest --preset windows-x64-ninja` passes on the intended release commit.
 4. `cmake --build --preset windows-x64-ninja-package-checksum` completes.
-5. The install layout validation rejects unsafe or duplicate expected install allowlist paths and unexpected installed entries.
-6. The ZIP package and canonical one-line `.sha256` sidecar validate, including safe expected package-entry allowlist paths, checksum-writer rejection of non-ZIP package paths or misplaced checksum output paths, and exact `<zip>.sha256` sidecar path binding after CRLF/LF normalization.
+5. The install layout validation rejects unsafe or duplicate expected install allowlist paths and unexpected installed entries, and validates the installed compiler as a PE executable.
+6. The ZIP package and canonical one-line `.sha256` sidecar validate, including packaged compiler PE structure, safe expected package-entry allowlist paths, checksum-writer rejection of non-ZIP package paths or misplaced checksum output paths, and exact `<zip>.sha256` sidecar path binding after CRLF/LF normalization.
 7. The uploaded CI artifact contains:
    - exactly one `evident-*-windows-x64.zip`
    - exactly one matching `<zip>.sha256` sidecar

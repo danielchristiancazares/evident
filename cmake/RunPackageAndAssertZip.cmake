@@ -176,6 +176,7 @@ if(package_size LESS 1)
 endif()
 
 include("${CMAKE_CURRENT_LIST_DIR}/AssertPackageZipListing.cmake")
+include("${CMAKE_CURRENT_LIST_DIR}/AssertPeExecutableFile.cmake")
 
 string(RANDOM LENGTH 8 ALPHABET "0123456789abcdef" extract_suffix)
 set(EXTRACT_DIR "${BUILD_DIR}/package-layout-${extract_suffix}")
@@ -195,14 +196,7 @@ if(NOT extract_result EQUAL 0)
 endif()
 
 set(packaged_executable "${EXTRACT_DIR}/${EXECUTABLE_ENTRY}")
-if(NOT EXISTS "${packaged_executable}")
-    message(FATAL_ERROR "expected packaged compiler does not exist after extraction: ${packaged_executable}")
-endif()
-
-file(SIZE "${packaged_executable}" packaged_executable_size)
-if(packaged_executable_size LESS 1)
-    message(FATAL_ERROR "expected packaged compiler to be non-empty: ${packaged_executable}")
-endif()
+assert_pe_executable_file("${packaged_executable}")
 
 foreach(expected_doc IN LISTS EXPECTED_DOCS)
     set(source_doc "${SOURCE_DIR}/${expected_doc}")
