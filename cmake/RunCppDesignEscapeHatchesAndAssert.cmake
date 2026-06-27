@@ -26,7 +26,11 @@ set(work_dir "${BUILD_DIR}/cpp-design-escape-hatches-${test_suffix}")
 set(synthetic_src "${work_dir}/src")
 file(MAKE_DIRECTORY "${synthetic_src}")
 file(WRITE "${synthetic_src}/bad.cpp"
+    "#include <any>\n"
+    "#include <cassert>\n"
     "#include <cstring>\n"
+    "#include <cstdint>\n"
+    "#include <cstdlib>\n"
     "#include <exception>\n"
     "#include <expected>\n"
     "#include <condition_variable>\n"
@@ -44,14 +48,29 @@ file(WRITE "${synthetic_src}/bad.cpp"
     "std::optional<int> maybe_value;\n"
     "bool ambient_flag();\n"
     "std::vector<bool> packed_flags();\n"
+    "std::any erased_state;\n"
     "std::monostate empty_state();\n"
     "std::shared_mutex global_mutex;\n"
     "std::condition_variable global_condition;\n"
     "std::shared_ptr<std::mutex> shared_mutex_handle();\n"
     "std::weak_ptr<int> weak_absence;\n"
     "std::nullptr_t null_branch;\n"
+    "std::expected<int, int> maybe_number();\n"
     "class Token { friend class Forgery; public: operator bool() const; };\n"
-    "void bad(auto* value) { (void)dynamic_cast<void*>(value); (void)typeid(value); std::terminate(); memset(value, 0, 1); }\n"
+    "void bad(auto* value, char const* text) {\n"
+    "    assert(value != nullptr);\n"
+    "    (void)dynamic_cast<void*>(value);\n"
+    "    (void)typeid(value);\n"
+    "    (void)const_cast<char*>(text);\n"
+    "    (void)reinterpret_cast<std::uintptr_t>(value);\n"
+    "    (void)(char*)value;\n"
+    "    std::terminate();\n"
+    "    memset(value, 0, 1);\n"
+    "    std::memset(value, 0, 1);\n"
+    "    calloc(1, 1);\n"
+    "    std::calloc(1, 1);\n"
+    "}\n"
+    "int bad_expected() { return maybe_number().value() + maybe_number().value_or(0); }\n"
     "int bad_scalar_cast(auto value) { return (int)value; }\n"
 )
 
@@ -66,7 +85,7 @@ execute_process(
 
 if(bad_result EQUAL 0)
     message(FATAL_ERROR
-        "C++ design escape-hatch scan unexpectedly accepted a synthetic dynamic_cast violation\nstdout:\n${bad_stdout}\nstderr:\n${bad_stderr}"
+        "C++ design escape-hatch scan unexpectedly accepted synthetic escape-hatch violations\nstdout:\n${bad_stdout}\nstderr:\n${bad_stderr}"
     )
 endif()
 
@@ -77,10 +96,16 @@ string(REPLACE "\r" "\n" actual_error "${actual_error}")
 foreach(required_fragment IN ITEMS
     "C++ design escape hatches are forbidden"
     "dynamic_cast"
+    "const_cast"
+    "reinterpret_cast"
     "std::expected<void, E>"
     "std::expected<T, Missing>"
     "std::expected<T, NotFound>"
+    ".value()"
+    ".value_or()"
+    "assert()"
     "std::optional"
+    "std::any"
     "bare bool"
     "std::vector<bool>"
     "std::monostate"
@@ -93,10 +118,14 @@ foreach(required_fragment IN ITEMS
     "operator bool"
     "void*"
     "C-style void cast"
+    "C-style pointer cast"
     "C-style scalar cast"
     "typeid"
     "std::terminate"
     "memset"
+    "std::memset"
+    "calloc"
+    "std::calloc"
     "bad.cpp"
 )
     string(FIND "${actual_error}" "${required_fragment}" fragment_index)
