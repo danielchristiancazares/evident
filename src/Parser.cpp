@@ -380,6 +380,9 @@ std::unique_ptr<ast::Decl> Parser::parse_top_level_decl() {
         reject_kindless_module();
         return nullptr;
     }
+    if (reject_unsupported_declaration_head() == TokenConsumptionState::Consumed) {
+        return nullptr;
+    }
     if (module_kind_token_role(peek().kind()) == ModuleKindTokenRole::ModuleKindKeyword) {
         return parse_module(visibility);
     }
@@ -397,6 +400,9 @@ std::unique_ptr<ast::Decl> Parser::parse_decl() {
 
     if (token_check(TokenKind::KeywordModule) == TokenCheckState::Matches) {
         reject_kindless_module();
+        return nullptr;
+    }
+    if (reject_unsupported_declaration_head() == TokenConsumptionState::Consumed) {
         return nullptr;
     }
     if (module_kind_token_role(peek().kind()) == ModuleKindTokenRole::ModuleKindKeyword) {
@@ -441,6 +447,25 @@ std::unique_ptr<ast::Decl> Parser::parse_decl() {
 void Parser::reject_kindless_module() {
     diagnostics_.error(peek().span(), "expected module kind (domain, boundary, foundation, or hazard) before `module`");
     advance();
+}
+
+TokenConsumptionState Parser::reject_unsupported_declaration_head() {
+    if (token_check(TokenKind::Identifier) == TokenCheckState::DifferentToken) {
+        return TokenConsumptionState::NotConsumed;
+    }
+
+    const std::string_view head = peek().lexeme();
+    if (head == "trait") {
+        diagnostics_.error(peek().span(), "trait declarations are not part of the core language");
+        advance();
+        return TokenConsumptionState::Consumed;
+    }
+    if (head == "impl") {
+        diagnostics_.error(peek().span(), "impl declarations are not part of the core language");
+        advance();
+        return TokenConsumptionState::Consumed;
+    }
+    return TokenConsumptionState::NotConsumed;
 }
 
 std::unique_ptr<ast::ModuleDecl> Parser::parse_module(ast::Visibility visibility) {

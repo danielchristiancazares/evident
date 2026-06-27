@@ -1,0 +1,7 @@
+domain module unsupported {
+    trait Drawable {
+    }
+
+    impl Drawable for Shape {
+    }
+}

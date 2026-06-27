@@ -1,0 +1,6 @@
+<input>:2:5: error: trait declarations are not part of the core language
+        trait Drawable {
+        ^^^^^
+<input>:5:5: error: impl declarations are not part of the core language
+        impl Drawable for Shape {
+        ^^^^

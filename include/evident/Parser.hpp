@@ -65,6 +65,7 @@ private:
     std::unique_ptr<ast::Decl> parse_top_level_decl();
     std::unique_ptr<ast::Decl> parse_decl();
     void reject_kindless_module();
+    [[nodiscard]] TokenConsumptionState reject_unsupported_declaration_head();
     std::unique_ptr<ast::ModuleDecl> parse_module(ast::Visibility visibility);
     std::unique_ptr<ast::RecordDecl> parse_record(ast::Visibility visibility);
     std::unique_ptr<ast::StateDecl> parse_state(ast::Visibility visibility);
