@@ -66,14 +66,8 @@ if(NOT compile_stderr STREQUAL "")
         "compiler command wrote unexpected stderr for ${input_label}\nstderr:\n${compile_stderr}")
 endif()
 
-if(NOT EXISTS "${OUTPUT_PATH}")
-    message(FATAL_ERROR "expected emitted executable does not exist: ${OUTPUT_PATH}")
-endif()
-
-file(SIZE "${OUTPUT_PATH}" output_size)
-if(output_size LESS 1)
-    message(FATAL_ERROR "expected emitted executable to be non-empty: ${OUTPUT_PATH}")
-endif()
+include("${CMAKE_CURRENT_LIST_DIR}/AssertPeExecutableFile.cmake")
+assert_pe_executable_file("${OUTPUT_PATH}")
 
 execute_process(
     COMMAND "${OUTPUT_PATH}"
