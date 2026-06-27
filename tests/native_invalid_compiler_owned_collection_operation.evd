@@ -1,6 +1,6 @@
 domain module test {
 public fn main() -> Int {
-    let values = list_empty<Int>()
+    let values = list_single<Int>(1)
     0
 }
 }

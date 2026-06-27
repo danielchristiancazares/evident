@@ -80,7 +80,7 @@ add_dependencies(package_checksum package)
 
 include(CTest)
 if(BUILD_TESTING)
-    set(EVIDENT_EXPECTED_CTEST_TOTAL 363)
+    set(EVIDENT_EXPECTED_CTEST_TOTAL 365)
 
     add_test(NAME parse_valid_example
         COMMAND evidc --dump-hir ${CMAKE_CURRENT_SOURCE_DIR}/examples/feature_mode.evd)
@@ -655,6 +655,7 @@ if(BUILD_TESTING)
     add_emit_compare_test(compare_llvm_try --emit-llvm valid_try.evd expected_valid_try.llvm.txt compare_valid_try.ll)
     add_emit_compare_test(compare_llvm_direct_fail --emit-llvm valid_direct_fail.evd expected_valid_direct_fail.llvm.txt compare_valid_direct_fail.ll)
     add_emit_compare_test(compare_llvm_yield_match --emit-llvm valid_yield_match.evd expected_valid_yield_match.llvm.txt compare_valid_yield_match.ll)
+    add_emit_compare_test(compare_llvm_empty_collections --emit-llvm native_main_empty_collections.evd expected_native_main_empty_collections.llvm.txt compare_native_main_empty_collections.ll)
 
     add_emit_exists_test(emit_obj_plain_call --emit-obj valid_plain_call.evd valid_plain_call.obj)
     add_emit_exists_test(emit_obj_state_match --emit-obj valid_state_match.evd valid_state_match.obj)
@@ -1436,5 +1437,6 @@ if(BUILD_TESTING)
     add_backend_reject_test(reject_backend_main_params native_invalid_main_params.evd reject_backend_main_params.exe)
     add_backend_reject_test(reject_backend_main_wrong_return native_invalid_main_wrong_return.evd reject_backend_main_wrong_return.exe)
     add_backend_reject_test(reject_backend_main_yields native_invalid_main_yields.evd reject_backend_main_yields.exe)
+    add_emit_exe_test(run_native_empty_collections native_main_empty_collections.evd 7 native_empty_collections.exe)
     add_emit_exe_test(run_native_builtin_cstring_map native_main_builtin_cstring_map.evd 7 native_builtin_cstring_map.exe)
 endif()

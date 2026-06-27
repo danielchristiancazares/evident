@@ -1,0 +1,15 @@
+domain module test {
+public fn empty_list() -> List<Int> {
+    list_empty<Int>()
+}
+
+public fn empty_map() -> Map<Text, Int> {
+    map_empty<Text, Int>()
+}
+
+public fn main() -> Int {
+    let values = empty_list()
+    let entries = empty_map()
+    7
+}
+}

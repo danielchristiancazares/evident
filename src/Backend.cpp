@@ -150,6 +150,13 @@ std::string_view type_base_name(std::string_view name) {
     return generic_start == std::string_view::npos ? name : name.substr(0, generic_start);
 }
 
+std::string_view function_base_name(std::string_view qualified_name) {
+    const std::size_t specialization_start = qualified_name.find('$');
+    return specialization_start == std::string_view::npos
+        ? qualified_name
+        : qualified_name.substr(0, specialization_start);
+}
+
 typesys::DisciplineMaterialization materialization_of(typesys::UseDiscipline discipline) {
     return typesys::discipline_materialization(discipline);
 }
@@ -310,6 +317,19 @@ enum class ResolvedTypeCategory {
     PackageTypeDeclaration,
     BackendAggregateStorage,
 };
+
+enum class CompilerOwnedFunctionLowering {
+    Unsupported,
+    EmptyCollection,
+};
+
+CompilerOwnedFunctionLowering compiler_owned_function_lowering(std::string_view qualified_name) {
+    const std::string_view base_name = function_base_name(qualified_name);
+    if (base_name == "list_empty" || base_name == "map_empty") {
+        return CompilerOwnedFunctionLowering::EmptyCollection;
+    }
+    return CompilerOwnedFunctionLowering::Unsupported;
+}
 
 class ResolvedTypeIdentity final {
 public:
@@ -546,6 +566,7 @@ private:
     };
 
     [[nodiscard]] BackendStepResult prepare_locals();
+    [[nodiscard]] std::expected<std::string, std::string> emit_compiler_owned_function(const ResolvedType& return_type);
     [[nodiscard]] BackendStepResult emit_statement(const mir::Statement& statement);
     [[nodiscard]] BackendStepResult emit_assign_use(mir::LocalId dest, const mir::Operand& operand);
     [[nodiscard]] BackendStepResult emit_assign_call(mir::LocalId dest, mir::Rvalue::CallValue value);
@@ -2110,6 +2131,35 @@ std::string FunctionEmitter::zero_value(const ResolvedType& type) const {
     return "0";
 }
 
+std::expected<std::string, std::string> FunctionEmitter::emit_compiler_owned_function(
+    const ResolvedType& return_type) {
+    if (compiler_owned_function_lowering(hir_function_.qualified_name)
+        != CompilerOwnedFunctionLowering::EmptyCollection) {
+        return std::unexpected("backend does not yet support compiler-owned function '"
+                               + hir_function_.qualified_name + "'");
+    }
+    if (!hir_function_.params.empty()) {
+        return std::unexpected("internal backend error: empty collection function '"
+                               + hir_function_.qualified_name + "' unexpectedly has parameters");
+    }
+    if (return_type.identity().category() != ResolvedTypeCategory::BuiltinType
+        || (return_type.identity().builtin_kind() != BuiltinKind::List
+            && return_type.identity().builtin_kind() != BuiltinKind::Map)) {
+        return std::unexpected("internal backend error: empty collection function '"
+                               + hir_function_.qualified_name + "' returns '"
+                               + return_type.source_name() + "'");
+    }
+
+    const std::string linkage = hir_function_.visibility == ast::Visibility::Public ? "" : "internal ";
+    std::ostringstream out;
+    out << "define " << linkage << return_type.llvm_type() << " @"
+        << model_.function_symbol(hir_function_.id) << "() {\n";
+    out << "entry:\n";
+    out << "  ret " << return_type.llvm_type() << " " << zero_value(return_type) << "\n";
+    out << "}\n";
+    return out.str();
+}
+
 std::expected<FunctionEmitter::TypedValue, std::string> FunctionEmitter::materialize_operand(
     const mir::Operand& operand,
     const ResolvedType& expected_type) {
@@ -2851,8 +2901,7 @@ std::expected<std::string, std::string> FunctionEmitter::emit() {
     }
 
     if (hir_function_.body == nullptr) {
-        return std::unexpected("backend does not yet support compiler-owned function '"
-                               + hir_function_.qualified_name + "'");
+        return emit_compiler_owned_function(*signature_return_type);
     }
 
     const std::string linkage = hir_function_.visibility == ast::Visibility::Public ? "" : "internal ";
