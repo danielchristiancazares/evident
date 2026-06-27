@@ -19,10 +19,20 @@ enum class DiagnosticErrorState {
     ContainsErrors,
 };
 
-struct Diagnostic {
-    DiagnosticSeverity severity = DiagnosticSeverity::Error;
-    SourceSpan span{};
-    std::string message;
+class Diagnostic final {
+public:
+    [[nodiscard]] static Diagnostic reported(DiagnosticSeverity severity, SourceSpan span, std::string message);
+
+    [[nodiscard]] DiagnosticSeverity severity() const noexcept;
+    [[nodiscard]] SourceSpan span() const noexcept;
+    [[nodiscard]] const std::string& message() const noexcept;
+
+private:
+    Diagnostic(DiagnosticSeverity severity, SourceSpan span, std::string message);
+
+    DiagnosticSeverity severity_;
+    SourceSpan span_;
+    std::string message_;
 };
 
 class DiagnosticSink {

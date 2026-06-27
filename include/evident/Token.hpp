@@ -64,9 +64,12 @@ enum class TokenKind {
 };
 
 struct Token {
-    TokenKind kind = TokenKind::Unknown;
-    std::string_view lexeme{};
-    SourceSpan span{};
+    Token(TokenKind kind, std::string_view lexeme, SourceSpan span)
+        : kind(kind), lexeme(lexeme), span(span) {}
+
+    TokenKind kind;
+    std::string_view lexeme;
+    SourceSpan span;
 };
 
 [[nodiscard]] std::string_view token_kind_name(TokenKind kind);

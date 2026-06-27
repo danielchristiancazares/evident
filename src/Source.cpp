@@ -24,6 +24,11 @@ SourceFile::SourceFile(std::string path, std::string text)
     segments_.push_back(Segment{path_, 0, text_.size(), line_starts_});
 }
 
+SourceFile::SourceFile(std::string path, std::string text, std::vector<Segment> segments)
+    : path_(std::move(path)), text_(std::move(text)), segments_(std::move(segments)) {
+    build_line_index();
+}
+
 SourceFile SourceFile::combine(std::vector<SourceFile> sources) {
     if (sources.empty()) {
         return SourceFile("<empty package>", {});
@@ -32,20 +37,20 @@ SourceFile SourceFile::combine(std::vector<SourceFile> sources) {
         return std::move(sources.front());
     }
 
-    SourceFile combined;
-    combined.path_ = "<package>";
+    std::string combined_text;
+    std::vector<Segment> combined_segments;
+    combined_segments.reserve(sources.size());
     for (SourceFile& source : sources) {
-        if (!combined.text_.empty() && combined.text_.back() != '\n') {
-            combined.text_.push_back('\n');
+        if (!combined_text.empty() && combined_text.back() != '\n') {
+            combined_text.push_back('\n');
         }
 
-        const std::size_t begin = combined.text_.size();
-        combined.text_ += source.text_;
-        const std::size_t end = combined.text_.size();
-        combined.segments_.push_back(Segment{source.path_, begin, end, source.line_starts_});
+        const std::size_t begin = combined_text.size();
+        combined_text += source.text_;
+        const std::size_t end = combined_text.size();
+        combined_segments.push_back(Segment{source.path_, begin, end, source.line_starts_});
     }
-    combined.build_line_index();
-    return combined;
+    return SourceFile("<package>", std::move(combined_text), std::move(combined_segments));
 }
 
 const std::string& SourceFile::path() const noexcept {

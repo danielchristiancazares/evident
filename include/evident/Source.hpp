@@ -24,7 +24,6 @@ public:
     static std::expected<SourceFile, std::string> load(std::string path);
     static SourceFile combine(std::vector<SourceFile> sources);
 
-    SourceFile() = default;
     SourceFile(std::string path, std::string text);
 
     [[nodiscard]] const std::string& path() const noexcept;
@@ -40,6 +39,8 @@ private:
         std::size_t end = 0;
         std::vector<std::size_t> line_starts;
     };
+
+    SourceFile(std::string path, std::string text, std::vector<Segment> segments);
 
     void build_line_index();
     [[nodiscard]] const Segment* find_segment(std::size_t offset) const noexcept;
