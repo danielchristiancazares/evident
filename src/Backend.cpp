@@ -401,6 +401,7 @@ enum class CompilerOwnedFunctionLowering {
     CountCollection,
     RequireNonEmptyCollection,
     ListSingle,
+    MapSingle,
     ListFirstCopy,
     ListConsumeFirst,
     ListPrepend,
@@ -430,6 +431,9 @@ CompilerOwnedFunctionLowering compiler_owned_function_lowering(std::string_view 
     }
     if (base_name == "list_single") {
         return CompilerOwnedFunctionLowering::ListSingle;
+    }
+    if (base_name == "map_single") {
+        return CompilerOwnedFunctionLowering::MapSingle;
     }
     if (base_name == "nonempty_list_first_copy") {
         return CompilerOwnedFunctionLowering::ListFirstCopy;
@@ -2572,6 +2576,64 @@ std::expected<std::string, std::string> FunctionEmitter::emit_compiler_owned_fun
         out << "entry:\n";
         out << "  %data0 = call ptr @malloc(i64 " << element_stride << ")\n";
         out << "  store " << param_types[0].llvm_type() << " %arg0, ptr %data0\n";
+        out << "  %carrier0 = insertvalue " << return_type.llvm_type() << " zeroinitializer, ptr %data0, 0\n";
+        out << "  %carrier1 = insertvalue " << return_type.llvm_type() << " %carrier0, i64 1, 1\n";
+        out << "  ret " << return_type.llvm_type() << " %carrier1\n";
+        out << "}\n";
+        return out.str();
+    }
+
+    case CompilerOwnedFunctionLowering::MapSingle: {
+        if (param_types.size() != 2) {
+            return std::unexpected("internal backend error: map single function '"
+                                   + hir_function_.qualified_name + "' expected two parameters");
+        }
+        if (!has_builtin_kind(return_type, BuiltinKind::NonEmptyMap)) {
+            return std::unexpected("internal backend error: map single function '"
+                                   + hir_function_.qualified_name + "' returns '"
+                                   + return_type.source_name() + "'");
+        }
+        if (param_types[0].materialization() == MaterializationState::NeverValue
+            || param_types[1].materialization() == MaterializationState::NeverValue) {
+            return std::unexpected("internal backend error: map single function '"
+                                   + hir_function_.qualified_name + "' stores `Never`");
+        }
+        if (hir_function_.params.size() != 2) {
+            return std::unexpected("internal backend error: map single function '"
+                                   + hir_function_.qualified_name + "' expected two HIR parameters");
+        }
+
+        const std::string entry_source_name = "MapEntry<" + hir_function_.params[0].type.text + ", "
+            + hir_function_.params[1].type.text + ">";
+        const std::expected<ResolvedType, std::string> entry_type = model_.resolve_type_name(entry_source_name);
+        if (!entry_type.has_value()) {
+            return std::unexpected(entry_type.error());
+        }
+        const std::expected<const TypeLayout*, std::string> entry_layout =
+            model_.ensure_backend_aggregate_layout(entry_source_name);
+        if (!entry_layout.has_value()) {
+            return std::unexpected(entry_layout.error());
+        }
+        const auto key_field_it = (*entry_layout)->field_indices.find("key");
+        const auto value_field_it = (*entry_layout)->field_indices.find("value");
+        if (key_field_it == (*entry_layout)->field_indices.end()
+            || value_field_it == (*entry_layout)->field_indices.end()) {
+            return std::unexpected("internal backend error: map single entry layout for '"
+                                   + entry_source_name + "' is missing expected fields");
+        }
+
+        module_.require_runtime_helper(RuntimeHelper::Malloc);
+        const std::size_t entry_stride = element_storage_stride(*entry_type);
+        out << "define " << linkage << return_type.llvm_type() << " @"
+            << model_.function_symbol(hir_function_.id) << "(" << param_types[0].llvm_type()
+            << " %arg0, " << param_types[1].llvm_type() << " %arg1) {\n";
+        out << "entry:\n";
+        out << "  %entry0 = insertvalue " << entry_type->llvm_type() << " zeroinitializer, "
+            << param_types[0].llvm_type() << " %arg0, " << key_field_it->second << "\n";
+        out << "  %entry1 = insertvalue " << entry_type->llvm_type() << " %entry0, "
+            << param_types[1].llvm_type() << " %arg1, " << value_field_it->second << "\n";
+        out << "  %data0 = call ptr @malloc(i64 " << entry_stride << ")\n";
+        out << "  store " << entry_type->llvm_type() << " %entry1, ptr %data0\n";
         out << "  %carrier0 = insertvalue " << return_type.llvm_type() << " zeroinitializer, ptr %data0, 0\n";
         out << "  %carrier1 = insertvalue " << return_type.llvm_type() << " %carrier0, i64 1, 1\n";
         out << "  ret " << return_type.llvm_type() << " %carrier1\n";

@@ -7,6 +7,10 @@ public fn empty_map() -> Map<Text, Int> {
     map_empty<Text, Int>()
 }
 
+public fn single_map() -> NonEmptyMap<Text, Int> {
+    map_single<Text, Int>("one", 1)
+}
+
 public fn widened_list(values: NonEmptyList<Int>) -> List<Int> {
     nonempty_list_widen<Int>(values)
 }
@@ -73,6 +77,12 @@ public fn require_empty_collections() -> Int {
     }
 }
 
+public fn require_single_map() -> Nat {
+    let entries = single_map()
+    let widened = widened_map(entries)
+    map_count(widened)
+}
+
 public fn require_single_list() -> Int {
     let values = single_list()
     let widened = widened_list(values)
@@ -109,6 +119,7 @@ public fn require_constructed_lists() -> Int {
 
 public fn main() -> Int {
     let empty_result = require_empty_collections()
+    let single_map_result = require_single_map()
     let single_result = require_single_list()
     require_constructed_lists()
 }

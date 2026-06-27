@@ -1,6 +1,7 @@
 domain module test {
 public fn main() -> Int {
-    let entries = map_single<Text, Int>("one", 1)
+    let empty = map_empty<Text, Int>()
+    let entries = map_bind_or_replace<Text, Int>(empty, "one", 1)
     0
 }
 }
