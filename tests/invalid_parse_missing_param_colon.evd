@@ -3,3 +3,7 @@ public fn main(value Int) -> Int {
     value
 }
 }
+
+boundary module ffi {
+public foreign fn read(value Int) -> Int
+}

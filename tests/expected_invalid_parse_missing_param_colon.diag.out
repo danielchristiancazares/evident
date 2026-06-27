@@ -1,3 +1,6 @@
 <input>:2:22: error: expected ':' after parameter name
     public fn main(value Int) -> Int {
                          ^^^
+<input>:8:30: error: expected ':' after parameter name
+    public foreign fn read(value Int) -> Int
+                                 ^^^
