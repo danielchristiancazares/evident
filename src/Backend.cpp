@@ -150,6 +150,82 @@ std::string_view type_base_name(std::string_view name) {
     return generic_start == std::string_view::npos ? name : name.substr(0, generic_start);
 }
 
+std::string trim_ascii_whitespace(std::string_view text) {
+    std::size_t start = 0;
+    while (start < text.size() && std::isspace(static_cast<unsigned char>(text[start]))) {
+        ++start;
+    }
+
+    std::size_t end = text.size();
+    while (end > start && std::isspace(static_cast<unsigned char>(text[end - 1]))) {
+        --end;
+    }
+
+    return std::string(text.substr(start, end - start));
+}
+
+std::expected<std::vector<std::string>, std::string> generic_type_arguments(std::string_view name) {
+    const std::size_t generic_start = name.find('<');
+    if (generic_start == std::string_view::npos || name.empty() || name.back() != '>') {
+        return std::unexpected("backend expected generic type arguments in '" + std::string(name) + "'");
+    }
+
+    std::vector<std::string> args;
+    const std::string_view args_text = name.substr(generic_start + 1, name.size() - generic_start - 2);
+    std::size_t arg_start = 0;
+    std::size_t nested_depth = 0;
+
+    for (std::size_t index = 0; index < args_text.size(); ++index) {
+        const char ch = args_text[index];
+        if (ch == '<') {
+            ++nested_depth;
+            continue;
+        }
+        if (ch == '>') {
+            if (nested_depth == 0) {
+                return std::unexpected("backend found unmatched '>' in type '" + std::string(name) + "'");
+            }
+            --nested_depth;
+            continue;
+        }
+        if (ch != ',' || nested_depth != 0) {
+            continue;
+        }
+
+        std::string argument = trim_ascii_whitespace(args_text.substr(arg_start, index - arg_start));
+        if (argument.empty()) {
+            return std::unexpected("backend found an empty type argument in '" + std::string(name) + "'");
+        }
+        args.push_back(std::move(argument));
+        arg_start = index + 1;
+    }
+
+    if (nested_depth != 0) {
+        return std::unexpected("backend found unterminated nested type arguments in '" + std::string(name) + "'");
+    }
+
+    std::string argument = trim_ascii_whitespace(args_text.substr(arg_start));
+    if (argument.empty()) {
+        return std::unexpected("backend found an empty type argument in '" + std::string(name) + "'");
+    }
+    args.push_back(std::move(argument));
+    return args;
+}
+
+enum class CompilerOwnedCompanionTypeMembership {
+    OtherType,
+    CompanionType,
+};
+
+CompilerOwnedCompanionTypeMembership compiler_owned_companion_type_membership(std::string_view name) {
+    const std::string_view base_name = type_base_name(name);
+    if (base_name == "ListFirstAndRest" || base_name == "MapEntry"
+        || base_name == "MapFirstEntryAndRest" || base_name == "MapBoundValueAndRest") {
+        return CompilerOwnedCompanionTypeMembership::CompanionType;
+    }
+    return CompilerOwnedCompanionTypeMembership::OtherType;
+}
+
 std::string_view function_base_name(std::string_view qualified_name) {
     const std::size_t specialization_start = qualified_name.find('$');
     return specialization_start == std::string_view::npos
@@ -326,6 +402,7 @@ enum class CompilerOwnedFunctionLowering {
     RequireNonEmptyCollection,
     ListSingle,
     ListFirstCopy,
+    ListConsumeFirst,
     ListPrepend,
     ListAppend,
     ListConcat,
@@ -356,6 +433,9 @@ CompilerOwnedFunctionLowering compiler_owned_function_lowering(std::string_view 
     }
     if (base_name == "nonempty_list_first_copy") {
         return CompilerOwnedFunctionLowering::ListFirstCopy;
+    }
+    if (base_name == "nonempty_list_consume_first") {
+        return CompilerOwnedFunctionLowering::ListConsumeFirst;
     }
     if (base_name == "list_prepend") {
         return CompilerOwnedFunctionLowering::ListPrepend;
@@ -545,6 +625,8 @@ public:
 
     [[nodiscard]] std::expected<ResolvedType, std::string> resolve_type_name(const std::string& name);
     [[nodiscard]] std::expected<const TypeLayout*, std::string> ensure_type_layout(hir::TypeId id);
+    [[nodiscard]] std::expected<const TypeLayout*, std::string> ensure_backend_aggregate_layout(
+        const std::string& name);
     [[nodiscard]] std::expected<const YieldLayout*, std::string> ensure_yield_layout(hir::FunctionId id);
     [[nodiscard]] std::expected<const hir::FunctionDecl*, std::string> validate_entry_main() const;
 
@@ -556,12 +638,16 @@ private:
     [[nodiscard]] std::expected<TypeLayout, std::string> build_record_layout(const hir::TypeDecl& type_decl);
     [[nodiscard]] std::expected<TypeLayout, std::string> build_tagged_union_layout(const hir::TypeDecl& type_decl);
     [[nodiscard]] std::expected<TypeLayout, std::string> build_permit_layout(const hir::TypeDecl& type_decl);
+    [[nodiscard]] std::expected<TypeLayout, std::string> build_compiler_owned_companion_layout(
+        const std::string& name);
 
     const hir::Package& package_;
     std::unordered_map<std::string, hir::TypeId> type_ids_by_name_;
     std::unordered_map<hir::TypeId, TypeLayout> type_layouts_;
     std::vector<int> visit_state_;
     std::vector<std::string> type_definition_order_;
+    std::unordered_map<std::string, TypeLayout> backend_aggregate_layouts_;
+    std::unordered_map<std::string, int> backend_aggregate_visit_state_;
     std::unordered_map<hir::FunctionId, YieldLayout> yield_layouts_;
     std::vector<std::string> yield_definition_order_;
     std::unordered_map<hir::FunctionId, std::string> function_symbols_;
@@ -908,6 +994,20 @@ std::expected<ResolvedType, std::string> BackendModel::resolve_type_name(const s
                                          RuntimeStorageShape::Scalar,
                                          ResolvedTypeIdentity::builtin_type(BuiltinKind::Never));
     }
+    if (compiler_owned_companion_type_membership(name)
+        == CompilerOwnedCompanionTypeMembership::CompanionType) {
+        const std::expected<const TypeLayout*, std::string> layout = ensure_backend_aggregate_layout(name);
+        if (!layout.has_value()) {
+            return std::unexpected(layout.error());
+        }
+        return ResolvedType::runtime_value(
+            name,
+            (*layout)->llvm_type,
+            (*layout)->size,
+            (*layout)->align,
+            RuntimeStorageShape::Aggregate,
+            ResolvedTypeIdentity::backend_aggregate_storage());
+    }
 
     const auto type_it = type_ids_by_name_.find(name);
     if (type_it == type_ids_by_name_.end()) {
@@ -945,6 +1045,28 @@ std::expected<const TypeLayout*, std::string> BackendModel::ensure_type_layout(h
     type_layouts_.emplace(id, std::move(*layout));
     visit_state_[id] = 2;
     return &type_layouts_.at(id);
+}
+
+std::expected<const TypeLayout*, std::string> BackendModel::ensure_backend_aggregate_layout(
+    const std::string& name) {
+    if (const auto it = backend_aggregate_layouts_.find(name); it != backend_aggregate_layouts_.end()) {
+        return &it->second;
+    }
+
+    const int state = backend_aggregate_visit_state_[name];
+    if (state == 1) {
+        return std::unexpected("recursive backend aggregate layout is not supported for '" + name + "'");
+    }
+
+    backend_aggregate_visit_state_[name] = 1;
+    std::expected<TypeLayout, std::string> layout = build_compiler_owned_companion_layout(name);
+    if (!layout.has_value()) {
+        backend_aggregate_visit_state_[name] = 0;
+        return std::unexpected(layout.error());
+    }
+    backend_aggregate_layouts_.emplace(name, std::move(*layout));
+    backend_aggregate_visit_state_[name] = 2;
+    return &backend_aggregate_layouts_.at(name);
 }
 
 std::expected<const YieldLayout*, std::string> BackendModel::ensure_yield_layout(hir::FunctionId id) {
@@ -1111,6 +1233,97 @@ std::expected<TypeLayout, std::string> BackendModel::build_record_layout(const h
         }
         definition << " }";
     }
+    layout.definition = definition.str();
+    type_definition_order_.push_back(layout.definition);
+    return layout;
+}
+
+std::expected<TypeLayout, std::string> BackendModel::build_compiler_owned_companion_layout(
+    const std::string& name) {
+    if (compiler_owned_companion_type_membership(name)
+        != CompilerOwnedCompanionTypeMembership::CompanionType) {
+        return std::unexpected("backend could not lower compiler-owned companion type '" + name + "'");
+    }
+
+    const std::expected<std::vector<std::string>, std::string> args = generic_type_arguments(name);
+    if (!args.has_value()) {
+        return std::unexpected(args.error());
+    }
+
+    const std::string_view base_name = type_base_name(name);
+    std::vector<std::pair<std::string, std::string>> field_specs;
+    if (base_name == "ListFirstAndRest") {
+        if (args->size() != 1) {
+            return std::unexpected("compiler-owned companion type '" + name + "' expected 1 type argument");
+        }
+        field_specs.emplace_back("first", (*args)[0]);
+        field_specs.emplace_back("rest", "List<" + (*args)[0] + ">");
+    } else {
+        if (args->size() != 2) {
+            return std::unexpected("compiler-owned companion type '" + name + "' expected 2 type arguments");
+        }
+        if (base_name == "MapEntry") {
+            field_specs.emplace_back("key", (*args)[0]);
+            field_specs.emplace_back("value", (*args)[1]);
+        } else if (base_name == "MapFirstEntryAndRest") {
+            field_specs.emplace_back("first", "MapEntry<" + (*args)[0] + ", " + (*args)[1] + ">");
+            field_specs.emplace_back("rest", "Map<" + (*args)[0] + ", " + (*args)[1] + ">");
+        } else {
+            field_specs.emplace_back("value", (*args)[1]);
+            field_specs.emplace_back("rest", "Map<" + (*args)[0] + ", " + (*args)[1] + ">");
+        }
+    }
+
+    TypeLayout layout;
+    layout.source_name = name;
+    layout.llvm_type = mangle_type_name(name);
+    layout.kind = hir::TypeKind::Record;
+
+    std::size_t offset = 0;
+    std::size_t record_align = 1;
+    std::vector<std::string> field_types;
+    field_types.reserve(field_specs.size());
+
+    for (const auto& [field_name, field_source_name] : field_specs) {
+        const std::expected<ResolvedType, std::string> field_type = resolve_type_name(field_source_name);
+        if (!field_type.has_value()) {
+            return std::unexpected("while lowering field '" + field_name + "' of '" + name + "': "
+                                   + field_type.error());
+        }
+        if (field_type->materialization() == MaterializationState::NeverValue) {
+            return std::unexpected("backend does not support materialized field type `Never` in '"
+                                   + name + "'");
+        }
+
+        offset = align_up(offset, field_type->align());
+        record_align = std::max(record_align, field_type->align());
+        layout.field_indices.emplace(field_name, layout.fields.size());
+        layout.fields.push_back(FieldLayout::resolved_field(
+            field_name,
+            field_source_name,
+            field_type->llvm_type(),
+            layout.fields.size(),
+            field_type->size(),
+            field_type->align(),
+            field_type->storage_shape(),
+            field_type->materialization(),
+            field_type->identity()));
+        field_types.push_back(field_type->llvm_type());
+        offset += field_type->size();
+    }
+
+    layout.size = align_up(offset, record_align);
+    layout.align = record_align;
+
+    std::ostringstream definition;
+    definition << layout.llvm_type << " = type { ";
+    for (std::size_t index = 0; index < field_types.size(); ++index) {
+        if (index > 0) {
+            definition << ", ";
+        }
+        definition << field_types[index];
+    }
+    definition << " }";
     layout.definition = definition.str();
     type_definition_order_.push_back(layout.definition);
     return layout;
@@ -1433,6 +1646,19 @@ BackendStepResult validate_backend_package(BackendModel& model,
                 });
         };
 
+        auto aggregate_layout_for_type = [&](const ResolvedType& type,
+                                             const std::string& context)
+            -> std::expected<const TypeLayout*, std::string> {
+            if (type.identity().category() == ResolvedTypeCategory::PackageTypeDeclaration) {
+                return model.ensure_type_layout(type.identity().package_type_id());
+            }
+            if (type.identity().category() == ResolvedTypeCategory::BackendAggregateStorage) {
+                return model.ensure_backend_aggregate_layout(type.source_name());
+            }
+            return std::unexpected("backend expected an aggregate base for projection in " + context
+                                   + ", got '" + type.source_name() + "'");
+        };
+
         auto validate_block_target = [&](mir::BlockId block_id, const std::string& context)
             -> BackendStepResult {
             if (block_id >= mir_function.blocks().size()) {
@@ -1611,12 +1837,9 @@ BackendStepResult validate_backend_package(BackendModel& model,
                     if (!base_type.has_value()) {
                         return std::unexpected(base_type.error());
                     }
-                    if ((*base_type)->identity().category() != ResolvedTypeCategory::PackageTypeDeclaration) {
-                        return std::unexpected("backend expected a user-defined base for projection in function '"
-                                               + hir_function.qualified_name + "'");
-                    }
-                    const std::expected<const TypeLayout*, std::string> owner_layout
-                        = model.ensure_type_layout((*base_type)->identity().package_type_id());
+                    const std::expected<const TypeLayout*, std::string> owner_layout = aggregate_layout_for_type(
+                        *(*base_type),
+                        "function '" + hir_function.qualified_name + "'");
                     if (!owner_layout.has_value()) {
                         return std::unexpected(owner_layout.error());
                     }
@@ -2043,11 +2266,14 @@ std::expected<const TypeLayout*, std::string> FunctionEmitter::user_layout_for_l
     if (!resolved.has_value()) {
         return std::unexpected(resolved.error());
     }
-    if ((*resolved)->identity().category() != ResolvedTypeCategory::PackageTypeDeclaration) {
-        return std::unexpected("backend expected a user-defined type for local %" + std::to_string(local_id)
-                               + ", got '" + (*resolved)->source_name() + "'");
+    if ((*resolved)->identity().category() == ResolvedTypeCategory::PackageTypeDeclaration) {
+        return model_.ensure_type_layout((*resolved)->identity().package_type_id());
     }
-    return model_.ensure_type_layout((*resolved)->identity().package_type_id());
+    if ((*resolved)->identity().category() == ResolvedTypeCategory::BackendAggregateStorage) {
+        return model_.ensure_backend_aggregate_layout((*resolved)->source_name());
+    }
+    return std::unexpected("backend expected an aggregate type for local %" + std::to_string(local_id)
+                           + ", got '" + (*resolved)->source_name() + "'");
 }
 
 BackendStepResult FunctionEmitter::store_typed_value(const std::string& slot_ptr,
@@ -2375,6 +2601,74 @@ std::expected<std::string, std::string> FunctionEmitter::emit_compiler_owned_fun
         out << "  ret " << return_type.llvm_type() << " %first0\n";
         out << "}\n";
         return out.str();
+
+    case CompilerOwnedFunctionLowering::ListConsumeFirst: {
+        if (param_types.size() != 1) {
+            return std::unexpected("internal backend error: list consume-first function '"
+                                   + hir_function_.qualified_name + "' expected one parameter");
+        }
+        if (!has_builtin_kind(param_types[0], BuiltinKind::NonEmptyList)) {
+            return std::unexpected("internal backend error: list consume-first function '"
+                                   + hir_function_.qualified_name + "' has unsupported parameter type '"
+                                   + param_types[0].source_name() + "'");
+        }
+        if (return_type.identity().category() != ResolvedTypeCategory::BackendAggregateStorage
+            || type_base_name(return_type.source_name()) != "ListFirstAndRest") {
+            return std::unexpected("internal backend error: list consume-first function '"
+                                   + hir_function_.qualified_name + "' returns '"
+                                   + return_type.source_name() + "'");
+        }
+
+        const std::expected<ResolvedType, std::string> element_type =
+            resolve_collection_element_type(hir_function_.params[0].type, "list consume-first function '"
+                                            + hir_function_.qualified_name + "'");
+        if (!element_type.has_value()) {
+            return std::unexpected(element_type.error());
+        }
+
+        const std::string rest_source_name = "List<" + hir_function_.params[0].type.args[0].text + ">";
+        const std::expected<ResolvedType, std::string> rest_type = model_.resolve_type_name(rest_source_name);
+        if (!rest_type.has_value()) {
+            return std::unexpected(rest_type.error());
+        }
+        if (!has_builtin_kind(*rest_type, BuiltinKind::List)) {
+            return std::unexpected("internal backend error: list consume-first function '"
+                                   + hir_function_.qualified_name + "' built unsupported rest type '"
+                                   + rest_type->source_name() + "'");
+        }
+
+        const std::expected<const TypeLayout*, std::string> result_layout =
+            model_.ensure_backend_aggregate_layout(return_type.source_name());
+        if (!result_layout.has_value()) {
+            return std::unexpected(result_layout.error());
+        }
+        const auto first_field_it = (*result_layout)->field_indices.find("first");
+        const auto rest_field_it = (*result_layout)->field_indices.find("rest");
+        if (first_field_it == (*result_layout)->field_indices.end()
+            || rest_field_it == (*result_layout)->field_indices.end()) {
+            return std::unexpected("internal backend error: list consume-first result layout for '"
+                                   + return_type.source_name() + "' is missing expected fields");
+        }
+
+        const std::size_t element_stride = element_storage_stride(*element_type);
+        out << "define " << linkage << return_type.llvm_type() << " @"
+            << model_.function_symbol(hir_function_.id) << "(" << param_types[0].llvm_type() << " %arg0) {\n";
+        out << "entry:\n";
+        out << "  %data0 = extractvalue " << param_types[0].llvm_type() << " %arg0, 0\n";
+        out << "  %count0 = extractvalue " << param_types[0].llvm_type() << " %arg0, 1\n";
+        out << "  %first0 = load " << element_type->llvm_type() << ", ptr %data0\n";
+        out << "  %rest_count0 = sub i64 %count0, 1\n";
+        out << "  %rest_data0 = getelementptr i8, ptr %data0, i64 " << element_stride << "\n";
+        out << "  %rest0 = insertvalue " << rest_type->llvm_type() << " zeroinitializer, ptr %rest_data0, 0\n";
+        out << "  %rest1 = insertvalue " << rest_type->llvm_type() << " %rest0, i64 %rest_count0, 1\n";
+        out << "  %result0 = insertvalue " << return_type.llvm_type() << " zeroinitializer, "
+            << element_type->llvm_type() << " %first0, " << first_field_it->second << "\n";
+        out << "  %result1 = insertvalue " << return_type.llvm_type() << " %result0, "
+            << rest_type->llvm_type() << " %rest1, " << rest_field_it->second << "\n";
+        out << "  ret " << return_type.llvm_type() << " %result1\n";
+        out << "}\n";
+        return out.str();
+    }
 
     case CompilerOwnedFunctionLowering::ListPrepend: {
         if (param_types.size() != 2) {

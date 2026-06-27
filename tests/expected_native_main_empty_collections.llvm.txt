@@ -5,6 +5,7 @@ target triple = "x86_64-pc-windows-msvc"
 %evid.type.MapCardinalityFailure = type { i32 }
 %evid.payload.ListCardinalityFailure.ListHadNoElements = type {}
 %evid.type.ListCardinalityFailure = type { i32 }
+%evid.type.ListFirstAndRest_Int_ = type { i64, { ptr, i64 } }
 
 %evid.yield.map_require_nonempty$Text$Int = type { i8, [7 x i8], { i64, [8 x i8] } }
 %evid.yield.list_require_nonempty$Int = type { i8, [7 x i8], { i64, [8 x i8] } }
@@ -444,15 +445,21 @@ entry:
   %slot8 = alloca { ptr, i64 }
   %slot9 = alloca { ptr, i64 }
   %slot10 = alloca { ptr, i64 }
-  %slot11 = alloca { ptr, i64 }
-  %slot12 = alloca { ptr, i64 }
+  %slot11 = alloca %evid.type.ListFirstAndRest_Int_
+  %slot12 = alloca i64
   %slot13 = alloca { ptr, i64 }
   %slot14 = alloca { ptr, i64 }
   %slot15 = alloca { ptr, i64 }
   %slot16 = alloca { ptr, i64 }
-  %slot17 = alloca %evid.type.ListCardinalityFailure
+  %slot17 = alloca { ptr, i64 }
   %slot18 = alloca { ptr, i64 }
-  %slot19 = alloca i64
+  %slot19 = alloca %evid.type.ListCardinalityFailure
+  %slot20 = alloca { ptr, i64 }
+  %slot21 = alloca i64
+  %slot22 = alloca { ptr, i64 }
+  %slot23 = alloca %evid.type.ListCardinalityFailure
+  %slot24 = alloca { ptr, i64 }
+  %slot25 = alloca { ptr, i64 }
   br label %bb0
 
 bb0:
@@ -485,73 +492,129 @@ bb0:
   %load17 = load { ptr, i64 }, ptr %slot7
   %call18 = call { ptr, i64 } @evid$nonempty_list_concat_right$Int({ ptr, i64 } %load16, { ptr, i64 } %load17)
   store { ptr, i64 } %call18, ptr %slot9
-  %call19 = call { ptr, i64 } @evid$test$single_list()
-  store { ptr, i64 } %call19, ptr %slot13
-  %load20 = load { ptr, i64 }, ptr %slot13
-  %call21 = call { ptr, i64 } @evid$test$widened_list({ ptr, i64 } %load20)
-  store { ptr, i64 } %call21, ptr %slot12
-  %call22 = call { ptr, i64 } @evid$test$empty_list()
-  store { ptr, i64 } %call22, ptr %slot14
-  %load23 = load { ptr, i64 }, ptr %slot12
-  %load24 = load { ptr, i64 }, ptr %slot14
-  %call25 = call { ptr, i64 } @evid$list_concat$Int({ ptr, i64 } %load23, { ptr, i64 } %load24)
-  store { ptr, i64 } %call25, ptr %slot11
-  %load26 = load { ptr, i64 }, ptr %slot11
-  %invoke27 = call %evid.yield.list_require_nonempty$Int @evid$list_require_nonempty$Int({ ptr, i64 } %load26)
-  %ext28 = extractvalue %evid.yield.list_require_nonempty$Int %invoke27, 0
-  %ext29 = extractvalue %evid.yield.list_require_nonempty$Int %invoke27, 2
-  %unpack.slot30 = alloca { i64, [8 x i8] }
-  store { i64, [8 x i8] } %ext29, ptr %unpack.slot30
-  %unpack31 = load { ptr, i64 }, ptr %unpack.slot30
-  %unpack.slot32 = alloca { i64, [8 x i8] }
-  store { i64, [8 x i8] } %ext29, ptr %unpack.slot32
-  %unpack33 = load %evid.type.ListCardinalityFailure, ptr %unpack.slot32
-  switch i8 %ext28, label %bb.trap.2 [
+  %load19 = load { ptr, i64 }, ptr %slot9
+  %call20 = call %evid.type.ListFirstAndRest_Int_ @evid$nonempty_list_consume_first$Int({ ptr, i64 } %load19)
+  store %evid.type.ListFirstAndRest_Int_ %call20, ptr %slot11
+  %load21 = load %evid.type.ListFirstAndRest_Int_, ptr %slot11
+  %ext22 = extractvalue %evid.type.ListFirstAndRest_Int_ %load21, 0
+  store i64 %ext22, ptr %slot12
+  %call23 = call { ptr, i64 } @evid$test$single_list()
+  store { ptr, i64 } %call23, ptr %slot15
+  %load24 = load { ptr, i64 }, ptr %slot15
+  %call25 = call { ptr, i64 } @evid$test$widened_list({ ptr, i64 } %load24)
+  store { ptr, i64 } %call25, ptr %slot14
+  %call26 = call { ptr, i64 } @evid$test$empty_list()
+  store { ptr, i64 } %call26, ptr %slot16
+  %load27 = load { ptr, i64 }, ptr %slot14
+  %load28 = load { ptr, i64 }, ptr %slot16
+  %call29 = call { ptr, i64 } @evid$list_concat$Int({ ptr, i64 } %load27, { ptr, i64 } %load28)
+  store { ptr, i64 } %call29, ptr %slot13
+  %load30 = load { ptr, i64 }, ptr %slot13
+  %invoke31 = call %evid.yield.list_require_nonempty$Int @evid$list_require_nonempty$Int({ ptr, i64 } %load30)
+  %ext32 = extractvalue %evid.yield.list_require_nonempty$Int %invoke31, 0
+  %ext33 = extractvalue %evid.yield.list_require_nonempty$Int %invoke31, 2
+  %unpack.slot34 = alloca { i64, [8 x i8] }
+  store { i64, [8 x i8] } %ext33, ptr %unpack.slot34
+  %unpack35 = load { ptr, i64 }, ptr %unpack.slot34
+  %unpack.slot36 = alloca { i64, [8 x i8] }
+  store { i64, [8 x i8] } %ext33, ptr %unpack.slot36
+  %unpack37 = load %evid.type.ListCardinalityFailure, ptr %unpack.slot36
+  switch i8 %ext32, label %bb.trap.2 [
     i8 0, label %bb.invoke.ok.0
     i8 1, label %bb.invoke.fail.1
   ]
 
 bb1:
-  %load34 = load { ptr, i64 }, ptr %slot16
-  store { ptr, i64 } %load34, ptr %slot18
-  %load35 = load { ptr, i64 }, ptr %slot18
-  store { ptr, i64 } %load35, ptr %slot15
+  %load38 = load { ptr, i64 }, ptr %slot18
+  store { ptr, i64 } %load38, ptr %slot20
+  %load39 = load { ptr, i64 }, ptr %slot20
+  store { ptr, i64 } %load39, ptr %slot17
   br label %bb3
 
 bb2:
-  %load36 = load %evid.type.ListCardinalityFailure, ptr %slot17
-  %ext37 = extractvalue %evid.type.ListCardinalityFailure %load36, 0
-  switch i32 %ext37, label %bb.trap.3 [
+  %load40 = load %evid.type.ListCardinalityFailure, ptr %slot19
+  %ext41 = extractvalue %evid.type.ListCardinalityFailure %load40, 0
+  switch i32 %ext41, label %bb.trap.3 [
     i32 1, label %bb4
   ]
 
 bb3:
-  %load38 = load { ptr, i64 }, ptr %slot15
-  %call39 = call i64 @evid$test$first_value({ ptr, i64 } %load38)
-  store i64 %call39, ptr %slot19
-  %load40 = load { ptr, i64 }, ptr %slot9
-  %call41 = call i64 @evid$test$first_value({ ptr, i64 } %load40)
-  store i64 %call41, ptr %slot0
-  %load42 = load i64, ptr %slot0
-  ret i64 %load42
+  %load42 = load { ptr, i64 }, ptr %slot17
+  %call43 = call i64 @evid$test$first_value({ ptr, i64 } %load42)
+  store i64 %call43, ptr %slot21
+  %load44 = load %evid.type.ListFirstAndRest_Int_, ptr %slot11
+  %ext45 = extractvalue %evid.type.ListFirstAndRest_Int_ %load44, 1
+  store { ptr, i64 } %ext45, ptr %slot24
+  %load46 = load { ptr, i64 }, ptr %slot24
+  %invoke47 = call %evid.yield.list_require_nonempty$Int @evid$list_require_nonempty$Int({ ptr, i64 } %load46)
+  %ext48 = extractvalue %evid.yield.list_require_nonempty$Int %invoke47, 0
+  %ext49 = extractvalue %evid.yield.list_require_nonempty$Int %invoke47, 2
+  %unpack.slot50 = alloca { i64, [8 x i8] }
+  store { i64, [8 x i8] } %ext49, ptr %unpack.slot50
+  %unpack51 = load { ptr, i64 }, ptr %unpack.slot50
+  %unpack.slot52 = alloca { i64, [8 x i8] }
+  store { i64, [8 x i8] } %ext49, ptr %unpack.slot52
+  %unpack53 = load %evid.type.ListCardinalityFailure, ptr %unpack.slot52
+  switch i8 %ext48, label %bb.trap.6 [
+    i8 0, label %bb.invoke.ok.4
+    i8 1, label %bb.invoke.fail.5
+  ]
 
 bb4:
-  %call43 = call { ptr, i64 } @evid$test$single_list()
-  store { ptr, i64 } %call43, ptr %slot15
+  %call54 = call { ptr, i64 } @evid$test$single_list()
+  store { ptr, i64 } %call54, ptr %slot17
   br label %bb3
 
+bb5:
+  %load55 = load { ptr, i64 }, ptr %slot22
+  store { ptr, i64 } %load55, ptr %slot25
+  %load56 = load { ptr, i64 }, ptr %slot25
+  %call57 = call i64 @evid$test$first_value({ ptr, i64 } %load56)
+  store i64 %call57, ptr %slot0
+  br label %bb7
+
+bb6:
+  %load58 = load %evid.type.ListCardinalityFailure, ptr %slot23
+  %ext59 = extractvalue %evid.type.ListCardinalityFailure %load58, 0
+  switch i32 %ext59, label %bb.trap.7 [
+    i32 1, label %bb8
+  ]
+
+bb7:
+  %load60 = load i64, ptr %slot0
+  ret i64 %load60
+
+bb8:
+  %load61 = load i64, ptr %slot12
+  store i64 %load61, ptr %slot0
+  br label %bb7
+
 bb.invoke.ok.0:
-  store { ptr, i64 } %unpack31, ptr %slot16
+  store { ptr, i64 } %unpack35, ptr %slot18
   br label %bb1
 
 bb.invoke.fail.1:
-  store %evid.type.ListCardinalityFailure %unpack33, ptr %slot17
+  store %evid.type.ListCardinalityFailure %unpack37, ptr %slot19
   br label %bb2
 
 bb.trap.2:
   unreachable
 
 bb.trap.3:
+  unreachable
+
+bb.invoke.ok.4:
+  store { ptr, i64 } %unpack51, ptr %slot22
+  br label %bb5
+
+bb.invoke.fail.5:
+  store %evid.type.ListCardinalityFailure %unpack53, ptr %slot23
+  br label %bb6
+
+bb.trap.6:
+  unreachable
+
+bb.trap.7:
   unreachable
 
 }
@@ -774,6 +837,20 @@ entry:
   %carrier0 = insertvalue { ptr, i64 } zeroinitializer, ptr %data0, 0
   %carrier1 = insertvalue { ptr, i64 } %carrier0, i64 %new_count0, 1
   ret { ptr, i64 } %carrier1
+}
+
+define %evid.type.ListFirstAndRest_Int_ @evid$nonempty_list_consume_first$Int({ ptr, i64 } %arg0) {
+entry:
+  %data0 = extractvalue { ptr, i64 } %arg0, 0
+  %count0 = extractvalue { ptr, i64 } %arg0, 1
+  %first0 = load i64, ptr %data0
+  %rest_count0 = sub i64 %count0, 1
+  %rest_data0 = getelementptr i8, ptr %data0, i64 8
+  %rest0 = insertvalue { ptr, i64 } zeroinitializer, ptr %rest_data0, 0
+  %rest1 = insertvalue { ptr, i64 } %rest0, i64 %rest_count0, 1
+  %result0 = insertvalue %evid.type.ListFirstAndRest_Int_ zeroinitializer, i64 %first0, 0
+  %result1 = insertvalue %evid.type.ListFirstAndRest_Int_ %result0, { ptr, i64 } %rest1, 1
+  ret %evid.type.ListFirstAndRest_Int_ %result1
 }
 
 define { ptr, i64 } @evid$list_concat$Int({ ptr, i64 } %arg0, { ptr, i64 } %arg1) {
