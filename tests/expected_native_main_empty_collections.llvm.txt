@@ -10,6 +10,7 @@ target triple = "x86_64-pc-windows-msvc"
 %evid.yield.list_require_nonempty$Int = type { i8, [7 x i8], { i64, [8 x i8] } }
 
 declare ptr @malloc(i64)
+declare void @llvm.memcpy.p0.p0.i64(ptr, ptr, i64, i1 immarg)
 
 define { ptr, i64 } @evid$test$empty_list() {
 entry:
@@ -159,6 +160,48 @@ bb0:
   store i64 %call1, ptr %slot1
   %load2 = load i64, ptr %slot1
   ret i64 %load2
+
+}
+
+define { ptr, i64 } @evid$test$prepended_list() {
+entry:
+  %slot0 = alloca { ptr, i64 }
+  %slot1 = alloca { ptr, i64 }
+  %slot2 = alloca { ptr, i64 }
+  br label %bb0
+
+bb0:
+  %call0 = call { ptr, i64 } @evid$test$single_list()
+  store { ptr, i64 } %call0, ptr %slot2
+  %load1 = load { ptr, i64 }, ptr %slot2
+  %call2 = call { ptr, i64 } @evid$test$widened_list({ ptr, i64 } %load1)
+  store { ptr, i64 } %call2, ptr %slot1
+  %load3 = load { ptr, i64 }, ptr %slot1
+  %call4 = call { ptr, i64 } @evid$list_prepend$Int(i64 11, { ptr, i64 } %load3)
+  store { ptr, i64 } %call4, ptr %slot0
+  %load5 = load { ptr, i64 }, ptr %slot0
+  ret { ptr, i64 } %load5
+
+}
+
+define { ptr, i64 } @evid$test$appended_list() {
+entry:
+  %slot0 = alloca { ptr, i64 }
+  %slot1 = alloca { ptr, i64 }
+  %slot2 = alloca { ptr, i64 }
+  br label %bb0
+
+bb0:
+  %call0 = call { ptr, i64 } @evid$test$single_list()
+  store { ptr, i64 } %call0, ptr %slot2
+  %load1 = load { ptr, i64 }, ptr %slot2
+  %call2 = call { ptr, i64 } @evid$test$widened_list({ ptr, i64 } %load1)
+  store { ptr, i64 } %call2, ptr %slot1
+  %load3 = load { ptr, i64 }, ptr %slot1
+  %call4 = call { ptr, i64 } @evid$list_append$Int({ ptr, i64 } %load3, i64 13)
+  store { ptr, i64 } %call4, ptr %slot0
+  %load5 = load { ptr, i64 }, ptr %slot0
+  ret { ptr, i64 } %load5
 
 }
 
@@ -388,19 +431,147 @@ bb.trap.3:
 
 }
 
+define i64 @evid$test$require_constructed_lists() {
+entry:
+  %slot0 = alloca i64
+  %slot1 = alloca { ptr, i64 }
+  %slot2 = alloca i64
+  %slot3 = alloca { ptr, i64 }
+  %slot4 = alloca i64
+  %slot5 = alloca { ptr, i64 }
+  %slot6 = alloca i64
+  %slot7 = alloca { ptr, i64 }
+  %slot8 = alloca { ptr, i64 }
+  %slot9 = alloca { ptr, i64 }
+  %slot10 = alloca { ptr, i64 }
+  %slot11 = alloca { ptr, i64 }
+  %slot12 = alloca { ptr, i64 }
+  %slot13 = alloca { ptr, i64 }
+  %slot14 = alloca { ptr, i64 }
+  %slot15 = alloca { ptr, i64 }
+  %slot16 = alloca { ptr, i64 }
+  %slot17 = alloca %evid.type.ListCardinalityFailure
+  %slot18 = alloca { ptr, i64 }
+  %slot19 = alloca i64
+  br label %bb0
+
+bb0:
+  %call0 = call { ptr, i64 } @evid$test$prepended_list()
+  store { ptr, i64 } %call0, ptr %slot1
+  %load1 = load { ptr, i64 }, ptr %slot1
+  %call2 = call i64 @evid$test$nonempty_list_count({ ptr, i64 } %load1)
+  store i64 %call2, ptr %slot2
+  %call3 = call { ptr, i64 } @evid$test$appended_list()
+  store { ptr, i64 } %call3, ptr %slot3
+  %load4 = load { ptr, i64 }, ptr %slot3
+  %call5 = call i64 @evid$test$nonempty_list_count({ ptr, i64 } %load4)
+  store i64 %call5, ptr %slot4
+  %load6 = load { ptr, i64 }, ptr %slot3
+  %load7 = load { ptr, i64 }, ptr %slot1
+  %call8 = call { ptr, i64 } @evid$nonempty_list_concat$Int({ ptr, i64 } %load6, { ptr, i64 } %load7)
+  store { ptr, i64 } %call8, ptr %slot5
+  %load9 = load { ptr, i64 }, ptr %slot5
+  %call10 = call i64 @evid$test$nonempty_list_count({ ptr, i64 } %load9)
+  store i64 %call10, ptr %slot6
+  %call11 = call { ptr, i64 } @evid$test$empty_list()
+  store { ptr, i64 } %call11, ptr %slot8
+  %load12 = load { ptr, i64 }, ptr %slot1
+  %load13 = load { ptr, i64 }, ptr %slot8
+  %call14 = call { ptr, i64 } @evid$nonempty_list_concat_left$Int({ ptr, i64 } %load12, { ptr, i64 } %load13)
+  store { ptr, i64 } %call14, ptr %slot7
+  %call15 = call { ptr, i64 } @evid$test$empty_list()
+  store { ptr, i64 } %call15, ptr %slot10
+  %load16 = load { ptr, i64 }, ptr %slot10
+  %load17 = load { ptr, i64 }, ptr %slot7
+  %call18 = call { ptr, i64 } @evid$nonempty_list_concat_right$Int({ ptr, i64 } %load16, { ptr, i64 } %load17)
+  store { ptr, i64 } %call18, ptr %slot9
+  %call19 = call { ptr, i64 } @evid$test$single_list()
+  store { ptr, i64 } %call19, ptr %slot13
+  %load20 = load { ptr, i64 }, ptr %slot13
+  %call21 = call { ptr, i64 } @evid$test$widened_list({ ptr, i64 } %load20)
+  store { ptr, i64 } %call21, ptr %slot12
+  %call22 = call { ptr, i64 } @evid$test$empty_list()
+  store { ptr, i64 } %call22, ptr %slot14
+  %load23 = load { ptr, i64 }, ptr %slot12
+  %load24 = load { ptr, i64 }, ptr %slot14
+  %call25 = call { ptr, i64 } @evid$list_concat$Int({ ptr, i64 } %load23, { ptr, i64 } %load24)
+  store { ptr, i64 } %call25, ptr %slot11
+  %load26 = load { ptr, i64 }, ptr %slot11
+  %invoke27 = call %evid.yield.list_require_nonempty$Int @evid$list_require_nonempty$Int({ ptr, i64 } %load26)
+  %ext28 = extractvalue %evid.yield.list_require_nonempty$Int %invoke27, 0
+  %ext29 = extractvalue %evid.yield.list_require_nonempty$Int %invoke27, 2
+  %unpack.slot30 = alloca { i64, [8 x i8] }
+  store { i64, [8 x i8] } %ext29, ptr %unpack.slot30
+  %unpack31 = load { ptr, i64 }, ptr %unpack.slot30
+  %unpack.slot32 = alloca { i64, [8 x i8] }
+  store { i64, [8 x i8] } %ext29, ptr %unpack.slot32
+  %unpack33 = load %evid.type.ListCardinalityFailure, ptr %unpack.slot32
+  switch i8 %ext28, label %bb.trap.2 [
+    i8 0, label %bb.invoke.ok.0
+    i8 1, label %bb.invoke.fail.1
+  ]
+
+bb1:
+  %load34 = load { ptr, i64 }, ptr %slot16
+  store { ptr, i64 } %load34, ptr %slot18
+  %load35 = load { ptr, i64 }, ptr %slot18
+  store { ptr, i64 } %load35, ptr %slot15
+  br label %bb3
+
+bb2:
+  %load36 = load %evid.type.ListCardinalityFailure, ptr %slot17
+  %ext37 = extractvalue %evid.type.ListCardinalityFailure %load36, 0
+  switch i32 %ext37, label %bb.trap.3 [
+    i32 1, label %bb4
+  ]
+
+bb3:
+  %load38 = load { ptr, i64 }, ptr %slot15
+  %call39 = call i64 @evid$test$first_value({ ptr, i64 } %load38)
+  store i64 %call39, ptr %slot19
+  %load40 = load { ptr, i64 }, ptr %slot9
+  %call41 = call i64 @evid$test$first_value({ ptr, i64 } %load40)
+  store i64 %call41, ptr %slot0
+  %load42 = load i64, ptr %slot0
+  ret i64 %load42
+
+bb4:
+  %call43 = call { ptr, i64 } @evid$test$single_list()
+  store { ptr, i64 } %call43, ptr %slot15
+  br label %bb3
+
+bb.invoke.ok.0:
+  store { ptr, i64 } %unpack31, ptr %slot16
+  br label %bb1
+
+bb.invoke.fail.1:
+  store %evid.type.ListCardinalityFailure %unpack33, ptr %slot17
+  br label %bb2
+
+bb.trap.2:
+  unreachable
+
+bb.trap.3:
+  unreachable
+
+}
+
 define i64 @evid$test$main() {
 entry:
   %slot0 = alloca i64
   %slot1 = alloca i64
+  %slot2 = alloca i64
   br label %bb0
 
 bb0:
   %call0 = call i64 @evid$test$require_empty_collections()
   store i64 %call0, ptr %slot1
   %call1 = call i64 @evid$test$require_single_list()
-  store i64 %call1, ptr %slot0
-  %load2 = load i64, ptr %slot0
-  ret i64 %load2
+  store i64 %call1, ptr %slot2
+  %call2 = call i64 @evid$test$require_constructed_lists()
+  store i64 %call2, ptr %slot0
+  %load3 = load i64, ptr %slot0
+  ret i64 %load3
 
 }
 
@@ -464,6 +635,38 @@ entry:
   ret i64 %first0
 }
 
+define { ptr, i64 } @evid$list_prepend$Int(i64 %arg0, { ptr, i64 } %arg1) {
+entry:
+  %old_data0 = extractvalue { ptr, i64 } %arg1, 0
+  %old_count0 = extractvalue { ptr, i64 } %arg1, 1
+  %new_count0 = add i64 %old_count0, 1
+  %copy_bytes0 = mul i64 %old_count0, 8
+  %alloc_bytes0 = mul i64 %new_count0, 8
+  %data0 = call ptr @malloc(i64 %alloc_bytes0)
+  store i64 %arg0, ptr %data0
+  %tail0 = getelementptr i8, ptr %data0, i64 8
+  call void @llvm.memcpy.p0.p0.i64(ptr %tail0, ptr %old_data0, i64 %copy_bytes0, i1 false)
+  %carrier0 = insertvalue { ptr, i64 } zeroinitializer, ptr %data0, 0
+  %carrier1 = insertvalue { ptr, i64 } %carrier0, i64 %new_count0, 1
+  ret { ptr, i64 } %carrier1
+}
+
+define { ptr, i64 } @evid$list_append$Int({ ptr, i64 } %arg0, i64 %arg1) {
+entry:
+  %old_data0 = extractvalue { ptr, i64 } %arg0, 0
+  %old_count0 = extractvalue { ptr, i64 } %arg0, 1
+  %new_count0 = add i64 %old_count0, 1
+  %copy_bytes0 = mul i64 %old_count0, 8
+  %alloc_bytes0 = mul i64 %new_count0, 8
+  %data0 = call ptr @malloc(i64 %alloc_bytes0)
+  call void @llvm.memcpy.p0.p0.i64(ptr %data0, ptr %old_data0, i64 %copy_bytes0, i1 false)
+  %tail0 = getelementptr i8, ptr %data0, i64 %copy_bytes0
+  store i64 %arg1, ptr %tail0
+  %carrier0 = insertvalue { ptr, i64 } zeroinitializer, ptr %data0, 0
+  %carrier1 = insertvalue { ptr, i64 } %carrier0, i64 %new_count0, 1
+  ret { ptr, i64 } %carrier1
+}
+
 define %evid.yield.map_require_nonempty$Text$Int @evid$map_require_nonempty$Text$Int({ ptr, i64 } %arg0) {
 entry:
   %count0 = extractvalue { ptr, i64 } %arg0, 1
@@ -514,4 +717,80 @@ empty:
   %fail.pack = load { i64, [8 x i8] }, ptr %fail.pack.slot
   %fail.value = insertvalue %evid.yield.list_require_nonempty$Int %fail.tag, { i64, [8 x i8] } %fail.pack, 2
   ret %evid.yield.list_require_nonempty$Int %fail.value
+}
+
+define { ptr, i64 } @evid$nonempty_list_concat$Int({ ptr, i64 } %arg0, { ptr, i64 } %arg1) {
+entry:
+  %left_data0 = extractvalue { ptr, i64 } %arg0, 0
+  %left_count0 = extractvalue { ptr, i64 } %arg0, 1
+  %right_data0 = extractvalue { ptr, i64 } %arg1, 0
+  %right_count0 = extractvalue { ptr, i64 } %arg1, 1
+  %new_count0 = add i64 %left_count0, %right_count0
+  %left_bytes0 = mul i64 %left_count0, 8
+  %right_bytes0 = mul i64 %right_count0, 8
+  %alloc_bytes0 = mul i64 %new_count0, 8
+  %data0 = call ptr @malloc(i64 %alloc_bytes0)
+  call void @llvm.memcpy.p0.p0.i64(ptr %data0, ptr %left_data0, i64 %left_bytes0, i1 false)
+  %right_dest0 = getelementptr i8, ptr %data0, i64 %left_bytes0
+  call void @llvm.memcpy.p0.p0.i64(ptr %right_dest0, ptr %right_data0, i64 %right_bytes0, i1 false)
+  %carrier0 = insertvalue { ptr, i64 } zeroinitializer, ptr %data0, 0
+  %carrier1 = insertvalue { ptr, i64 } %carrier0, i64 %new_count0, 1
+  ret { ptr, i64 } %carrier1
+}
+
+define { ptr, i64 } @evid$nonempty_list_concat_left$Int({ ptr, i64 } %arg0, { ptr, i64 } %arg1) {
+entry:
+  %left_data0 = extractvalue { ptr, i64 } %arg0, 0
+  %left_count0 = extractvalue { ptr, i64 } %arg0, 1
+  %right_data0 = extractvalue { ptr, i64 } %arg1, 0
+  %right_count0 = extractvalue { ptr, i64 } %arg1, 1
+  %new_count0 = add i64 %left_count0, %right_count0
+  %left_bytes0 = mul i64 %left_count0, 8
+  %right_bytes0 = mul i64 %right_count0, 8
+  %alloc_bytes0 = mul i64 %new_count0, 8
+  %data0 = call ptr @malloc(i64 %alloc_bytes0)
+  call void @llvm.memcpy.p0.p0.i64(ptr %data0, ptr %left_data0, i64 %left_bytes0, i1 false)
+  %right_dest0 = getelementptr i8, ptr %data0, i64 %left_bytes0
+  call void @llvm.memcpy.p0.p0.i64(ptr %right_dest0, ptr %right_data0, i64 %right_bytes0, i1 false)
+  %carrier0 = insertvalue { ptr, i64 } zeroinitializer, ptr %data0, 0
+  %carrier1 = insertvalue { ptr, i64 } %carrier0, i64 %new_count0, 1
+  ret { ptr, i64 } %carrier1
+}
+
+define { ptr, i64 } @evid$nonempty_list_concat_right$Int({ ptr, i64 } %arg0, { ptr, i64 } %arg1) {
+entry:
+  %left_data0 = extractvalue { ptr, i64 } %arg0, 0
+  %left_count0 = extractvalue { ptr, i64 } %arg0, 1
+  %right_data0 = extractvalue { ptr, i64 } %arg1, 0
+  %right_count0 = extractvalue { ptr, i64 } %arg1, 1
+  %new_count0 = add i64 %left_count0, %right_count0
+  %left_bytes0 = mul i64 %left_count0, 8
+  %right_bytes0 = mul i64 %right_count0, 8
+  %alloc_bytes0 = mul i64 %new_count0, 8
+  %data0 = call ptr @malloc(i64 %alloc_bytes0)
+  call void @llvm.memcpy.p0.p0.i64(ptr %data0, ptr %left_data0, i64 %left_bytes0, i1 false)
+  %right_dest0 = getelementptr i8, ptr %data0, i64 %left_bytes0
+  call void @llvm.memcpy.p0.p0.i64(ptr %right_dest0, ptr %right_data0, i64 %right_bytes0, i1 false)
+  %carrier0 = insertvalue { ptr, i64 } zeroinitializer, ptr %data0, 0
+  %carrier1 = insertvalue { ptr, i64 } %carrier0, i64 %new_count0, 1
+  ret { ptr, i64 } %carrier1
+}
+
+define { ptr, i64 } @evid$list_concat$Int({ ptr, i64 } %arg0, { ptr, i64 } %arg1) {
+entry:
+  %left_data0 = extractvalue { ptr, i64 } %arg0, 0
+  %left_count0 = extractvalue { ptr, i64 } %arg0, 1
+  %right_data0 = extractvalue { ptr, i64 } %arg1, 0
+  %right_count0 = extractvalue { ptr, i64 } %arg1, 1
+  %new_count0 = add i64 %left_count0, %right_count0
+  %left_bytes0 = mul i64 %left_count0, 8
+  %right_bytes0 = mul i64 %right_count0, 8
+  %alloc_bytes0 = mul i64 %new_count0, 8
+  %data0 = call ptr @malloc(i64 %alloc_bytes0)
+  call void @llvm.memcpy.p0.p0.i64(ptr %data0, ptr %left_data0, i64 %left_bytes0, i1 false)
+  %right_dest0 = getelementptr i8, ptr %data0, i64 %left_bytes0
+  call void @llvm.memcpy.p0.p0.i64(ptr %right_dest0, ptr %right_data0, i64 %right_bytes0, i1 false)
+  %carrier0 = insertvalue { ptr, i64 } zeroinitializer, ptr %data0, 0
+  %carrier1 = insertvalue { ptr, i64 } %carrier0, i64 %new_count0, 1
+  ret { ptr, i64 } %carrier1
 }

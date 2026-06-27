@@ -34,4 +34,3 @@ bb0:
   ret %evid.type.test.Value %load2
 
 }
-

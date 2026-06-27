@@ -1,7 +1,6 @@
 domain module test {
 public fn main() -> Int {
-    let values = list_empty<Int>()
-    let prepended = list_prepend<Int>(1, values)
+    let entries = map_single<Text, Int>("one", 1)
     0
 }
 }

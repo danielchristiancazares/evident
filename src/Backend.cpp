@@ -326,6 +326,9 @@ enum class CompilerOwnedFunctionLowering {
     RequireNonEmptyCollection,
     ListSingle,
     ListFirstCopy,
+    ListPrepend,
+    ListAppend,
+    ListConcat,
 };
 
 enum class RequireNonEmptyCollectionFamily {
@@ -353,6 +356,16 @@ CompilerOwnedFunctionLowering compiler_owned_function_lowering(std::string_view 
     }
     if (base_name == "nonempty_list_first_copy") {
         return CompilerOwnedFunctionLowering::ListFirstCopy;
+    }
+    if (base_name == "list_prepend") {
+        return CompilerOwnedFunctionLowering::ListPrepend;
+    }
+    if (base_name == "list_append") {
+        return CompilerOwnedFunctionLowering::ListAppend;
+    }
+    if (base_name == "list_concat" || base_name == "nonempty_list_concat_left"
+        || base_name == "nonempty_list_concat_right" || base_name == "nonempty_list_concat") {
+        return CompilerOwnedFunctionLowering::ListConcat;
     }
     return CompilerOwnedFunctionLowering::Unsupported;
 }
@@ -573,6 +586,7 @@ enum class YieldReturnKind {
 
 enum class RuntimeHelper {
     Malloc,
+    Memcpy,
 };
 
 enum class BlockVisitState {
@@ -1897,18 +1911,24 @@ std::expected<std::string, std::string> ModuleEmitter::emit() {
         case RuntimeHelper::Malloc:
             out << "declare ptr @malloc(i64)\n";
             break;
+        case RuntimeHelper::Memcpy:
+            out << "declare void @llvm.memcpy.p0.p0.i64(ptr, ptr, i64, i1 immarg)\n";
+            break;
         }
     }
     if (!runtime_helpers_.empty()) {
         out << '\n';
     }
 
-    for (const std::string& function_chunk : function_chunks) {
+    for (std::size_t index = 0; index < function_chunks.size(); ++index) {
+        const std::string& function_chunk = function_chunks[index];
         out << function_chunk;
         if (!function_chunk.empty() && function_chunk.back() != '\n') {
             out << '\n';
         }
-        out << '\n';
+        if (index + 1 < function_chunks.size()) {
+            out << '\n';
+        }
     }
 
     return out.str();
@@ -2218,6 +2238,26 @@ std::expected<std::string, std::string> FunctionEmitter::emit_compiler_owned_fun
         return type.identity().category() == ResolvedTypeCategory::BuiltinType
             && type.identity().builtin_kind() == kind;
     };
+    const auto element_storage_stride = [](const ResolvedType& type) {
+        return std::max<std::size_t>(align_up(type.size(), type.align()), 1);
+    };
+    const auto resolve_collection_element_type =
+        [&](const hir::TypeRef& collection_type,
+            std::string_view context) -> std::expected<ResolvedType, std::string> {
+        if (collection_type.args.size() != 1) {
+            return std::unexpected("internal backend error: " + std::string(context)
+                                   + " expected one collection element type argument");
+        }
+        const std::expected<ResolvedType, std::string> element_type =
+            model_.resolve_type_name(collection_type.args[0].text);
+        if (!element_type.has_value()) {
+            return std::unexpected(element_type.error());
+        }
+        if (element_type->materialization() == MaterializationState::NeverValue) {
+            return std::unexpected("internal backend error: " + std::string(context) + " stores `Never`");
+        }
+        return *element_type;
+    };
 
     const std::string linkage = hir_function_.visibility == ast::Visibility::Public ? "" : "internal ";
     std::ostringstream out;
@@ -2300,11 +2340,11 @@ std::expected<std::string, std::string> FunctionEmitter::emit_compiler_owned_fun
         }
 
         module_.require_runtime_helper(RuntimeHelper::Malloc);
-        const std::size_t element_size = std::max<std::size_t>(param_types[0].size(), 1);
+        const std::size_t element_stride = element_storage_stride(param_types[0]);
         out << "define " << linkage << return_type.llvm_type() << " @"
             << model_.function_symbol(hir_function_.id) << "(" << param_types[0].llvm_type() << " %arg0) {\n";
         out << "entry:\n";
-        out << "  %data0 = call ptr @malloc(i64 " << element_size << ")\n";
+        out << "  %data0 = call ptr @malloc(i64 " << element_stride << ")\n";
         out << "  store " << param_types[0].llvm_type() << " %arg0, ptr %data0\n";
         out << "  %carrier0 = insertvalue " << return_type.llvm_type() << " zeroinitializer, ptr %data0, 0\n";
         out << "  %carrier1 = insertvalue " << return_type.llvm_type() << " %carrier0, i64 1, 1\n";
@@ -2335,6 +2375,149 @@ std::expected<std::string, std::string> FunctionEmitter::emit_compiler_owned_fun
         out << "  ret " << return_type.llvm_type() << " %first0\n";
         out << "}\n";
         return out.str();
+
+    case CompilerOwnedFunctionLowering::ListPrepend: {
+        if (param_types.size() != 2) {
+            return std::unexpected("internal backend error: list prepend function '"
+                                   + hir_function_.qualified_name + "' expected two parameters");
+        }
+        if (!has_builtin_kind(return_type, BuiltinKind::NonEmptyList)
+            || !has_builtin_kind(param_types[1], BuiltinKind::List)) {
+            return std::unexpected("internal backend error: list prepend function '"
+                                   + hir_function_.qualified_name + "' has unsupported signature");
+        }
+        if (param_types[0].materialization() == MaterializationState::NeverValue) {
+            return std::unexpected("internal backend error: list prepend function '"
+                                   + hir_function_.qualified_name + "' stores `Never`");
+        }
+
+        module_.require_runtime_helper(RuntimeHelper::Malloc);
+        module_.require_runtime_helper(RuntimeHelper::Memcpy);
+        const std::size_t element_stride = element_storage_stride(param_types[0]);
+        out << "define " << linkage << return_type.llvm_type() << " @"
+            << model_.function_symbol(hir_function_.id) << "(" << param_types[0].llvm_type()
+            << " %arg0, " << param_types[1].llvm_type() << " %arg1) {\n";
+        out << "entry:\n";
+        out << "  %old_data0 = extractvalue " << param_types[1].llvm_type() << " %arg1, 0\n";
+        out << "  %old_count0 = extractvalue " << param_types[1].llvm_type() << " %arg1, 1\n";
+        out << "  %new_count0 = add i64 %old_count0, 1\n";
+        out << "  %copy_bytes0 = mul i64 %old_count0, " << element_stride << "\n";
+        out << "  %alloc_bytes0 = mul i64 %new_count0, " << element_stride << "\n";
+        out << "  %data0 = call ptr @malloc(i64 %alloc_bytes0)\n";
+        out << "  store " << param_types[0].llvm_type() << " %arg0, ptr %data0\n";
+        out << "  %tail0 = getelementptr i8, ptr %data0, i64 " << element_stride << "\n";
+        out << "  call void @llvm.memcpy.p0.p0.i64(ptr %tail0, ptr %old_data0, i64 %copy_bytes0, i1 false)\n";
+        out << "  %carrier0 = insertvalue " << return_type.llvm_type() << " zeroinitializer, ptr %data0, 0\n";
+        out << "  %carrier1 = insertvalue " << return_type.llvm_type() << " %carrier0, i64 %new_count0, 1\n";
+        out << "  ret " << return_type.llvm_type() << " %carrier1\n";
+        out << "}\n";
+        return out.str();
+    }
+
+    case CompilerOwnedFunctionLowering::ListAppend: {
+        if (param_types.size() != 2) {
+            return std::unexpected("internal backend error: list append function '"
+                                   + hir_function_.qualified_name + "' expected two parameters");
+        }
+        if (!has_builtin_kind(return_type, BuiltinKind::NonEmptyList)
+            || !has_builtin_kind(param_types[0], BuiltinKind::List)) {
+            return std::unexpected("internal backend error: list append function '"
+                                   + hir_function_.qualified_name + "' has unsupported signature");
+        }
+        if (param_types[1].materialization() == MaterializationState::NeverValue) {
+            return std::unexpected("internal backend error: list append function '"
+                                   + hir_function_.qualified_name + "' stores `Never`");
+        }
+
+        module_.require_runtime_helper(RuntimeHelper::Malloc);
+        module_.require_runtime_helper(RuntimeHelper::Memcpy);
+        const std::size_t element_stride = element_storage_stride(param_types[1]);
+        out << "define " << linkage << return_type.llvm_type() << " @"
+            << model_.function_symbol(hir_function_.id) << "(" << param_types[0].llvm_type()
+            << " %arg0, " << param_types[1].llvm_type() << " %arg1) {\n";
+        out << "entry:\n";
+        out << "  %old_data0 = extractvalue " << param_types[0].llvm_type() << " %arg0, 0\n";
+        out << "  %old_count0 = extractvalue " << param_types[0].llvm_type() << " %arg0, 1\n";
+        out << "  %new_count0 = add i64 %old_count0, 1\n";
+        out << "  %copy_bytes0 = mul i64 %old_count0, " << element_stride << "\n";
+        out << "  %alloc_bytes0 = mul i64 %new_count0, " << element_stride << "\n";
+        out << "  %data0 = call ptr @malloc(i64 %alloc_bytes0)\n";
+        out << "  call void @llvm.memcpy.p0.p0.i64(ptr %data0, ptr %old_data0, i64 %copy_bytes0, i1 false)\n";
+        out << "  %tail0 = getelementptr i8, ptr %data0, i64 %copy_bytes0\n";
+        out << "  store " << param_types[1].llvm_type() << " %arg1, ptr %tail0\n";
+        out << "  %carrier0 = insertvalue " << return_type.llvm_type() << " zeroinitializer, ptr %data0, 0\n";
+        out << "  %carrier1 = insertvalue " << return_type.llvm_type() << " %carrier0, i64 %new_count0, 1\n";
+        out << "  ret " << return_type.llvm_type() << " %carrier1\n";
+        out << "}\n";
+        return out.str();
+    }
+
+    case CompilerOwnedFunctionLowering::ListConcat: {
+        if (param_types.size() != 2) {
+            return std::unexpected("internal backend error: list concat function '"
+                                   + hir_function_.qualified_name + "' expected two parameters");
+        }
+        const std::string_view base_name = function_base_name(hir_function_.qualified_name);
+        if (base_name == "list_concat") {
+            if (!has_builtin_kind(return_type, BuiltinKind::List)
+                || !has_builtin_kind(param_types[0], BuiltinKind::List)
+                || !has_builtin_kind(param_types[1], BuiltinKind::List)) {
+                return std::unexpected("internal backend error: list concat function '"
+                                       + hir_function_.qualified_name + "' has unsupported signature");
+            }
+        } else if (base_name == "nonempty_list_concat_left") {
+            if (!has_builtin_kind(return_type, BuiltinKind::NonEmptyList)
+                || !has_builtin_kind(param_types[0], BuiltinKind::NonEmptyList)
+                || !has_builtin_kind(param_types[1], BuiltinKind::List)) {
+                return std::unexpected("internal backend error: list concat function '"
+                                       + hir_function_.qualified_name + "' has unsupported signature");
+            }
+        } else if (base_name == "nonempty_list_concat_right") {
+            if (!has_builtin_kind(return_type, BuiltinKind::NonEmptyList)
+                || !has_builtin_kind(param_types[0], BuiltinKind::List)
+                || !has_builtin_kind(param_types[1], BuiltinKind::NonEmptyList)) {
+                return std::unexpected("internal backend error: list concat function '"
+                                       + hir_function_.qualified_name + "' has unsupported signature");
+            }
+        } else if (!has_builtin_kind(return_type, BuiltinKind::NonEmptyList)
+                   || !has_builtin_kind(param_types[0], BuiltinKind::NonEmptyList)
+                   || !has_builtin_kind(param_types[1], BuiltinKind::NonEmptyList)) {
+            return std::unexpected("internal backend error: list concat function '"
+                                   + hir_function_.qualified_name + "' has unsupported signature");
+        }
+
+        const std::expected<ResolvedType, std::string> element_type =
+            resolve_collection_element_type(hir_function_.params[0].type, "list concat function '"
+                                            + hir_function_.qualified_name + "'");
+        if (!element_type.has_value()) {
+            return std::unexpected(element_type.error());
+        }
+
+        module_.require_runtime_helper(RuntimeHelper::Malloc);
+        module_.require_runtime_helper(RuntimeHelper::Memcpy);
+        const std::size_t element_stride = element_storage_stride(*element_type);
+        out << "define " << linkage << return_type.llvm_type() << " @"
+            << model_.function_symbol(hir_function_.id) << "(" << param_types[0].llvm_type()
+            << " %arg0, " << param_types[1].llvm_type() << " %arg1) {\n";
+        out << "entry:\n";
+        out << "  %left_data0 = extractvalue " << param_types[0].llvm_type() << " %arg0, 0\n";
+        out << "  %left_count0 = extractvalue " << param_types[0].llvm_type() << " %arg0, 1\n";
+        out << "  %right_data0 = extractvalue " << param_types[1].llvm_type() << " %arg1, 0\n";
+        out << "  %right_count0 = extractvalue " << param_types[1].llvm_type() << " %arg1, 1\n";
+        out << "  %new_count0 = add i64 %left_count0, %right_count0\n";
+        out << "  %left_bytes0 = mul i64 %left_count0, " << element_stride << "\n";
+        out << "  %right_bytes0 = mul i64 %right_count0, " << element_stride << "\n";
+        out << "  %alloc_bytes0 = mul i64 %new_count0, " << element_stride << "\n";
+        out << "  %data0 = call ptr @malloc(i64 %alloc_bytes0)\n";
+        out << "  call void @llvm.memcpy.p0.p0.i64(ptr %data0, ptr %left_data0, i64 %left_bytes0, i1 false)\n";
+        out << "  %right_dest0 = getelementptr i8, ptr %data0, i64 %left_bytes0\n";
+        out << "  call void @llvm.memcpy.p0.p0.i64(ptr %right_dest0, ptr %right_data0, i64 %right_bytes0, i1 false)\n";
+        out << "  %carrier0 = insertvalue " << return_type.llvm_type() << " zeroinitializer, ptr %data0, 0\n";
+        out << "  %carrier1 = insertvalue " << return_type.llvm_type() << " %carrier0, i64 %new_count0, 1\n";
+        out << "  ret " << return_type.llvm_type() << " %carrier1\n";
+        out << "}\n";
+        return out.str();
+    }
 
     case CompilerOwnedFunctionLowering::RequireNonEmptyCollection: {
         if (param_types.size() != 1) {

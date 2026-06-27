@@ -39,6 +39,16 @@ public fn first_value(values: NonEmptyList<Int>) -> Int {
     nonempty_list_first_copy<Int>(values)
 }
 
+public fn prepended_list() -> NonEmptyList<Int> {
+    let values = widened_list(single_list())
+    list_prepend<Int>(11, values)
+}
+
+public fn appended_list() -> NonEmptyList<Int> {
+    let values = widened_list(single_list())
+    list_append<Int>(values, 13)
+}
+
 public fn require_empty_map(entries: Map<Text, Int>) -> Int {
     match map_require_nonempty<Text, Int>(entries) {
         succeeded(actual) => {
@@ -74,8 +84,27 @@ public fn require_single_list() -> Int {
     first_value(required)
 }
 
+public fn require_constructed_lists() -> Int {
+    let prepended = prepended_list()
+    let prepended_count = nonempty_list_count(prepended)
+    let appended = appended_list()
+    let appended_count = nonempty_list_count(appended)
+    let concatenated = nonempty_list_concat<Int>(appended, prepended)
+    let concatenated_count = nonempty_list_count(concatenated)
+    let left_nonempty = nonempty_list_concat_left<Int>(prepended, empty_list())
+    let right_nonempty = nonempty_list_concat_right<Int>(empty_list(), left_nonempty)
+    let widened_concat = list_concat<Int>(widened_list(single_list()), empty_list())
+    let required = match list_require_nonempty<Int>(widened_concat) {
+        succeeded(actual) => actual,
+        failed(ListHadNoElements) => single_list(),
+    }
+    let required_first = first_value(required)
+    first_value(right_nonempty)
+}
+
 public fn main() -> Int {
     let empty_result = require_empty_collections()
-    require_single_list()
+    let single_result = require_single_list()
+    require_constructed_lists()
 }
 }
