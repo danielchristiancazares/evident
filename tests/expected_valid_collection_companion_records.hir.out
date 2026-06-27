@@ -28,6 +28,48 @@ functions:
   - public fn nonempty_list_count_copy<T>(values: NonEmptyList<T>) -> Nat
   - public fn nonempty_list_first_copy<T>(values: NonEmptyList<T>) -> T
   - public fn nonempty_list_consume_first<T>(values: NonEmptyList<T>) -> ListFirstAndRest<T>
+  - public fn map_require_nonempty<K, V>(entries: Map<K, V>) -> NonEmptyMap<K, V> fails MapCardinalityFailure
+  - public fn nonempty_map_widen<K, V>(entries: NonEmptyMap<K, V>) -> Map<K, V>
+  - public fn map_empty<K, V>() -> Map<K, V>
+  - public fn map_single<K, V>(key: K, value: V) -> NonEmptyMap<K, V>
+  - public fn map_bind_new<K, V>(entries: Map<K, V>, key: K, value: V) -> NonEmptyMap<K, V> fails MapBindingFailure
+  - public fn nonempty_map_bind_new<K, V>(entries: NonEmptyMap<K, V>, key: K, value: V) -> NonEmptyMap<K, V> fails MapBindingFailure
+  - public fn map_replace_bound<K, V>(entries: Map<K, V>, key: K, value: V) -> NonEmptyMap<K, V> fails MapBindingFailure
+  - public fn nonempty_map_replace_bound<K, V>(entries: NonEmptyMap<K, V>, key: K, value: V) -> NonEmptyMap<K, V> fails MapBindingFailure
+  - public fn map_bind_or_replace<K, V>(entries: Map<K, V>, key: K, value: V) -> NonEmptyMap<K, V>
+  - public fn nonempty_map_bind_or_replace<K, V>(entries: NonEmptyMap<K, V>, key: K, value: V) -> NonEmptyMap<K, V>
+  - public fn map_remove_bound<K, V>(entries: Map<K, V>, key: K) -> Map<K, V> fails MapBindingFailure
+  - public fn nonempty_map_remove_bound<K, V>(entries: NonEmptyMap<K, V>, key: K) -> Map<K, V> fails MapBindingFailure
+  - public fn map_consume_bound_value<K, V>(entries: Map<K, V>, key: K) -> MapBoundValueAndRest<K, V> fails MapBindingFailure
+  - public fn nonempty_map_consume_bound_value<K, V>(entries: NonEmptyMap<K, V>, key: K) -> MapBoundValueAndRest<K, V> fails MapBindingFailure
+  - public fn map_count_copy<K, V>(entries: Map<K, V>) -> Nat
+  - public fn nonempty_map_count_copy<K, V>(entries: NonEmptyMap<K, V>) -> Nat
+  - public fn map_lookup_copy<K, V>(entries: Map<K, V>, key: K) -> V fails MapBindingFailure
+  - public fn nonempty_map_lookup_copy<K, V>(entries: NonEmptyMap<K, V>, key: K) -> V fails MapBindingFailure
+  - public fn nonempty_map_first_entry_copy<K, V>(entries: NonEmptyMap<K, V>) -> MapEntry<K, V>
+  - public fn nonempty_map_consume_first_entry<K, V>(entries: NonEmptyMap<K, V>) -> MapFirstEntryAndRest<K, V>
+  - public fn map_entries_copy<K, V>(entries: Map<K, V>) -> List<MapEntry<K, V>>
+  - public fn nonempty_map_entries_copy<K, V>(entries: NonEmptyMap<K, V>) -> NonEmptyList<MapEntry<K, V>>
+  - public fn map_consume_entries<K, V>(entries: Map<K, V>) -> List<MapEntry<K, V>>
+  - public fn nonempty_map_consume_entries<K, V>(entries: NonEmptyMap<K, V>) -> NonEmptyList<MapEntry<K, V>>
+  - public fn map_merge_rejecting_shared_keys<K, V>(left: Map<K, V>, right: Map<K, V>) -> Map<K, V> fails MapMergeFailure
+  - public fn map_merge_left_nonempty_rejecting_shared_keys<K, V>(left: NonEmptyMap<K, V>, right: Map<K, V>) -> NonEmptyMap<K, V> fails MapMergeFailure
+  - public fn map_merge_right_nonempty_rejecting_shared_keys<K, V>(left: Map<K, V>, right: NonEmptyMap<K, V>) -> NonEmptyMap<K, V> fails MapMergeFailure
+  - public fn nonempty_map_merge_rejecting_shared_keys<K, V>(left: NonEmptyMap<K, V>, right: NonEmptyMap<K, V>) -> NonEmptyMap<K, V> fails MapMergeFailure
+  - public fn map_merge_using_left_bindings_for_shared_keys<K, V>(left: Map<K, V>, right: Map<K, V>) -> Map<K, V>
+  - public fn map_merge_left_nonempty_using_left_bindings_for_shared_keys<K, V>(left: NonEmptyMap<K, V>, right: Map<K, V>) -> NonEmptyMap<K, V>
+  - public fn map_merge_right_nonempty_using_left_bindings_for_shared_keys<K, V>(left: Map<K, V>, right: NonEmptyMap<K, V>) -> NonEmptyMap<K, V>
+  - public fn nonempty_map_merge_using_left_bindings_for_shared_keys<K, V>(left: NonEmptyMap<K, V>, right: NonEmptyMap<K, V>) -> NonEmptyMap<K, V>
+  - public fn map_merge_using_right_bindings_for_shared_keys<K, V>(left: Map<K, V>, right: Map<K, V>) -> Map<K, V>
+  - public fn map_merge_left_nonempty_using_right_bindings_for_shared_keys<K, V>(left: NonEmptyMap<K, V>, right: Map<K, V>) -> NonEmptyMap<K, V>
+  - public fn map_merge_right_nonempty_using_right_bindings_for_shared_keys<K, V>(left: Map<K, V>, right: NonEmptyMap<K, V>) -> NonEmptyMap<K, V>
+  - public fn nonempty_map_merge_using_right_bindings_for_shared_keys<K, V>(left: NonEmptyMap<K, V>, right: NonEmptyMap<K, V>) -> NonEmptyMap<K, V>
+  - public fn map_from_entries_rejecting_shared_keys<K, V>(entries: List<MapEntry<K, V>>) -> Map<K, V> fails MapMergeFailure
+  - public fn nonempty_map_from_entries_rejecting_shared_keys<K, V>(entries: NonEmptyList<MapEntry<K, V>>) -> NonEmptyMap<K, V> fails MapMergeFailure
+  - public fn map_from_entries_using_first_bindings<K, V>(entries: List<MapEntry<K, V>>) -> Map<K, V>
+  - public fn nonempty_map_from_entries_using_first_bindings<K, V>(entries: NonEmptyList<MapEntry<K, V>>) -> NonEmptyMap<K, V>
+  - public fn map_from_entries_using_last_bindings<K, V>(entries: List<MapEntry<K, V>>) -> Map<K, V>
+  - public fn nonempty_map_from_entries_using_last_bindings<K, V>(entries: NonEmptyList<MapEntry<K, V>>) -> NonEmptyMap<K, V>
   - public fn test::keep_first(first: ListFirstAndRest<Int>) -> ListFirstAndRest<Int>
       block -> ListFirstAndRest<Int>
         result
@@ -177,3 +219,186 @@ functions:
         result
           call nonempty_list_consume_first<Int> -> ListFirstAndRest<Int>
             local nonempty : NonEmptyList<Int>
+  - public fn test::use_map_cardinality(entries: Map<Text, Int>) -> Map<Text, Int> fails MapCardinalityFailure
+      block -> Map<Text, Int>
+        let required: NonEmptyMap<Text, Int>
+          try
+            call map_require_nonempty<Text, Int> -> NonEmptyMap<Text, Int> fails
+              local entries : Map<Text, Int>
+        result
+          call nonempty_map_widen<Text, Int> -> Map<Text, Int>
+            local required : NonEmptyMap<Text, Int>
+  - public fn test::use_map_binding(entries: Map<Text, Int>, nonempty: NonEmptyMap<Text, Int>, key: Text, value: Int) -> MapBoundValueAndRest<Text, Int> fails MapBindingFailure
+      block -> MapBoundValueAndRest<Text, Int>
+        let empty: Map<Text, Int>
+          call map_empty<Text, Int> -> Map<Text, Int>
+        let single: NonEmptyMap<Text, Int>
+          call map_single<Text, Int> -> NonEmptyMap<Text, Int>
+            local key : Text
+            local value : Int
+        let bind_new: NonEmptyMap<Text, Int>
+          try
+            call map_bind_new<Text, Int> -> NonEmptyMap<Text, Int> fails
+              local entries : Map<Text, Int>
+              local key : Text
+              local value : Int
+        let nonempty_bind_new: NonEmptyMap<Text, Int>
+          try
+            call nonempty_map_bind_new<Text, Int> -> NonEmptyMap<Text, Int> fails
+              local nonempty : NonEmptyMap<Text, Int>
+              local key : Text
+              local value : Int
+        let replaced: NonEmptyMap<Text, Int>
+          try
+            call map_replace_bound<Text, Int> -> NonEmptyMap<Text, Int> fails
+              local entries : Map<Text, Int>
+              local key : Text
+              local value : Int
+        let nonempty_replaced: NonEmptyMap<Text, Int>
+          try
+            call nonempty_map_replace_bound<Text, Int> -> NonEmptyMap<Text, Int> fails
+              local nonempty : NonEmptyMap<Text, Int>
+              local key : Text
+              local value : Int
+        let bound_or_replaced: NonEmptyMap<Text, Int>
+          call map_bind_or_replace<Text, Int> -> NonEmptyMap<Text, Int>
+            local entries : Map<Text, Int>
+            local key : Text
+            local value : Int
+        let nonempty_bound_or_replaced: NonEmptyMap<Text, Int>
+          call nonempty_map_bind_or_replace<Text, Int> -> NonEmptyMap<Text, Int>
+            local nonempty : NonEmptyMap<Text, Int>
+            local key : Text
+            local value : Int
+        let removed: Map<Text, Int>
+          try
+            call map_remove_bound<Text, Int> -> Map<Text, Int> fails
+              local entries : Map<Text, Int>
+              local key : Text
+        let nonempty_removed: Map<Text, Int>
+          try
+            call nonempty_map_remove_bound<Text, Int> -> Map<Text, Int> fails
+              local nonempty : NonEmptyMap<Text, Int>
+              local key : Text
+        let consumed: MapBoundValueAndRest<Text, Int>
+          try
+            call map_consume_bound_value<Text, Int> -> MapBoundValueAndRest<Text, Int> fails
+              local entries : Map<Text, Int>
+              local key : Text
+        result
+          try
+            call nonempty_map_consume_bound_value<Text, Int> -> MapBoundValueAndRest<Text, Int> fails
+              local nonempty : NonEmptyMap<Text, Int>
+              local key : Text
+  - public fn test::use_map_observation(entries: Map<Text, Int>, nonempty: NonEmptyMap<Text, Int>, key: Text) -> NonEmptyList<MapEntry<Text, Int>> fails MapBindingFailure
+      block -> NonEmptyList<MapEntry<Text, Int>>
+        let count: Nat
+          call map_count_copy<Text, Int> -> Nat
+            local entries : Map<Text, Int>
+        let nonempty_count: Nat
+          call nonempty_map_count_copy<Text, Int> -> Nat
+            local nonempty : NonEmptyMap<Text, Int>
+        let looked_up: Int
+          try
+            call map_lookup_copy<Text, Int> -> Int fails
+              local entries : Map<Text, Int>
+              local key : Text
+        let nonempty_looked_up: Int
+          try
+            call nonempty_map_lookup_copy<Text, Int> -> Int fails
+              local nonempty : NonEmptyMap<Text, Int>
+              local key : Text
+        let first_copy: MapEntry<Text, Int>
+          call nonempty_map_first_entry_copy<Text, Int> -> MapEntry<Text, Int>
+            local nonempty : NonEmptyMap<Text, Int>
+        let consumed_first: MapFirstEntryAndRest<Text, Int>
+          call nonempty_map_consume_first_entry<Text, Int> -> MapFirstEntryAndRest<Text, Int>
+            local nonempty : NonEmptyMap<Text, Int>
+        let entries_copy: List<MapEntry<Text, Int>>
+          call map_entries_copy<Text, Int> -> List<MapEntry<Text, Int>>
+            local entries : Map<Text, Int>
+        let nonempty_entries_copy: NonEmptyList<MapEntry<Text, Int>>
+          call nonempty_map_entries_copy<Text, Int> -> NonEmptyList<MapEntry<Text, Int>>
+            local nonempty : NonEmptyMap<Text, Int>
+        let consumed_entries: List<MapEntry<Text, Int>>
+          call map_consume_entries<Text, Int> -> List<MapEntry<Text, Int>>
+            local entries : Map<Text, Int>
+        result
+          call nonempty_map_consume_entries<Text, Int> -> NonEmptyList<MapEntry<Text, Int>>
+            local nonempty : NonEmptyMap<Text, Int>
+  - public fn test::use_map_merge(left: Map<Text, Int>, right: Map<Text, Int>, left_nonempty: NonEmptyMap<Text, Int>, right_nonempty: NonEmptyMap<Text, Int>) -> NonEmptyMap<Text, Int> fails MapMergeFailure
+      block -> NonEmptyMap<Text, Int>
+        let rejected: Map<Text, Int>
+          try
+            call map_merge_rejecting_shared_keys<Text, Int> -> Map<Text, Int> fails
+              local left : Map<Text, Int>
+              local right : Map<Text, Int>
+        let rejected_left_nonempty: NonEmptyMap<Text, Int>
+          try
+            call map_merge_left_nonempty_rejecting_shared_keys<Text, Int> -> NonEmptyMap<Text, Int> fails
+              local left_nonempty : NonEmptyMap<Text, Int>
+              local right : Map<Text, Int>
+        let rejected_right_nonempty: NonEmptyMap<Text, Int>
+          try
+            call map_merge_right_nonempty_rejecting_shared_keys<Text, Int> -> NonEmptyMap<Text, Int> fails
+              local left : Map<Text, Int>
+              local right_nonempty : NonEmptyMap<Text, Int>
+        let rejected_nonempty: NonEmptyMap<Text, Int>
+          try
+            call nonempty_map_merge_rejecting_shared_keys<Text, Int> -> NonEmptyMap<Text, Int> fails
+              local left_nonempty : NonEmptyMap<Text, Int>
+              local right_nonempty : NonEmptyMap<Text, Int>
+        let left_policy: Map<Text, Int>
+          call map_merge_using_left_bindings_for_shared_keys<Text, Int> -> Map<Text, Int>
+            local left : Map<Text, Int>
+            local right : Map<Text, Int>
+        let left_policy_left_nonempty: NonEmptyMap<Text, Int>
+          call map_merge_left_nonempty_using_left_bindings_for_shared_keys<Text, Int> -> NonEmptyMap<Text, Int>
+            local left_nonempty : NonEmptyMap<Text, Int>
+            local right : Map<Text, Int>
+        let left_policy_right_nonempty: NonEmptyMap<Text, Int>
+          call map_merge_right_nonempty_using_left_bindings_for_shared_keys<Text, Int> -> NonEmptyMap<Text, Int>
+            local left : Map<Text, Int>
+            local right_nonempty : NonEmptyMap<Text, Int>
+        let left_policy_nonempty: NonEmptyMap<Text, Int>
+          call nonempty_map_merge_using_left_bindings_for_shared_keys<Text, Int> -> NonEmptyMap<Text, Int>
+            local left_nonempty : NonEmptyMap<Text, Int>
+            local right_nonempty : NonEmptyMap<Text, Int>
+        let right_policy: Map<Text, Int>
+          call map_merge_using_right_bindings_for_shared_keys<Text, Int> -> Map<Text, Int>
+            local left : Map<Text, Int>
+            local right : Map<Text, Int>
+        let right_policy_left_nonempty: NonEmptyMap<Text, Int>
+          call map_merge_left_nonempty_using_right_bindings_for_shared_keys<Text, Int> -> NonEmptyMap<Text, Int>
+            local left_nonempty : NonEmptyMap<Text, Int>
+            local right : Map<Text, Int>
+        let right_policy_right_nonempty: NonEmptyMap<Text, Int>
+          call map_merge_right_nonempty_using_right_bindings_for_shared_keys<Text, Int> -> NonEmptyMap<Text, Int>
+            local left : Map<Text, Int>
+            local right_nonempty : NonEmptyMap<Text, Int>
+        result
+          call nonempty_map_merge_using_right_bindings_for_shared_keys<Text, Int> -> NonEmptyMap<Text, Int>
+            local left_nonempty : NonEmptyMap<Text, Int>
+            local right_nonempty : NonEmptyMap<Text, Int>
+  - public fn test::use_map_from_entries(entries: List<MapEntry<Text, Int>>, nonempty_entries: NonEmptyList<MapEntry<Text, Int>>) -> NonEmptyMap<Text, Int> fails MapMergeFailure
+      block -> NonEmptyMap<Text, Int>
+        let rejected: Map<Text, Int>
+          try
+            call map_from_entries_rejecting_shared_keys<Text, Int> -> Map<Text, Int> fails
+              local entries : List<MapEntry<Text, Int>>
+        let nonempty_rejected: NonEmptyMap<Text, Int>
+          try
+            call nonempty_map_from_entries_rejecting_shared_keys<Text, Int> -> NonEmptyMap<Text, Int> fails
+              local nonempty_entries : NonEmptyList<MapEntry<Text, Int>>
+        let first_policy: Map<Text, Int>
+          call map_from_entries_using_first_bindings<Text, Int> -> Map<Text, Int>
+            local entries : List<MapEntry<Text, Int>>
+        let nonempty_first_policy: NonEmptyMap<Text, Int>
+          call nonempty_map_from_entries_using_first_bindings<Text, Int> -> NonEmptyMap<Text, Int>
+            local nonempty_entries : NonEmptyList<MapEntry<Text, Int>>
+        let last_policy: Map<Text, Int>
+          call map_from_entries_using_last_bindings<Text, Int> -> Map<Text, Int>
+            local entries : List<MapEntry<Text, Int>>
+        result
+          call nonempty_map_from_entries_using_last_bindings<Text, Int> -> NonEmptyMap<Text, Int>
+            local nonempty_entries : NonEmptyList<MapEntry<Text, Int>>

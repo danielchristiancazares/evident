@@ -97,4 +97,61 @@ public fn use_list_operations(values: List<Int>, more: List<Int>, nonempty: NonE
     let first = nonempty_list_first_copy<Int>(nonempty)
     nonempty_list_consume_first<Int>(nonempty)
 }
+
+public fn use_map_cardinality(entries: Map<Text, Int>) -> Map<Text, Int> fails MapCardinalityFailure {
+    let required = try map_require_nonempty<Text, Int>(entries)
+    nonempty_map_widen<Text, Int>(required)
+}
+
+public fn use_map_binding(entries: Map<Text, Int>, nonempty: NonEmptyMap<Text, Int>, key: Text, value: Int) -> MapBoundValueAndRest<Text, Int> fails MapBindingFailure {
+    let empty = map_empty<Text, Int>()
+    let single = map_single<Text, Int>(key, value)
+    let bind_new = try map_bind_new<Text, Int>(entries, key, value)
+    let nonempty_bind_new = try nonempty_map_bind_new<Text, Int>(nonempty, key, value)
+    let replaced = try map_replace_bound<Text, Int>(entries, key, value)
+    let nonempty_replaced = try nonempty_map_replace_bound<Text, Int>(nonempty, key, value)
+    let bound_or_replaced = map_bind_or_replace<Text, Int>(entries, key, value)
+    let nonempty_bound_or_replaced = nonempty_map_bind_or_replace<Text, Int>(nonempty, key, value)
+    let removed = try map_remove_bound<Text, Int>(entries, key)
+    let nonempty_removed = try nonempty_map_remove_bound<Text, Int>(nonempty, key)
+    let consumed = try map_consume_bound_value<Text, Int>(entries, key)
+    try nonempty_map_consume_bound_value<Text, Int>(nonempty, key)
+}
+
+public fn use_map_observation(entries: Map<Text, Int>, nonempty: NonEmptyMap<Text, Int>, key: Text) -> NonEmptyList<MapEntry<Text, Int>> fails MapBindingFailure {
+    let count = map_count_copy<Text, Int>(entries)
+    let nonempty_count = nonempty_map_count_copy<Text, Int>(nonempty)
+    let looked_up = try map_lookup_copy<Text, Int>(entries, key)
+    let nonempty_looked_up = try nonempty_map_lookup_copy<Text, Int>(nonempty, key)
+    let first_copy = nonempty_map_first_entry_copy<Text, Int>(nonempty)
+    let consumed_first = nonempty_map_consume_first_entry<Text, Int>(nonempty)
+    let entries_copy = map_entries_copy<Text, Int>(entries)
+    let nonempty_entries_copy = nonempty_map_entries_copy<Text, Int>(nonempty)
+    let consumed_entries = map_consume_entries<Text, Int>(entries)
+    nonempty_map_consume_entries<Text, Int>(nonempty)
+}
+
+public fn use_map_merge(left: Map<Text, Int>, right: Map<Text, Int>, left_nonempty: NonEmptyMap<Text, Int>, right_nonempty: NonEmptyMap<Text, Int>) -> NonEmptyMap<Text, Int> fails MapMergeFailure {
+    let rejected = try map_merge_rejecting_shared_keys<Text, Int>(left, right)
+    let rejected_left_nonempty = try map_merge_left_nonempty_rejecting_shared_keys<Text, Int>(left_nonempty, right)
+    let rejected_right_nonempty = try map_merge_right_nonempty_rejecting_shared_keys<Text, Int>(left, right_nonempty)
+    let rejected_nonempty = try nonempty_map_merge_rejecting_shared_keys<Text, Int>(left_nonempty, right_nonempty)
+    let left_policy = map_merge_using_left_bindings_for_shared_keys<Text, Int>(left, right)
+    let left_policy_left_nonempty = map_merge_left_nonempty_using_left_bindings_for_shared_keys<Text, Int>(left_nonempty, right)
+    let left_policy_right_nonempty = map_merge_right_nonempty_using_left_bindings_for_shared_keys<Text, Int>(left, right_nonempty)
+    let left_policy_nonempty = nonempty_map_merge_using_left_bindings_for_shared_keys<Text, Int>(left_nonempty, right_nonempty)
+    let right_policy = map_merge_using_right_bindings_for_shared_keys<Text, Int>(left, right)
+    let right_policy_left_nonempty = map_merge_left_nonempty_using_right_bindings_for_shared_keys<Text, Int>(left_nonempty, right)
+    let right_policy_right_nonempty = map_merge_right_nonempty_using_right_bindings_for_shared_keys<Text, Int>(left, right_nonempty)
+    nonempty_map_merge_using_right_bindings_for_shared_keys<Text, Int>(left_nonempty, right_nonempty)
+}
+
+public fn use_map_from_entries(entries: List<MapEntry<Text, Int>>, nonempty_entries: NonEmptyList<MapEntry<Text, Int>>) -> NonEmptyMap<Text, Int> fails MapMergeFailure {
+    let rejected = try map_from_entries_rejecting_shared_keys<Text, Int>(entries)
+    let nonempty_rejected = try nonempty_map_from_entries_rejecting_shared_keys<Text, Int>(nonempty_entries)
+    let first_policy = map_from_entries_using_first_bindings<Text, Int>(entries)
+    let nonempty_first_policy = nonempty_map_from_entries_using_first_bindings<Text, Int>(nonempty_entries)
+    let last_policy = map_from_entries_using_last_bindings<Text, Int>(entries)
+    nonempty_map_from_entries_using_last_bindings<Text, Int>(nonempty_entries)
+}
 }

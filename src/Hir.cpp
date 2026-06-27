@@ -102,10 +102,19 @@ const std::vector<std::pair<std::string_view, std::vector<std::string_view>>> kC
 
 enum class CollectionTypeTemplate {
     GenericT,
+    GenericK,
+    GenericV,
     Nat,
     ListT,
     NonEmptyListT,
     ListFirstAndRestT,
+    MapKV,
+    NonEmptyMapKV,
+    MapEntryKV,
+    MapFirstEntryAndRestKV,
+    MapBoundValueAndRestKV,
+    ListMapEntryKV,
+    NonEmptyListMapEntryKV,
 };
 
 struct CollectionFunctionParamSpec {
@@ -115,58 +124,284 @@ struct CollectionFunctionParamSpec {
 
 struct CollectionFunctionSpec {
     std::string_view name;
+    std::vector<std::string_view> generic_params;
     std::vector<CollectionFunctionParamSpec> params;
     CollectionTypeTemplate return_type;
     std::string_view failure_reason;
 };
 
-const std::vector<CollectionFunctionSpec> kCompilerOwnedListFunctionSpecs = {
-    {"list_empty", {}, CollectionTypeTemplate::ListT, {}},
-    {"list_single", {{"value", CollectionTypeTemplate::GenericT}}, CollectionTypeTemplate::NonEmptyListT, {}},
+const std::vector<CollectionFunctionSpec> kCompilerOwnedCollectionFunctionSpecs = {
+    {"list_empty", {"T"}, {}, CollectionTypeTemplate::ListT, {}},
+    {"list_single", {"T"}, {{"value", CollectionTypeTemplate::GenericT}}, CollectionTypeTemplate::NonEmptyListT, {}},
     {"list_prepend",
+     {"T"},
      {{"value", CollectionTypeTemplate::GenericT}, {"values", CollectionTypeTemplate::ListT}},
      CollectionTypeTemplate::NonEmptyListT,
      {}},
     {"list_append",
+     {"T"},
      {{"values", CollectionTypeTemplate::ListT}, {"value", CollectionTypeTemplate::GenericT}},
      CollectionTypeTemplate::NonEmptyListT,
      {}},
     {"list_concat",
+     {"T"},
      {{"left", CollectionTypeTemplate::ListT}, {"right", CollectionTypeTemplate::ListT}},
      CollectionTypeTemplate::ListT,
      {}},
     {"nonempty_list_concat_left",
+     {"T"},
      {{"left", CollectionTypeTemplate::NonEmptyListT}, {"right", CollectionTypeTemplate::ListT}},
      CollectionTypeTemplate::NonEmptyListT,
      {}},
     {"nonempty_list_concat_right",
+     {"T"},
      {{"left", CollectionTypeTemplate::ListT}, {"right", CollectionTypeTemplate::NonEmptyListT}},
      CollectionTypeTemplate::NonEmptyListT,
      {}},
     {"nonempty_list_concat",
+     {"T"},
      {{"left", CollectionTypeTemplate::NonEmptyListT}, {"right", CollectionTypeTemplate::NonEmptyListT}},
      CollectionTypeTemplate::NonEmptyListT,
      {}},
     {"list_require_nonempty",
+     {"T"},
      {{"values", CollectionTypeTemplate::ListT}},
      CollectionTypeTemplate::NonEmptyListT,
      "ListCardinalityFailure"},
     {"nonempty_list_widen",
+     {"T"},
      {{"values", CollectionTypeTemplate::NonEmptyListT}},
      CollectionTypeTemplate::ListT,
      {}},
-    {"list_count_copy", {{"values", CollectionTypeTemplate::ListT}}, CollectionTypeTemplate::Nat, {}},
+    {"list_count_copy", {"T"}, {{"values", CollectionTypeTemplate::ListT}}, CollectionTypeTemplate::Nat, {}},
     {"nonempty_list_count_copy",
+     {"T"},
      {{"values", CollectionTypeTemplate::NonEmptyListT}},
      CollectionTypeTemplate::Nat,
      {}},
     {"nonempty_list_first_copy",
+     {"T"},
      {{"values", CollectionTypeTemplate::NonEmptyListT}},
      CollectionTypeTemplate::GenericT,
      {}},
     {"nonempty_list_consume_first",
+     {"T"},
      {{"values", CollectionTypeTemplate::NonEmptyListT}},
      CollectionTypeTemplate::ListFirstAndRestT,
+     {}},
+    {"map_empty", {"K", "V"}, {}, CollectionTypeTemplate::MapKV, {}},
+    {"map_single",
+     {"K", "V"},
+     {{"key", CollectionTypeTemplate::GenericK}, {"value", CollectionTypeTemplate::GenericV}},
+     CollectionTypeTemplate::NonEmptyMapKV,
+     {}},
+    {"map_require_nonempty",
+     {"K", "V"},
+     {{"entries", CollectionTypeTemplate::MapKV}},
+     CollectionTypeTemplate::NonEmptyMapKV,
+     "MapCardinalityFailure"},
+    {"nonempty_map_widen",
+     {"K", "V"},
+     {{"entries", CollectionTypeTemplate::NonEmptyMapKV}},
+     CollectionTypeTemplate::MapKV,
+     {}},
+    {"map_bind_new",
+     {"K", "V"},
+     {{"entries", CollectionTypeTemplate::MapKV},
+      {"key", CollectionTypeTemplate::GenericK},
+      {"value", CollectionTypeTemplate::GenericV}},
+     CollectionTypeTemplate::NonEmptyMapKV,
+     "MapBindingFailure"},
+    {"nonempty_map_bind_new",
+     {"K", "V"},
+     {{"entries", CollectionTypeTemplate::NonEmptyMapKV},
+      {"key", CollectionTypeTemplate::GenericK},
+      {"value", CollectionTypeTemplate::GenericV}},
+     CollectionTypeTemplate::NonEmptyMapKV,
+     "MapBindingFailure"},
+    {"map_replace_bound",
+     {"K", "V"},
+     {{"entries", CollectionTypeTemplate::MapKV},
+      {"key", CollectionTypeTemplate::GenericK},
+      {"value", CollectionTypeTemplate::GenericV}},
+     CollectionTypeTemplate::NonEmptyMapKV,
+     "MapBindingFailure"},
+    {"nonempty_map_replace_bound",
+     {"K", "V"},
+     {{"entries", CollectionTypeTemplate::NonEmptyMapKV},
+      {"key", CollectionTypeTemplate::GenericK},
+      {"value", CollectionTypeTemplate::GenericV}},
+     CollectionTypeTemplate::NonEmptyMapKV,
+     "MapBindingFailure"},
+    {"map_bind_or_replace",
+     {"K", "V"},
+     {{"entries", CollectionTypeTemplate::MapKV},
+      {"key", CollectionTypeTemplate::GenericK},
+      {"value", CollectionTypeTemplate::GenericV}},
+     CollectionTypeTemplate::NonEmptyMapKV,
+     {}},
+    {"nonempty_map_bind_or_replace",
+     {"K", "V"},
+     {{"entries", CollectionTypeTemplate::NonEmptyMapKV},
+      {"key", CollectionTypeTemplate::GenericK},
+      {"value", CollectionTypeTemplate::GenericV}},
+     CollectionTypeTemplate::NonEmptyMapKV,
+     {}},
+    {"map_remove_bound",
+     {"K", "V"},
+     {{"entries", CollectionTypeTemplate::MapKV}, {"key", CollectionTypeTemplate::GenericK}},
+     CollectionTypeTemplate::MapKV,
+     "MapBindingFailure"},
+    {"nonempty_map_remove_bound",
+     {"K", "V"},
+     {{"entries", CollectionTypeTemplate::NonEmptyMapKV}, {"key", CollectionTypeTemplate::GenericK}},
+     CollectionTypeTemplate::MapKV,
+     "MapBindingFailure"},
+    {"map_consume_bound_value",
+     {"K", "V"},
+     {{"entries", CollectionTypeTemplate::MapKV}, {"key", CollectionTypeTemplate::GenericK}},
+     CollectionTypeTemplate::MapBoundValueAndRestKV,
+     "MapBindingFailure"},
+    {"nonempty_map_consume_bound_value",
+     {"K", "V"},
+     {{"entries", CollectionTypeTemplate::NonEmptyMapKV}, {"key", CollectionTypeTemplate::GenericK}},
+     CollectionTypeTemplate::MapBoundValueAndRestKV,
+     "MapBindingFailure"},
+    {"map_count_copy", {"K", "V"}, {{"entries", CollectionTypeTemplate::MapKV}}, CollectionTypeTemplate::Nat, {}},
+    {"nonempty_map_count_copy",
+     {"K", "V"},
+     {{"entries", CollectionTypeTemplate::NonEmptyMapKV}},
+     CollectionTypeTemplate::Nat,
+     {}},
+    {"map_lookup_copy",
+     {"K", "V"},
+     {{"entries", CollectionTypeTemplate::MapKV}, {"key", CollectionTypeTemplate::GenericK}},
+     CollectionTypeTemplate::GenericV,
+     "MapBindingFailure"},
+    {"nonempty_map_lookup_copy",
+     {"K", "V"},
+     {{"entries", CollectionTypeTemplate::NonEmptyMapKV}, {"key", CollectionTypeTemplate::GenericK}},
+     CollectionTypeTemplate::GenericV,
+     "MapBindingFailure"},
+    {"nonempty_map_first_entry_copy",
+     {"K", "V"},
+     {{"entries", CollectionTypeTemplate::NonEmptyMapKV}},
+     CollectionTypeTemplate::MapEntryKV,
+     {}},
+    {"nonempty_map_consume_first_entry",
+     {"K", "V"},
+     {{"entries", CollectionTypeTemplate::NonEmptyMapKV}},
+     CollectionTypeTemplate::MapFirstEntryAndRestKV,
+     {}},
+    {"map_entries_copy",
+     {"K", "V"},
+     {{"entries", CollectionTypeTemplate::MapKV}},
+     CollectionTypeTemplate::ListMapEntryKV,
+     {}},
+    {"nonempty_map_entries_copy",
+     {"K", "V"},
+     {{"entries", CollectionTypeTemplate::NonEmptyMapKV}},
+     CollectionTypeTemplate::NonEmptyListMapEntryKV,
+     {}},
+    {"map_consume_entries",
+     {"K", "V"},
+     {{"entries", CollectionTypeTemplate::MapKV}},
+     CollectionTypeTemplate::ListMapEntryKV,
+     {}},
+    {"nonempty_map_consume_entries",
+     {"K", "V"},
+     {{"entries", CollectionTypeTemplate::NonEmptyMapKV}},
+     CollectionTypeTemplate::NonEmptyListMapEntryKV,
+     {}},
+    {"map_merge_rejecting_shared_keys",
+     {"K", "V"},
+     {{"left", CollectionTypeTemplate::MapKV}, {"right", CollectionTypeTemplate::MapKV}},
+     CollectionTypeTemplate::MapKV,
+     "MapMergeFailure"},
+    {"map_merge_left_nonempty_rejecting_shared_keys",
+     {"K", "V"},
+     {{"left", CollectionTypeTemplate::NonEmptyMapKV}, {"right", CollectionTypeTemplate::MapKV}},
+     CollectionTypeTemplate::NonEmptyMapKV,
+     "MapMergeFailure"},
+    {"map_merge_right_nonempty_rejecting_shared_keys",
+     {"K", "V"},
+     {{"left", CollectionTypeTemplate::MapKV}, {"right", CollectionTypeTemplate::NonEmptyMapKV}},
+     CollectionTypeTemplate::NonEmptyMapKV,
+     "MapMergeFailure"},
+    {"nonempty_map_merge_rejecting_shared_keys",
+     {"K", "V"},
+     {{"left", CollectionTypeTemplate::NonEmptyMapKV}, {"right", CollectionTypeTemplate::NonEmptyMapKV}},
+     CollectionTypeTemplate::NonEmptyMapKV,
+     "MapMergeFailure"},
+    {"map_merge_using_left_bindings_for_shared_keys",
+     {"K", "V"},
+     {{"left", CollectionTypeTemplate::MapKV}, {"right", CollectionTypeTemplate::MapKV}},
+     CollectionTypeTemplate::MapKV,
+     {}},
+    {"map_merge_left_nonempty_using_left_bindings_for_shared_keys",
+     {"K", "V"},
+     {{"left", CollectionTypeTemplate::NonEmptyMapKV}, {"right", CollectionTypeTemplate::MapKV}},
+     CollectionTypeTemplate::NonEmptyMapKV,
+     {}},
+    {"map_merge_right_nonempty_using_left_bindings_for_shared_keys",
+     {"K", "V"},
+     {{"left", CollectionTypeTemplate::MapKV}, {"right", CollectionTypeTemplate::NonEmptyMapKV}},
+     CollectionTypeTemplate::NonEmptyMapKV,
+     {}},
+    {"nonempty_map_merge_using_left_bindings_for_shared_keys",
+     {"K", "V"},
+     {{"left", CollectionTypeTemplate::NonEmptyMapKV}, {"right", CollectionTypeTemplate::NonEmptyMapKV}},
+     CollectionTypeTemplate::NonEmptyMapKV,
+     {}},
+    {"map_merge_using_right_bindings_for_shared_keys",
+     {"K", "V"},
+     {{"left", CollectionTypeTemplate::MapKV}, {"right", CollectionTypeTemplate::MapKV}},
+     CollectionTypeTemplate::MapKV,
+     {}},
+    {"map_merge_left_nonempty_using_right_bindings_for_shared_keys",
+     {"K", "V"},
+     {{"left", CollectionTypeTemplate::NonEmptyMapKV}, {"right", CollectionTypeTemplate::MapKV}},
+     CollectionTypeTemplate::NonEmptyMapKV,
+     {}},
+    {"map_merge_right_nonempty_using_right_bindings_for_shared_keys",
+     {"K", "V"},
+     {{"left", CollectionTypeTemplate::MapKV}, {"right", CollectionTypeTemplate::NonEmptyMapKV}},
+     CollectionTypeTemplate::NonEmptyMapKV,
+     {}},
+    {"nonempty_map_merge_using_right_bindings_for_shared_keys",
+     {"K", "V"},
+     {{"left", CollectionTypeTemplate::NonEmptyMapKV}, {"right", CollectionTypeTemplate::NonEmptyMapKV}},
+     CollectionTypeTemplate::NonEmptyMapKV,
+     {}},
+    {"map_from_entries_rejecting_shared_keys",
+     {"K", "V"},
+     {{"entries", CollectionTypeTemplate::ListMapEntryKV}},
+     CollectionTypeTemplate::MapKV,
+     "MapMergeFailure"},
+    {"nonempty_map_from_entries_rejecting_shared_keys",
+     {"K", "V"},
+     {{"entries", CollectionTypeTemplate::NonEmptyListMapEntryKV}},
+     CollectionTypeTemplate::NonEmptyMapKV,
+     "MapMergeFailure"},
+    {"map_from_entries_using_first_bindings",
+     {"K", "V"},
+     {{"entries", CollectionTypeTemplate::ListMapEntryKV}},
+     CollectionTypeTemplate::MapKV,
+     {}},
+    {"nonempty_map_from_entries_using_first_bindings",
+     {"K", "V"},
+     {{"entries", CollectionTypeTemplate::NonEmptyListMapEntryKV}},
+     CollectionTypeTemplate::NonEmptyMapKV,
+     {}},
+    {"map_from_entries_using_last_bindings",
+     {"K", "V"},
+     {{"entries", CollectionTypeTemplate::ListMapEntryKV}},
+     CollectionTypeTemplate::MapKV,
+     {}},
+    {"nonempty_map_from_entries_using_last_bindings",
+     {"K", "V"},
+     {{"entries", CollectionTypeTemplate::NonEmptyListMapEntryKV}},
+     CollectionTypeTemplate::NonEmptyMapKV,
      {}},
 };
 
@@ -590,7 +825,7 @@ void Lowerer::declare_referenced_collection_reasons(const std::vector<std::uniqu
 }
 
 const CollectionFunctionSpec* Lowerer::collection_function_spec(std::string_view function_name) const {
-    for (const CollectionFunctionSpec& spec : kCompilerOwnedListFunctionSpecs) {
+    for (const CollectionFunctionSpec& spec : kCompilerOwnedCollectionFunctionSpecs) {
         if (spec.name == function_name) {
             return &spec;
         }
@@ -611,23 +846,58 @@ ast::TypeRef Lowerer::collection_type_ref(CollectionTypeTemplate type_template) 
         return type;
     };
 
-    auto single_arg_type = [&](std::string_view name) {
+    auto list_arg_type = [&](std::string_view name) {
         ast::TypeRef type = named_type(name);
         type.args.push_back(named_type("T"));
+        return type;
+    };
+
+    auto map_arg_type = [&](std::string_view name) {
+        ast::TypeRef type = named_type(name);
+        type.args.push_back(named_type("K"));
+        type.args.push_back(named_type("V"));
+        return type;
+    };
+
+    auto map_entry_type = [&] {
+        return map_arg_type("MapEntry");
+    };
+
+    auto list_of_map_entries_type = [&](std::string_view name) {
+        ast::TypeRef type = named_type(name);
+        type.args.push_back(map_entry_type());
         return type;
     };
 
     switch (type_template) {
     case CollectionTypeTemplate::GenericT:
         return named_type("T");
+    case CollectionTypeTemplate::GenericK:
+        return named_type("K");
+    case CollectionTypeTemplate::GenericV:
+        return named_type("V");
     case CollectionTypeTemplate::Nat:
         return named_type("Nat");
     case CollectionTypeTemplate::ListT:
-        return single_arg_type("List");
+        return list_arg_type("List");
     case CollectionTypeTemplate::NonEmptyListT:
-        return single_arg_type("NonEmptyList");
+        return list_arg_type("NonEmptyList");
     case CollectionTypeTemplate::ListFirstAndRestT:
-        return single_arg_type("ListFirstAndRest");
+        return list_arg_type("ListFirstAndRest");
+    case CollectionTypeTemplate::MapKV:
+        return map_arg_type("Map");
+    case CollectionTypeTemplate::NonEmptyMapKV:
+        return map_arg_type("NonEmptyMap");
+    case CollectionTypeTemplate::MapEntryKV:
+        return map_entry_type();
+    case CollectionTypeTemplate::MapFirstEntryAndRestKV:
+        return map_arg_type("MapFirstEntryAndRest");
+    case CollectionTypeTemplate::MapBoundValueAndRestKV:
+        return map_arg_type("MapBoundValueAndRest");
+    case CollectionTypeTemplate::ListMapEntryKV:
+        return list_of_map_entries_type("List");
+    case CollectionTypeTemplate::NonEmptyListMapEntryKV:
+        return list_of_map_entries_type("NonEmptyList");
     }
     return named_type("T");
 }
@@ -639,7 +909,9 @@ std::unique_ptr<ast::FunctionDecl> Lowerer::make_collection_function_decl(
         std::string(spec.name),
         ast::FunctionImplementation::EvidentBody);
     function->signature.name = function->name;
-    function->signature.generic_params.push_back(ast::GenericParam{"T", SourceSpan{}});
+    for (std::string_view generic_name : spec.generic_params) {
+        function->signature.generic_params.push_back(ast::GenericParam{std::string(generic_name), SourceSpan{}});
+    }
     function->signature.return_type = collection_type_ref(spec.return_type);
     if (!spec.failure_reason.empty()) {
         function->signature.failure = ast::FunctionFailureContract::yields_reason(

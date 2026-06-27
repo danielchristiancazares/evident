@@ -12,4 +12,8 @@ public fn main() -> Int {
 public fn collection_missing_type_args() -> List<Int> {
     list_empty()
 }
+
+public fn map_missing_type_args() -> Map<Text, Int> {
+    map_empty()
+}
 }

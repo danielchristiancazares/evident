@@ -4,3 +4,6 @@
 <input>:13:5: error: generic function 'list_empty' requires explicit type arguments
         list_empty()
         ^^^^^^^^^^^^
+<input>:17:5: error: generic function 'map_empty' requires explicit type arguments
+        map_empty()
+        ^^^^^^^^^^^
