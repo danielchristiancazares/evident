@@ -1,0 +1,5 @@
+foundation module support {
+fn choose<Left Right>(left: Left, right: Right) -> Left {
+    left
+}
+}

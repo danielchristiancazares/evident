@@ -1,0 +1,3 @@
+<input>:2:18: error: expected ',' between generic parameters
+    record Pair<Left Right> {
+                     ^^^^^

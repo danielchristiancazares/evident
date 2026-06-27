@@ -1,0 +1,6 @@
+foundation module support {
+record Pair<Left Right> {
+    left: Left,
+    right: Right,
+}
+}

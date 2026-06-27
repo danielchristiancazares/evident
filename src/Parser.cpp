@@ -21,6 +21,11 @@ enum class ParameterSeparatorRecovery {
     ContinueWithNextParameter,
 };
 
+enum class GenericParameterSeparatorRecovery {
+    StopGenericParameterList,
+    ContinueWithNextParameter,
+};
+
 enum class VariantSeparatorRecovery {
     StopVariantBlock,
     ContinueWithNextVariant,
@@ -96,6 +101,21 @@ ParameterSeparatorRecovery parameter_after_missing_separator(TokenKind first, To
         return ParameterSeparatorRecovery::ContinueWithNextParameter;
     }
     return ParameterSeparatorRecovery::StopParameterList;
+}
+
+GenericParameterSeparatorRecovery generic_parameter_after_missing_separator(TokenKind first,
+                                                                            TokenKind second) {
+    if (first != TokenKind::Identifier) {
+        return GenericParameterSeparatorRecovery::StopGenericParameterList;
+    }
+    switch (second) {
+    case TokenKind::Comma:
+    case TokenKind::Identifier:
+    case TokenKind::RightAngle:
+        return GenericParameterSeparatorRecovery::ContinueWithNextParameter;
+    default:
+        return GenericParameterSeparatorRecovery::StopGenericParameterList;
+    }
 }
 
 VariantSeparatorRecovery variant_after_missing_separator(TokenKind first, TokenKind second) {
@@ -582,10 +602,19 @@ std::vector<ast::GenericParam> Parser::parse_generic_params() {
         return params;
     }
 
-    do {
+    for (;;) {
         const Token name = expect(TokenKind::Identifier, "expected generic parameter name");
         params.push_back(ast::GenericParam{token_text(name), name.span()});
-    } while (consume_if(TokenKind::Comma) == TokenConsumptionState::Consumed);
+        if (consume_if(TokenKind::Comma) == TokenConsumptionState::Consumed) {
+            continue;
+        }
+        if (generic_parameter_after_missing_separator(peek().kind(), peek(1).kind())
+            == GenericParameterSeparatorRecovery::ContinueWithNextParameter) {
+            diagnostics_.error(peek().span(), "expected ',' between generic parameters");
+            continue;
+        }
+        break;
+    }
 
     expect(TokenKind::RightAngle, "expected '>' after generic parameter list");
     return params;

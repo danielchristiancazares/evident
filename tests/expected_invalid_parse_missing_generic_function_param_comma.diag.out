@@ -1,0 +1,3 @@
+<input>:2:16: error: expected ',' between generic parameters
+    fn choose<Left Right>(left: Left, right: Right) -> Left {
+                   ^^^^^
