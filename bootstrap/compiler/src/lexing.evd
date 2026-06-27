@@ -54,18 +54,52 @@ public fn token(category: TokenCategory, lexeme: Text, span: SourceSpan) -> Toke
     }
 }
 
+fn append_token(tokens: NonEmptyList<Token>, token: Token) -> NonEmptyList<Token> {
+    let widened = nonempty_list_widen<Token>(tokens);
+    list_append<Token>(widened, token)
+}
+
+fn seed_module_token(path_text: Text, lexeme: Text) -> Token {
+    let source_path = bootstrap_source::SourcePath { text: path_text };
+    let span = source_span(source_path, 0, 30);
+    token(IdentifierNamedReference, lexeme, span)
+}
+
 public fn seed_token_stream() -> TokenStream {
-    let manifest_path = bootstrap_source::SourcePath { text: "bootstrap/compiler/evident.pkg" };
-    let first_span = source_span(manifest_path, 0, 10);
-    let first_token = token(IdentifierNamedReference, "bootstrap", first_span);
+    let host_token = seed_module_token("bootstrap/compiler/src/host.evd", "bootstrap_host");
+    let host = list_single<Token>(host_token);
+    let environment_token = seed_module_token("bootstrap/compiler/src/environment.evd", "bootstrap_environment");
+    let environment = append_token(host, environment_token);
+    let source_token = seed_module_token("bootstrap/compiler/src/source.evd", "bootstrap_source");
+    let source = append_token(environment, source_token);
+    let lexing_token = seed_module_token("bootstrap/compiler/src/lexing.evd", "bootstrap_lexing");
+    let lexing = append_token(source, lexing_token);
+    let parsing_token = seed_module_token("bootstrap/compiler/src/parsing.evd", "bootstrap_parsing");
+    let parsing = append_token(lexing, parsing_token);
+    let semantics_token = seed_module_token("bootstrap/compiler/src/semantics.evd", "bootstrap_semantics");
+    let semantics = append_token(parsing, semantics_token);
+    let diagnostics_token = seed_module_token("bootstrap/compiler/src/diagnostics.evd", "bootstrap_diagnostics");
+    let diagnostics = append_token(semantics, diagnostics_token);
+    let discovery_token = seed_module_token("bootstrap/compiler/src/discovery.evd", "bootstrap_discovery");
+    let discovery = append_token(diagnostics, discovery_token);
+    let pipeline_token = seed_module_token("bootstrap/compiler/src/pipeline.evd", "bootstrap_pipeline");
+    let pipeline = append_token(discovery, pipeline_token);
+    let layout_token = seed_module_token("bootstrap/compiler/src/layout.evd", "bootstrap_layout");
+    let layout = append_token(pipeline, layout_token);
+    let manifest_token = seed_module_token("bootstrap/compiler/src/manifest.evd", "bootstrap_manifest");
+    let manifest = append_token(layout, manifest_token);
+    let release_token = seed_module_token("bootstrap/compiler/src/release.evd", "bootstrap_release");
+    let release = append_token(manifest, release_token);
+    let compiler_token = seed_module_token("bootstrap/compiler/src/main.evd", "bootstrap_compiler");
+    let compiler = append_token(release, compiler_token);
 
     TokenStream {
-        tokens: list_single<Token>(first_token),
+        tokens: compiler,
     }
 }
 
 public fn seed_token_stream_size() -> Int {
     let stream = seed_token_stream();
-    1
+    13
 }
 }

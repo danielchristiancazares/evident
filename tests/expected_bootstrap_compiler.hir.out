@@ -253,13 +253,13 @@ types:
       field outline: bootstrap_pipeline::BootstrapOutlineRecorded [affine]
 functions:
   - public fn nonempty_list_count_copy<T>(values: NonEmptyList<T>) -> Nat
+  - public fn nonempty_list_widen<T>(values: NonEmptyList<T>) -> List<T>
+  - public fn list_append<T>(values: List<T>, value: T) -> NonEmptyList<T>
   - public fn list_single<T>(value: T) -> NonEmptyList<T>
+  - public fn nonempty_map_bind_or_replace<K, V>(entries: NonEmptyMap<K, V>, key: K, value: V) -> NonEmptyMap<K, V>
   - public fn map_single<K, V>(key: K, value: V) -> NonEmptyMap<K, V>
   - public fn nonempty_map_count_copy<K, V>(entries: NonEmptyMap<K, V>) -> Nat
   - public fn list_empty<T>() -> List<T>
-  - public fn nonempty_list_widen<T>(values: NonEmptyList<T>) -> List<T>
-  - public fn list_append<T>(values: List<T>, value: T) -> NonEmptyList<T>
-  - public fn nonempty_map_bind_or_replace<K, V>(entries: NonEmptyMap<K, V>, key: K, value: V) -> NonEmptyMap<K, V>
   - public fn nonempty_map_lookup_copy<K, V>(entries: NonEmptyMap<K, V>, key: K) -> V fails MapBindingFailure
   - public fn bootstrap_source::source_file(path: Text, contents: Text) -> bootstrap_source::SourceFile
       block -> bootstrap_source::SourceFile
@@ -333,33 +333,146 @@ functions:
               local lexeme : Text
             init span [shorthand]
               local span : bootstrap_lexing::SourceSpan
-  - public fn bootstrap_lexing::seed_token_stream() -> bootstrap_lexing::TokenStream
-      block -> bootstrap_lexing::TokenStream
-        let manifest_path: bootstrap_source::SourcePath
+  - private fn bootstrap_lexing::append_token(tokens: NonEmptyList<bootstrap_lexing::Token>, token: bootstrap_lexing::Token) -> NonEmptyList<bootstrap_lexing::Token>
+      block -> NonEmptyList<bootstrap_lexing::Token>
+        let widened: List<bootstrap_lexing::Token>
+          call nonempty_list_widen<bootstrap_lexing::Token> -> List<bootstrap_lexing::Token>
+            local tokens : NonEmptyList<bootstrap_lexing::Token>
+        result
+          call list_append<bootstrap_lexing::Token> -> NonEmptyList<bootstrap_lexing::Token>
+            local widened : List<bootstrap_lexing::Token>
+            local token : bootstrap_lexing::Token
+  - private fn bootstrap_lexing::seed_module_token(path_text: Text, lexeme: Text) -> bootstrap_lexing::Token
+      block -> bootstrap_lexing::Token
+        let source_path: bootstrap_source::SourcePath
           construct bootstrap_source::SourcePath : bootstrap_source::SourcePath
             init text
-              string "bootstrap/compiler/evident.pkg" : Text
-        let first_span: bootstrap_lexing::SourceSpan
+              local path_text : Text
+        let span: bootstrap_lexing::SourceSpan
           call bootstrap_lexing::source_span -> bootstrap_lexing::SourceSpan
-            local manifest_path : bootstrap_source::SourcePath
+            local source_path : bootstrap_source::SourcePath
             number 0 : Int
-            number 10 : Int
-        let first_token: bootstrap_lexing::Token
+            number 30 : Int
+        result
           call bootstrap_lexing::token -> bootstrap_lexing::Token
             construct bootstrap_lexing::TokenCategory::IdentifierNamedReference : bootstrap_lexing::TokenCategory
-            string "bootstrap" : Text
-            local first_span : bootstrap_lexing::SourceSpan
+            local lexeme : Text
+            local span : bootstrap_lexing::SourceSpan
+  - public fn bootstrap_lexing::seed_token_stream() -> bootstrap_lexing::TokenStream
+      block -> bootstrap_lexing::TokenStream
+        let host_token: bootstrap_lexing::Token
+          call bootstrap_lexing::seed_module_token -> bootstrap_lexing::Token
+            string "bootstrap/compiler/src/host.evd" : Text
+            string "bootstrap_host" : Text
+        let host: NonEmptyList<bootstrap_lexing::Token>
+          call list_single<bootstrap_lexing::Token> -> NonEmptyList<bootstrap_lexing::Token>
+            local host_token : bootstrap_lexing::Token
+        let environment_token: bootstrap_lexing::Token
+          call bootstrap_lexing::seed_module_token -> bootstrap_lexing::Token
+            string "bootstrap/compiler/src/environment.evd" : Text
+            string "bootstrap_environment" : Text
+        let environment: NonEmptyList<bootstrap_lexing::Token>
+          call bootstrap_lexing::append_token -> NonEmptyList<bootstrap_lexing::Token>
+            local host : NonEmptyList<bootstrap_lexing::Token>
+            local environment_token : bootstrap_lexing::Token
+        let source_token: bootstrap_lexing::Token
+          call bootstrap_lexing::seed_module_token -> bootstrap_lexing::Token
+            string "bootstrap/compiler/src/source.evd" : Text
+            string "bootstrap_source" : Text
+        let source: NonEmptyList<bootstrap_lexing::Token>
+          call bootstrap_lexing::append_token -> NonEmptyList<bootstrap_lexing::Token>
+            local environment : NonEmptyList<bootstrap_lexing::Token>
+            local source_token : bootstrap_lexing::Token
+        let lexing_token: bootstrap_lexing::Token
+          call bootstrap_lexing::seed_module_token -> bootstrap_lexing::Token
+            string "bootstrap/compiler/src/lexing.evd" : Text
+            string "bootstrap_lexing" : Text
+        let lexing: NonEmptyList<bootstrap_lexing::Token>
+          call bootstrap_lexing::append_token -> NonEmptyList<bootstrap_lexing::Token>
+            local source : NonEmptyList<bootstrap_lexing::Token>
+            local lexing_token : bootstrap_lexing::Token
+        let parsing_token: bootstrap_lexing::Token
+          call bootstrap_lexing::seed_module_token -> bootstrap_lexing::Token
+            string "bootstrap/compiler/src/parsing.evd" : Text
+            string "bootstrap_parsing" : Text
+        let parsing: NonEmptyList<bootstrap_lexing::Token>
+          call bootstrap_lexing::append_token -> NonEmptyList<bootstrap_lexing::Token>
+            local lexing : NonEmptyList<bootstrap_lexing::Token>
+            local parsing_token : bootstrap_lexing::Token
+        let semantics_token: bootstrap_lexing::Token
+          call bootstrap_lexing::seed_module_token -> bootstrap_lexing::Token
+            string "bootstrap/compiler/src/semantics.evd" : Text
+            string "bootstrap_semantics" : Text
+        let semantics: NonEmptyList<bootstrap_lexing::Token>
+          call bootstrap_lexing::append_token -> NonEmptyList<bootstrap_lexing::Token>
+            local parsing : NonEmptyList<bootstrap_lexing::Token>
+            local semantics_token : bootstrap_lexing::Token
+        let diagnostics_token: bootstrap_lexing::Token
+          call bootstrap_lexing::seed_module_token -> bootstrap_lexing::Token
+            string "bootstrap/compiler/src/diagnostics.evd" : Text
+            string "bootstrap_diagnostics" : Text
+        let diagnostics: NonEmptyList<bootstrap_lexing::Token>
+          call bootstrap_lexing::append_token -> NonEmptyList<bootstrap_lexing::Token>
+            local semantics : NonEmptyList<bootstrap_lexing::Token>
+            local diagnostics_token : bootstrap_lexing::Token
+        let discovery_token: bootstrap_lexing::Token
+          call bootstrap_lexing::seed_module_token -> bootstrap_lexing::Token
+            string "bootstrap/compiler/src/discovery.evd" : Text
+            string "bootstrap_discovery" : Text
+        let discovery: NonEmptyList<bootstrap_lexing::Token>
+          call bootstrap_lexing::append_token -> NonEmptyList<bootstrap_lexing::Token>
+            local diagnostics : NonEmptyList<bootstrap_lexing::Token>
+            local discovery_token : bootstrap_lexing::Token
+        let pipeline_token: bootstrap_lexing::Token
+          call bootstrap_lexing::seed_module_token -> bootstrap_lexing::Token
+            string "bootstrap/compiler/src/pipeline.evd" : Text
+            string "bootstrap_pipeline" : Text
+        let pipeline: NonEmptyList<bootstrap_lexing::Token>
+          call bootstrap_lexing::append_token -> NonEmptyList<bootstrap_lexing::Token>
+            local discovery : NonEmptyList<bootstrap_lexing::Token>
+            local pipeline_token : bootstrap_lexing::Token
+        let layout_token: bootstrap_lexing::Token
+          call bootstrap_lexing::seed_module_token -> bootstrap_lexing::Token
+            string "bootstrap/compiler/src/layout.evd" : Text
+            string "bootstrap_layout" : Text
+        let layout: NonEmptyList<bootstrap_lexing::Token>
+          call bootstrap_lexing::append_token -> NonEmptyList<bootstrap_lexing::Token>
+            local pipeline : NonEmptyList<bootstrap_lexing::Token>
+            local layout_token : bootstrap_lexing::Token
+        let manifest_token: bootstrap_lexing::Token
+          call bootstrap_lexing::seed_module_token -> bootstrap_lexing::Token
+            string "bootstrap/compiler/src/manifest.evd" : Text
+            string "bootstrap_manifest" : Text
+        let manifest: NonEmptyList<bootstrap_lexing::Token>
+          call bootstrap_lexing::append_token -> NonEmptyList<bootstrap_lexing::Token>
+            local layout : NonEmptyList<bootstrap_lexing::Token>
+            local manifest_token : bootstrap_lexing::Token
+        let release_token: bootstrap_lexing::Token
+          call bootstrap_lexing::seed_module_token -> bootstrap_lexing::Token
+            string "bootstrap/compiler/src/release.evd" : Text
+            string "bootstrap_release" : Text
+        let release: NonEmptyList<bootstrap_lexing::Token>
+          call bootstrap_lexing::append_token -> NonEmptyList<bootstrap_lexing::Token>
+            local manifest : NonEmptyList<bootstrap_lexing::Token>
+            local release_token : bootstrap_lexing::Token
+        let compiler_token: bootstrap_lexing::Token
+          call bootstrap_lexing::seed_module_token -> bootstrap_lexing::Token
+            string "bootstrap/compiler/src/main.evd" : Text
+            string "bootstrap_compiler" : Text
+        let compiler: NonEmptyList<bootstrap_lexing::Token>
+          call bootstrap_lexing::append_token -> NonEmptyList<bootstrap_lexing::Token>
+            local release : NonEmptyList<bootstrap_lexing::Token>
+            local compiler_token : bootstrap_lexing::Token
         result
           construct bootstrap_lexing::TokenStream : bootstrap_lexing::TokenStream
             init tokens
-              call list_single<bootstrap_lexing::Token> -> NonEmptyList<bootstrap_lexing::Token>
-                local first_token : bootstrap_lexing::Token
+              local compiler : NonEmptyList<bootstrap_lexing::Token>
   - public fn bootstrap_lexing::seed_token_stream_size() -> Int
       block -> Int
         let stream: bootstrap_lexing::TokenStream
           call bootstrap_lexing::seed_token_stream -> bootstrap_lexing::TokenStream
         result
-          number 1 : Int
+          number 13 : Int
   - public fn bootstrap_parsing::module_path(text: Text) -> bootstrap_parsing::ModulePath
       block -> bootstrap_parsing::ModulePath
         result
@@ -386,41 +499,173 @@ functions:
               local path : bootstrap_parsing::ModulePath
             init declarations [shorthand]
               local declarations : NonEmptyList<bootstrap_parsing::SyntaxDeclaration>
-  - public fn bootstrap_parsing::seed_package_syntax(tokens: bootstrap_lexing::TokenStream) -> bootstrap_parsing::PackageSyntax
-      block -> bootstrap_parsing::PackageSyntax
+  - private fn bootstrap_parsing::append_syntax_module(modules: NonEmptyList<bootstrap_parsing::SyntaxModule>, item: bootstrap_parsing::SyntaxModule) -> NonEmptyList<bootstrap_parsing::SyntaxModule>
+      block -> NonEmptyList<bootstrap_parsing::SyntaxModule>
+        let widened: List<bootstrap_parsing::SyntaxModule>
+          call nonempty_list_widen<bootstrap_parsing::SyntaxModule> -> List<bootstrap_parsing::SyntaxModule>
+            local modules : NonEmptyList<bootstrap_parsing::SyntaxModule>
+        result
+          call list_append<bootstrap_parsing::SyntaxModule> -> NonEmptyList<bootstrap_parsing::SyntaxModule>
+            local widened : List<bootstrap_parsing::SyntaxModule>
+            local item : bootstrap_parsing::SyntaxModule
+  - private fn bootstrap_parsing::seed_module_declaration(path_text: Text, module_name: Text) -> bootstrap_parsing::SyntaxDeclaration
+      block -> bootstrap_parsing::SyntaxDeclaration
         let source_path: bootstrap_source::SourcePath
           construct bootstrap_source::SourcePath : bootstrap_source::SourcePath
             init text
-              string "bootstrap/compiler/src/source.evd" : Text
+              local path_text : Text
         let module_span: bootstrap_lexing::SourceSpan
           call bootstrap_lexing::source_span -> bootstrap_lexing::SourceSpan
             local source_path : bootstrap_source::SourcePath
             number 0 : Int
             number 30 : Int
-        let declaration: bootstrap_parsing::SyntaxDeclaration
+        result
           call bootstrap_parsing::syntax_declaration -> bootstrap_parsing::SyntaxDeclaration
             construct bootstrap_parsing::SyntaxDeclarationCategory::ModuleScopeIntroduced : bootstrap_parsing::SyntaxDeclarationCategory
-            string "bootstrap_source" : Text
+            local module_name : Text
             local module_span : bootstrap_lexing::SourceSpan
-        let source_module: bootstrap_parsing::SyntaxModule
+  - private fn bootstrap_parsing::seed_syntax_module(kind: bootstrap_parsing::ModuleKind, path_text: Text, module_name: Text) -> bootstrap_parsing::SyntaxModule
+      block -> bootstrap_parsing::SyntaxModule
+        let declaration: bootstrap_parsing::SyntaxDeclaration
+          call bootstrap_parsing::seed_module_declaration -> bootstrap_parsing::SyntaxDeclaration
+            local path_text : Text
+            local module_name : Text
+        result
           call bootstrap_parsing::syntax_module -> bootstrap_parsing::SyntaxModule
-            construct bootstrap_parsing::ModuleKind::DomainTruthCarried : bootstrap_parsing::ModuleKind
+            local kind : bootstrap_parsing::ModuleKind
             call bootstrap_parsing::module_path -> bootstrap_parsing::ModulePath
-              string "bootstrap_source" : Text
+              local module_name : Text
             call list_single<bootstrap_parsing::SyntaxDeclaration> -> NonEmptyList<bootstrap_parsing::SyntaxDeclaration>
               local declaration : bootstrap_parsing::SyntaxDeclaration
+  - public fn bootstrap_parsing::seed_package_syntax(tokens: bootstrap_lexing::TokenStream) -> bootstrap_parsing::PackageSyntax
+      block -> bootstrap_parsing::PackageSyntax
+        let host_module: bootstrap_parsing::SyntaxModule
+          call bootstrap_parsing::seed_syntax_module -> bootstrap_parsing::SyntaxModule
+            construct bootstrap_parsing::ModuleKind::HazardInteractionIsolated : bootstrap_parsing::ModuleKind
+            string "bootstrap/compiler/src/host.evd" : Text
+            string "bootstrap_host" : Text
+        let host: NonEmptyList<bootstrap_parsing::SyntaxModule>
+          call list_single<bootstrap_parsing::SyntaxModule> -> NonEmptyList<bootstrap_parsing::SyntaxModule>
+            local host_module : bootstrap_parsing::SyntaxModule
+        let environment_module: bootstrap_parsing::SyntaxModule
+          call bootstrap_parsing::seed_syntax_module -> bootstrap_parsing::SyntaxModule
+            construct bootstrap_parsing::ModuleKind::HazardInteractionIsolated : bootstrap_parsing::ModuleKind
+            string "bootstrap/compiler/src/environment.evd" : Text
+            string "bootstrap_environment" : Text
+        let environment: NonEmptyList<bootstrap_parsing::SyntaxModule>
+          call bootstrap_parsing::append_syntax_module -> NonEmptyList<bootstrap_parsing::SyntaxModule>
+            local host : NonEmptyList<bootstrap_parsing::SyntaxModule>
+            local environment_module : bootstrap_parsing::SyntaxModule
+        let source_module: bootstrap_parsing::SyntaxModule
+          call bootstrap_parsing::seed_syntax_module -> bootstrap_parsing::SyntaxModule
+            construct bootstrap_parsing::ModuleKind::DomainTruthCarried : bootstrap_parsing::ModuleKind
+            string "bootstrap/compiler/src/source.evd" : Text
+            string "bootstrap_source" : Text
+        let source: NonEmptyList<bootstrap_parsing::SyntaxModule>
+          call bootstrap_parsing::append_syntax_module -> NonEmptyList<bootstrap_parsing::SyntaxModule>
+            local environment : NonEmptyList<bootstrap_parsing::SyntaxModule>
+            local source_module : bootstrap_parsing::SyntaxModule
+        let lexing_module: bootstrap_parsing::SyntaxModule
+          call bootstrap_parsing::seed_syntax_module -> bootstrap_parsing::SyntaxModule
+            construct bootstrap_parsing::ModuleKind::DomainTruthCarried : bootstrap_parsing::ModuleKind
+            string "bootstrap/compiler/src/lexing.evd" : Text
+            string "bootstrap_lexing" : Text
+        let lexing: NonEmptyList<bootstrap_parsing::SyntaxModule>
+          call bootstrap_parsing::append_syntax_module -> NonEmptyList<bootstrap_parsing::SyntaxModule>
+            local source : NonEmptyList<bootstrap_parsing::SyntaxModule>
+            local lexing_module : bootstrap_parsing::SyntaxModule
+        let parsing_module: bootstrap_parsing::SyntaxModule
+          call bootstrap_parsing::seed_syntax_module -> bootstrap_parsing::SyntaxModule
+            construct bootstrap_parsing::ModuleKind::DomainTruthCarried : bootstrap_parsing::ModuleKind
+            string "bootstrap/compiler/src/parsing.evd" : Text
+            string "bootstrap_parsing" : Text
+        let parsing: NonEmptyList<bootstrap_parsing::SyntaxModule>
+          call bootstrap_parsing::append_syntax_module -> NonEmptyList<bootstrap_parsing::SyntaxModule>
+            local lexing : NonEmptyList<bootstrap_parsing::SyntaxModule>
+            local parsing_module : bootstrap_parsing::SyntaxModule
+        let semantics_module: bootstrap_parsing::SyntaxModule
+          call bootstrap_parsing::seed_syntax_module -> bootstrap_parsing::SyntaxModule
+            construct bootstrap_parsing::ModuleKind::DomainTruthCarried : bootstrap_parsing::ModuleKind
+            string "bootstrap/compiler/src/semantics.evd" : Text
+            string "bootstrap_semantics" : Text
+        let semantics: NonEmptyList<bootstrap_parsing::SyntaxModule>
+          call bootstrap_parsing::append_syntax_module -> NonEmptyList<bootstrap_parsing::SyntaxModule>
+            local parsing : NonEmptyList<bootstrap_parsing::SyntaxModule>
+            local semantics_module : bootstrap_parsing::SyntaxModule
+        let diagnostics_module: bootstrap_parsing::SyntaxModule
+          call bootstrap_parsing::seed_syntax_module -> bootstrap_parsing::SyntaxModule
+            construct bootstrap_parsing::ModuleKind::DomainTruthCarried : bootstrap_parsing::ModuleKind
+            string "bootstrap/compiler/src/diagnostics.evd" : Text
+            string "bootstrap_diagnostics" : Text
+        let diagnostics: NonEmptyList<bootstrap_parsing::SyntaxModule>
+          call bootstrap_parsing::append_syntax_module -> NonEmptyList<bootstrap_parsing::SyntaxModule>
+            local semantics : NonEmptyList<bootstrap_parsing::SyntaxModule>
+            local diagnostics_module : bootstrap_parsing::SyntaxModule
+        let discovery_module: bootstrap_parsing::SyntaxModule
+          call bootstrap_parsing::seed_syntax_module -> bootstrap_parsing::SyntaxModule
+            construct bootstrap_parsing::ModuleKind::DomainTruthCarried : bootstrap_parsing::ModuleKind
+            string "bootstrap/compiler/src/discovery.evd" : Text
+            string "bootstrap_discovery" : Text
+        let discovery: NonEmptyList<bootstrap_parsing::SyntaxModule>
+          call bootstrap_parsing::append_syntax_module -> NonEmptyList<bootstrap_parsing::SyntaxModule>
+            local diagnostics : NonEmptyList<bootstrap_parsing::SyntaxModule>
+            local discovery_module : bootstrap_parsing::SyntaxModule
+        let pipeline_module: bootstrap_parsing::SyntaxModule
+          call bootstrap_parsing::seed_syntax_module -> bootstrap_parsing::SyntaxModule
+            construct bootstrap_parsing::ModuleKind::DomainTruthCarried : bootstrap_parsing::ModuleKind
+            string "bootstrap/compiler/src/pipeline.evd" : Text
+            string "bootstrap_pipeline" : Text
+        let pipeline: NonEmptyList<bootstrap_parsing::SyntaxModule>
+          call bootstrap_parsing::append_syntax_module -> NonEmptyList<bootstrap_parsing::SyntaxModule>
+            local discovery : NonEmptyList<bootstrap_parsing::SyntaxModule>
+            local pipeline_module : bootstrap_parsing::SyntaxModule
+        let layout_module: bootstrap_parsing::SyntaxModule
+          call bootstrap_parsing::seed_syntax_module -> bootstrap_parsing::SyntaxModule
+            construct bootstrap_parsing::ModuleKind::DomainTruthCarried : bootstrap_parsing::ModuleKind
+            string "bootstrap/compiler/src/layout.evd" : Text
+            string "bootstrap_layout" : Text
+        let layout: NonEmptyList<bootstrap_parsing::SyntaxModule>
+          call bootstrap_parsing::append_syntax_module -> NonEmptyList<bootstrap_parsing::SyntaxModule>
+            local pipeline : NonEmptyList<bootstrap_parsing::SyntaxModule>
+            local layout_module : bootstrap_parsing::SyntaxModule
+        let manifest_module: bootstrap_parsing::SyntaxModule
+          call bootstrap_parsing::seed_syntax_module -> bootstrap_parsing::SyntaxModule
+            construct bootstrap_parsing::ModuleKind::DomainTruthCarried : bootstrap_parsing::ModuleKind
+            string "bootstrap/compiler/src/manifest.evd" : Text
+            string "bootstrap_manifest" : Text
+        let manifest: NonEmptyList<bootstrap_parsing::SyntaxModule>
+          call bootstrap_parsing::append_syntax_module -> NonEmptyList<bootstrap_parsing::SyntaxModule>
+            local layout : NonEmptyList<bootstrap_parsing::SyntaxModule>
+            local manifest_module : bootstrap_parsing::SyntaxModule
+        let release_module: bootstrap_parsing::SyntaxModule
+          call bootstrap_parsing::seed_syntax_module -> bootstrap_parsing::SyntaxModule
+            construct bootstrap_parsing::ModuleKind::DomainTruthCarried : bootstrap_parsing::ModuleKind
+            string "bootstrap/compiler/src/release.evd" : Text
+            string "bootstrap_release" : Text
+        let release: NonEmptyList<bootstrap_parsing::SyntaxModule>
+          call bootstrap_parsing::append_syntax_module -> NonEmptyList<bootstrap_parsing::SyntaxModule>
+            local manifest : NonEmptyList<bootstrap_parsing::SyntaxModule>
+            local release_module : bootstrap_parsing::SyntaxModule
+        let compiler_module: bootstrap_parsing::SyntaxModule
+          call bootstrap_parsing::seed_syntax_module -> bootstrap_parsing::SyntaxModule
+            construct bootstrap_parsing::ModuleKind::DomainTruthCarried : bootstrap_parsing::ModuleKind
+            string "bootstrap/compiler/src/main.evd" : Text
+            string "bootstrap_compiler" : Text
+        let compiler: NonEmptyList<bootstrap_parsing::SyntaxModule>
+          call bootstrap_parsing::append_syntax_module -> NonEmptyList<bootstrap_parsing::SyntaxModule>
+            local release : NonEmptyList<bootstrap_parsing::SyntaxModule>
+            local compiler_module : bootstrap_parsing::SyntaxModule
         result
           construct bootstrap_parsing::PackageSyntax : bootstrap_parsing::PackageSyntax
             init modules
-              call list_single<bootstrap_parsing::SyntaxModule> -> NonEmptyList<bootstrap_parsing::SyntaxModule>
-                local source_module : bootstrap_parsing::SyntaxModule
+              local compiler : NonEmptyList<bootstrap_parsing::SyntaxModule>
   - public fn bootstrap_parsing::seed_package_syntax_module_count() -> Int
       block -> Int
         let syntax: bootstrap_parsing::PackageSyntax
           call bootstrap_parsing::seed_package_syntax -> bootstrap_parsing::PackageSyntax
             call bootstrap_lexing::seed_token_stream -> bootstrap_lexing::TokenStream
         result
-          number 1 : Int
+          number 13 : Int
   - public fn bootstrap_semantics::symbol_name(text: Text) -> bootstrap_semantics::SymbolName
       block -> bootstrap_semantics::SymbolName
         result
@@ -437,12 +682,21 @@ functions:
               local category : bootstrap_semantics::SymbolCategory
             init declared_at [shorthand]
               local declared_at : bootstrap_lexing::SourceSpan
-  - public fn bootstrap_semantics::seed_symbol_catalog(syntax: bootstrap_parsing::PackageSyntax) -> bootstrap_semantics::SymbolCatalog
-      block -> bootstrap_semantics::SymbolCatalog
+  - private fn bootstrap_semantics::append_symbol(symbols: NonEmptyMap<Text, bootstrap_semantics::Symbol>, symbol: bootstrap_semantics::Symbol) -> NonEmptyMap<Text, bootstrap_semantics::Symbol>
+      block -> NonEmptyMap<Text, bootstrap_semantics::Symbol>
+        result
+          call nonempty_map_bind_or_replace<Text, bootstrap_semantics::Symbol> -> NonEmptyMap<Text, bootstrap_semantics::Symbol>
+            local symbols : NonEmptyMap<Text, bootstrap_semantics::Symbol>
+            field-access .text : Text
+              field-access .name : bootstrap_semantics::SymbolName
+                local symbol : bootstrap_semantics::Symbol
+            local symbol : bootstrap_semantics::Symbol
+  - private fn bootstrap_semantics::seed_symbol(path_text: Text, module_name: Text) -> bootstrap_semantics::Symbol
+      block -> bootstrap_semantics::Symbol
         let source_path: bootstrap_source::SourcePath
           construct bootstrap_source::SourcePath : bootstrap_source::SourcePath
             init text
-              string "bootstrap/compiler/src/source.evd" : Text
+              local path_text : Text
         let declared_at: bootstrap_lexing::SourceSpan
           call bootstrap_lexing::source_span -> bootstrap_lexing::SourceSpan
             local source_path : bootstrap_source::SourcePath
@@ -450,19 +704,124 @@ functions:
             number 30 : Int
         let name: bootstrap_semantics::SymbolName
           call bootstrap_semantics::symbol_name -> bootstrap_semantics::SymbolName
-            string "bootstrap_source" : Text
-        let first_symbol: bootstrap_semantics::Symbol
+            local module_name : Text
+        result
           call bootstrap_semantics::symbol -> bootstrap_semantics::Symbol
             local name : bootstrap_semantics::SymbolName
             construct bootstrap_semantics::SymbolCategory::ModuleScopeAvailable : bootstrap_semantics::SymbolCategory
             local declared_at : bootstrap_lexing::SourceSpan
+  - public fn bootstrap_semantics::seed_symbol_catalog(syntax: bootstrap_parsing::PackageSyntax) -> bootstrap_semantics::SymbolCatalog
+      block -> bootstrap_semantics::SymbolCatalog
+        let host_symbol: bootstrap_semantics::Symbol
+          call bootstrap_semantics::seed_symbol -> bootstrap_semantics::Symbol
+            string "bootstrap/compiler/src/host.evd" : Text
+            string "bootstrap_host" : Text
+        let host: NonEmptyMap<Text, bootstrap_semantics::Symbol>
+          call map_single<Text, bootstrap_semantics::Symbol> -> NonEmptyMap<Text, bootstrap_semantics::Symbol>
+            field-access .text : Text
+              field-access .name : bootstrap_semantics::SymbolName
+                local host_symbol : bootstrap_semantics::Symbol
+            local host_symbol : bootstrap_semantics::Symbol
+        let environment_symbol: bootstrap_semantics::Symbol
+          call bootstrap_semantics::seed_symbol -> bootstrap_semantics::Symbol
+            string "bootstrap/compiler/src/environment.evd" : Text
+            string "bootstrap_environment" : Text
+        let environment: NonEmptyMap<Text, bootstrap_semantics::Symbol>
+          call bootstrap_semantics::append_symbol -> NonEmptyMap<Text, bootstrap_semantics::Symbol>
+            local host : NonEmptyMap<Text, bootstrap_semantics::Symbol>
+            local environment_symbol : bootstrap_semantics::Symbol
+        let source_symbol: bootstrap_semantics::Symbol
+          call bootstrap_semantics::seed_symbol -> bootstrap_semantics::Symbol
+            string "bootstrap/compiler/src/source.evd" : Text
+            string "bootstrap_source" : Text
+        let source: NonEmptyMap<Text, bootstrap_semantics::Symbol>
+          call bootstrap_semantics::append_symbol -> NonEmptyMap<Text, bootstrap_semantics::Symbol>
+            local environment : NonEmptyMap<Text, bootstrap_semantics::Symbol>
+            local source_symbol : bootstrap_semantics::Symbol
+        let lexing_symbol: bootstrap_semantics::Symbol
+          call bootstrap_semantics::seed_symbol -> bootstrap_semantics::Symbol
+            string "bootstrap/compiler/src/lexing.evd" : Text
+            string "bootstrap_lexing" : Text
+        let lexing: NonEmptyMap<Text, bootstrap_semantics::Symbol>
+          call bootstrap_semantics::append_symbol -> NonEmptyMap<Text, bootstrap_semantics::Symbol>
+            local source : NonEmptyMap<Text, bootstrap_semantics::Symbol>
+            local lexing_symbol : bootstrap_semantics::Symbol
+        let parsing_symbol: bootstrap_semantics::Symbol
+          call bootstrap_semantics::seed_symbol -> bootstrap_semantics::Symbol
+            string "bootstrap/compiler/src/parsing.evd" : Text
+            string "bootstrap_parsing" : Text
+        let parsing: NonEmptyMap<Text, bootstrap_semantics::Symbol>
+          call bootstrap_semantics::append_symbol -> NonEmptyMap<Text, bootstrap_semantics::Symbol>
+            local lexing : NonEmptyMap<Text, bootstrap_semantics::Symbol>
+            local parsing_symbol : bootstrap_semantics::Symbol
+        let semantics_symbol: bootstrap_semantics::Symbol
+          call bootstrap_semantics::seed_symbol -> bootstrap_semantics::Symbol
+            string "bootstrap/compiler/src/semantics.evd" : Text
+            string "bootstrap_semantics" : Text
+        let semantics: NonEmptyMap<Text, bootstrap_semantics::Symbol>
+          call bootstrap_semantics::append_symbol -> NonEmptyMap<Text, bootstrap_semantics::Symbol>
+            local parsing : NonEmptyMap<Text, bootstrap_semantics::Symbol>
+            local semantics_symbol : bootstrap_semantics::Symbol
+        let diagnostics_symbol: bootstrap_semantics::Symbol
+          call bootstrap_semantics::seed_symbol -> bootstrap_semantics::Symbol
+            string "bootstrap/compiler/src/diagnostics.evd" : Text
+            string "bootstrap_diagnostics" : Text
+        let diagnostics: NonEmptyMap<Text, bootstrap_semantics::Symbol>
+          call bootstrap_semantics::append_symbol -> NonEmptyMap<Text, bootstrap_semantics::Symbol>
+            local semantics : NonEmptyMap<Text, bootstrap_semantics::Symbol>
+            local diagnostics_symbol : bootstrap_semantics::Symbol
+        let discovery_symbol: bootstrap_semantics::Symbol
+          call bootstrap_semantics::seed_symbol -> bootstrap_semantics::Symbol
+            string "bootstrap/compiler/src/discovery.evd" : Text
+            string "bootstrap_discovery" : Text
+        let discovery: NonEmptyMap<Text, bootstrap_semantics::Symbol>
+          call bootstrap_semantics::append_symbol -> NonEmptyMap<Text, bootstrap_semantics::Symbol>
+            local diagnostics : NonEmptyMap<Text, bootstrap_semantics::Symbol>
+            local discovery_symbol : bootstrap_semantics::Symbol
+        let pipeline_symbol: bootstrap_semantics::Symbol
+          call bootstrap_semantics::seed_symbol -> bootstrap_semantics::Symbol
+            string "bootstrap/compiler/src/pipeline.evd" : Text
+            string "bootstrap_pipeline" : Text
+        let pipeline: NonEmptyMap<Text, bootstrap_semantics::Symbol>
+          call bootstrap_semantics::append_symbol -> NonEmptyMap<Text, bootstrap_semantics::Symbol>
+            local discovery : NonEmptyMap<Text, bootstrap_semantics::Symbol>
+            local pipeline_symbol : bootstrap_semantics::Symbol
+        let layout_symbol: bootstrap_semantics::Symbol
+          call bootstrap_semantics::seed_symbol -> bootstrap_semantics::Symbol
+            string "bootstrap/compiler/src/layout.evd" : Text
+            string "bootstrap_layout" : Text
+        let layout: NonEmptyMap<Text, bootstrap_semantics::Symbol>
+          call bootstrap_semantics::append_symbol -> NonEmptyMap<Text, bootstrap_semantics::Symbol>
+            local pipeline : NonEmptyMap<Text, bootstrap_semantics::Symbol>
+            local layout_symbol : bootstrap_semantics::Symbol
+        let manifest_symbol: bootstrap_semantics::Symbol
+          call bootstrap_semantics::seed_symbol -> bootstrap_semantics::Symbol
+            string "bootstrap/compiler/src/manifest.evd" : Text
+            string "bootstrap_manifest" : Text
+        let manifest: NonEmptyMap<Text, bootstrap_semantics::Symbol>
+          call bootstrap_semantics::append_symbol -> NonEmptyMap<Text, bootstrap_semantics::Symbol>
+            local layout : NonEmptyMap<Text, bootstrap_semantics::Symbol>
+            local manifest_symbol : bootstrap_semantics::Symbol
+        let release_symbol: bootstrap_semantics::Symbol
+          call bootstrap_semantics::seed_symbol -> bootstrap_semantics::Symbol
+            string "bootstrap/compiler/src/release.evd" : Text
+            string "bootstrap_release" : Text
+        let release: NonEmptyMap<Text, bootstrap_semantics::Symbol>
+          call bootstrap_semantics::append_symbol -> NonEmptyMap<Text, bootstrap_semantics::Symbol>
+            local manifest : NonEmptyMap<Text, bootstrap_semantics::Symbol>
+            local release_symbol : bootstrap_semantics::Symbol
+        let compiler_symbol: bootstrap_semantics::Symbol
+          call bootstrap_semantics::seed_symbol -> bootstrap_semantics::Symbol
+            string "bootstrap/compiler/src/main.evd" : Text
+            string "bootstrap_compiler" : Text
+        let compiler: NonEmptyMap<Text, bootstrap_semantics::Symbol>
+          call bootstrap_semantics::append_symbol -> NonEmptyMap<Text, bootstrap_semantics::Symbol>
+            local release : NonEmptyMap<Text, bootstrap_semantics::Symbol>
+            local compiler_symbol : bootstrap_semantics::Symbol
         result
           construct bootstrap_semantics::SymbolCatalog : bootstrap_semantics::SymbolCatalog
             init symbols_by_name
-              call map_single<Text, bootstrap_semantics::Symbol> -> NonEmptyMap<Text, bootstrap_semantics::Symbol>
-                field-access .text : Text
-                  local name : bootstrap_semantics::SymbolName
-                local first_symbol : bootstrap_semantics::Symbol
+              local compiler : NonEmptyMap<Text, bootstrap_semantics::Symbol>
   - public fn bootstrap_semantics::seed_symbol_catalog_entry_count() -> Nat
       block -> Nat
         let syntax: bootstrap_parsing::PackageSyntax

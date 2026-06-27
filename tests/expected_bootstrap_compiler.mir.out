@@ -78,21 +78,87 @@ functions:
       block %0
         %3[$return] = construct bootstrap_lexing::Token {category: %0[category], lexeme: %1[lexeme], span: %2[span]}
         return %3[$return]
+  - private fn bootstrap_lexing::append_token -> NonEmptyList<bootstrap_lexing::Token>
+      locals:
+        %0[tokens] : NonEmptyList<bootstrap_lexing::Token>
+        %1[token] : bootstrap_lexing::Token
+        %2[$return] : NonEmptyList<bootstrap_lexing::Token>
+        %3[widened] : List<bootstrap_lexing::Token>
+      block %0
+        %3[widened] = call nonempty_list_widen$bootstrap_lexing__Token(%0[tokens])
+        %2[$return] = call list_append$bootstrap_lexing__Token(%3[widened], %1[token])
+        return %2[$return]
+  - private fn bootstrap_lexing::seed_module_token -> bootstrap_lexing::Token
+      locals:
+        %0[path_text] : Text
+        %1[lexeme] : Text
+        %2[$return] : bootstrap_lexing::Token
+        %3[source_path] : bootstrap_source::SourcePath
+        %4[span] : bootstrap_lexing::SourceSpan
+        %5[tmp] : bootstrap_lexing::TokenCategory
+      block %0
+        %3[source_path] = construct bootstrap_source::SourcePath {text: %0[path_text]}
+        %4[span] = call bootstrap_lexing::source_span(%3[source_path], 0, 30)
+        %5[tmp] = construct bootstrap_lexing::TokenCategory::IdentifierNamedReference {}
+        %2[$return] = call bootstrap_lexing::token(%5[tmp], %1[lexeme], %4[span])
+        return %2[$return]
   - public fn bootstrap_lexing::seed_token_stream -> bootstrap_lexing::TokenStream
       locals:
         %0[$return] : bootstrap_lexing::TokenStream
-        %1[manifest_path] : bootstrap_source::SourcePath
-        %2[first_span] : bootstrap_lexing::SourceSpan
-        %3[first_token] : bootstrap_lexing::Token
-        %4[tmp] : bootstrap_lexing::TokenCategory
-        %5[tmp] : NonEmptyList<bootstrap_lexing::Token>
+        %1[host_token] : bootstrap_lexing::Token
+        %2[host] : NonEmptyList<bootstrap_lexing::Token>
+        %3[environment_token] : bootstrap_lexing::Token
+        %4[environment] : NonEmptyList<bootstrap_lexing::Token>
+        %5[source_token] : bootstrap_lexing::Token
+        %6[source] : NonEmptyList<bootstrap_lexing::Token>
+        %7[lexing_token] : bootstrap_lexing::Token
+        %8[lexing] : NonEmptyList<bootstrap_lexing::Token>
+        %9[parsing_token] : bootstrap_lexing::Token
+        %10[parsing] : NonEmptyList<bootstrap_lexing::Token>
+        %11[semantics_token] : bootstrap_lexing::Token
+        %12[semantics] : NonEmptyList<bootstrap_lexing::Token>
+        %13[diagnostics_token] : bootstrap_lexing::Token
+        %14[diagnostics] : NonEmptyList<bootstrap_lexing::Token>
+        %15[discovery_token] : bootstrap_lexing::Token
+        %16[discovery] : NonEmptyList<bootstrap_lexing::Token>
+        %17[pipeline_token] : bootstrap_lexing::Token
+        %18[pipeline] : NonEmptyList<bootstrap_lexing::Token>
+        %19[layout_token] : bootstrap_lexing::Token
+        %20[layout] : NonEmptyList<bootstrap_lexing::Token>
+        %21[manifest_token] : bootstrap_lexing::Token
+        %22[manifest] : NonEmptyList<bootstrap_lexing::Token>
+        %23[release_token] : bootstrap_lexing::Token
+        %24[release] : NonEmptyList<bootstrap_lexing::Token>
+        %25[compiler_token] : bootstrap_lexing::Token
+        %26[compiler] : NonEmptyList<bootstrap_lexing::Token>
       block %0
-        %1[manifest_path] = construct bootstrap_source::SourcePath {text: "bootstrap/compiler/evident.pkg"}
-        %2[first_span] = call bootstrap_lexing::source_span(%1[manifest_path], 0, 10)
-        %4[tmp] = construct bootstrap_lexing::TokenCategory::IdentifierNamedReference {}
-        %3[first_token] = call bootstrap_lexing::token(%4[tmp], "bootstrap", %2[first_span])
-        %5[tmp] = call list_single$bootstrap_lexing__Token(%3[first_token])
-        %0[$return] = construct bootstrap_lexing::TokenStream {tokens: %5[tmp]}
+        %1[host_token] = call bootstrap_lexing::seed_module_token("bootstrap/compiler/src/host.evd", "bootstrap_host")
+        %2[host] = call list_single$bootstrap_lexing__Token(%1[host_token])
+        %3[environment_token] = call bootstrap_lexing::seed_module_token("bootstrap/compiler/src/environment.evd", "bootstrap_environment")
+        %4[environment] = call bootstrap_lexing::append_token(%2[host], %3[environment_token])
+        %5[source_token] = call bootstrap_lexing::seed_module_token("bootstrap/compiler/src/source.evd", "bootstrap_source")
+        %6[source] = call bootstrap_lexing::append_token(%4[environment], %5[source_token])
+        %7[lexing_token] = call bootstrap_lexing::seed_module_token("bootstrap/compiler/src/lexing.evd", "bootstrap_lexing")
+        %8[lexing] = call bootstrap_lexing::append_token(%6[source], %7[lexing_token])
+        %9[parsing_token] = call bootstrap_lexing::seed_module_token("bootstrap/compiler/src/parsing.evd", "bootstrap_parsing")
+        %10[parsing] = call bootstrap_lexing::append_token(%8[lexing], %9[parsing_token])
+        %11[semantics_token] = call bootstrap_lexing::seed_module_token("bootstrap/compiler/src/semantics.evd", "bootstrap_semantics")
+        %12[semantics] = call bootstrap_lexing::append_token(%10[parsing], %11[semantics_token])
+        %13[diagnostics_token] = call bootstrap_lexing::seed_module_token("bootstrap/compiler/src/diagnostics.evd", "bootstrap_diagnostics")
+        %14[diagnostics] = call bootstrap_lexing::append_token(%12[semantics], %13[diagnostics_token])
+        %15[discovery_token] = call bootstrap_lexing::seed_module_token("bootstrap/compiler/src/discovery.evd", "bootstrap_discovery")
+        %16[discovery] = call bootstrap_lexing::append_token(%14[diagnostics], %15[discovery_token])
+        %17[pipeline_token] = call bootstrap_lexing::seed_module_token("bootstrap/compiler/src/pipeline.evd", "bootstrap_pipeline")
+        %18[pipeline] = call bootstrap_lexing::append_token(%16[discovery], %17[pipeline_token])
+        %19[layout_token] = call bootstrap_lexing::seed_module_token("bootstrap/compiler/src/layout.evd", "bootstrap_layout")
+        %20[layout] = call bootstrap_lexing::append_token(%18[pipeline], %19[layout_token])
+        %21[manifest_token] = call bootstrap_lexing::seed_module_token("bootstrap/compiler/src/manifest.evd", "bootstrap_manifest")
+        %22[manifest] = call bootstrap_lexing::append_token(%20[layout], %21[manifest_token])
+        %23[release_token] = call bootstrap_lexing::seed_module_token("bootstrap/compiler/src/release.evd", "bootstrap_release")
+        %24[release] = call bootstrap_lexing::append_token(%22[manifest], %23[release_token])
+        %25[compiler_token] = call bootstrap_lexing::seed_module_token("bootstrap/compiler/src/main.evd", "bootstrap_compiler")
+        %26[compiler] = call bootstrap_lexing::append_token(%24[release], %25[compiler_token])
+        %0[$return] = construct bootstrap_lexing::TokenStream {tokens: %26[compiler]}
         return %0[$return]
   - public fn bootstrap_lexing::seed_token_stream_size -> Int
       locals:
@@ -100,7 +166,7 @@ functions:
         %1[stream] : bootstrap_lexing::TokenStream
       block %0
         %1[stream] = call bootstrap_lexing::seed_token_stream()
-        %0[$return] = 1
+        %0[$return] = 13
         return %0[$return]
   - public fn bootstrap_parsing::module_path -> bootstrap_parsing::ModulePath
       locals:
@@ -127,30 +193,129 @@ functions:
       block %0
         %3[$return] = construct bootstrap_parsing::SyntaxModule {kind: %0[kind], path: %1[path], declarations: %2[declarations]}
         return %3[$return]
+  - private fn bootstrap_parsing::append_syntax_module -> NonEmptyList<bootstrap_parsing::SyntaxModule>
+      locals:
+        %0[modules] : NonEmptyList<bootstrap_parsing::SyntaxModule>
+        %1[item] : bootstrap_parsing::SyntaxModule
+        %2[$return] : NonEmptyList<bootstrap_parsing::SyntaxModule>
+        %3[widened] : List<bootstrap_parsing::SyntaxModule>
+      block %0
+        %3[widened] = call nonempty_list_widen$bootstrap_parsing__SyntaxModule(%0[modules])
+        %2[$return] = call list_append$bootstrap_parsing__SyntaxModule(%3[widened], %1[item])
+        return %2[$return]
+  - private fn bootstrap_parsing::seed_module_declaration -> bootstrap_parsing::SyntaxDeclaration
+      locals:
+        %0[path_text] : Text
+        %1[module_name] : Text
+        %2[$return] : bootstrap_parsing::SyntaxDeclaration
+        %3[source_path] : bootstrap_source::SourcePath
+        %4[module_span] : bootstrap_lexing::SourceSpan
+        %5[tmp] : bootstrap_parsing::SyntaxDeclarationCategory
+      block %0
+        %3[source_path] = construct bootstrap_source::SourcePath {text: %0[path_text]}
+        %4[module_span] = call bootstrap_lexing::source_span(%3[source_path], 0, 30)
+        %5[tmp] = construct bootstrap_parsing::SyntaxDeclarationCategory::ModuleScopeIntroduced {}
+        %2[$return] = call bootstrap_parsing::syntax_declaration(%5[tmp], %1[module_name], %4[module_span])
+        return %2[$return]
+  - private fn bootstrap_parsing::seed_syntax_module -> bootstrap_parsing::SyntaxModule
+      locals:
+        %0[kind] : bootstrap_parsing::ModuleKind
+        %1[path_text] : Text
+        %2[module_name] : Text
+        %3[$return] : bootstrap_parsing::SyntaxModule
+        %4[declaration] : bootstrap_parsing::SyntaxDeclaration
+        %5[tmp] : bootstrap_parsing::ModulePath
+        %6[tmp] : NonEmptyList<bootstrap_parsing::SyntaxDeclaration>
+      block %0
+        %4[declaration] = call bootstrap_parsing::seed_module_declaration(%1[path_text], %2[module_name])
+        %5[tmp] = call bootstrap_parsing::module_path(%2[module_name])
+        %6[tmp] = call list_single$bootstrap_parsing__SyntaxDeclaration(%4[declaration])
+        %3[$return] = call bootstrap_parsing::syntax_module(%0[kind], %5[tmp], %6[tmp])
+        return %3[$return]
   - public fn bootstrap_parsing::seed_package_syntax -> bootstrap_parsing::PackageSyntax
       locals:
         %0[tokens] : bootstrap_lexing::TokenStream
         %1[$return] : bootstrap_parsing::PackageSyntax
-        %2[source_path] : bootstrap_source::SourcePath
-        %3[module_span] : bootstrap_lexing::SourceSpan
-        %4[declaration] : bootstrap_parsing::SyntaxDeclaration
-        %5[tmp] : bootstrap_parsing::SyntaxDeclarationCategory
-        %6[source_module] : bootstrap_parsing::SyntaxModule
-        %7[tmp] : bootstrap_parsing::ModuleKind
-        %8[tmp] : bootstrap_parsing::ModulePath
-        %9[tmp] : NonEmptyList<bootstrap_parsing::SyntaxDeclaration>
-        %10[tmp] : NonEmptyList<bootstrap_parsing::SyntaxModule>
+        %2[host_module] : bootstrap_parsing::SyntaxModule
+        %3[tmp] : bootstrap_parsing::ModuleKind
+        %4[host] : NonEmptyList<bootstrap_parsing::SyntaxModule>
+        %5[environment_module] : bootstrap_parsing::SyntaxModule
+        %6[tmp] : bootstrap_parsing::ModuleKind
+        %7[environment] : NonEmptyList<bootstrap_parsing::SyntaxModule>
+        %8[source_module] : bootstrap_parsing::SyntaxModule
+        %9[tmp] : bootstrap_parsing::ModuleKind
+        %10[source] : NonEmptyList<bootstrap_parsing::SyntaxModule>
+        %11[lexing_module] : bootstrap_parsing::SyntaxModule
+        %12[tmp] : bootstrap_parsing::ModuleKind
+        %13[lexing] : NonEmptyList<bootstrap_parsing::SyntaxModule>
+        %14[parsing_module] : bootstrap_parsing::SyntaxModule
+        %15[tmp] : bootstrap_parsing::ModuleKind
+        %16[parsing] : NonEmptyList<bootstrap_parsing::SyntaxModule>
+        %17[semantics_module] : bootstrap_parsing::SyntaxModule
+        %18[tmp] : bootstrap_parsing::ModuleKind
+        %19[semantics] : NonEmptyList<bootstrap_parsing::SyntaxModule>
+        %20[diagnostics_module] : bootstrap_parsing::SyntaxModule
+        %21[tmp] : bootstrap_parsing::ModuleKind
+        %22[diagnostics] : NonEmptyList<bootstrap_parsing::SyntaxModule>
+        %23[discovery_module] : bootstrap_parsing::SyntaxModule
+        %24[tmp] : bootstrap_parsing::ModuleKind
+        %25[discovery] : NonEmptyList<bootstrap_parsing::SyntaxModule>
+        %26[pipeline_module] : bootstrap_parsing::SyntaxModule
+        %27[tmp] : bootstrap_parsing::ModuleKind
+        %28[pipeline] : NonEmptyList<bootstrap_parsing::SyntaxModule>
+        %29[layout_module] : bootstrap_parsing::SyntaxModule
+        %30[tmp] : bootstrap_parsing::ModuleKind
+        %31[layout] : NonEmptyList<bootstrap_parsing::SyntaxModule>
+        %32[manifest_module] : bootstrap_parsing::SyntaxModule
+        %33[tmp] : bootstrap_parsing::ModuleKind
+        %34[manifest] : NonEmptyList<bootstrap_parsing::SyntaxModule>
+        %35[release_module] : bootstrap_parsing::SyntaxModule
+        %36[tmp] : bootstrap_parsing::ModuleKind
+        %37[release] : NonEmptyList<bootstrap_parsing::SyntaxModule>
+        %38[compiler_module] : bootstrap_parsing::SyntaxModule
+        %39[tmp] : bootstrap_parsing::ModuleKind
+        %40[compiler] : NonEmptyList<bootstrap_parsing::SyntaxModule>
       block %0
-        %2[source_path] = construct bootstrap_source::SourcePath {text: "bootstrap/compiler/src/source.evd"}
-        %3[module_span] = call bootstrap_lexing::source_span(%2[source_path], 0, 30)
-        %5[tmp] = construct bootstrap_parsing::SyntaxDeclarationCategory::ModuleScopeIntroduced {}
-        %4[declaration] = call bootstrap_parsing::syntax_declaration(%5[tmp], "bootstrap_source", %3[module_span])
-        %7[tmp] = construct bootstrap_parsing::ModuleKind::DomainTruthCarried {}
-        %8[tmp] = call bootstrap_parsing::module_path("bootstrap_source")
-        %9[tmp] = call list_single$bootstrap_parsing__SyntaxDeclaration(%4[declaration])
-        %6[source_module] = call bootstrap_parsing::syntax_module(%7[tmp], %8[tmp], %9[tmp])
-        %10[tmp] = call list_single$bootstrap_parsing__SyntaxModule(%6[source_module])
-        %1[$return] = construct bootstrap_parsing::PackageSyntax {modules: %10[tmp]}
+        %3[tmp] = construct bootstrap_parsing::ModuleKind::HazardInteractionIsolated {}
+        %2[host_module] = call bootstrap_parsing::seed_syntax_module(%3[tmp], "bootstrap/compiler/src/host.evd", "bootstrap_host")
+        %4[host] = call list_single$bootstrap_parsing__SyntaxModule(%2[host_module])
+        %6[tmp] = construct bootstrap_parsing::ModuleKind::HazardInteractionIsolated {}
+        %5[environment_module] = call bootstrap_parsing::seed_syntax_module(%6[tmp], "bootstrap/compiler/src/environment.evd", "bootstrap_environment")
+        %7[environment] = call bootstrap_parsing::append_syntax_module(%4[host], %5[environment_module])
+        %9[tmp] = construct bootstrap_parsing::ModuleKind::DomainTruthCarried {}
+        %8[source_module] = call bootstrap_parsing::seed_syntax_module(%9[tmp], "bootstrap/compiler/src/source.evd", "bootstrap_source")
+        %10[source] = call bootstrap_parsing::append_syntax_module(%7[environment], %8[source_module])
+        %12[tmp] = construct bootstrap_parsing::ModuleKind::DomainTruthCarried {}
+        %11[lexing_module] = call bootstrap_parsing::seed_syntax_module(%12[tmp], "bootstrap/compiler/src/lexing.evd", "bootstrap_lexing")
+        %13[lexing] = call bootstrap_parsing::append_syntax_module(%10[source], %11[lexing_module])
+        %15[tmp] = construct bootstrap_parsing::ModuleKind::DomainTruthCarried {}
+        %14[parsing_module] = call bootstrap_parsing::seed_syntax_module(%15[tmp], "bootstrap/compiler/src/parsing.evd", "bootstrap_parsing")
+        %16[parsing] = call bootstrap_parsing::append_syntax_module(%13[lexing], %14[parsing_module])
+        %18[tmp] = construct bootstrap_parsing::ModuleKind::DomainTruthCarried {}
+        %17[semantics_module] = call bootstrap_parsing::seed_syntax_module(%18[tmp], "bootstrap/compiler/src/semantics.evd", "bootstrap_semantics")
+        %19[semantics] = call bootstrap_parsing::append_syntax_module(%16[parsing], %17[semantics_module])
+        %21[tmp] = construct bootstrap_parsing::ModuleKind::DomainTruthCarried {}
+        %20[diagnostics_module] = call bootstrap_parsing::seed_syntax_module(%21[tmp], "bootstrap/compiler/src/diagnostics.evd", "bootstrap_diagnostics")
+        %22[diagnostics] = call bootstrap_parsing::append_syntax_module(%19[semantics], %20[diagnostics_module])
+        %24[tmp] = construct bootstrap_parsing::ModuleKind::DomainTruthCarried {}
+        %23[discovery_module] = call bootstrap_parsing::seed_syntax_module(%24[tmp], "bootstrap/compiler/src/discovery.evd", "bootstrap_discovery")
+        %25[discovery] = call bootstrap_parsing::append_syntax_module(%22[diagnostics], %23[discovery_module])
+        %27[tmp] = construct bootstrap_parsing::ModuleKind::DomainTruthCarried {}
+        %26[pipeline_module] = call bootstrap_parsing::seed_syntax_module(%27[tmp], "bootstrap/compiler/src/pipeline.evd", "bootstrap_pipeline")
+        %28[pipeline] = call bootstrap_parsing::append_syntax_module(%25[discovery], %26[pipeline_module])
+        %30[tmp] = construct bootstrap_parsing::ModuleKind::DomainTruthCarried {}
+        %29[layout_module] = call bootstrap_parsing::seed_syntax_module(%30[tmp], "bootstrap/compiler/src/layout.evd", "bootstrap_layout")
+        %31[layout] = call bootstrap_parsing::append_syntax_module(%28[pipeline], %29[layout_module])
+        %33[tmp] = construct bootstrap_parsing::ModuleKind::DomainTruthCarried {}
+        %32[manifest_module] = call bootstrap_parsing::seed_syntax_module(%33[tmp], "bootstrap/compiler/src/manifest.evd", "bootstrap_manifest")
+        %34[manifest] = call bootstrap_parsing::append_syntax_module(%31[layout], %32[manifest_module])
+        %36[tmp] = construct bootstrap_parsing::ModuleKind::DomainTruthCarried {}
+        %35[release_module] = call bootstrap_parsing::seed_syntax_module(%36[tmp], "bootstrap/compiler/src/release.evd", "bootstrap_release")
+        %37[release] = call bootstrap_parsing::append_syntax_module(%34[manifest], %35[release_module])
+        %39[tmp] = construct bootstrap_parsing::ModuleKind::DomainTruthCarried {}
+        %38[compiler_module] = call bootstrap_parsing::seed_syntax_module(%39[tmp], "bootstrap/compiler/src/main.evd", "bootstrap_compiler")
+        %40[compiler] = call bootstrap_parsing::append_syntax_module(%37[release], %38[compiler_module])
+        %1[$return] = construct bootstrap_parsing::PackageSyntax {modules: %40[compiler]}
         return %1[$return]
   - public fn bootstrap_parsing::seed_package_syntax_module_count -> Int
       locals:
@@ -160,7 +325,7 @@ functions:
       block %0
         %2[tmp] = call bootstrap_lexing::seed_token_stream()
         %1[syntax] = call bootstrap_parsing::seed_package_syntax(%2[tmp])
-        %0[$return] = 1
+        %0[$return] = 13
         return %0[$return]
   - public fn bootstrap_semantics::symbol_name -> bootstrap_semantics::SymbolName
       locals:
@@ -178,26 +343,96 @@ functions:
       block %0
         %3[$return] = construct bootstrap_semantics::Symbol {name: %0[name], category: %1[category], declared_at: %2[declared_at]}
         return %3[$return]
+  - private fn bootstrap_semantics::append_symbol -> NonEmptyMap<Text, bootstrap_semantics::Symbol>
+      locals:
+        %0[symbols] : NonEmptyMap<Text, bootstrap_semantics::Symbol>
+        %1[symbol] : bootstrap_semantics::Symbol
+        %2[$return] : NonEmptyMap<Text, bootstrap_semantics::Symbol>
+        %3[tmp] : Text
+        %4[tmp] : bootstrap_semantics::SymbolName
+      block %0
+        %4[tmp] = %1[symbol].name
+        %3[tmp] = %4[tmp].text
+        %2[$return] = call nonempty_map_bind_or_replace$Text$bootstrap_semantics__Symbol(%0[symbols], %3[tmp], %1[symbol])
+        return %2[$return]
+  - private fn bootstrap_semantics::seed_symbol -> bootstrap_semantics::Symbol
+      locals:
+        %0[path_text] : Text
+        %1[module_name] : Text
+        %2[$return] : bootstrap_semantics::Symbol
+        %3[source_path] : bootstrap_source::SourcePath
+        %4[declared_at] : bootstrap_lexing::SourceSpan
+        %5[name] : bootstrap_semantics::SymbolName
+        %6[tmp] : bootstrap_semantics::SymbolCategory
+      block %0
+        %3[source_path] = construct bootstrap_source::SourcePath {text: %0[path_text]}
+        %4[declared_at] = call bootstrap_lexing::source_span(%3[source_path], 0, 30)
+        %5[name] = call bootstrap_semantics::symbol_name(%1[module_name])
+        %6[tmp] = construct bootstrap_semantics::SymbolCategory::ModuleScopeAvailable {}
+        %2[$return] = call bootstrap_semantics::symbol(%5[name], %6[tmp], %4[declared_at])
+        return %2[$return]
   - public fn bootstrap_semantics::seed_symbol_catalog -> bootstrap_semantics::SymbolCatalog
       locals:
         %0[syntax] : bootstrap_parsing::PackageSyntax
         %1[$return] : bootstrap_semantics::SymbolCatalog
-        %2[source_path] : bootstrap_source::SourcePath
-        %3[declared_at] : bootstrap_lexing::SourceSpan
-        %4[name] : bootstrap_semantics::SymbolName
-        %5[first_symbol] : bootstrap_semantics::Symbol
-        %6[tmp] : bootstrap_semantics::SymbolCategory
-        %7[tmp] : NonEmptyMap<Text, bootstrap_semantics::Symbol>
-        %8[tmp] : Text
+        %2[host_symbol] : bootstrap_semantics::Symbol
+        %3[host] : NonEmptyMap<Text, bootstrap_semantics::Symbol>
+        %4[tmp] : Text
+        %5[tmp] : bootstrap_semantics::SymbolName
+        %6[environment_symbol] : bootstrap_semantics::Symbol
+        %7[environment] : NonEmptyMap<Text, bootstrap_semantics::Symbol>
+        %8[source_symbol] : bootstrap_semantics::Symbol
+        %9[source] : NonEmptyMap<Text, bootstrap_semantics::Symbol>
+        %10[lexing_symbol] : bootstrap_semantics::Symbol
+        %11[lexing] : NonEmptyMap<Text, bootstrap_semantics::Symbol>
+        %12[parsing_symbol] : bootstrap_semantics::Symbol
+        %13[parsing] : NonEmptyMap<Text, bootstrap_semantics::Symbol>
+        %14[semantics_symbol] : bootstrap_semantics::Symbol
+        %15[semantics] : NonEmptyMap<Text, bootstrap_semantics::Symbol>
+        %16[diagnostics_symbol] : bootstrap_semantics::Symbol
+        %17[diagnostics] : NonEmptyMap<Text, bootstrap_semantics::Symbol>
+        %18[discovery_symbol] : bootstrap_semantics::Symbol
+        %19[discovery] : NonEmptyMap<Text, bootstrap_semantics::Symbol>
+        %20[pipeline_symbol] : bootstrap_semantics::Symbol
+        %21[pipeline] : NonEmptyMap<Text, bootstrap_semantics::Symbol>
+        %22[layout_symbol] : bootstrap_semantics::Symbol
+        %23[layout] : NonEmptyMap<Text, bootstrap_semantics::Symbol>
+        %24[manifest_symbol] : bootstrap_semantics::Symbol
+        %25[manifest] : NonEmptyMap<Text, bootstrap_semantics::Symbol>
+        %26[release_symbol] : bootstrap_semantics::Symbol
+        %27[release] : NonEmptyMap<Text, bootstrap_semantics::Symbol>
+        %28[compiler_symbol] : bootstrap_semantics::Symbol
+        %29[compiler] : NonEmptyMap<Text, bootstrap_semantics::Symbol>
       block %0
-        %2[source_path] = construct bootstrap_source::SourcePath {text: "bootstrap/compiler/src/source.evd"}
-        %3[declared_at] = call bootstrap_lexing::source_span(%2[source_path], 0, 30)
-        %4[name] = call bootstrap_semantics::symbol_name("bootstrap_source")
-        %6[tmp] = construct bootstrap_semantics::SymbolCategory::ModuleScopeAvailable {}
-        %5[first_symbol] = call bootstrap_semantics::symbol(%4[name], %6[tmp], %3[declared_at])
-        %8[tmp] = %4[name].text
-        %7[tmp] = call map_single$Text$bootstrap_semantics__Symbol(%8[tmp], %5[first_symbol])
-        %1[$return] = construct bootstrap_semantics::SymbolCatalog {symbols_by_name: %7[tmp]}
+        %2[host_symbol] = call bootstrap_semantics::seed_symbol("bootstrap/compiler/src/host.evd", "bootstrap_host")
+        %5[tmp] = %2[host_symbol].name
+        %4[tmp] = %5[tmp].text
+        %3[host] = call map_single$Text$bootstrap_semantics__Symbol(%4[tmp], %2[host_symbol])
+        %6[environment_symbol] = call bootstrap_semantics::seed_symbol("bootstrap/compiler/src/environment.evd", "bootstrap_environment")
+        %7[environment] = call bootstrap_semantics::append_symbol(%3[host], %6[environment_symbol])
+        %8[source_symbol] = call bootstrap_semantics::seed_symbol("bootstrap/compiler/src/source.evd", "bootstrap_source")
+        %9[source] = call bootstrap_semantics::append_symbol(%7[environment], %8[source_symbol])
+        %10[lexing_symbol] = call bootstrap_semantics::seed_symbol("bootstrap/compiler/src/lexing.evd", "bootstrap_lexing")
+        %11[lexing] = call bootstrap_semantics::append_symbol(%9[source], %10[lexing_symbol])
+        %12[parsing_symbol] = call bootstrap_semantics::seed_symbol("bootstrap/compiler/src/parsing.evd", "bootstrap_parsing")
+        %13[parsing] = call bootstrap_semantics::append_symbol(%11[lexing], %12[parsing_symbol])
+        %14[semantics_symbol] = call bootstrap_semantics::seed_symbol("bootstrap/compiler/src/semantics.evd", "bootstrap_semantics")
+        %15[semantics] = call bootstrap_semantics::append_symbol(%13[parsing], %14[semantics_symbol])
+        %16[diagnostics_symbol] = call bootstrap_semantics::seed_symbol("bootstrap/compiler/src/diagnostics.evd", "bootstrap_diagnostics")
+        %17[diagnostics] = call bootstrap_semantics::append_symbol(%15[semantics], %16[diagnostics_symbol])
+        %18[discovery_symbol] = call bootstrap_semantics::seed_symbol("bootstrap/compiler/src/discovery.evd", "bootstrap_discovery")
+        %19[discovery] = call bootstrap_semantics::append_symbol(%17[diagnostics], %18[discovery_symbol])
+        %20[pipeline_symbol] = call bootstrap_semantics::seed_symbol("bootstrap/compiler/src/pipeline.evd", "bootstrap_pipeline")
+        %21[pipeline] = call bootstrap_semantics::append_symbol(%19[discovery], %20[pipeline_symbol])
+        %22[layout_symbol] = call bootstrap_semantics::seed_symbol("bootstrap/compiler/src/layout.evd", "bootstrap_layout")
+        %23[layout] = call bootstrap_semantics::append_symbol(%21[pipeline], %22[layout_symbol])
+        %24[manifest_symbol] = call bootstrap_semantics::seed_symbol("bootstrap/compiler/src/manifest.evd", "bootstrap_manifest")
+        %25[manifest] = call bootstrap_semantics::append_symbol(%23[layout], %24[manifest_symbol])
+        %26[release_symbol] = call bootstrap_semantics::seed_symbol("bootstrap/compiler/src/release.evd", "bootstrap_release")
+        %27[release] = call bootstrap_semantics::append_symbol(%25[manifest], %26[release_symbol])
+        %28[compiler_symbol] = call bootstrap_semantics::seed_symbol("bootstrap/compiler/src/main.evd", "bootstrap_compiler")
+        %29[compiler] = call bootstrap_semantics::append_symbol(%27[release], %28[compiler_symbol])
+        %1[$return] = construct bootstrap_semantics::SymbolCatalog {symbols_by_name: %29[compiler]}
         return %1[$return]
   - public fn bootstrap_semantics::seed_symbol_catalog_entry_count -> Nat
       locals:
@@ -1313,9 +1548,27 @@ functions:
       locals:
         %0[values] : NonEmptyList<bootstrap_source::SourceFile>
       blocks: <none>
+  - public fn nonempty_list_widen$bootstrap_lexing__Token -> List<bootstrap_lexing::Token>
+      locals:
+        %0[values] : NonEmptyList<bootstrap_lexing::Token>
+      blocks: <none>
+  - public fn list_append$bootstrap_lexing__Token -> NonEmptyList<bootstrap_lexing::Token>
+      locals:
+        %0[values] : List<bootstrap_lexing::Token>
+        %1[value] : bootstrap_lexing::Token
+      blocks: <none>
   - public fn list_single$bootstrap_lexing__Token -> NonEmptyList<bootstrap_lexing::Token>
       locals:
         %0[value] : bootstrap_lexing::Token
+      blocks: <none>
+  - public fn nonempty_list_widen$bootstrap_parsing__SyntaxModule -> List<bootstrap_parsing::SyntaxModule>
+      locals:
+        %0[values] : NonEmptyList<bootstrap_parsing::SyntaxModule>
+      blocks: <none>
+  - public fn list_append$bootstrap_parsing__SyntaxModule -> NonEmptyList<bootstrap_parsing::SyntaxModule>
+      locals:
+        %0[values] : List<bootstrap_parsing::SyntaxModule>
+        %1[value] : bootstrap_parsing::SyntaxModule
       blocks: <none>
   - public fn list_single$bootstrap_parsing__SyntaxDeclaration -> NonEmptyList<bootstrap_parsing::SyntaxDeclaration>
       locals:
@@ -1324,6 +1577,12 @@ functions:
   - public fn list_single$bootstrap_parsing__SyntaxModule -> NonEmptyList<bootstrap_parsing::SyntaxModule>
       locals:
         %0[value] : bootstrap_parsing::SyntaxModule
+      blocks: <none>
+  - public fn nonempty_map_bind_or_replace$Text$bootstrap_semantics__Symbol -> NonEmptyMap<Text, bootstrap_semantics::Symbol>
+      locals:
+        %0[entries] : NonEmptyMap<Text, bootstrap_semantics::Symbol>
+        %1[key] : Text
+        %2[value] : bootstrap_semantics::Symbol
       blocks: <none>
   - public fn map_single$Text$bootstrap_semantics__Symbol -> NonEmptyMap<Text, bootstrap_semantics::Symbol>
       locals:

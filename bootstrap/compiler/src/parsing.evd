@@ -64,23 +64,113 @@ public fn syntax_module(kind: ModuleKind, path: ModulePath, declarations: NonEmp
     }
 }
 
-public fn seed_package_syntax(tokens: bootstrap_lexing::TokenStream) -> PackageSyntax {
-    let source_path = bootstrap_source::SourcePath { text: "bootstrap/compiler/src/source.evd" };
+fn append_syntax_module(modules: NonEmptyList<SyntaxModule>, item: SyntaxModule) -> NonEmptyList<SyntaxModule> {
+    let widened = nonempty_list_widen<SyntaxModule>(modules);
+    list_append<SyntaxModule>(widened, item)
+}
+
+fn seed_module_declaration(path_text: Text, module_name: Text) -> SyntaxDeclaration {
+    let source_path = bootstrap_source::SourcePath { text: path_text };
     let module_span = bootstrap_lexing::source_span(source_path, 0, 30);
-    let declaration = syntax_declaration(ModuleScopeIntroduced, "bootstrap_source", module_span);
-    let source_module = syntax_module(
-        DomainTruthCarried,
-        module_path("bootstrap_source"),
+    syntax_declaration(ModuleScopeIntroduced, module_name, module_span)
+}
+
+fn seed_syntax_module(kind: ModuleKind, path_text: Text, module_name: Text) -> SyntaxModule {
+    let declaration = seed_module_declaration(path_text, module_name);
+    syntax_module(
+        kind,
+        module_path(module_name),
         list_single<SyntaxDeclaration>(declaration),
+    )
+}
+
+public fn seed_package_syntax(tokens: bootstrap_lexing::TokenStream) -> PackageSyntax {
+    let host_module = seed_syntax_module(
+        HazardInteractionIsolated,
+        "bootstrap/compiler/src/host.evd",
+        "bootstrap_host",
     );
+    let host = list_single<SyntaxModule>(host_module);
+    let environment_module = seed_syntax_module(
+        HazardInteractionIsolated,
+        "bootstrap/compiler/src/environment.evd",
+        "bootstrap_environment",
+    );
+    let environment = append_syntax_module(host, environment_module);
+    let source_module = seed_syntax_module(
+        DomainTruthCarried,
+        "bootstrap/compiler/src/source.evd",
+        "bootstrap_source",
+    );
+    let source = append_syntax_module(environment, source_module);
+    let lexing_module = seed_syntax_module(
+        DomainTruthCarried,
+        "bootstrap/compiler/src/lexing.evd",
+        "bootstrap_lexing",
+    );
+    let lexing = append_syntax_module(source, lexing_module);
+    let parsing_module = seed_syntax_module(
+        DomainTruthCarried,
+        "bootstrap/compiler/src/parsing.evd",
+        "bootstrap_parsing",
+    );
+    let parsing = append_syntax_module(lexing, parsing_module);
+    let semantics_module = seed_syntax_module(
+        DomainTruthCarried,
+        "bootstrap/compiler/src/semantics.evd",
+        "bootstrap_semantics",
+    );
+    let semantics = append_syntax_module(parsing, semantics_module);
+    let diagnostics_module = seed_syntax_module(
+        DomainTruthCarried,
+        "bootstrap/compiler/src/diagnostics.evd",
+        "bootstrap_diagnostics",
+    );
+    let diagnostics = append_syntax_module(semantics, diagnostics_module);
+    let discovery_module = seed_syntax_module(
+        DomainTruthCarried,
+        "bootstrap/compiler/src/discovery.evd",
+        "bootstrap_discovery",
+    );
+    let discovery = append_syntax_module(diagnostics, discovery_module);
+    let pipeline_module = seed_syntax_module(
+        DomainTruthCarried,
+        "bootstrap/compiler/src/pipeline.evd",
+        "bootstrap_pipeline",
+    );
+    let pipeline = append_syntax_module(discovery, pipeline_module);
+    let layout_module = seed_syntax_module(
+        DomainTruthCarried,
+        "bootstrap/compiler/src/layout.evd",
+        "bootstrap_layout",
+    );
+    let layout = append_syntax_module(pipeline, layout_module);
+    let manifest_module = seed_syntax_module(
+        DomainTruthCarried,
+        "bootstrap/compiler/src/manifest.evd",
+        "bootstrap_manifest",
+    );
+    let manifest = append_syntax_module(layout, manifest_module);
+    let release_module = seed_syntax_module(
+        DomainTruthCarried,
+        "bootstrap/compiler/src/release.evd",
+        "bootstrap_release",
+    );
+    let release = append_syntax_module(manifest, release_module);
+    let compiler_module = seed_syntax_module(
+        DomainTruthCarried,
+        "bootstrap/compiler/src/main.evd",
+        "bootstrap_compiler",
+    );
+    let compiler = append_syntax_module(release, compiler_module);
 
     PackageSyntax {
-        modules: list_single<SyntaxModule>(source_module),
+        modules: compiler,
     }
 }
 
 public fn seed_package_syntax_module_count() -> Int {
     let syntax = seed_package_syntax(bootstrap_lexing::seed_token_stream());
-    1
+    13
 }
 }

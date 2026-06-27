@@ -45,14 +45,47 @@ public fn symbol(name: SymbolName, category: SymbolCategory, declared_at: bootst
     }
 }
 
-public fn seed_symbol_catalog(syntax: bootstrap_parsing::PackageSyntax) -> SymbolCatalog {
-    let source_path = bootstrap_source::SourcePath { text: "bootstrap/compiler/src/source.evd" };
+fn append_symbol(symbols: NonEmptyMap<Text, Symbol>, symbol: Symbol) -> NonEmptyMap<Text, Symbol> {
+    nonempty_map_bind_or_replace<Text, Symbol>(symbols, symbol.name.text, symbol)
+}
+
+fn seed_symbol(path_text: Text, module_name: Text) -> Symbol {
+    let source_path = bootstrap_source::SourcePath { text: path_text };
     let declared_at = bootstrap_lexing::source_span(source_path, 0, 30);
-    let name = symbol_name("bootstrap_source");
-    let first_symbol = symbol(name, ModuleScopeAvailable, declared_at);
+    let name = symbol_name(module_name);
+    symbol(name, ModuleScopeAvailable, declared_at)
+}
+
+public fn seed_symbol_catalog(syntax: bootstrap_parsing::PackageSyntax) -> SymbolCatalog {
+    let host_symbol = seed_symbol("bootstrap/compiler/src/host.evd", "bootstrap_host");
+    let host = map_single<Text, Symbol>(host_symbol.name.text, host_symbol);
+    let environment_symbol = seed_symbol("bootstrap/compiler/src/environment.evd", "bootstrap_environment");
+    let environment = append_symbol(host, environment_symbol);
+    let source_symbol = seed_symbol("bootstrap/compiler/src/source.evd", "bootstrap_source");
+    let source = append_symbol(environment, source_symbol);
+    let lexing_symbol = seed_symbol("bootstrap/compiler/src/lexing.evd", "bootstrap_lexing");
+    let lexing = append_symbol(source, lexing_symbol);
+    let parsing_symbol = seed_symbol("bootstrap/compiler/src/parsing.evd", "bootstrap_parsing");
+    let parsing = append_symbol(lexing, parsing_symbol);
+    let semantics_symbol = seed_symbol("bootstrap/compiler/src/semantics.evd", "bootstrap_semantics");
+    let semantics = append_symbol(parsing, semantics_symbol);
+    let diagnostics_symbol = seed_symbol("bootstrap/compiler/src/diagnostics.evd", "bootstrap_diagnostics");
+    let diagnostics = append_symbol(semantics, diagnostics_symbol);
+    let discovery_symbol = seed_symbol("bootstrap/compiler/src/discovery.evd", "bootstrap_discovery");
+    let discovery = append_symbol(diagnostics, discovery_symbol);
+    let pipeline_symbol = seed_symbol("bootstrap/compiler/src/pipeline.evd", "bootstrap_pipeline");
+    let pipeline = append_symbol(discovery, pipeline_symbol);
+    let layout_symbol = seed_symbol("bootstrap/compiler/src/layout.evd", "bootstrap_layout");
+    let layout = append_symbol(pipeline, layout_symbol);
+    let manifest_symbol = seed_symbol("bootstrap/compiler/src/manifest.evd", "bootstrap_manifest");
+    let manifest = append_symbol(layout, manifest_symbol);
+    let release_symbol = seed_symbol("bootstrap/compiler/src/release.evd", "bootstrap_release");
+    let release = append_symbol(manifest, release_symbol);
+    let compiler_symbol = seed_symbol("bootstrap/compiler/src/main.evd", "bootstrap_compiler");
+    let compiler = append_symbol(release, compiler_symbol);
 
     SymbolCatalog {
-        symbols_by_name: map_single<Text, Symbol>(name.text, first_symbol),
+        symbols_by_name: compiler,
     }
 }
 
