@@ -1,36 +1,63 @@
 <input>:3:19: error: generic parameter 'T' may not have type arguments
         public value: T<Int>,
                       ^^^^^^
-<input>:17:29: error: builtin type 'List' requires 1 type argument(s)
+<input>:23:29: error: builtin type 'List' requires 1 type argument(s)
     public fn bare_list(values: List) -> Int {
                                 ^^^^
-<input>:21:33: error: builtin type 'List' expects 1 type argument(s), got 2
+<input>:27:33: error: builtin type 'List' expects 1 type argument(s), got 2
     public fn too_many_list(values: List<Int, Int>) -> Int {
                                     ^^^^^^^^^^^^^^
-<input>:25:29: error: builtin type 'Map' expects 2 type argument(s), got 1
+<input>:31:29: error: builtin type 'Map' expects 2 type argument(s), got 1
     public fn short_map(values: Map<Int>) -> Int {
                                 ^^^^^^^^
-<input>:29:32: error: builtin type 'Map' expects 2 type argument(s), got 3
+<input>:35:32: error: builtin type 'Map' expects 2 type argument(s), got 3
     public fn too_many_map(values: Map<Int, Int, Int>) -> Int {
                                    ^^^^^^^^^^^^^^^^^^
-<input>:33:32: error: builtin type 'Int' may not have type arguments
+<input>:39:32: error: builtin type 'Int' may not have type arguments
     public fn builtin_args(values: Int<Text>) -> Int {
                                    ^^^^^^^^^
-<input>:37:37: error: builtin type 'List' may not be used as a qualified type
+<input>:43:37: error: builtin type 'List' may not be used as a qualified type
     public fn qualified_builtin(values: List::Thing) -> Int {
                                         ^^^^^^^^^^^
-<input>:41:37: error: map key type 'Float' must be one of Int, Nat, Byte, Char, Text, or Bytes
+<input>:47:37: error: map key type 'Float' must be one of Int, Nat, Byte, Char, Text, or Bytes
     public fn float_map_key(values: Map<Float, Int>) -> Int {
                                         ^^^^^
-<input>:45:47: error: map key type 'CString' must be one of Int, Nat, Byte, Char, Text, or Bytes
+<input>:51:47: error: map key type 'CString' must be one of Int, Nat, Byte, Char, Text, or Bytes
     public fn cstring_map_key(values: NonEmptyMap<CString, Int>) -> Int {
                                                   ^^^^^^^
-<input>:49:38: error: map key type 'KeyBox' must be one of Int, Nat, Byte, Char, Text, or Bytes
+<input>:55:38: error: map key type 'KeyBox' must be one of Int, Nat, Byte, Char, Text, or Bytes
     public fn record_map_key(values: Map<KeyBox, Int>) -> Int {
                                          ^^^^^^
-<input>:53:45: error: map key type 'KeyMode' must be one of Int, Nat, Byte, Char, Text, or Bytes
+<input>:59:45: error: map key type 'KeyMode' must be one of Int, Nat, Byte, Char, Text, or Bytes
     public fn state_map_key(values: NonEmptyMap<KeyMode, Int>) -> Int {
                                                 ^^^^^^^
-<input>:57:42: error: map key type 'List<Int>' must be one of Int, Nat, Byte, Char, Text, or Bytes
+<input>:63:42: error: map key type 'List<Int>' must be one of Int, Nat, Byte, Char, Text, or Bytes
     public fn collection_map_key(values: Map<List<Int>, Int>) -> Int {
                                              ^^^^^^^^^
+<input>:67:29: error: compiler-owned collection companion type 'ListFirstAndRest' requires 1 type argument(s)
+    public fn bare_first(value: ListFirstAndRest) -> Int {
+                                ^^^^^^^^^^^^^^^^
+<input>:71:33: error: compiler-owned collection companion type 'ListFirstAndRest' expects 1 type argument(s), got 2
+    public fn too_many_first(value: ListFirstAndRest<Int, Int>) -> Int {
+                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^
+<input>:75:30: error: compiler-owned collection companion type 'MapEntry' expects 2 type argument(s), got 1
+    public fn short_entry(value: MapEntry<Text>) -> Int {
+                                 ^^^^^^^^^^^^^^
+<input>:79:33: error: compiler-owned collection companion type 'MapBoundValueAndRest' expects 2 type argument(s), got 3
+    public fn too_many_bound(value: MapBoundValueAndRest<Text, Int, Int>) -> Int {
+                                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<input>:83:43: error: map key type 'Float' must be one of Int, Nat, Byte, Char, Text, or Bytes
+    public fn float_entry_key(value: MapEntry<Float, Int>) -> Int {
+                                              ^^^^^
+<input>:87:62: error: map key type 'KeyBox' must be one of Int, Nat, Byte, Char, Text, or Bytes
+    public fn record_first_entry_key(value: MapFirstEntryAndRest<KeyBox, Int>) -> Int {
+                                                                 ^^^^^^
+<input>:91:60: error: map key type 'List<Int>' must be one of Int, Nat, Byte, Char, Text, or Bytes
+    public fn collection_bound_key(value: MapBoundValueAndRest<List<Int>, Int>) -> Int {
+                                                               ^^^^^^^^^
+<input>:95:58: error: reason type 'LookupFailure' may not appear in function parameter
+    public fn reason_companion_value(value: ListFirstAndRest<LookupFailure>) -> Int {
+                                                             ^^^^^^^^^^^^^
+<input>:99:56: error: permit type 'Access' may not appear in function parameter
+    public fn permit_companion_value(value: MapEntry<Text, Access>) -> Int {
+                                                           ^^^^^^

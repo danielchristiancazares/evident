@@ -134,6 +134,13 @@ const std::unordered_set<std::string_view> kCompilerOwnedCollectionNames = {
     "nonempty_map_from_entries_using_last_bindings",
 };
 
+const std::unordered_set<std::string_view> kCompilerOwnedCollectionCompanionRecordNames = {
+    "ListFirstAndRest",
+    "MapEntry",
+    "MapFirstEntryAndRest",
+    "MapBoundValueAndRest",
+};
+
 std::string final_path_segment_or_malformed_path(const std::vector<std::string>& path) {
     if (path.empty()) {
         return "<malformed path>";
@@ -191,6 +198,11 @@ enum class BuiltinTypeNameReservation {
 enum class BuiltinNameState {
     UserDeclaredName,
     CompilerBuiltinName,
+};
+
+enum class CompilerOwnedTypeNameState {
+    UserDeclaredTypeName,
+    CompilerOwnedTypeName,
 };
 
 enum class TypeDeclarationRole {
@@ -268,6 +280,18 @@ BuiltinNameState builtin_name_state(std::string_view name) {
                                     : BuiltinNameState::UserDeclaredName;
 }
 
+CompilerOwnedTypeNameState compiler_owned_type_name_state(std::string_view name) {
+    return kBuiltins.contains(name) || kCompilerOwnedCollectionCompanionRecordNames.contains(name)
+        ? CompilerOwnedTypeNameState::CompilerOwnedTypeName
+        : CompilerOwnedTypeNameState::UserDeclaredTypeName;
+}
+
+std::string_view compiler_owned_type_diagnostic_kind(std::string_view name) {
+    return kCompilerOwnedCollectionCompanionRecordNames.contains(name)
+        ? "compiler-owned collection companion type"
+        : "builtin type";
+}
+
 GenericStructuralRole generic_structural_role(std::string_view name) {
     return kSemanticGenericNames.contains(name)
         ? GenericStructuralRole::SemanticWrapper
@@ -284,7 +308,13 @@ BuiltinTypeArgumentArity builtin_type_argument_arity(std::string_view name) {
     if (name == "List" || name == "NonEmptyList") {
         return BuiltinTypeArgumentArity::OneTypeArgument;
     }
+    if (name == "ListFirstAndRest") {
+        return BuiltinTypeArgumentArity::OneTypeArgument;
+    }
     if (name == "Map" || name == "NonEmptyMap") {
+        return BuiltinTypeArgumentArity::TwoTypeArguments;
+    }
+    if (name == "MapEntry" || name == "MapFirstEntryAndRest" || name == "MapBoundValueAndRest") {
         return BuiltinTypeArgumentArity::TwoTypeArguments;
     }
     if (builtin_name_state(name) == BuiltinNameState::CompilerBuiltinName) {
@@ -294,8 +324,10 @@ BuiltinTypeArgumentArity builtin_type_argument_arity(std::string_view name) {
 }
 
 BuiltinMapFamily builtin_map_family(std::string_view name) {
-    return name == "Map" || name == "NonEmptyMap" ? BuiltinMapFamily::MapFamily
-                                                   : BuiltinMapFamily::OtherBuiltinType;
+    return name == "Map" || name == "NonEmptyMap" || name == "MapEntry"
+            || name == "MapFirstEntryAndRest" || name == "MapBoundValueAndRest"
+        ? BuiltinMapFamily::MapFamily
+        : BuiltinMapFamily::OtherBuiltinType;
 }
 
 std::size_t expected_builtin_type_arg_count(BuiltinTypeArgumentArity arity) {
@@ -378,7 +410,7 @@ TypeReferencePathRole type_reference_path_role(const std::vector<std::string>& p
         && std::find(generics.begin(), generics.end(), path.front()) != generics.end()) {
         return TypeReferencePathRole::GenericParameter;
     }
-    if (builtin_name_state(path.front()) == BuiltinNameState::CompilerBuiltinName) {
+    if (compiler_owned_type_name_state(path.front()) == CompilerOwnedTypeNameState::CompilerOwnedTypeName) {
         return TypeReferencePathRole::BuiltinTypeName;
     }
     return TypeReferencePathRole::NamedTypePath;
@@ -618,7 +650,7 @@ private:
         if (path.size() == 1) {
             const std::string& name = path.front();
             if (std::find(local_generics.begin(), local_generics.end(), name) != local_generics.end()
-                || builtin_name_state(name) == BuiltinNameState::CompilerBuiltinName) {
+                || compiler_owned_type_name_state(name) == CompilerOwnedTypeNameState::CompilerOwnedTypeName) {
                 return nullptr;
             }
             for (const Scope* scope = &current_scope; scope != nullptr; scope = scope->parent) {
@@ -985,7 +1017,7 @@ private:
             if (std::find(generics.begin(), generics.end(), name) != generics.end()) {
                 return generic_type(name);
             }
-            if (builtin_name_state(name) == BuiltinNameState::CompilerBuiltinName) {
+            if (compiler_owned_type_name_state(name) == CompilerOwnedTypeNameState::CompilerOwnedTypeName) {
                 return builtin_type(name, std::move(args));
             }
         }
@@ -1413,7 +1445,8 @@ private:
 
         if (path_role == TypeReferencePathRole::BuiltinTypeName && reason_type.path.size() == 1) {
             diagnostics_.error(reason_type.span,
-                               "'fails' must reference a reason type, not builtin type '"
+                               "'fails' must reference a reason type, not "
+                                   + std::string(compiler_owned_type_diagnostic_kind(reason_type.path.front())) + " '"
                                    + ast::format_type(reason_type) + "'");
             return;
         }
@@ -1447,7 +1480,8 @@ private:
 
         if (path_role == TypeReferencePathRole::BuiltinTypeName && permit_type.path.size() == 1) {
             diagnostics_.error(permit_type.span,
-                               "'grants' must reference a permit type, not builtin type '"
+                               "'grants' must reference a permit type, not "
+                                   + std::string(compiler_owned_type_diagnostic_kind(permit_type.path.front())) + " '"
                                    + ast::format_type(permit_type) + "'");
             return;
         }
@@ -1486,7 +1520,8 @@ private:
 
         if (path_role == TypeReferencePathRole::BuiltinTypeName && proof_type.path.size() == 1) {
             diagnostics_.error(proof_type.span,
-                               "'proves' must reference a proof type, not builtin type '"
+                               "'proves' must reference a proof type, not "
+                                   + std::string(compiler_owned_type_diagnostic_kind(proof_type.path.front())) + " '"
                                    + ast::format_type(proof_type) + "'");
             return;
         }
@@ -1523,7 +1558,8 @@ private:
 
         if (path_role == TypeReferencePathRole::BuiltinTypeName && type.path.size() != 1) {
             diagnostics_.error(type.span,
-                              "builtin type '" + type.path.front() + "' may not be used as a qualified type");
+                              std::string(compiler_owned_type_diagnostic_kind(type.path.front())) + " '"
+                                  + type.path.front() + "' may not be used as a qualified type");
         }
 
         if (path_role == TypeReferencePathRole::GenericParameter && !type.args.empty()) {
@@ -1534,16 +1570,17 @@ private:
             if (builtin_arity != BuiltinTypeArgumentArity::UserDeclaredTypeName) {
                 const std::size_t expected_builtin_args = expected_builtin_type_arg_count(builtin_arity);
                 const std::size_t actual = type.args.size();
+                const std::string type_kind(compiler_owned_type_diagnostic_kind(type.path.front()));
                 if (expected_builtin_args == 0 && actual != 0) {
                     diagnostics_.error(type.span,
-                                      "builtin type '" + type.path.front() + "' may not have type arguments");
+                                      type_kind + " '" + type.path.front() + "' may not have type arguments");
                 } else if (expected_builtin_args != 0 && actual == 0) {
                     diagnostics_.error(type.span,
-                                      "builtin type '" + type.path.front() + "' requires "
+                                      type_kind + " '" + type.path.front() + "' requires "
                                           + std::to_string(expected_builtin_args) + " type argument(s)");
                 } else if (expected_builtin_args != actual) {
                     diagnostics_.error(type.span,
-                                      "builtin type '" + type.path.front() + "' expects "
+                                      type_kind + " '" + type.path.front() + "' expects "
                                           + std::to_string(expected_builtin_args) + " type argument(s), got "
                                           + std::to_string(actual));
                 }

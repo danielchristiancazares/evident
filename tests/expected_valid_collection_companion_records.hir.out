@@ -1,0 +1,15 @@
+types:
+  - public record test::CollectionCompanions
+      field first_int: ListFirstAndRest<Int>
+      field text_entry: MapEntry<Text, Int>
+      field first_entry: MapFirstEntryAndRest<Text, Int>
+      field bound_value: MapBoundValueAndRest<Bytes, Text>
+functions:
+  - public fn test::keep_first(first: ListFirstAndRest<Int>) -> ListFirstAndRest<Int>
+      block -> ListFirstAndRest<Int>
+        result
+          local first : ListFirstAndRest<Int>
+  - public fn test::keep_entry(entry: MapEntry<Text, Int>) -> MapEntry<Text, Int>
+      block -> MapEntry<Text, Int>
+        result
+          local entry : MapEntry<Text, Int>

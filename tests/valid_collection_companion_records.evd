@@ -1,0 +1,16 @@
+domain module test {
+public record CollectionCompanions {
+    public first_int: ListFirstAndRest<Int>,
+    public text_entry: MapEntry<Text, Int>,
+    public first_entry: MapFirstEntryAndRest<Text, Int>,
+    public bound_value: MapBoundValueAndRest<Bytes, Text>,
+}
+
+public fn keep_first(first: ListFirstAndRest<Int>) -> ListFirstAndRest<Int> {
+    first
+}
+
+public fn keep_entry(entry: MapEntry<Text, Int>) -> MapEntry<Text, Int> {
+    entry
+}
+}

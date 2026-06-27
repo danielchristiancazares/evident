@@ -86,6 +86,13 @@ const std::unordered_set<std::string_view> kBuiltins = {
     "CInt",  "CSize", "Byte",   "Unit",
 };
 
+const std::unordered_set<std::string_view> kCompilerOwnedCollectionCompanionRecordNames = {
+    "ListFirstAndRest",
+    "MapEntry",
+    "MapFirstEntryAndRest",
+    "MapBoundValueAndRest",
+};
+
 struct Scope;
 
 struct Symbol {
@@ -121,9 +128,9 @@ enum class ArgumentLoweringMode {
     PreserveCompileTimePath,
 };
 
-enum class BuiltinNameState {
-    UserDeclaredName,
-    CompilerBuiltinName,
+enum class CompilerOwnedTypeNameState {
+    UserDeclaredTypeName,
+    CompilerOwnedTypeName,
 };
 
 enum class StringLiteralTypingState {
@@ -148,9 +155,10 @@ struct FunctionContext {
     std::vector<std::string> generics;
 };
 
-BuiltinNameState builtin_name_state(std::string_view name) {
-    return kBuiltins.contains(name) ? BuiltinNameState::CompilerBuiltinName
-                                    : BuiltinNameState::UserDeclaredName;
+CompilerOwnedTypeNameState compiler_owned_type_name_state(std::string_view name) {
+    return kBuiltins.contains(name) || kCompilerOwnedCollectionCompanionRecordNames.contains(name)
+        ? CompilerOwnedTypeNameState::CompilerOwnedTypeName
+        : CompilerOwnedTypeNameState::UserDeclaredTypeName;
 }
 
 ArgumentLoweringMode argument_lowering_mode(const TypeRef* concrete_arg_type,
@@ -680,7 +688,7 @@ const Symbol* Lowerer::resolve_symbol(const Scope& scope,
     if (path.size() == 1) {
         const std::string& name = path.front();
         if (std::find(generics.begin(), generics.end(), name) != generics.end()
-            || builtin_name_state(name) == BuiltinNameState::CompilerBuiltinName) {
+            || compiler_owned_type_name_state(name) == CompilerOwnedTypeNameState::CompilerOwnedTypeName) {
             return nullptr;
         }
         for (const Scope* current = &scope; current != nullptr; current = current->parent) {
@@ -872,7 +880,7 @@ typesys::Type Lowerer::resolve_type(const Scope& scope,
         if (std::find(generics.begin(), generics.end(), name) != generics.end()) {
             return typesys::generic_type(name);
         }
-        if (builtin_name_state(name) == BuiltinNameState::CompilerBuiltinName) {
+        if (compiler_owned_type_name_state(name) == CompilerOwnedTypeNameState::CompilerOwnedTypeName) {
             return typesys::builtin_type(name, std::move(args));
         }
     }

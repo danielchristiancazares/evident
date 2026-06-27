@@ -14,6 +14,12 @@ public state KeyMode {
     Permissive,
 }
 
+public reason LookupFailure {
+    LookupMiss,
+}
+
+public permit Access
+
 public fn bare_list(values: List) -> Int {
     0
 }
@@ -55,6 +61,42 @@ public fn state_map_key(values: NonEmptyMap<KeyMode, Int>) -> Int {
 }
 
 public fn collection_map_key(values: Map<List<Int>, Int>) -> Int {
+    0
+}
+
+public fn bare_first(value: ListFirstAndRest) -> Int {
+    0
+}
+
+public fn too_many_first(value: ListFirstAndRest<Int, Int>) -> Int {
+    0
+}
+
+public fn short_entry(value: MapEntry<Text>) -> Int {
+    0
+}
+
+public fn too_many_bound(value: MapBoundValueAndRest<Text, Int, Int>) -> Int {
+    0
+}
+
+public fn float_entry_key(value: MapEntry<Float, Int>) -> Int {
+    0
+}
+
+public fn record_first_entry_key(value: MapFirstEntryAndRest<KeyBox, Int>) -> Int {
+    0
+}
+
+public fn collection_bound_key(value: MapBoundValueAndRest<List<Int>, Int>) -> Int {
+    0
+}
+
+public fn reason_companion_value(value: ListFirstAndRest<LookupFailure>) -> Int {
+    0
+}
+
+public fn permit_companion_value(value: MapEntry<Text, Access>) -> Int {
     0
 }
 }

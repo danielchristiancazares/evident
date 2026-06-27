@@ -80,7 +80,7 @@ add_dependencies(package_checksum package)
 
 include(CTest)
 if(BUILD_TESTING)
-    set(EVIDENT_EXPECTED_CTEST_TOTAL 361)
+    set(EVIDENT_EXPECTED_CTEST_TOTAL 362)
 
     add_test(NAME parse_valid_example
         COMMAND evidc --dump-hir ${CMAKE_CURRENT_SOURCE_DIR}/examples/feature_mode.evd)
@@ -599,6 +599,9 @@ if(BUILD_TESTING)
     add_hir_compare_test(compare_hir_builtin_list_values
         valid_builtin_list_values.evd
         expected_valid_builtin_list_values.hir.out)
+    add_hir_compare_test(compare_hir_collection_companion_records
+        valid_collection_companion_records.evd
+        expected_valid_collection_companion_records.hir.out)
     add_multi_hir_compare_test(compare_hir_package_cross_file
         expected_package_cross_file.hir.out
         package_support.evd
