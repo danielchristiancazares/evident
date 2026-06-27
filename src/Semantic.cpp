@@ -2425,6 +2425,10 @@ private:
                 diagnostics_.error(decl.span, "foundation modules may not nest additional `module` declarations");
                 return;
             }
+            if (decl.kind == ast::DeclKind::ForeignFunction) {
+                diagnostics_.error(decl.span, "foreign functions may only appear in `boundary` or `hazard` modules");
+                return;
+            }
             if (decl.kind != ast::DeclKind::Record && decl.kind != ast::DeclKind::Function) {
                 diagnostics_.error(decl.span, "foundation modules may only declare `record` and `fn`");
             }
@@ -2440,7 +2444,7 @@ private:
         }
         case ast::ModuleKind::Domain:
             if (decl.kind == ast::DeclKind::ForeignFunction) {
-                diagnostics_.error(decl.span, "`domain` modules must not declare `foreign fn`");
+                diagnostics_.error(decl.span, "foreign functions may only appear in `boundary` or `hazard` modules");
             }
             if (decl.kind == ast::DeclKind::Record) {
                 const auto& rd = static_cast<const ast::RecordDecl&>(decl);

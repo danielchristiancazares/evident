@@ -80,7 +80,7 @@ add_dependencies(package_checksum package)
 
 include(CTest)
 if(BUILD_TESTING)
-    set(EVIDENT_EXPECTED_CTEST_TOTAL 392)
+    set(EVIDENT_EXPECTED_CTEST_TOTAL 393)
 
     add_test(NAME parse_valid_example
         COMMAND evidc --dump-hir ${CMAKE_CURRENT_SOURCE_DIR}/examples/feature_mode.evd)
@@ -1306,6 +1306,9 @@ if(BUILD_TESTING)
     add_diagnostic_compare_test(diag_semantic_domain_foreign_fn
         invalid_domain_foreign_fn.evd
         expected_invalid_domain_foreign_fn.diag.out)
+    add_diagnostic_compare_test(diag_semantic_foundation_foreign_fn
+        invalid_foundation_foreign_fn.evd
+        expected_invalid_foundation_foreign_fn.diag.out)
     add_diagnostic_compare_test(diag_parse_foreign_fn_body
         invalid_foreign_fn_body.evd
         expected_invalid_foreign_fn_body.diag.out)

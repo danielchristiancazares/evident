@@ -1,0 +1,3 @@
+foundation module support {
+public foreign fn getenv(name: CString) -> CString
+}
