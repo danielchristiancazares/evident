@@ -1,7 +1,7 @@
 # Evident Language Specification
 
 **Status:** Redesigned working draft  
-**Last updated:** 2026-06-24
+**Last updated:** 2026-06-26
 
 ## 1. Scope
 
@@ -420,6 +420,34 @@ The boundary either:
 * translates it into a fully inhabited internal form.
 
 The parser or boundary adapter MUST NOT silently invent domain values.
+
+### 10.6 Reserved public names
+
+The naming rules in Sections 10.1 through 10.4 are enforced in part by a closed set of reserved public names. A conforming implementation MUST reject any exported name drawn from the reserved set below, and MUST reject any exported name that is a single character.
+
+These reservations apply to exported names only:
+
+* a public declaration name (`record`, `state`, `reason`, `proof`, `permit`, `phase`, `fn`, or `module`)
+* a public field of a public `record`, `proof`, or `phase`
+* a variant name of a public `state` or `reason`
+* a payload field name of a public `state` or `reason` variant
+* a position name of a public `phase`
+
+Private declarations, and private fields of public declarations, are not subject to these reservations.
+
+The reserved set is closed. Each name is reserved because it expresses a category that Sections 10.1 through 10.4 forbid in public surfaces:
+
+* boolean encodings (Section 10.1): `Yes`, `No`, `True`, `False`
+* presence-or-absence wrappers (Section 10.2): `Some`, `None`, `Present`, `Absent`, `Missing`, `Unknown`
+* generic lifecycle or mechanism labels (Section 10.1): `Ready`, `Unavailable`, `Connected`, `Disconnected`
+* placeholder or sentinel labels (Section 10.4): `Default`, `Other`, `Invalid`, `Unset`
+* wildcard bypass variants (Section 10.3): `Any`, `All`, `Unrestricted`, `AllowAll`
+
+A single-character exported name is reserved because one character cannot describe a downstream consequence or an established fact, as Section 10.1 requires.
+
+Names such as `Ready`, `Connected`, `Disconnected`, and `Unavailable` are reserved as generic lifecycle and mechanism labels under Section 10.1. A model that must distinguish such runtime alternatives MUST name each alternative by its consequence rather than by its lifecycle stage or connection mechanism.
+
+This reserved set is the decidable core of the public-naming rules. The broader, judgment-based requirements in Sections 10.1 through 10.4 continue to apply to exported names that fall outside this set.
 
 ## 11. Value Discipline
 
@@ -1127,6 +1155,7 @@ A conforming Evident toolchain MUST reject at least the following:
 * public absence-only names
 * public wildcard bypass names
 * public sentinel-value modeling
+* a public name drawn from the reserved public-name set, or a single-character public name (Section 10.6)
 * silent parser or boundary default injection of domain values where rejection or explicit translation is required
 * direct construction of a concrete `phase` type outside its declaring module
 * use of a phase family name as a value type

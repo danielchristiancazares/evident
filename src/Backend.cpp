@@ -353,16 +353,48 @@ enum class PayloadStorageState {
     CarriesPayload,
 };
 
-struct FieldLayout {
-    std::string name;
-    std::string source_name;
-    std::string llvm_type;
-    std::size_t index = 0;
-    std::size_t size = 0;
-    std::size_t align = 1;
-    RuntimeStorageShape storage_shape = RuntimeStorageShape::Aggregate;
-    MaterializationState materialization = MaterializationState::RuntimeValue;
-    ResolvedTypeIdentity identity;
+class FieldLayout final {
+public:
+    [[nodiscard]] static FieldLayout resolved_field(std::string name,
+                                                    std::string source_name,
+                                                    std::string llvm_type,
+                                                    std::size_t index,
+                                                    std::size_t size,
+                                                    std::size_t align,
+                                                    RuntimeStorageShape storage_shape,
+                                                    MaterializationState materialization,
+                                                    ResolvedTypeIdentity identity);
+
+    [[nodiscard]] const std::string& name() const noexcept { return name_; }
+    [[nodiscard]] const std::string& source_name() const noexcept { return source_name_; }
+    [[nodiscard]] const std::string& llvm_type() const noexcept { return llvm_type_; }
+    [[nodiscard]] std::size_t index() const noexcept { return index_; }
+    [[nodiscard]] std::size_t size() const noexcept { return size_; }
+    [[nodiscard]] std::size_t align() const noexcept { return align_; }
+    [[nodiscard]] RuntimeStorageShape storage_shape() const noexcept { return storage_shape_; }
+    [[nodiscard]] MaterializationState materialization() const noexcept { return materialization_; }
+    [[nodiscard]] ResolvedTypeIdentity identity() const noexcept { return identity_; }
+
+private:
+    std::string name_;
+    std::string source_name_;
+    std::string llvm_type_;
+    std::size_t index_;
+    std::size_t size_;
+    std::size_t align_;
+    RuntimeStorageShape storage_shape_;
+    MaterializationState materialization_;
+    ResolvedTypeIdentity identity_;
+
+    FieldLayout(std::string name,
+                std::string source_name,
+                std::string llvm_type,
+                std::size_t index,
+                std::size_t size,
+                std::size_t align,
+                RuntimeStorageShape storage_shape,
+                MaterializationState materialization,
+                ResolvedTypeIdentity identity);
 };
 
 struct VariantLayout {
@@ -393,14 +425,45 @@ struct TypeLayout {
     std::size_t payload_field_index = 0;
 };
 
-struct ResolvedType {
-    std::string source_name;
-    std::string llvm_type;
-    std::size_t size = 0;
-    std::size_t align = 1;
-    RuntimeStorageShape storage_shape = RuntimeStorageShape::Aggregate;
-    MaterializationState materialization = MaterializationState::RuntimeValue;
-    ResolvedTypeIdentity identity;
+class ResolvedType final {
+public:
+    [[nodiscard]] static ResolvedType runtime_value(std::string source_name,
+                                                    std::string llvm_type,
+                                                    std::size_t size,
+                                                    std::size_t align,
+                                                    RuntimeStorageShape storage_shape,
+                                                    ResolvedTypeIdentity identity);
+    [[nodiscard]] static ResolvedType never_value(std::string source_name,
+                                                  std::string llvm_type,
+                                                  std::size_t size,
+                                                  std::size_t align,
+                                                  RuntimeStorageShape storage_shape,
+                                                  ResolvedTypeIdentity identity);
+
+    [[nodiscard]] const std::string& source_name() const noexcept { return source_name_; }
+    [[nodiscard]] const std::string& llvm_type() const noexcept { return llvm_type_; }
+    [[nodiscard]] std::size_t size() const noexcept { return size_; }
+    [[nodiscard]] std::size_t align() const noexcept { return align_; }
+    [[nodiscard]] RuntimeStorageShape storage_shape() const noexcept { return storage_shape_; }
+    [[nodiscard]] MaterializationState materialization() const noexcept { return materialization_; }
+    [[nodiscard]] ResolvedTypeIdentity identity() const noexcept { return identity_; }
+
+private:
+    std::string source_name_;
+    std::string llvm_type_;
+    std::size_t size_;
+    std::size_t align_;
+    RuntimeStorageShape storage_shape_;
+    MaterializationState materialization_;
+    ResolvedTypeIdentity identity_;
+
+    ResolvedType(std::string source_name,
+                 std::string llvm_type,
+                 std::size_t size,
+                 std::size_t align,
+                 RuntimeStorageShape storage_shape,
+                 MaterializationState materialization,
+                 ResolvedTypeIdentity identity);
 };
 
 struct YieldLayout {
@@ -591,6 +654,90 @@ private:
                                                          const mir::Package& mir_package,
                                                          EntryPointEmission entry_point_emission);
 
+FieldLayout FieldLayout::resolved_field(std::string name,
+                                        std::string source_name,
+                                        std::string llvm_type,
+                                        std::size_t index,
+                                        std::size_t size,
+                                        std::size_t align,
+                                        RuntimeStorageShape storage_shape,
+                                        MaterializationState materialization,
+                                        ResolvedTypeIdentity identity) {
+    return FieldLayout(std::move(name),
+                       std::move(source_name),
+                       std::move(llvm_type),
+                       index,
+                       size,
+                       align,
+                       storage_shape,
+                       materialization,
+                       identity);
+}
+
+FieldLayout::FieldLayout(std::string name,
+                         std::string source_name,
+                         std::string llvm_type,
+                         std::size_t index,
+                         std::size_t size,
+                         std::size_t align,
+                         RuntimeStorageShape storage_shape,
+                         MaterializationState materialization,
+                         ResolvedTypeIdentity identity)
+    : name_(std::move(name)),
+      source_name_(std::move(source_name)),
+      llvm_type_(std::move(llvm_type)),
+      index_(index),
+      size_(size),
+      align_(align),
+      storage_shape_(storage_shape),
+      materialization_(materialization),
+      identity_(identity) {}
+
+ResolvedType ResolvedType::runtime_value(std::string source_name,
+                                         std::string llvm_type,
+                                         std::size_t size,
+                                         std::size_t align,
+                                         RuntimeStorageShape storage_shape,
+                                         ResolvedTypeIdentity identity) {
+    return ResolvedType(std::move(source_name),
+                        std::move(llvm_type),
+                        size,
+                        align,
+                        storage_shape,
+                        MaterializationState::RuntimeValue,
+                        identity);
+}
+
+ResolvedType ResolvedType::never_value(std::string source_name,
+                                       std::string llvm_type,
+                                       std::size_t size,
+                                       std::size_t align,
+                                       RuntimeStorageShape storage_shape,
+                                       ResolvedTypeIdentity identity) {
+    return ResolvedType(std::move(source_name),
+                        std::move(llvm_type),
+                        size,
+                        align,
+                        storage_shape,
+                        MaterializationState::NeverValue,
+                        identity);
+}
+
+ResolvedType::ResolvedType(std::string source_name,
+                           std::string llvm_type,
+                           std::size_t size,
+                           std::size_t align,
+                           RuntimeStorageShape storage_shape,
+                           MaterializationState materialization,
+                           ResolvedTypeIdentity identity)
+    : source_name_(std::move(source_name)),
+      llvm_type_(std::move(llvm_type)),
+      size_(size),
+      align_(align),
+      storage_shape_(storage_shape),
+      materialization_(materialization),
+      identity_(identity) {}
+
 BackendModel::BackendModel(const hir::Package& package)
     : package_(package), visit_state_(package.types.size(), 0) {
     for (const hir::TypeDecl& type : package_.types) {
@@ -626,85 +773,72 @@ const std::vector<std::string>& BackendModel::yield_definitions() const {
 }
 
 std::expected<ResolvedType, std::string> BackendModel::resolve_type_name(const std::string& name) {
+    const auto runtime_builtin =
+        [&](std::string llvm_type,
+            std::size_t size,
+            std::size_t align,
+            RuntimeStorageShape storage_shape,
+            BuiltinKind kind) -> ResolvedType {
+        return ResolvedType::runtime_value(name,
+                                           std::move(llvm_type),
+                                           size,
+                                           align,
+                                           storage_shape,
+                                           ResolvedTypeIdentity::builtin_type(kind));
+    };
+
     if (name == "Int") {
-        return ResolvedType{
-            name, "i64", 8, 8, RuntimeStorageShape::Scalar, MaterializationState::RuntimeValue,
-            ResolvedTypeIdentity::builtin_type(BuiltinKind::Int)};
+        return runtime_builtin("i64", 8, 8, RuntimeStorageShape::Scalar, BuiltinKind::Int);
     }
     if (name == "Nat") {
-        return ResolvedType{
-            name, "i64", 8, 8, RuntimeStorageShape::Scalar, MaterializationState::RuntimeValue,
-            ResolvedTypeIdentity::builtin_type(BuiltinKind::Nat)};
+        return runtime_builtin("i64", 8, 8, RuntimeStorageShape::Scalar, BuiltinKind::Nat);
     }
     if (name == "Float") {
-        return ResolvedType{
-            name, "double", 8, 8, RuntimeStorageShape::Scalar, MaterializationState::RuntimeValue,
-            ResolvedTypeIdentity::builtin_type(BuiltinKind::Float)};
+        return runtime_builtin("double", 8, 8, RuntimeStorageShape::Scalar, BuiltinKind::Float);
     }
     if (name == "Char") {
-        return ResolvedType{
-            name, "i32", 4, 4, RuntimeStorageShape::Scalar, MaterializationState::RuntimeValue,
-            ResolvedTypeIdentity::builtin_type(BuiltinKind::Char)};
+        return runtime_builtin("i32", 4, 4, RuntimeStorageShape::Scalar, BuiltinKind::Char);
     }
     if (name == "Byte") {
-        return ResolvedType{
-            name, "i8", 1, 1, RuntimeStorageShape::Scalar, MaterializationState::RuntimeValue,
-            ResolvedTypeIdentity::builtin_type(BuiltinKind::Byte)};
+        return runtime_builtin("i8", 1, 1, RuntimeStorageShape::Scalar, BuiltinKind::Byte);
     }
     if (name == "CInt") {
-        return ResolvedType{
-            name, "i32", 4, 4, RuntimeStorageShape::Scalar, MaterializationState::RuntimeValue,
-            ResolvedTypeIdentity::builtin_type(BuiltinKind::CInt)};
+        return runtime_builtin("i32", 4, 4, RuntimeStorageShape::Scalar, BuiltinKind::CInt);
     }
     if (name == "CSize") {
-        return ResolvedType{
-            name, "i64", 8, 8, RuntimeStorageShape::Scalar, MaterializationState::RuntimeValue,
-            ResolvedTypeIdentity::builtin_type(BuiltinKind::CSize)};
+        return runtime_builtin("i64", 8, 8, RuntimeStorageShape::Scalar, BuiltinKind::CSize);
     }
     if (name == "CString") {
-        return ResolvedType{
-            name, "ptr", 8, 8, RuntimeStorageShape::Aggregate, MaterializationState::RuntimeValue,
-            ResolvedTypeIdentity::builtin_type(BuiltinKind::CString)};
+        return runtime_builtin("ptr", 8, 8, RuntimeStorageShape::Aggregate, BuiltinKind::CString);
     }
     if (name == "Text") {
-        return ResolvedType{
-            name, "{ ptr, i64 }", 16, 8, RuntimeStorageShape::Aggregate, MaterializationState::RuntimeValue,
-            ResolvedTypeIdentity::builtin_type(BuiltinKind::Text)};
+        return runtime_builtin("{ ptr, i64 }", 16, 8, RuntimeStorageShape::Aggregate, BuiltinKind::Text);
     }
     if (name == "Bytes") {
-        return ResolvedType{
-            name, "{ ptr, i64 }", 16, 8, RuntimeStorageShape::Aggregate, MaterializationState::RuntimeValue,
-            ResolvedTypeIdentity::builtin_type(BuiltinKind::Bytes)};
+        return runtime_builtin("{ ptr, i64 }", 16, 8, RuntimeStorageShape::Aggregate, BuiltinKind::Bytes);
     }
     if (type_base_name(name) == "List") {
-        return ResolvedType{
-            name, "{ ptr, i64 }", 16, 8, RuntimeStorageShape::Aggregate, MaterializationState::RuntimeValue,
-            ResolvedTypeIdentity::builtin_type(BuiltinKind::List)};
+        return runtime_builtin("{ ptr, i64 }", 16, 8, RuntimeStorageShape::Aggregate, BuiltinKind::List);
     }
     if (type_base_name(name) == "NonEmptyList") {
-        return ResolvedType{
-            name, "{ ptr, i64 }", 16, 8, RuntimeStorageShape::Aggregate, MaterializationState::RuntimeValue,
-            ResolvedTypeIdentity::builtin_type(BuiltinKind::NonEmptyList)};
+        return runtime_builtin("{ ptr, i64 }", 16, 8, RuntimeStorageShape::Aggregate, BuiltinKind::NonEmptyList);
     }
     if (type_base_name(name) == "Map") {
-        return ResolvedType{
-            name, "{ ptr, i64 }", 16, 8, RuntimeStorageShape::Aggregate, MaterializationState::RuntimeValue,
-            ResolvedTypeIdentity::builtin_type(BuiltinKind::Map)};
+        return runtime_builtin("{ ptr, i64 }", 16, 8, RuntimeStorageShape::Aggregate, BuiltinKind::Map);
     }
     if (type_base_name(name) == "NonEmptyMap") {
-        return ResolvedType{
-            name, "{ ptr, i64 }", 16, 8, RuntimeStorageShape::Aggregate, MaterializationState::RuntimeValue,
-            ResolvedTypeIdentity::builtin_type(BuiltinKind::NonEmptyMap)};
+        return runtime_builtin("{ ptr, i64 }", 16, 8, RuntimeStorageShape::Aggregate, BuiltinKind::NonEmptyMap);
     }
     if (name == "Unit") {
-        return ResolvedType{
-            name, "i8", 1, 1, RuntimeStorageShape::Scalar, MaterializationState::RuntimeValue,
-            ResolvedTypeIdentity::builtin_type(BuiltinKind::Unit)};
+        return runtime_builtin("i8", 1, 1, RuntimeStorageShape::Scalar, BuiltinKind::Unit);
     }
     if (name == "Never") {
-        return ResolvedType{
-            name, "i8", 1, 1, RuntimeStorageShape::Scalar, MaterializationState::NeverValue,
-            ResolvedTypeIdentity::builtin_type(BuiltinKind::Never)};
+        return ResolvedType::never_value(name,
+                                         "i8",
+                                         1,
+                                         1,
+                                         RuntimeStorageShape::Scalar,
+                                         ResolvedTypeIdentity::builtin_type(BuiltinKind::Never));
     }
 
     const auto type_it = type_ids_by_name_.find(name);
@@ -716,15 +850,13 @@ std::expected<ResolvedType, std::string> BackendModel::resolve_type_name(const s
     if (!layout.has_value()) {
         return std::unexpected(layout.error());
     }
-    return ResolvedType{
+    return ResolvedType::runtime_value(
         name,
         (*layout)->llvm_type,
         (*layout)->size,
         (*layout)->align,
         RuntimeStorageShape::Aggregate,
-        MaterializationState::RuntimeValue,
-        ResolvedTypeIdentity::package_type(type_it->second),
-    };
+        ResolvedTypeIdentity::package_type(type_it->second));
 }
 
 std::expected<const TypeLayout*, std::string> BackendModel::ensure_type_layout(hir::TypeId id) {
@@ -772,8 +904,8 @@ std::expected<const YieldLayout*, std::string> BackendModel::ensure_yield_layout
         return std::unexpected(failure_type.error());
     }
 
-    const std::size_t payload_align = std::max(success_type->align, failure_type->align);
-    const std::size_t payload_size = std::max(success_type->size, failure_type->size);
+    const std::size_t payload_align = std::max(success_type->align(), failure_type->align());
+    const std::size_t payload_size = std::max(success_type->size(), failure_type->size());
     const std::expected<std::string, std::string> storage_type = make_storage_type(payload_size, payload_align);
     if (!storage_type.has_value()) {
         return std::unexpected(storage_type.error());
@@ -872,27 +1004,26 @@ std::expected<TypeLayout, std::string> BackendModel::build_record_layout(const h
             return std::unexpected("while lowering field '" + field.name + "' of '"
                                    + type_decl.qualified_name + "': " + field_type.error());
         }
-        if (field_type->materialization == MaterializationState::NeverValue) {
+        if (field_type->materialization() == MaterializationState::NeverValue) {
             return std::unexpected("backend does not support materialized field type `Never` in '"
                                    + type_decl.qualified_name + "'");
         }
 
-        offset = align_up(offset, field_type->align);
-        record_align = std::max(record_align, field_type->align);
+        offset = align_up(offset, field_type->align());
+        record_align = std::max(record_align, field_type->align());
         layout.field_indices.emplace(field.name, layout.fields.size());
-        layout.fields.push_back(FieldLayout{
+        layout.fields.push_back(FieldLayout::resolved_field(
             field.name,
             field.type.text,
-            field_type->llvm_type,
+            field_type->llvm_type(),
             layout.fields.size(),
-            field_type->size,
-            field_type->align,
-            field_type->storage_shape,
-            field_type->materialization,
-            field_type->identity,
-        });
-        field_types.push_back(field_type->llvm_type);
-        offset += field_type->size;
+            field_type->size(),
+            field_type->align(),
+            field_type->storage_shape(),
+            field_type->materialization(),
+            field_type->identity()));
+        field_types.push_back(field_type->llvm_type());
+        offset += field_type->size();
     }
 
     layout.size = align_up(offset, record_align);
@@ -955,27 +1086,26 @@ std::expected<TypeLayout, std::string> BackendModel::build_tagged_union_layout(c
             if (!field_type.has_value()) {
                 return std::unexpected(field_type.error());
             }
-            if (field_type->materialization == MaterializationState::NeverValue) {
+            if (field_type->materialization() == MaterializationState::NeverValue) {
                 return std::unexpected("backend does not support materialized field type `Never` in '"
                                        + variant_decl.qualified_name + "'");
             }
 
-            offset = align_up(offset, field_type->align);
-            payload_align = std::max(payload_align, field_type->align);
+            offset = align_up(offset, field_type->align());
+            payload_align = std::max(payload_align, field_type->align());
             variant_layout.field_indices.emplace(field.name, variant_layout.fields.size());
-            variant_layout.fields.push_back(FieldLayout{
+            variant_layout.fields.push_back(FieldLayout::resolved_field(
                 field.name,
                 field.type.text,
-                field_type->llvm_type,
+                field_type->llvm_type(),
                 variant_layout.fields.size(),
-                field_type->size,
-                field_type->align,
-                field_type->storage_shape,
-                field_type->materialization,
-                field_type->identity,
-            });
-            field_types.push_back(field_type->llvm_type);
-            offset += field_type->size;
+                field_type->size(),
+                field_type->align(),
+                field_type->storage_shape(),
+                field_type->materialization(),
+                field_type->identity()));
+            field_types.push_back(field_type->llvm_type());
+            offset += field_type->size();
         }
 
         variant_layout.payload_size = align_up(offset, payload_align);
@@ -1035,30 +1165,33 @@ std::expected<TypeLayout, std::string> BackendModel::build_tagged_union_layout(c
 }
 
 ResolvedType resolved_type_from_field(const FieldLayout& field) {
-    return ResolvedType{
-        field.source_name,
-        field.llvm_type,
-        field.size,
-        field.align,
-        field.storage_shape,
-        field.materialization,
-        field.identity,
-    };
+    if (field.materialization() == MaterializationState::NeverValue) {
+        return ResolvedType::never_value(field.source_name(),
+                                         field.llvm_type(),
+                                         field.size(),
+                                         field.align(),
+                                         field.storage_shape(),
+                                         field.identity());
+    }
+    return ResolvedType::runtime_value(field.source_name(),
+                                       field.llvm_type(),
+                                       field.size(),
+                                       field.align(),
+                                       field.storage_shape(),
+                                       field.identity());
 }
 
 ResolvedType resolved_aggregate_type(std::string source_name,
                                      std::string llvm_type,
                                      std::size_t size,
                                      std::size_t align) {
-    return ResolvedType{
+    return ResolvedType::runtime_value(
         std::move(source_name),
         std::move(llvm_type),
         size,
         align,
         RuntimeStorageShape::Aggregate,
-        MaterializationState::RuntimeValue,
-        ResolvedTypeIdentity::backend_aggregate_storage(),
-    };
+        ResolvedTypeIdentity::backend_aggregate_storage());
 }
 
 BackendStepResult validate_backend_package(BackendModel& model,
@@ -1074,7 +1207,7 @@ BackendStepResult validate_backend_package(BackendModel& model,
 
     auto require_materializable_type = [](const ResolvedType& type, const std::string& context)
         -> BackendStepResult {
-        if (type.materialization == MaterializationState::NeverValue) {
+        if (type.materialization() == MaterializationState::NeverValue) {
             return std::unexpected("backend does not yet support materialized `Never` in " + context);
         }
         return BackendStepSucceeded{};
@@ -1138,26 +1271,26 @@ BackendStepResult validate_backend_package(BackendModel& model,
         }
     }
 
-    if (mir_package.functions.size() != hir_package.functions.size()) {
+    if (mir_package.function_count() != hir_package.functions.size()) {
         return std::unexpected("internal backend error: HIR/MIR function count mismatch");
     }
 
-    for (const mir::Function& mir_function : mir_package.functions) {
-        if (mir_function.function_id >= hir_package.functions.size()) {
+    for (const mir::Function& mir_function : mir_package.functions()) {
+        if (mir_function.function_id() >= hir_package.functions.size()) {
             return std::unexpected("internal backend error: MIR function id out of range");
         }
 
-        const hir::FunctionDecl& hir_function = hir::lookup_function(hir_package, mir_function.function_id);
-        if (mir_function.implementation != hir_function.implementation) {
+        const hir::FunctionDecl& hir_function = hir::lookup_function(hir_package, mir_function.function_id());
+        if (mir_function.implementation() != hir_function.implementation) {
             return std::unexpected("internal backend error: function implementation mode mismatch for function '"
                                    + hir_function.qualified_name + "'");
         }
 
         std::unordered_map<mir::LocalId, ResolvedType> local_types;
-        local_types.reserve(mir_function.locals.size());
+        local_types.reserve(mir_function.locals().size());
         std::unordered_map<mir::LocalId, typesys::UseDiscipline> local_disciplines;
-        local_disciplines.reserve(mir_function.locals.size());
-        for (const mir::Local& local : mir_function.locals) {
+        local_disciplines.reserve(mir_function.locals().size());
+        for (const mir::Local& local : mir_function.locals()) {
             const std::expected<ResolvedType, std::string> resolved =
                 materialization_of(local.discipline()) == typesys::DisciplineMaterialization::CompileTimeOnly
                 ? model.resolve_type_name(local.type_name())
@@ -1197,36 +1330,36 @@ BackendStepResult validate_backend_package(BackendModel& model,
                     if (!actual_type.has_value()) {
                         return std::unexpected(actual_type.error());
                     }
-                    if ((*actual_type)->source_name != expected_type.source_name) {
+                    if ((*actual_type)->source_name() != expected_type.source_name()) {
                         return std::unexpected("backend type mismatch in " + context + ": expected '"
-                                               + expected_type.source_name + "', got '" + (*actual_type)->source_name + "'");
+                                               + expected_type.source_name() + "', got '" + (*actual_type)->source_name() + "'");
                     }
                     return BackendStepSucceeded{};
                 },
                 [&](mir::Operand::IntLiteralValue) -> BackendStepResult {
-                    if (expected_type.storage_shape != RuntimeStorageShape::Scalar
-                        || (expected_type.llvm_type != "i64" && expected_type.llvm_type != "i32"
-                            && expected_type.llvm_type != "i8")) {
+                    if (expected_type.storage_shape() != RuntimeStorageShape::Scalar
+                        || (expected_type.llvm_type() != "i64" && expected_type.llvm_type() != "i32"
+                            && expected_type.llvm_type() != "i8")) {
                         return std::unexpected("backend only supports integer literals in integer destinations for "
-                                               + context + ", got '" + expected_type.source_name + "'");
+                                               + context + ", got '" + expected_type.source_name() + "'");
                     }
                     return BackendStepSucceeded{};
                 },
                 [&](mir::Operand::StringLiteralValue) -> BackendStepResult {
-                    if (expected_type.identity.category() != ResolvedTypeCategory::BuiltinType
-                        || (expected_type.identity.builtin_kind() != BuiltinKind::Text
-                            && expected_type.identity.builtin_kind() != BuiltinKind::Bytes
-                            && expected_type.identity.builtin_kind() != BuiltinKind::CString)) {
+                    if (expected_type.identity().category() != ResolvedTypeCategory::BuiltinType
+                        || (expected_type.identity().builtin_kind() != BuiltinKind::Text
+                            && expected_type.identity().builtin_kind() != BuiltinKind::Bytes
+                            && expected_type.identity().builtin_kind() != BuiltinKind::CString)) {
                         return std::unexpected("backend only supports string literals for Text/Bytes/CString values in "
-                                               + context + ", got '" + expected_type.source_name + "'");
+                                               + context + ", got '" + expected_type.source_name() + "'");
                     }
                     return BackendStepSucceeded{};
                 },
                 [&](mir::Operand::UnitValue) -> BackendStepResult {
-                    if (expected_type.identity.category() != ResolvedTypeCategory::BuiltinType
-                        || expected_type.identity.builtin_kind() != BuiltinKind::Unit) {
+                    if (expected_type.identity().category() != ResolvedTypeCategory::BuiltinType
+                        || expected_type.identity().builtin_kind() != BuiltinKind::Unit) {
                         return std::unexpected("backend expected Unit in " + context + ", got '"
-                                               + expected_type.source_name + "'");
+                                               + expected_type.source_name() + "'");
                     }
                     return BackendStepSucceeded{};
                 });
@@ -1234,7 +1367,7 @@ BackendStepResult validate_backend_package(BackendModel& model,
 
         auto validate_block_target = [&](mir::BlockId block_id, const std::string& context)
             -> BackendStepResult {
-            if (block_id >= mir_function.blocks.size()) {
+            if (block_id >= mir_function.blocks().size()) {
                 return std::unexpected("internal backend error: target block %" + std::to_string(block_id)
                                        + " out of range in " + context);
             }
@@ -1242,7 +1375,7 @@ BackendStepResult validate_backend_package(BackendModel& model,
         };
 
         if (hir_function.implementation == ast::FunctionImplementation::ForeignImport) {
-            if (!mir_function.blocks.empty()) {
+            if (!mir_function.blocks().empty()) {
                 return std::unexpected("internal backend error: foreign function '" + hir_function.qualified_name
                                        + "' unexpectedly has MIR blocks");
             }
@@ -1250,20 +1383,20 @@ BackendStepResult validate_backend_package(BackendModel& model,
         }
 
         std::vector<BlockVisitState> block_visit_states(
-            mir_function.blocks.size(),
+            mir_function.blocks().size(),
             BlockVisitState::AwaitingFirstVisit);
-        for (const mir::BasicBlock& block : mir_function.blocks) {
-            if (block.id >= mir_function.blocks.size()) {
+        for (const mir::BasicBlock& block : mir_function.blocks()) {
+            if (block.id() >= mir_function.blocks().size()) {
                 return std::unexpected("internal backend error: block id out of range in function '"
                                        + hir_function.qualified_name + "'");
             }
-            if (block_visit_states[block.id] == BlockVisitState::AlreadyVisited) {
-                return std::unexpected("internal backend error: duplicate block id %" + std::to_string(block.id)
+            if (block_visit_states[block.id()] == BlockVisitState::AlreadyVisited) {
+                return std::unexpected("internal backend error: duplicate block id %" + std::to_string(block.id())
                                        + " in function '" + hir_function.qualified_name + "'");
             }
-            block_visit_states[block.id] = BlockVisitState::AlreadyVisited;
+            block_visit_states[block.id()] = BlockVisitState::AlreadyVisited;
 
-            for (const mir::Statement& statement : block.statements) {
+            for (const mir::Statement& statement : block.statements()) {
                 const mir::LocalId statement_dest = statement.dest_local();
                 const mir::Rvalue& statement_value = statement.rvalue();
                 const std::string statement_context = "function '" + hir_function.qualified_name + "'";
@@ -1312,10 +1445,10 @@ BackendStepResult validate_backend_package(BackendModel& model,
                     if (!return_type.has_value()) {
                         return std::unexpected(return_type.error());
                     }
-                    if (return_type->source_name != (*dest_type)->source_name) {
+                    if (return_type->source_name() != (*dest_type)->source_name()) {
                         return std::unexpected("backend type mismatch for call result of '" + callee.qualified_name
-                                               + "': expected '" + (*dest_type)->source_name + "', got '"
-                                               + return_type->source_name + "'");
+                                               + "': expected '" + (*dest_type)->source_name() + "', got '"
+                                               + return_type->source_name() + "'");
                     }
                     for (std::size_t index = 0; index < value.args.size(); ++index) {
                         if (materialization_of(callee.params[index].type.discipline)
@@ -1345,9 +1478,9 @@ BackendStepResult validate_backend_package(BackendModel& model,
                     return BackendStepSucceeded{};
                     },
                     [&](mir::Rvalue::ConstructNamedTypeValue value) -> BackendStepResult {
-                    if ((*dest_type)->identity.category() != ResolvedTypeCategory::PackageTypeDeclaration) {
+                    if ((*dest_type)->identity().category() != ResolvedTypeCategory::PackageTypeDeclaration) {
                         return std::unexpected("backend only supports constructing user-defined values, got '"
-                                               + (*dest_type)->source_name + "'");
+                                               + (*dest_type)->source_name() + "'");
                     }
                     const std::expected<const TypeLayout*, std::string> owner_layout
                         = model.ensure_type_layout(value.owner_type_id);
@@ -1372,9 +1505,9 @@ BackendStepResult validate_backend_package(BackendModel& model,
                     return BackendStepSucceeded{};
                     },
                     [&](mir::Rvalue::ConstructNamedVariantValue value) -> BackendStepResult {
-                    if ((*dest_type)->identity.category() != ResolvedTypeCategory::PackageTypeDeclaration) {
+                    if ((*dest_type)->identity().category() != ResolvedTypeCategory::PackageTypeDeclaration) {
                         return std::unexpected("backend only supports constructing user-defined values, got '"
-                                               + (*dest_type)->source_name + "'");
+                                               + (*dest_type)->source_name() + "'");
                     }
                     const std::expected<const TypeLayout*, std::string> owner_layout
                         = model.ensure_type_layout(value.owner_type_id);
@@ -1410,12 +1543,12 @@ BackendStepResult validate_backend_package(BackendModel& model,
                     if (!base_type.has_value()) {
                         return std::unexpected(base_type.error());
                     }
-                    if ((*base_type)->identity.category() != ResolvedTypeCategory::PackageTypeDeclaration) {
+                    if ((*base_type)->identity().category() != ResolvedTypeCategory::PackageTypeDeclaration) {
                         return std::unexpected("backend expected a user-defined base for projection in function '"
                                                + hir_function.qualified_name + "'");
                     }
                     const std::expected<const TypeLayout*, std::string> owner_layout
-                        = model.ensure_type_layout((*base_type)->identity.package_type_id());
+                        = model.ensure_type_layout((*base_type)->identity().package_type_id());
                     if (!owner_layout.has_value()) {
                         return std::unexpected(owner_layout.error());
                     }
@@ -1425,10 +1558,10 @@ BackendStepResult validate_backend_package(BackendModel& model,
                                                + value.field_name + "'");
                     }
                     const ResolvedType field_type = resolved_type_from_field((*owner_layout)->fields[field_it->second]);
-                    if (field_type.source_name != (*dest_type)->source_name) {
+                    if (field_type.source_name() != (*dest_type)->source_name()) {
                         return std::unexpected("backend type mismatch for projected field '" + value.field_name
-                                               + "': expected '" + (*dest_type)->source_name + "', got '"
-                                               + field_type.source_name + "'");
+                                               + "': expected '" + (*dest_type)->source_name() + "', got '"
+                                               + field_type.source_name() + "'");
                     }
                     return BackendStepSucceeded{};
                     },
@@ -1438,7 +1571,7 @@ BackendStepResult validate_backend_package(BackendModel& model,
                     if (!base_type.has_value()) {
                         return std::unexpected(base_type.error());
                     }
-                    if ((*base_type)->identity.category() != ResolvedTypeCategory::PackageTypeDeclaration) {
+                    if ((*base_type)->identity().category() != ResolvedTypeCategory::PackageTypeDeclaration) {
                         return std::unexpected("backend expected a user-defined base for projection in function '"
                                                + hir_function.qualified_name + "'");
                     }
@@ -1459,10 +1592,10 @@ BackendStepResult validate_backend_package(BackendModel& model,
                     }
                     const ResolvedType field_type
                         = resolved_type_from_field(variant_it->second.fields[field_it->second]);
-                    if (field_type.source_name != (*dest_type)->source_name) {
+                    if (field_type.source_name() != (*dest_type)->source_name()) {
                         return std::unexpected("backend type mismatch for projected field '" + value.field_name
-                                               + "': expected '" + (*dest_type)->source_name + "', got '"
-                                               + field_type.source_name + "'");
+                                               + "': expected '" + (*dest_type)->source_name() + "', got '"
+                                               + field_type.source_name() + "'");
                     }
                     return BackendStepSucceeded{};
                     });
@@ -1471,7 +1604,7 @@ BackendStepResult validate_backend_package(BackendModel& model,
                 }
             }
 
-            const mir::Terminator& terminator = block.terminator;
+            const mir::Terminator& terminator = block.terminator();
             const BackendStepResult terminator_valid = terminator.match(
                 [&](mir::Terminator::ReturnValue terminator) -> BackendStepResult {
                 const std::expected<ResolvedType, std::string> return_type = resolve_materializable_type(
@@ -1525,12 +1658,12 @@ BackendStepResult validate_backend_package(BackendModel& model,
                 if (!scrutinee_type.has_value()) {
                     return std::unexpected(scrutinee_type.error());
                 }
-                if ((*scrutinee_type)->identity.category() != ResolvedTypeCategory::PackageTypeDeclaration) {
+                if ((*scrutinee_type)->identity().category() != ResolvedTypeCategory::PackageTypeDeclaration) {
                     return std::unexpected("backend expected a user-defined scrutinee for variant switch in function '"
                                            + hir_function.qualified_name + "'");
                 }
                 const std::expected<const TypeLayout*, std::string> owner_layout
-                    = model.ensure_type_layout((*scrutinee_type)->identity.package_type_id());
+                    = model.ensure_type_layout((*scrutinee_type)->identity().package_type_id());
                 if (!owner_layout.has_value()) {
                     return std::unexpected(owner_layout.error());
                 }
@@ -1611,15 +1744,15 @@ BackendStepResult validate_backend_package(BackendModel& model,
                 if (!failure_local_type.has_value()) {
                     return std::unexpected(failure_local_type.error());
                 }
-                if ((*success_local_type)->source_name != success_type->source_name) {
+                if ((*success_local_type)->source_name() != success_type->source_name()) {
                     return std::unexpected("backend type mismatch for invoke success local in function '"
-                                           + hir_function.qualified_name + "': expected '" + success_type->source_name
-                                           + "', got '" + (*success_local_type)->source_name + "'");
+                                           + hir_function.qualified_name + "': expected '" + success_type->source_name()
+                                           + "', got '" + (*success_local_type)->source_name() + "'");
                 }
-                if ((*failure_local_type)->source_name != failure_type->source_name) {
+                if ((*failure_local_type)->source_name() != failure_type->source_name()) {
                     return std::unexpected("backend type mismatch for invoke failure local in function '"
-                                           + hir_function.qualified_name + "': expected '" + failure_type->source_name
-                                           + "', got '" + (*failure_local_type)->source_name + "'");
+                                           + hir_function.qualified_name + "': expected '" + failure_type->source_name()
+                                           + "', got '" + (*failure_local_type)->source_name() + "'");
                 }
                 if (const BackendStepResult valid = validate_block_target(
                         terminator.success_block,
@@ -1658,9 +1791,9 @@ std::expected<std::string, std::string> ModuleEmitter::emit() {
     }
 
     std::vector<std::string> function_chunks;
-    function_chunks.reserve(mir_package_.functions.size() + (entry_main != nullptr ? 1 : 0));
-    for (const mir::Function& mir_function : mir_package_.functions) {
-        const hir::FunctionDecl& hir_function = hir::lookup_function(hir_package_, mir_function.function_id);
+    function_chunks.reserve(mir_package_.function_count() + (entry_main != nullptr ? 1 : 0));
+    for (const mir::Function& mir_function : mir_package_.functions()) {
+        const hir::FunctionDecl& hir_function = hir::lookup_function(hir_package_, mir_function.function_id());
         if (!hir_function.generics.empty()) {
             return std::unexpected("backend does not yet support generic function '"
                                    + hir_function.qualified_name + "'");
@@ -1750,10 +1883,10 @@ FunctionEmitter::FunctionEmitter(ModuleEmitter& module,
       model_(model),
       hir_function_(hir_function),
       mir_function_(mir_function),
-      block_preludes_(mir_function.blocks.size()) {}
+      block_preludes_(mir_function.blocks().size()) {}
 
 BackendStepResult FunctionEmitter::prepare_locals() {
-    for (const mir::Local& local : mir_function_.locals) {
+    for (const mir::Local& local : mir_function_.locals()) {
         const std::expected<ResolvedType, std::string> resolved = model_.resolve_type_name(local.type_name());
         if (!resolved.has_value()) {
             return std::unexpected(resolved.error());
@@ -1796,7 +1929,7 @@ std::expected<std::string, std::string> FunctionEmitter::local_slot(mir::LocalId
     if (const auto it = local_slots_.find(local_id); it != local_slots_.end()) {
         return it->second;
     }
-    for (const mir::Local& local : mir_function_.locals) {
+    for (const mir::Local& local : mir_function_.locals()) {
         if (local.id() == local_id
             && materialization_of(local.discipline()) == typesys::DisciplineMaterialization::CompileTimeOnly) {
             return std::unexpected("internal backend error: compile-time-only local %"
@@ -1818,30 +1951,30 @@ std::expected<const TypeLayout*, std::string> FunctionEmitter::user_layout_for_l
     if (!resolved.has_value()) {
         return std::unexpected(resolved.error());
     }
-    if ((*resolved)->identity.category() != ResolvedTypeCategory::PackageTypeDeclaration) {
+    if ((*resolved)->identity().category() != ResolvedTypeCategory::PackageTypeDeclaration) {
         return std::unexpected("backend expected a user-defined type for local %" + std::to_string(local_id)
-                               + ", got '" + (*resolved)->source_name + "'");
+                               + ", got '" + (*resolved)->source_name() + "'");
     }
-    return model_.ensure_type_layout((*resolved)->identity.package_type_id());
+    return model_.ensure_type_layout((*resolved)->identity().package_type_id());
 }
 
 BackendStepResult FunctionEmitter::store_typed_value(const std::string& slot_ptr,
                                                      const ResolvedType& type,
                                                      const std::string& value) {
-    if (type.materialization == MaterializationState::NeverValue) {
+    if (type.materialization() == MaterializationState::NeverValue) {
         return std::unexpected("backend attempted to materialize `Never`");
     }
-    append_line("store " + type.llvm_type + " " + value + ", ptr " + slot_ptr);
+    append_line("store " + type.llvm_type() + " " + value + ", ptr " + slot_ptr);
     return BackendStepSucceeded{};
 }
 
 std::expected<std::string, std::string> FunctionEmitter::load_from_slot(const std::string& slot_ptr,
                                                                         const ResolvedType& type) {
-    if (type.materialization == MaterializationState::NeverValue) {
+    if (type.materialization() == MaterializationState::NeverValue) {
         return std::unexpected("backend attempted to load a `Never` value");
     }
     const std::string value = next_temp("load");
-    append_line(value + " = load " + type.llvm_type + ", ptr " + slot_ptr);
+    append_line(value + " = load " + type.llvm_type() + ", ptr " + slot_ptr);
     return value;
 }
 
@@ -1858,11 +1991,11 @@ BackendStepResult FunctionEmitter::store_string_literal(const std::string& slot_
 std::expected<FunctionEmitter::TypedValue, std::string> FunctionEmitter::make_string_literal_value(
     const ResolvedType& type,
     const std::string& lexeme) {
-    if (type.identity.category() != ResolvedTypeCategory::BuiltinType
-        || (type.identity.builtin_kind() != BuiltinKind::Text
-            && type.identity.builtin_kind() != BuiltinKind::Bytes
-            && type.identity.builtin_kind() != BuiltinKind::CString)) {
-        return std::unexpected("backend expected Text/Bytes/CString storage for string literal, got '" + type.source_name + "'");
+    if (type.identity().category() != ResolvedTypeCategory::BuiltinType
+        || (type.identity().builtin_kind() != BuiltinKind::Text
+            && type.identity().builtin_kind() != BuiltinKind::Bytes
+            && type.identity().builtin_kind() != BuiltinKind::CString)) {
+        return std::unexpected("backend expected Text/Bytes/CString storage for string literal, got '" + type.source_name() + "'");
     }
 
     const std::expected<StringGlobal, std::string> global = module_.intern_string(lexeme);
@@ -1875,13 +2008,13 @@ std::expected<FunctionEmitter::TypedValue, std::string> FunctionEmitter::make_st
                 + std::to_string(global->bytes.size() + 1) + " x i8], ptr @" + global->name
                 + ", i64 0, i64 0");
 
-    if (type.identity.category() == ResolvedTypeCategory::BuiltinType
-        && type.identity.builtin_kind() == BuiltinKind::CString) {
+    if (type.identity().category() == ResolvedTypeCategory::BuiltinType
+        && type.identity().builtin_kind() == BuiltinKind::CString) {
         return TypedValue{type, ptr_value};
     }
 
     const std::expected<std::string, std::string> with_ptr = insert_value(
-        type.llvm_type,
+        type.llvm_type(),
         "zeroinitializer",
         "ptr",
         ptr_value,
@@ -1890,7 +2023,7 @@ std::expected<FunctionEmitter::TypedValue, std::string> FunctionEmitter::make_st
         return std::unexpected(with_ptr.error());
     }
     const std::expected<std::string, std::string> with_len = insert_value(
-        type.llvm_type,
+        type.llvm_type(),
         *with_ptr,
         "i64",
         std::to_string(global->bytes.size()),
@@ -1924,20 +2057,20 @@ std::expected<std::string, std::string> FunctionEmitter::extract_value(const std
 std::expected<std::string, std::string> FunctionEmitter::pack_value_for_storage(const TypedValue& value,
                                                                                 const std::string& storage_type,
                                                                                 std::size_t storage_size) {
-    if (value.type.materialization == MaterializationState::NeverValue) {
+    if (value.type.materialization() == MaterializationState::NeverValue) {
         return std::unexpected("backend attempted to materialize `Never`");
     }
-    if (storage_size == 0 || value.type.size == 0) {
+    if (storage_size == 0 || value.type.size() == 0) {
         return std::string("zeroinitializer");
     }
-    if (value.type.llvm_type == storage_type) {
+    if (value.type.llvm_type() == storage_type) {
         return value.value;
     }
 
     const std::string storage_slot = next_temp("pack.slot");
     append_line(storage_slot + " = alloca " + storage_type);
     append_line("store " + storage_type + " zeroinitializer, ptr " + storage_slot);
-    append_line("store " + value.type.llvm_type + " " + value.value + ", ptr " + storage_slot);
+    append_line("store " + value.type.llvm_type() + " " + value.value + ", ptr " + storage_slot);
 
     const std::string packed = next_temp("pack");
     append_line(packed + " = load " + storage_type + ", ptr " + storage_slot);
@@ -1948,13 +2081,13 @@ std::expected<FunctionEmitter::TypedValue, std::string> FunctionEmitter::unpack_
     const std::string& storage_value,
     const std::string& storage_type,
     const ResolvedType& expected_type) {
-    if (expected_type.materialization == MaterializationState::NeverValue) {
+    if (expected_type.materialization() == MaterializationState::NeverValue) {
         return std::unexpected("backend attempted to materialize `Never`");
     }
-    if (expected_type.size == 0) {
+    if (expected_type.size() == 0) {
         return TypedValue{expected_type, zero_value(expected_type)};
     }
-    if (expected_type.llvm_type == storage_type) {
+    if (expected_type.llvm_type() == storage_type) {
         return TypedValue{expected_type, storage_value};
     }
 
@@ -1962,16 +2095,16 @@ std::expected<FunctionEmitter::TypedValue, std::string> FunctionEmitter::unpack_
     append_line(storage_slot + " = alloca " + storage_type);
     append_line("store " + storage_type + " " + storage_value + ", ptr " + storage_slot);
     const std::string unpacked = next_temp("unpack");
-    append_line(unpacked + " = load " + expected_type.llvm_type + ", ptr " + storage_slot);
+    append_line(unpacked + " = load " + expected_type.llvm_type() + ", ptr " + storage_slot);
     return TypedValue{expected_type, unpacked};
 }
 
 std::string FunctionEmitter::zero_value(const ResolvedType& type) const {
-    if (type.storage_shape != RuntimeStorageShape::Scalar) {
+    if (type.storage_shape() != RuntimeStorageShape::Scalar) {
         return "zeroinitializer";
     }
-    if (type.identity.category() == ResolvedTypeCategory::BuiltinType
-        && type.identity.builtin_kind() == BuiltinKind::Float) {
+    if (type.identity().category() == ResolvedTypeCategory::BuiltinType
+        && type.identity().builtin_kind() == BuiltinKind::Float) {
         return "0.000000e+00";
     }
     return "0";
@@ -1986,9 +2119,9 @@ std::expected<FunctionEmitter::TypedValue, std::string> FunctionEmitter::materia
             if (!source_type.has_value()) {
                 return std::unexpected(source_type.error());
             }
-            if ((*source_type)->source_name != expected_type.source_name) {
-                return std::unexpected("backend type mismatch: expected '" + expected_type.source_name
-                                       + "', got '" + (*source_type)->source_name + "'");
+            if ((*source_type)->source_name() != expected_type.source_name()) {
+                return std::unexpected("backend type mismatch: expected '" + expected_type.source_name()
+                                       + "', got '" + (*source_type)->source_name() + "'");
             }
             const std::expected<std::string, std::string> slot = local_slot(local.local_id);
             if (!slot.has_value()) {
@@ -2001,28 +2134,28 @@ std::expected<FunctionEmitter::TypedValue, std::string> FunctionEmitter::materia
             return TypedValue{expected_type, *loaded};
         },
         [&](mir::Operand::IntLiteralValue literal) -> std::expected<TypedValue, std::string> {
-            if (expected_type.storage_shape != RuntimeStorageShape::Scalar
-                || (expected_type.llvm_type != "i64" && expected_type.llvm_type != "i32"
-                    && expected_type.llvm_type != "i8")) {
+            if (expected_type.storage_shape() != RuntimeStorageShape::Scalar
+                || (expected_type.llvm_type() != "i64" && expected_type.llvm_type() != "i32"
+                    && expected_type.llvm_type() != "i8")) {
                 return std::unexpected("backend only supports integer literals in integer destinations, got '"
-                                       + expected_type.source_name + "'");
+                                       + expected_type.source_name() + "'");
             }
             return TypedValue{expected_type, literal.text};
         },
         [&](mir::Operand::StringLiteralValue literal) -> std::expected<TypedValue, std::string> {
-            if (expected_type.identity.category() != ResolvedTypeCategory::BuiltinType
-                || (expected_type.identity.builtin_kind() != BuiltinKind::Text
-                    && expected_type.identity.builtin_kind() != BuiltinKind::Bytes
-                    && expected_type.identity.builtin_kind() != BuiltinKind::CString)) {
+            if (expected_type.identity().category() != ResolvedTypeCategory::BuiltinType
+                || (expected_type.identity().builtin_kind() != BuiltinKind::Text
+                    && expected_type.identity().builtin_kind() != BuiltinKind::Bytes
+                    && expected_type.identity().builtin_kind() != BuiltinKind::CString)) {
                 return std::unexpected("backend only supports string literals for Text/Bytes/CString values, got '"
-                                       + expected_type.source_name + "'");
+                                       + expected_type.source_name() + "'");
             }
             return make_string_literal_value(expected_type, literal.text);
         },
         [&](mir::Operand::UnitValue) -> std::expected<TypedValue, std::string> {
-            if (expected_type.identity.category() != ResolvedTypeCategory::BuiltinType
-                || expected_type.identity.builtin_kind() != BuiltinKind::Unit) {
-                return std::unexpected("backend expected Unit, got '" + expected_type.source_name + "'");
+            if (expected_type.identity().category() != ResolvedTypeCategory::BuiltinType
+                || expected_type.identity().builtin_kind() != BuiltinKind::Unit) {
+                return std::unexpected("backend expected Unit, got '" + expected_type.source_name() + "'");
             }
             return TypedValue{expected_type, "0"};
         });
@@ -2097,12 +2230,12 @@ BackendStepResult FunctionEmitter::emit_assign_call(mir::LocalId dest, mir::Rval
         if (!arg.has_value()) {
             return std::unexpected(arg.error());
         }
-        args.push_back(arg->type.llvm_type + " " + arg->value);
+        args.push_back(arg->type.llvm_type() + " " + arg->value);
     }
 
     const std::string call_value = next_temp("call");
     std::ostringstream call;
-    call << call_value << " = call " << return_type->llvm_type << " @" << model_.function_symbol(callee.id) << '(';
+    call << call_value << " = call " << return_type->llvm_type() << " @" << model_.function_symbol(callee.id) << '(';
     for (std::size_t index = 0; index < args.size(); ++index) {
         if (index > 0) {
             call << ", ";
@@ -2129,13 +2262,13 @@ BackendStepResult FunctionEmitter::emit_assign_construct(mir::LocalId dest,
     if (!dest_slot.has_value()) {
         return std::unexpected(dest_slot.error());
     }
-    if ((*dest_type)->identity.category() != ResolvedTypeCategory::PackageTypeDeclaration) {
+    if ((*dest_type)->identity().category() != ResolvedTypeCategory::PackageTypeDeclaration) {
         return std::unexpected("backend only supports constructing user-defined records and variants, got '"
-                               + (*dest_type)->source_name + "'");
+                               + (*dest_type)->source_name() + "'");
     }
 
     auto& mutable_model = model_;
-    if ((*dest_type)->identity.package_type_id() != value.owner_type_id) {
+    if ((*dest_type)->identity().package_type_id() != value.owner_type_id) {
         return std::unexpected("internal backend error: construct owner type mismatch for '" + value.qualified_name + "'");
     }
     const std::expected<const TypeLayout*, std::string> owner_layout = mutable_model.ensure_type_layout(value.owner_type_id);
@@ -2159,9 +2292,9 @@ BackendStepResult FunctionEmitter::emit_assign_construct(mir::LocalId dest,
         const std::expected<std::string, std::string> inserted = insert_value(
             (*owner_layout)->llvm_type,
             record_value,
-            field_type.llvm_type,
+            field_type.llvm_type(),
             field_value->value,
-            field_layout.index);
+            field_layout.index());
         if (!inserted.has_value()) {
             return std::unexpected(inserted.error());
         }
@@ -2181,13 +2314,13 @@ BackendStepResult FunctionEmitter::emit_assign_construct(mir::LocalId dest,
     if (!dest_slot.has_value()) {
         return std::unexpected(dest_slot.error());
     }
-    if ((*dest_type)->identity.category() != ResolvedTypeCategory::PackageTypeDeclaration) {
+    if ((*dest_type)->identity().category() != ResolvedTypeCategory::PackageTypeDeclaration) {
         return std::unexpected("backend only supports constructing user-defined records and variants, got '"
-                               + (*dest_type)->source_name + "'");
+                               + (*dest_type)->source_name() + "'");
     }
 
     auto& mutable_model = model_;
-    if ((*dest_type)->identity.package_type_id() != value.owner_type_id) {
+    if ((*dest_type)->identity().package_type_id() != value.owner_type_id) {
         return std::unexpected("internal backend error: construct owner type mismatch for '" + value.qualified_name + "'");
     }
     const std::expected<const TypeLayout*, std::string> owner_layout = mutable_model.ensure_type_layout(value.owner_type_id);
@@ -2228,9 +2361,9 @@ BackendStepResult FunctionEmitter::emit_assign_construct(mir::LocalId dest,
             const std::expected<std::string, std::string> inserted_payload = insert_value(
                 variant_layout.payload_llvm_type,
                 payload_value,
-                field_type.llvm_type,
+                field_type.llvm_type(),
                 field_value->value,
-                field_layout.index);
+                field_layout.index());
             if (!inserted_payload.has_value()) {
                 return std::unexpected(inserted_payload.error());
             }
@@ -2299,7 +2432,7 @@ BackendStepResult FunctionEmitter::emit_assign_project_field(mir::LocalId dest,
     const std::expected<std::string, std::string> field_value = extract_value(
         (*owner_layout)->llvm_type,
         *base_value,
-        field_layout.index);
+        field_layout.index());
     if (!field_value.has_value()) {
         return std::unexpected(field_value.error());
     }
@@ -2369,7 +2502,7 @@ BackendStepResult FunctionEmitter::emit_assign_project_field(
     const std::expected<std::string, std::string> field_value = extract_value(
         variant_layout.payload_llvm_type,
         payload_value->value,
-        field_layout.index);
+        field_layout.index());
     if (!field_value.has_value()) {
         return std::unexpected(field_value.error());
     }
@@ -2469,7 +2602,7 @@ BackendStepResult FunctionEmitter::emit_function_return(const mir::Operand& oper
     if (!value.has_value()) {
         return std::unexpected(value.error());
     }
-    append_line("ret " + return_type->llvm_type + " " + value->value);
+    append_line("ret " + return_type->llvm_type() + " " + value->value);
     return BackendStepSucceeded{};
 }
 
@@ -2550,7 +2683,7 @@ BackendStepResult FunctionEmitter::emit_invoke(mir::Terminator::InvokeValue term
         if (!arg.has_value()) {
             return std::unexpected(arg.error());
         }
-        args.push_back(arg->type.llvm_type + " " + arg->value);
+        args.push_back(arg->type.llvm_type() + " " + arg->value);
     }
 
     const std::string call_value = next_temp("invoke");
@@ -2628,13 +2761,13 @@ BackendStepResult FunctionEmitter::emit_invoke(mir::Terminator::InvokeValue term
 
     std::ostringstream success_block;
     success_block << success_dispatch_block << ":\n";
-    success_block << "  store " << (*success_type)->llvm_type << ' ' << success_value << ", ptr " << *success_slot << '\n';
+    success_block << "  store " << (*success_type)->llvm_type() << ' ' << success_value << ", ptr " << *success_slot << '\n';
     success_block << "  br label %" << block_name(terminator.success_block) << '\n';
     extra_blocks_.push_back(success_block.str());
 
     std::ostringstream failure_block;
     failure_block << failure_dispatch_block << ":\n";
-    failure_block << "  store " << (*failure_type)->llvm_type << ' ' << failure_value << ", ptr " << *failure_slot << '\n';
+    failure_block << "  store " << (*failure_type)->llvm_type() << ' ' << failure_value << ", ptr " << *failure_slot << '\n';
     failure_block << "  br label %" << block_name(terminator.failure_block) << '\n';
     extra_blocks_.push_back(failure_block.str());
 
@@ -2680,15 +2813,12 @@ std::expected<std::string, std::string> FunctionEmitter::emit() {
         if (!yield_layout.has_value()) {
             return std::unexpected(yield_layout.error());
         }
-        signature_return_type = ResolvedType{
-            "",
-            (*yield_layout)->llvm_type,
-            0,
-            1,
-            RuntimeStorageShape::Aggregate,
-            MaterializationState::RuntimeValue,
-            ResolvedTypeIdentity::backend_aggregate_storage(),
-        };
+        signature_return_type = ResolvedType::runtime_value("",
+                                                            (*yield_layout)->llvm_type,
+                                                            0,
+                                                            1,
+                                                            RuntimeStorageShape::Aggregate,
+                                                            ResolvedTypeIdentity::backend_aggregate_storage());
     }
     if (!signature_return_type.has_value()) {
         return std::unexpected(signature_return_type.error());
@@ -2696,7 +2826,7 @@ std::expected<std::string, std::string> FunctionEmitter::emit() {
 
     std::ostringstream out;
     if (hir_function_.implementation == ast::FunctionImplementation::ForeignImport) {
-        out << "declare " << signature_return_type->llvm_type << " @" << model_.function_symbol(hir_function_.id) << '(';
+        out << "declare " << signature_return_type->llvm_type() << " @" << model_.function_symbol(hir_function_.id) << '(';
         std::vector<std::string> runtime_params;
         runtime_params.reserve(hir_function_.params.size());
         for (std::size_t index = 0; index < hir_function_.params.size(); ++index) {
@@ -2708,7 +2838,7 @@ std::expected<std::string, std::string> FunctionEmitter::emit() {
             if (!param_type.has_value()) {
                 return std::unexpected(param_type.error());
             }
-            runtime_params.push_back(param_type->llvm_type);
+            runtime_params.push_back(param_type->llvm_type());
         }
         for (std::size_t index = 0; index < runtime_params.size(); ++index) {
             if (index > 0) {
@@ -2721,7 +2851,7 @@ std::expected<std::string, std::string> FunctionEmitter::emit() {
     }
 
     const std::string linkage = hir_function_.visibility == ast::Visibility::Public ? "" : "internal ";
-    out << "define " << linkage << signature_return_type->llvm_type << " @" << model_.function_symbol(hir_function_.id)
+    out << "define " << linkage << signature_return_type->llvm_type() << " @" << model_.function_symbol(hir_function_.id)
         << '(';
     std::vector<std::string> runtime_params;
     runtime_params.reserve(hir_function_.params.size());
@@ -2735,7 +2865,7 @@ std::expected<std::string, std::string> FunctionEmitter::emit() {
         if (!param_type.has_value()) {
             return std::unexpected(param_type.error());
         }
-        runtime_params.push_back(param_type->llvm_type + " %arg" + std::to_string(runtime_arg_index++));
+        runtime_params.push_back(param_type->llvm_type() + " %arg" + std::to_string(runtime_arg_index++));
     }
     for (std::size_t index = 0; index < runtime_params.size(); ++index) {
         if (index > 0) {
@@ -2746,7 +2876,7 @@ std::expected<std::string, std::string> FunctionEmitter::emit() {
     out << ") {\n";
     out << "entry:\n";
 
-    for (const mir::Local& local : mir_function_.locals) {
+    for (const mir::Local& local : mir_function_.locals()) {
         if (materialization_of(local.discipline()) == typesys::DisciplineMaterialization::CompileTimeOnly) {
             continue;
         }
@@ -2754,7 +2884,7 @@ std::expected<std::string, std::string> FunctionEmitter::emit() {
         if (!local_type_result.has_value()) {
             return std::unexpected(local_type_result.error());
         }
-        emit_instruction(out, *local_slot(local.id()) + " = alloca " + (*local_type_result)->llvm_type);
+        emit_instruction(out, *local_slot(local.id()) + " = alloca " + (*local_type_result)->llvm_type());
     }
     runtime_arg_index = 0;
     for (std::size_t index = 0; index < hir_function_.params.size(); ++index) {
@@ -2762,34 +2892,34 @@ std::expected<std::string, std::string> FunctionEmitter::emit() {
             == typesys::DisciplineMaterialization::CompileTimeOnly) {
             continue;
         }
-        const mir::LocalId local_id = mir_function_.locals[index].id();
+        const mir::LocalId local_id = mir_function_.locals().at(index).id();
         const std::expected<const ResolvedType*, std::string> param_type = local_type(local_id);
         if (!param_type.has_value()) {
             return std::unexpected(param_type.error());
         }
-        emit_instruction(out, "store " + (*param_type)->llvm_type + " %arg" + std::to_string(runtime_arg_index++)
+        emit_instruction(out, "store " + (*param_type)->llvm_type() + " %arg" + std::to_string(runtime_arg_index++)
                               + ", ptr " + *local_slot(local_id));
     }
 
-    if (mir_function_.blocks.empty()) {
+    if (mir_function_.blocks().empty()) {
         emit_instruction(out, "unreachable");
         out << "}\n";
         return out.str();
     }
 
-    emit_instruction(out, "br label %" + block_name(mir_function_.blocks.front().id));
+    emit_instruction(out, "br label %" + block_name(mir_function_.blocks().front().id()));
     out << '\n';
 
-    for (const mir::BasicBlock& block : mir_function_.blocks) {
-        out << block_name(block.id) << ":\n";
-        emit_block_lines(out, block_preludes_.at(block.id));
+    for (const mir::BasicBlock& block : mir_function_.blocks()) {
+        out << block_name(block.id()) << ":\n";
+        emit_block_lines(out, block_preludes_.at(block.id()));
         current_block_lines_.clear();
-        for (const mir::Statement& statement : block.statements) {
+        for (const mir::Statement& statement : block.statements()) {
             if (const BackendStepResult emitted = emit_statement(statement); !emitted.has_value()) {
                 return std::unexpected(emitted.error());
             }
         }
-        if (const BackendStepResult emitted = emit_terminator(block.terminator); !emitted.has_value()) {
+        if (const BackendStepResult emitted = emit_terminator(block.terminator()); !emitted.has_value()) {
             return std::unexpected(emitted.error());
         }
         emit_block_lines(out, current_block_lines_);

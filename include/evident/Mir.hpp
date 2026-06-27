@@ -419,10 +419,23 @@ private:
           typesys::UseDiscipline discipline);
 };
 
-struct BasicBlock {
-    BlockId id = 0;
-    std::vector<Statement> statements;
-    Terminator terminator;
+class BasicBlock final {
+public:
+    [[nodiscard]] static BasicBlock with_unreachable_terminator(BlockId id);
+
+    [[nodiscard]] BlockId id() const noexcept { return id_; }
+    [[nodiscard]] const std::vector<Statement>& statements() const noexcept { return statements_; }
+    [[nodiscard]] const Terminator& terminator() const noexcept { return terminator_; }
+
+    void append_statement(Statement statement);
+    void replace_terminator(Terminator terminator);
+
+private:
+    BlockId id_;
+    std::vector<Statement> statements_;
+    Terminator terminator_;
+
+    BasicBlock(BlockId id, Terminator terminator);
 };
 
 enum class FunctionFailureBehavior {
@@ -465,21 +478,69 @@ private:
     FunctionAuthorityContract(FunctionAuthorityEffect effect, std::string permit_type);
 };
 
-struct Function {
-    hir::FunctionId function_id = 0;
-    ast::Visibility visibility = ast::Visibility::Private;
-    std::string qualified_name;
-    std::string return_type;
-    FunctionFailureContract failure = FunctionFailureContract::returns_declared_value();
-    FunctionAuthorityContract authority = FunctionAuthorityContract::ordinary_call();
-    std::vector<std::string> proves_types;
-    ast::FunctionImplementation implementation = ast::FunctionImplementation::EvidentBody;
-    std::vector<Local> locals;
-    std::vector<BasicBlock> blocks;
+class Function final {
+public:
+    [[nodiscard]] static Function declared(hir::FunctionId function_id,
+                                           ast::Visibility visibility,
+                                           std::string qualified_name,
+                                           std::string return_type,
+                                           FunctionFailureContract failure,
+                                           FunctionAuthorityContract authority,
+                                           std::vector<std::string> proves_types,
+                                           ast::FunctionImplementation implementation);
+
+    [[nodiscard]] hir::FunctionId function_id() const noexcept { return function_id_; }
+    [[nodiscard]] ast::Visibility visibility() const noexcept { return visibility_; }
+    [[nodiscard]] const std::string& qualified_name() const noexcept { return qualified_name_; }
+    [[nodiscard]] const std::string& return_type() const noexcept { return return_type_; }
+    [[nodiscard]] const FunctionFailureContract& failure() const noexcept { return failure_; }
+    [[nodiscard]] const FunctionAuthorityContract& authority() const noexcept { return authority_; }
+    [[nodiscard]] const std::vector<std::string>& proves_types() const noexcept { return proves_types_; }
+    [[nodiscard]] ast::FunctionImplementation implementation() const noexcept { return implementation_; }
+    [[nodiscard]] const std::vector<Local>& locals() const noexcept { return locals_; }
+    [[nodiscard]] const std::vector<BasicBlock>& blocks() const noexcept { return blocks_; }
+    [[nodiscard]] const Local& local_at(LocalId id) const;
+    [[nodiscard]] BasicBlock& block_at(BlockId id);
+
+    [[nodiscard]] LocalId add_local(std::string name,
+                                    std::string type_name,
+                                    LocalKind kind,
+                                    typesys::UseDiscipline discipline);
+    [[nodiscard]] BlockId add_block_with_unreachable_terminator();
+
+private:
+    hir::FunctionId function_id_;
+    ast::Visibility visibility_;
+    std::string qualified_name_;
+    std::string return_type_;
+    FunctionFailureContract failure_;
+    FunctionAuthorityContract authority_;
+    std::vector<std::string> proves_types_;
+    ast::FunctionImplementation implementation_;
+    std::vector<Local> locals_;
+    std::vector<BasicBlock> blocks_;
+
+    Function(hir::FunctionId function_id,
+             ast::Visibility visibility,
+             std::string qualified_name,
+             std::string return_type,
+             FunctionFailureContract failure,
+             FunctionAuthorityContract authority,
+             std::vector<std::string> proves_types,
+             ast::FunctionImplementation implementation);
 };
 
-struct Package {
-    std::vector<Function> functions;
+class Package final {
+public:
+    [[nodiscard]] static Package from_lowered_functions(std::vector<Function> functions);
+
+    [[nodiscard]] const std::vector<Function>& functions() const noexcept { return functions_; }
+    [[nodiscard]] std::size_t function_count() const noexcept { return functions_.size(); }
+
+private:
+    std::vector<Function> functions_;
+
+    explicit Package(std::vector<Function> functions);
 };
 
 [[nodiscard]] Package lower(const hir::Package& package);

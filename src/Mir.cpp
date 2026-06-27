@@ -357,6 +357,98 @@ Local::Local(LocalId id,
       type_name_(std::move(type_name)),
       discipline_(discipline) {}
 
+BasicBlock BasicBlock::with_unreachable_terminator(BlockId id) {
+    return BasicBlock(id, Terminator::unreachable());
+}
+
+void BasicBlock::append_statement(Statement statement) {
+    statements_.push_back(std::move(statement));
+}
+
+void BasicBlock::replace_terminator(Terminator terminator) {
+    terminator_ = std::move(terminator);
+}
+
+BasicBlock::BasicBlock(BlockId id, Terminator terminator)
+    : id_(id), terminator_(std::move(terminator)) {}
+
+Function Function::declared(hir::FunctionId function_id,
+                            ast::Visibility visibility,
+                            std::string qualified_name,
+                            std::string return_type,
+                            FunctionFailureContract failure,
+                            FunctionAuthorityContract authority,
+                            std::vector<std::string> proves_types,
+                            ast::FunctionImplementation implementation) {
+    return Function(function_id,
+                    visibility,
+                    std::move(qualified_name),
+                    std::move(return_type),
+                    std::move(failure),
+                    std::move(authority),
+                    std::move(proves_types),
+                    implementation);
+}
+
+const Local& Function::local_at(LocalId id) const {
+    return locals_.at(id);
+}
+
+BasicBlock& Function::block_at(BlockId id) {
+    return blocks_.at(id);
+}
+
+LocalId Function::add_local(std::string name,
+                            std::string type_name,
+                            LocalKind kind,
+                            typesys::UseDiscipline discipline) {
+    const LocalId id = locals_.size();
+    switch (kind) {
+    case LocalKind::Parameter:
+        locals_.push_back(Local::parameter(id, std::move(name), std::move(type_name), discipline));
+        break;
+    case LocalKind::Let:
+        locals_.push_back(Local::let_binding(id, std::move(name), std::move(type_name), discipline));
+        break;
+    case LocalKind::Temporary:
+        locals_.push_back(Local::temporary(id, std::move(name), std::move(type_name), discipline));
+        break;
+    case LocalKind::ReturnSlot:
+        locals_.push_back(Local::return_slot(id, std::move(name), std::move(type_name), discipline));
+        break;
+    }
+    return id;
+}
+
+BlockId Function::add_block_with_unreachable_terminator() {
+    blocks_.push_back(BasicBlock::with_unreachable_terminator(blocks_.size()));
+    return blocks_.back().id();
+}
+
+Function::Function(hir::FunctionId function_id,
+                   ast::Visibility visibility,
+                   std::string qualified_name,
+                   std::string return_type,
+                   FunctionFailureContract failure,
+                   FunctionAuthorityContract authority,
+                   std::vector<std::string> proves_types,
+                   ast::FunctionImplementation implementation)
+    : function_id_(function_id),
+      visibility_(visibility),
+      qualified_name_(std::move(qualified_name)),
+      return_type_(std::move(return_type)),
+      failure_(std::move(failure)),
+      authority_(std::move(authority)),
+      proves_types_(std::move(proves_types)),
+      implementation_(implementation) {}
+
+Package Package::from_lowered_functions(std::vector<Function> functions) {
+    return Package(std::move(functions));
+}
+
+Package::Package(std::vector<Function> functions)
+    : functions_(std::move(functions)) {}
+
 namespace {
 
 enum class BlockCursorState {
@@ -430,30 +522,46 @@ struct Env {
     std::unordered_map<std::string, LocalId> locals;
 };
 
+FunctionFailureContract failure_contract_for(const hir::Package& package, const hir::FunctionDecl& source) {
+    if (source.failure.behavior() == hir::FunctionFailureBehavior::YieldsReason) {
+        return FunctionFailureContract::yields_reason(
+            hir::lookup_type(package, source.failure.reason_type_id()).qualified_name);
+    }
+    return FunctionFailureContract::returns_declared_value();
+}
+
+FunctionAuthorityContract authority_contract_for(const hir::Package& package, const hir::FunctionDecl& source) {
+    if (source.authority.effect() == hir::FunctionAuthorityEffect::GrantsScopedPermit) {
+        return FunctionAuthorityContract::grants_scoped_permit(
+            hir::lookup_type(package, source.authority.permit_type_id()).qualified_name);
+    }
+    return FunctionAuthorityContract::ordinary_call();
+}
+
+std::vector<std::string> proves_types_for(const hir::Package& package, const hir::FunctionDecl& source) {
+    std::vector<std::string> proves_types;
+    proves_types.reserve(source.proves_proof_type_ids.size());
+    for (hir::TypeId proof_id : source.proves_proof_type_ids) {
+        proves_types.push_back(hir::lookup_type(package, proof_id).qualified_name);
+    }
+    return proves_types;
+}
+
 struct Builder {
     const hir::Package& hir_package;
     Function function;
     LocalId return_local = 0;
 
     explicit Builder(const hir::Package& package, const hir::FunctionDecl& source)
-        : hir_package(package) {
-        function.function_id = source.id;
-        function.visibility = source.visibility;
-        function.qualified_name = source.qualified_name;
-        function.return_type = source.return_type.text;
-        if (source.failure.behavior() == hir::FunctionFailureBehavior::YieldsReason) {
-            function.failure = FunctionFailureContract::yields_reason(
-                hir::lookup_type(package, source.failure.reason_type_id()).qualified_name);
-        }
-        if (source.authority.effect() == hir::FunctionAuthorityEffect::GrantsScopedPermit) {
-            function.authority = FunctionAuthorityContract::grants_scoped_permit(
-                hir::lookup_type(package, source.authority.permit_type_id()).qualified_name);
-        }
-        for (hir::TypeId proof_id : source.proves_proof_type_ids) {
-            function.proves_types.push_back(hir::lookup_type(package, proof_id).qualified_name);
-        }
-        function.implementation = source.implementation;
-    }
+        : hir_package(package),
+          function(Function::declared(source.id,
+                                      source.visibility,
+                                      source.qualified_name,
+                                      source.return_type.text,
+                                      failure_contract_for(package, source),
+                                      authority_contract_for(package, source),
+                                      proves_types_for(package, source),
+                                      source.implementation)) {}
 
     [[nodiscard]] Function lower(const hir::FunctionDecl& source);
 
@@ -546,7 +654,7 @@ std::string format_local_name(const Local& local) {
 std::string format_operand(const Operand& operand, const Function& function) {
     return operand.match(
         [&](Operand::LocalValue local) -> std::string {
-            return format_local_name(function.locals.at(local.local_id));
+            return format_local_name(function.local_at(local.local_id));
         },
         [](Operand::IntLiteralValue literal) -> std::string {
             return literal.text;
@@ -605,11 +713,11 @@ std::string format_rvalue(const Rvalue& value, const Function& function) {
             return out.str();
         },
         [&](Rvalue::ProjectNamedTypeFieldValue value) {
-            out << format_local_name(function.locals.at(value.base_local)) << '.' << value.field_name;
+            out << format_local_name(function.local_at(value.base_local)) << '.' << value.field_name;
             return out.str();
         },
         [&](Rvalue::ProjectNamedVariantPayloadFieldValue value) {
-            out << format_local_name(function.locals.at(value.base_local)) << '.' << value.field_name;
+            out << format_local_name(function.local_at(value.base_local)) << '.' << value.field_name;
             return out.str();
         });
 }
@@ -643,40 +751,23 @@ LocalId Builder::add_local(std::string name,
                            std::string type,
                            LocalKind kind,
                            typesys::UseDiscipline discipline) {
-    const LocalId id = function.locals.size();
-    switch (kind) {
-    case LocalKind::Parameter:
-        function.locals.push_back(Local::parameter(id, std::move(name), std::move(type), discipline));
-        break;
-    case LocalKind::Let:
-        function.locals.push_back(Local::let_binding(id, std::move(name), std::move(type), discipline));
-        break;
-    case LocalKind::Temporary:
-        function.locals.push_back(Local::temporary(id, std::move(name), std::move(type), discipline));
-        break;
-    case LocalKind::ReturnSlot:
-        function.locals.push_back(Local::return_slot(id, std::move(name), std::move(type), discipline));
-        break;
-    }
-    return id;
+    return function.add_local(std::move(name), std::move(type), kind, discipline);
 }
 
 BlockId Builder::add_block() {
-    function.blocks.push_back(BasicBlock{function.blocks.size(), {}, Terminator::unreachable()});
-    return function.blocks.back().id;
+    return function.add_block_with_unreachable_terminator();
 }
 
 BasicBlock& Builder::block(BlockId id) {
-    return function.blocks.at(id);
+    return function.block_at(id);
 }
 
 void Builder::append_statement(BlockId id, Statement statement) {
-    block(id).statements.push_back(std::move(statement));
+    block(id).append_statement(std::move(statement));
 }
 
 void Builder::set_terminator(BlockId id, Terminator terminator) {
-    BasicBlock& target = block(id);
-    target.terminator = std::move(terminator);
+    block(id).replace_terminator(std::move(terminator));
 }
 
 Operand Builder::local_operand(LocalId local_id) const {
@@ -985,7 +1076,7 @@ BlockCursor Builder::lower_grant_to_success_or_failure(const hir::GrantExpr& exp
         if (grant_tail.state() == BlockCursorState::ContinuesAtBlock) {
             return grant_tail;
         }
-        cursor = block(grant_call_block).terminator.match(
+        cursor = block(grant_call_block).terminator().match(
             [&](Terminator::ReturnValue) -> BlockCursor {
                 return grant_tail;
             },
@@ -1444,36 +1535,36 @@ BlockCursor Builder::lower_expr_to(const hir::Expr& expr,
 } // namespace
 
 Package lower(const hir::Package& package) {
-    Package lowered;
-    lowered.functions.reserve(package.functions.size());
+    std::vector<Function> functions;
+    functions.reserve(package.functions.size());
     for (const hir::FunctionDecl& function : package.functions) {
         Builder builder(package, function);
-        lowered.functions.push_back(builder.lower(function));
+        functions.push_back(builder.lower(function));
     }
-    return lowered;
+    return Package::from_lowered_functions(std::move(functions));
 }
 
 std::string dump(const Package& package) {
     std::ostringstream out;
     out << "functions:\n";
-    for (const Function& function : package.functions) {
-        out << "  - " << ast::visibility_name(function.visibility) << ' '
-            << (function.implementation == ast::FunctionImplementation::ForeignImport ? "foreign-fn " : "fn ")
-            << function.qualified_name
-            << " -> " << function.return_type;
-        if (function.failure.behavior() == FunctionFailureBehavior::YieldsReason) {
-            out << " fails " << function.failure.reason_type();
+    for (const Function& function : package.functions()) {
+        out << "  - " << ast::visibility_name(function.visibility()) << ' '
+            << (function.implementation() == ast::FunctionImplementation::ForeignImport ? "foreign-fn " : "fn ")
+            << function.qualified_name()
+            << " -> " << function.return_type();
+        if (function.failure().behavior() == FunctionFailureBehavior::YieldsReason) {
+            out << " fails " << function.failure().reason_type();
         }
-        if (function.authority.effect() == FunctionAuthorityEffect::GrantsScopedPermit) {
-            out << " grants " << function.authority.permit_type();
+        if (function.authority().effect() == FunctionAuthorityEffect::GrantsScopedPermit) {
+            out << " grants " << function.authority().permit_type();
         }
-        for (const std::string& p : function.proves_types) {
+        for (const std::string& p : function.proves_types()) {
             out << " proves " << p;
         }
         out << '\n';
-        if (!function.locals.empty()) {
+        if (!function.locals().empty()) {
             out << "      locals:\n";
-            for (const Local& local : function.locals) {
+            for (const Local& local : function.locals()) {
                 out << "        " << format_local_name(local) << " : " << local.type_name();
                 if (typesys::discipline_materialization(local.discipline())
                     == typesys::DisciplineMaterialization::CompileTimeOnly) {
@@ -1485,17 +1576,17 @@ std::string dump(const Package& package) {
                 out << '\n';
             }
         }
-        if (function.blocks.empty()) {
+        if (function.blocks().empty()) {
             out << "      blocks: <none>\n";
             continue;
         }
-        for (const BasicBlock& block : function.blocks) {
-            out << "      block %" << block.id << '\n';
-            for (const Statement& statement : block.statements) {
-                out << "        " << format_local_name(function.locals.at(statement.dest_local()))
+        for (const BasicBlock& block : function.blocks()) {
+            out << "      block %" << block.id() << '\n';
+            for (const Statement& statement : block.statements()) {
+                out << "        " << format_local_name(function.local_at(statement.dest_local()))
                     << " = " << format_rvalue(statement.rvalue(), function) << '\n';
             }
-            block.terminator.match(
+            block.terminator().match(
                 [&](Terminator::ReturnValue terminator) {
                     out << "        return " << format_operand(terminator.value, function) << '\n';
                 },
@@ -1506,7 +1597,7 @@ std::string dump(const Package& package) {
                     out << "        goto %" << terminator.target_block << '\n';
                 },
                 [&](Terminator::SwitchVariantValue terminator) {
-                    out << "        switch " << format_local_name(function.locals.at(terminator.scrutinee_local)) << '\n';
+                    out << "        switch " << format_local_name(function.local_at(terminator.scrutinee_local)) << '\n';
                     for (const SwitchEdge& edge : terminator.edges) {
                         out << "          arm " << edge.variant_name() << " -> %" << edge.target_block() << '\n';
                     }
@@ -1519,9 +1610,9 @@ std::string dump(const Package& package) {
                         }
                         out << format_operand(terminator.args[index], function);
                     }
-                    out << ") ok " << format_local_name(function.locals.at(terminator.success_local))
+                    out << ") ok " << format_local_name(function.local_at(terminator.success_local))
                         << " -> %" << terminator.success_block
-                        << " fail " << format_local_name(function.locals.at(terminator.failure_local))
+                        << " fail " << format_local_name(function.local_at(terminator.failure_local))
                         << " -> %" << terminator.failure_block << '\n';
                 },
                 [&](Terminator::UnreachableValue) {
