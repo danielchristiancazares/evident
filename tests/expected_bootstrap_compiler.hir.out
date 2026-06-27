@@ -109,7 +109,7 @@ types:
   - public record bootstrap_host::HostPath
       field text: CString
   - public record bootstrap_host::HostFileContents
-      field text: Text
+      field text: CString
   - public record bootstrap_host::HostReadRequest
       field path: bootstrap_host::HostPath
   - public record bootstrap_host::HostWriteRequest
@@ -862,8 +862,8 @@ functions:
               local path : bootstrap_source::SourcePath
             init message [shorthand]
               local message : Text
-  - public foreign-fn bootstrap_host::read_text_file_text(path: CString) -> Text
-  - public foreign-fn bootstrap_host::write_text_file_text(path: CString, contents: Text) -> CInt
+  - public foreign-fn bootstrap_host::read_text_file_text(path: CString) -> CString
+  - public foreign-fn bootstrap_host::write_text_file_text(path: CString, contents: CString) -> CInt
   - public foreign-fn bootstrap_host::resolve_path_text(base: CString, relative: CString) -> CString
   - public foreign-fn bootstrap_host::spawn_tool_text(working_directory: CString, executable: CString, arguments: List<Text>) -> CInt
   - public foreign-fn bootstrap_host::process_exit(code: CInt) -> CInt
@@ -871,7 +871,7 @@ functions:
       block -> bootstrap_host::HostFileContents
         result
           call bootstrap_host::host_file_contents -> bootstrap_host::HostFileContents
-            call bootstrap_host::read_text_file_text -> Text
+            call bootstrap_host::read_text_file_text -> CString
               field-access .text : CString
                 field-access .path : bootstrap_host::HostPath
                   local request : bootstrap_host::HostReadRequest
@@ -882,7 +882,7 @@ functions:
             field-access .text : CString
               field-access .path : bootstrap_host::HostPath
                 local request : bootstrap_host::HostWriteRequest
-            field-access .text : Text
+            field-access .text : CString
               field-access .contents : bootstrap_host::HostFileContents
                 local request : bootstrap_host::HostWriteRequest
   - public fn bootstrap_host::resolve_path(base: bootstrap_host::HostPath, relative: bootstrap_host::HostPath) -> bootstrap_host::HostPath
@@ -912,12 +912,12 @@ functions:
           construct bootstrap_host::HostPath : bootstrap_host::HostPath
             init text [shorthand]
               local text : CString
-  - public fn bootstrap_host::host_file_contents(text: Text) -> bootstrap_host::HostFileContents
+  - public fn bootstrap_host::host_file_contents(text: CString) -> bootstrap_host::HostFileContents
       block -> bootstrap_host::HostFileContents
         result
           construct bootstrap_host::HostFileContents : bootstrap_host::HostFileContents
             init text [shorthand]
-              local text : Text
+              local text : CString
   - public fn bootstrap_host::host_read_request(path: bootstrap_host::HostPath) -> bootstrap_host::HostReadRequest
       block -> bootstrap_host::HostReadRequest
         result

@@ -474,14 +474,14 @@ functions:
       block %0
         %2[$return] = construct bootstrap_diagnostics::OriginalFileDiagnostic {path: %0[path], message: %1[message]}
         return %2[$return]
-  - public foreign-fn bootstrap_host::read_text_file_text -> Text
+  - public foreign-fn bootstrap_host::read_text_file_text -> CString
       locals:
         %0[path] : CString
       blocks: <none>
   - public foreign-fn bootstrap_host::write_text_file_text -> CInt
       locals:
         %0[path] : CString
-        %1[contents] : Text
+        %1[contents] : CString
       blocks: <none>
   - public foreign-fn bootstrap_host::resolve_path_text -> CString
       locals:
@@ -502,7 +502,7 @@ functions:
       locals:
         %0[request] : bootstrap_host::HostReadRequest
         %1[$return] : bootstrap_host::HostFileContents
-        %2[tmp] : Text
+        %2[tmp] : CString
         %3[tmp] : CString
         %4[tmp] : bootstrap_host::HostPath
       block %0
@@ -517,7 +517,7 @@ functions:
         %1[$return] : CInt
         %2[tmp] : CString
         %3[tmp] : bootstrap_host::HostPath
-        %4[tmp] : Text
+        %4[tmp] : CString
         %5[tmp] : bootstrap_host::HostFileContents
       block %0
         %3[tmp] = %0[request].path
@@ -566,7 +566,7 @@ functions:
         return %1[$return]
   - public fn bootstrap_host::host_file_contents -> bootstrap_host::HostFileContents
       locals:
-        %0[text] : Text
+        %0[text] : CString
         %1[$return] : bootstrap_host::HostFileContents
       block %0
         %1[$return] = construct bootstrap_host::HostFileContents {text: %0[text]}

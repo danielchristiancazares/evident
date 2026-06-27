@@ -846,6 +846,10 @@ private:
     [[nodiscard]] BackendStepResult emit_function_fail(const mir::Operand& operand);
     [[nodiscard]] BackendStepResult emit_success_or_failure_return(const mir::Operand& operand,
                                                                    YieldReturnKind return_kind);
+    [[nodiscard]] BackendStepResult emit_call_argument(std::vector<std::string>& args,
+                                                       const hir::FunctionDecl& callee,
+                                                       std::size_t index,
+                                                       const mir::Operand& operand);
     [[nodiscard]] std::expected<TypedValue, std::string> materialize_operand(const mir::Operand& operand,
                                                                              const ResolvedType& expected_type);
     [[nodiscard]] std::expected<std::string, std::string> local_slot(mir::LocalId local_id) const;
@@ -5417,6 +5421,68 @@ std::expected<FunctionEmitter::TypedValue, std::string> FunctionEmitter::materia
         });
 }
 
+BackendStepResult FunctionEmitter::emit_call_argument(std::vector<std::string>& args,
+                                                      const hir::FunctionDecl& callee,
+                                                      std::size_t index,
+                                                      const mir::Operand& operand) {
+    const std::expected<ResolvedType, std::string> param_type = model_.resolve_type_name(callee.params[index].type.text);
+    if (!param_type.has_value()) {
+        return std::unexpected(param_type.error());
+    }
+
+    const bool pass_by_pointer = callee.implementation == ast::FunctionImplementation::ForeignImport
+        && param_type->size() > 8;
+    if (!pass_by_pointer) {
+        const std::expected<TypedValue, std::string> arg = materialize_operand(operand, *param_type);
+        if (!arg.has_value()) {
+            return std::unexpected(arg.error());
+        }
+        args.push_back(arg->type.llvm_type() + " " + arg->value);
+        return BackendStepSucceeded{};
+    }
+
+    const auto materialize_stack_argument = [&]() -> BackendStepResult {
+        const std::expected<TypedValue, std::string> arg = materialize_operand(operand, *param_type);
+        if (!arg.has_value()) {
+            return std::unexpected(arg.error());
+        }
+
+        const std::string temp_slot = next_temp("arg");
+        append_line(temp_slot + " = alloca " + arg->type.llvm_type());
+        append_line("store " + arg->type.llvm_type() + " " + arg->value + ", ptr " + temp_slot);
+        args.push_back("ptr " + temp_slot);
+        return BackendStepSucceeded{};
+    };
+
+    return operand.match(
+        [&](mir::Operand::LocalValue local) -> BackendStepResult {
+            const std::expected<const ResolvedType*, std::string> source_type = local_type(local.local_id);
+            if (!source_type.has_value()) {
+                return std::unexpected(source_type.error());
+            }
+            if ((*source_type)->source_name() != param_type->source_name()) {
+                return std::unexpected("backend type mismatch for call argument " + std::to_string(index)
+                                       + " of foreign function '" + callee.qualified_name + "': expected '"
+                                       + param_type->source_name() + "', got '" + (*source_type)->source_name() + "'");
+            }
+            const std::expected<std::string, std::string> slot = local_slot(local.local_id);
+            if (!slot.has_value()) {
+                return std::unexpected(slot.error());
+            }
+            args.push_back("ptr " + *slot);
+            return BackendStepSucceeded{};
+        },
+        [&](mir::Operand::IntLiteralValue) -> BackendStepResult {
+            return materialize_stack_argument();
+        },
+        [&](mir::Operand::StringLiteralValue) -> BackendStepResult {
+            return materialize_stack_argument();
+        },
+        [&](mir::Operand::UnitValue) -> BackendStepResult {
+            return materialize_stack_argument();
+        });
+}
+
 BackendStepResult FunctionEmitter::emit_assign_use(mir::LocalId dest, const mir::Operand& operand) {
     const std::expected<const ResolvedType*, std::string> dest_type = local_type(dest);
     if (!dest_type.has_value()) {
@@ -5478,15 +5544,10 @@ BackendStepResult FunctionEmitter::emit_assign_call(mir::LocalId dest, mir::Rval
             }
             continue;
         }
-        const std::expected<ResolvedType, std::string> param_type = model_.resolve_type_name(callee.params[index].type.text);
-        if (!param_type.has_value()) {
-            return std::unexpected(param_type.error());
-        }
-        const std::expected<TypedValue, std::string> arg = materialize_operand(value.args[index], *param_type);
+        const BackendStepResult arg = emit_call_argument(args, callee, index, value.args[index]);
         if (!arg.has_value()) {
             return std::unexpected(arg.error());
         }
-        args.push_back(arg->type.llvm_type() + " " + arg->value);
     }
 
     const std::string call_value = next_temp("call");
@@ -5931,15 +5992,10 @@ BackendStepResult FunctionEmitter::emit_invoke(mir::Terminator::InvokeValue term
             }
             continue;
         }
-        const std::expected<ResolvedType, std::string> param_type = model_.resolve_type_name(callee.params[index].type.text);
-        if (!param_type.has_value()) {
-            return std::unexpected(param_type.error());
-        }
-        const std::expected<TypedValue, std::string> arg = materialize_operand(terminator.args[index], *param_type);
+        const BackendStepResult arg = emit_call_argument(args, callee, index, terminator.args[index]);
         if (!arg.has_value()) {
             return std::unexpected(arg.error());
         }
-        args.push_back(arg->type.llvm_type() + " " + arg->value);
     }
 
     const std::string call_value = next_temp("invoke");
@@ -6093,6 +6149,10 @@ std::expected<std::string, std::string> FunctionEmitter::emit() {
             const std::expected<ResolvedType, std::string> param_type = model_.resolve_type_name(hir_function_.params[index].type.text);
             if (!param_type.has_value()) {
                 return std::unexpected(param_type.error());
+            }
+            if (param_type->size() > 8) {
+                runtime_params.push_back("ptr");
+                continue;
             }
             runtime_params.push_back(param_type->llvm_type());
         }

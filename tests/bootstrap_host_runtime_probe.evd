@@ -4,6 +4,8 @@ domain module bootstrap_host_runtime_probe {
 public fn main() -> Int {
     let working_directory = bootstrap_host::host_path(".");
     let probe_directory = bootstrap_host::resolve_path(working_directory, bootstrap_host::host_path("bootstrap-host-runtime-probe"));
+    let ignored = bootstrap_host::write_text_file_text("bootstrap-host-runtime-probe.txt", "bootstrap-host-runtime-probe");
+    let ignored_exit = bootstrap_host::spawn_tool_text(".", "C:/Windows/System32/cmd.exe", list_empty<Text>());
     0
 }
 }

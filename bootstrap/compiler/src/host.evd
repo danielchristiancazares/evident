@@ -4,7 +4,7 @@ public record HostPath {
 }
 
 public record HostFileContents {
-    public text: Text,
+    public text: CString,
 }
 
 public record HostReadRequest {
@@ -35,9 +35,9 @@ public record ExitStatus {
     public code: Int,
 }
 
-public foreign fn read_text_file_text(path: CString) -> Text
+public foreign fn read_text_file_text(path: CString) -> CString
 
-public foreign fn write_text_file_text(path: CString, contents: Text) -> CInt
+public foreign fn write_text_file_text(path: CString, contents: CString) -> CInt
 
 public foreign fn resolve_path_text(base: CString, relative: CString) -> CString
 
@@ -65,7 +65,7 @@ public fn host_path(text: CString) -> HostPath {
     HostPath { text }
 }
 
-public fn host_file_contents(text: Text) -> HostFileContents {
+public fn host_file_contents(text: CString) -> HostFileContents {
     HostFileContents { text }
 }
 

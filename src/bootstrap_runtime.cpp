@@ -163,7 +163,7 @@ extern "C" const char* evid$bootstrap_host$resolve_path_text(const char* base, c
     return retain_cstring(path_to_utf8(resolved));
 }
 
-extern "C" EvidText evid$bootstrap_host$read_text_file_text(const char* path_text) {
+extern "C" const char* evid$bootstrap_host$read_text_file_text(const char* path_text) {
     const std::filesystem::path path = path_from_cstring(path_text);
     std::ifstream input(path, std::ios::binary);
     if (!input) {
@@ -173,10 +173,10 @@ extern "C" EvidText evid$bootstrap_host$read_text_file_text(const char* path_tex
 
     std::ostringstream buffer;
     buffer << input.rdbuf();
-    return retain_text(buffer.str());
+    return retain_cstring(buffer.str());
 }
 
-extern "C" std::int32_t evid$bootstrap_host$write_text_file_text(const char* path_text, EvidText contents_text) {
+extern "C" std::int32_t evid$bootstrap_host$write_text_file_text(const char* path_text, const char* contents_text) {
     const std::filesystem::path path = path_from_cstring(path_text);
     const std::filesystem::path parent = path.parent_path();
     if (!parent.empty()) {
@@ -195,7 +195,7 @@ extern "C" std::int32_t evid$bootstrap_host$write_text_file_text(const char* pat
         return 1;
     }
 
-    const std::string contents = text_to_string(contents_text);
+    const std::string contents = cstring_to_string(contents_text);
     output.write(contents.data(), static_cast<std::streamsize>(contents.size()));
     if (!output) {
         report_runtime_error("bootstrap host runtime failed to write text output file '" + path_to_utf8(path) + "'");
