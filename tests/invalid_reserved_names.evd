@@ -108,4 +108,14 @@ fn list_empty() -> Int {
 fn map_lookup_copy() -> Int {
     0
 }
+
+record Int {
+}
+
+fn Text() -> Int {
+    0
+}
+
+domain module Map {
+}
 }

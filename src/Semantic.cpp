@@ -183,6 +183,11 @@ enum class CompilerOwnedCollectionNameReservation {
     ReservedCollectionSurfaceName,
 };
 
+enum class BuiltinTypeNameReservation {
+    UserDeclarationName,
+    ReservedBuiltinTypeName,
+};
+
 enum class BuiltinNameState {
     UserDeclaredName,
     CompilerBuiltinName,
@@ -251,6 +256,11 @@ CompilerOwnedCollectionNameReservation compiler_owned_collection_name_reservatio
     return kCompilerOwnedCollectionNames.contains(name)
         ? CompilerOwnedCollectionNameReservation::ReservedCollectionSurfaceName
         : CompilerOwnedCollectionNameReservation::UserDeclarationName;
+}
+
+BuiltinTypeNameReservation builtin_type_name_reservation(std::string_view name) {
+    return kBuiltins.contains(name) ? BuiltinTypeNameReservation::ReservedBuiltinTypeName
+                                    : BuiltinTypeNameReservation::UserDeclarationName;
 }
 
 BuiltinNameState builtin_name_state(std::string_view name) {
@@ -1254,6 +1264,12 @@ private:
         }
     }
 
+    void check_builtin_type_declaration_name(const std::string& name, SourceSpan span) {
+        if (builtin_type_name_reservation(name) == BuiltinTypeNameReservation::ReservedBuiltinTypeName) {
+            diagnostics_.error(span, "builtin type name '" + name + "' is reserved");
+        }
+    }
+
     void check_name_under_public_policy(const std::string& name, SourceSpan span, PublicNamePolicy policy) {
         switch (policy) {
         case PublicNamePolicy::ExportedName:
@@ -1805,6 +1821,7 @@ private:
                 declaration_public_reachability(parent_reachability, decl.visibility);
 
             check_name_under_public_policy(decl.name, decl.span, declaration_name_policy);
+            check_builtin_type_declaration_name(decl.name, decl.span);
             if (decl.kind != ast::DeclKind::Module) {
                 check_compiler_owned_collection_name(decl.name, decl.span);
             }

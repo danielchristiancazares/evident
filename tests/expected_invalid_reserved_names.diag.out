@@ -115,3 +115,12 @@
 <input>:108:1: error: compiler-owned collection name 'map_lookup_copy' is reserved
     fn map_lookup_copy() -> Int {
     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<input>:112:1: error: builtin type name 'Int' is reserved
+    record Int {
+    ^^^^^^^^^^^^
+<input>:115:1: error: builtin type name 'Text' is reserved
+    fn Text() -> Int {
+    ^^^^^^^^^^^^^^^^^^
+<input>:119:1: error: builtin type name 'Map' is reserved
+    domain module Map {
+    ^^^^^^^^^^^^^^^^^^^
