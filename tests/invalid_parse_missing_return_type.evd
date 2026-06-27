@@ -7,3 +7,7 @@ public fn after() -> Int {
     1
 }
 }
+
+boundary module ffi {
+public foreign fn read() ->
+}
