@@ -39,6 +39,11 @@ enum class ModuleKindTokenRole {
     ModuleKindKeyword,
 };
 
+enum class FieldBlockContext {
+    DeclarationFields,
+    VariantPayloadFields,
+};
+
 class Parser {
 public:
     Parser(const SourceFile& source, std::vector<Token> tokens, DiagnosticSink& diagnostics);
@@ -71,7 +76,7 @@ private:
                                                       ast::FunctionImplementation implementation);
 
     std::vector<ast::GenericParam> parse_generic_params();
-    std::vector<ast::Field> parse_field_block();
+    std::vector<ast::Field> parse_field_block(FieldBlockContext context = FieldBlockContext::DeclarationFields);
     std::vector<ast::Variant> parse_variant_block();
     std::vector<ast::Parameter> parse_parameter_list();
     std::vector<ast::Parameter> parse_foreign_parameter_list();

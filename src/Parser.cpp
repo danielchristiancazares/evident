@@ -461,7 +461,7 @@ std::vector<ast::GenericParam> Parser::parse_generic_params() {
     return params;
 }
 
-std::vector<ast::Field> Parser::parse_field_block() {
+std::vector<ast::Field> Parser::parse_field_block(FieldBlockContext context) {
     std::vector<ast::Field> fields;
     expect(TokenKind::LeftBrace, "expected '{'");
     while (token_check(TokenKind::RightBrace) == TokenCheckState::DifferentToken
@@ -476,7 +476,14 @@ std::vector<ast::Field> Parser::parse_field_block() {
         field.type = std::move(type);
         field.span = SourceSpan{field_name.span().begin, field.type.span.end};
         fields.push_back(std::move(field));
-        if (consume_if(TokenKind::Comma) == TokenConsumptionState::Consumed) {
+        if (token_check(TokenKind::Comma) == TokenCheckState::Matches) {
+            if (context == FieldBlockContext::VariantPayloadFields
+                && peek(1).kind() == TokenKind::Identifier
+                && peek(2).kind() != TokenKind::Colon) {
+                diagnostics_.error(peek().span(), "expected '}' after variant payload fields");
+                return fields;
+            }
+            advance();
             if (token_check(TokenKind::RightBrace) == TokenCheckState::Matches) {
                 break;
             }
@@ -498,7 +505,7 @@ std::vector<ast::Variant> Parser::parse_variant_block() {
         variant.name = token_text(variant_name);
         variant.span.begin = variant_name.span().begin;
         if (token_check(TokenKind::LeftBrace) == TokenCheckState::Matches) {
-            variant.fields = parse_field_block();
+            variant.fields = parse_field_block(FieldBlockContext::VariantPayloadFields);
             variant.span.end = tokens_[current_ - 1].span().end;
         } else {
             variant.span.end = variant_name.span().end;

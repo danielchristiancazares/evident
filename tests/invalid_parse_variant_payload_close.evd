@@ -1,0 +1,7 @@
+domain module test {
+    public state Outcome {
+        Good {
+            value: Int,
+        Bad,
+    }
+}

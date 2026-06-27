@@ -80,7 +80,7 @@ add_dependencies(package_checksum package)
 
 include(CTest)
 if(BUILD_TESTING)
-    set(EVIDENT_EXPECTED_CTEST_TOTAL 368)
+    set(EVIDENT_EXPECTED_CTEST_TOTAL 369)
 
     add_test(NAME parse_valid_example
         COMMAND evidc --dump-hir ${CMAKE_CURRENT_SOURCE_DIR}/examples/feature_mode.evd)
@@ -926,6 +926,9 @@ if(BUILD_TESTING)
     add_diagnostic_compare_test(diag_parse_phase_shape
         invalid_parse_phase_shape.evd
         expected_invalid_parse_phase_shape.diag.out)
+    add_diagnostic_compare_test(diag_parse_variant_payload_close
+        invalid_parse_variant_payload_close.evd
+        expected_invalid_parse_variant_payload_close.diag.out)
     add_diagnostic_compare_test(diag_semantic_phase_family_type
         invalid_phase_family_type.evd
         expected_invalid_phase_family_type.diag.out)

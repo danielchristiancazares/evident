@@ -38,7 +38,7 @@ set(required_fragments
     "evident-release-evidence.txt"
     "commit: %GITHUB_SHA%"
     "cmake/AssertReleaseEvidence.cmake"
-    "-DEXPECTED_CTEST_TOTAL=368"
+    "-DEXPECTED_CTEST_TOTAL=369"
     "actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5"
     "persist-credentials: false"
     "actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02"
