@@ -1,8 +1,8 @@
 domain module test {
 public fn main() -> Int {
-    let left = map_empty<Text, Int>()
-    let right = map_empty<Text, Int>()
-    match map_merge_rejecting_shared_keys<Text, Int>(left, right) {
+    let empty = map_empty<Text, Int>()
+    let entries = map_entries_copy<Text, Int>(empty)
+    match map_from_entries_rejecting_shared_keys<Text, Int>(entries) {
         succeeded(entries) => 0,
         failed(InputsHadSharedKey) => 1,
     }

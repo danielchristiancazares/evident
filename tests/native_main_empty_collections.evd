@@ -11,8 +11,20 @@ public fn single_map() -> NonEmptyMap<Text, Int> {
     map_single<Text, Int>("one", 7)
 }
 
+public fn alpha_map() -> NonEmptyMap<Text, Int> {
+    map_single<Text, Int>("alpha", 13)
+}
+
+public fn replacement_map() -> NonEmptyMap<Text, Int> {
+    map_single<Text, Int>("one", 9)
+}
+
 public fn single_int_map() -> NonEmptyMap<Int, Int> {
     map_single<Int, Int>(4, 7)
+}
+
+public fn replacement_int_map() -> NonEmptyMap<Int, Int> {
+    map_single<Int, Int>(4, 9)
 }
 
 public fn widened_list(values: NonEmptyList<Int>) -> List<Int> {
@@ -372,6 +384,143 @@ public fn consume_inserted_last_bound_value() -> Int {
     }
 }
 
+public fn merge_empty_maps_value() -> Int {
+    match map_merge_rejecting_shared_keys<Text, Int>(empty_map(), empty_map()) {
+        succeeded(entries) => 7,
+        failed(InputsHadSharedKey) => 9,
+    }
+}
+
+public fn merge_reject_disjoint_value() -> Int {
+    match map_merge_rejecting_shared_keys<Text, Int>(widened_map(alpha_map()), widened_map(single_map())) {
+        succeeded(entries) => {
+            match map_lookup_copy<Text, Int>(entries, "one") {
+                succeeded(value) => value,
+                failed(RequestedKeyHadNoBinding) => 3,
+                failed(RequestedKeyAlreadyHadBinding) => 3,
+            }
+        },
+        failed(InputsHadSharedKey) => 3,
+    }
+}
+
+public fn merge_left_nonempty_reject_disjoint_value() -> Int {
+    match map_merge_left_nonempty_rejecting_shared_keys<Text, Int>(single_map(), widened_map(alpha_map())) {
+        succeeded(entries) => {
+            match nonempty_map_lookup_copy<Text, Int>(entries, "one") {
+                succeeded(value) => value,
+                failed(RequestedKeyHadNoBinding) => 3,
+                failed(RequestedKeyAlreadyHadBinding) => 3,
+            }
+        },
+        failed(InputsHadSharedKey) => 3,
+    }
+}
+
+public fn merge_right_nonempty_reject_disjoint_value() -> Int {
+    match map_merge_right_nonempty_rejecting_shared_keys<Text, Int>(widened_map(alpha_map()), single_map()) {
+        succeeded(entries) => {
+            match nonempty_map_lookup_copy<Text, Int>(entries, "one") {
+                succeeded(value) => value,
+                failed(RequestedKeyHadNoBinding) => 3,
+                failed(RequestedKeyAlreadyHadBinding) => 3,
+            }
+        },
+        failed(InputsHadSharedKey) => 3,
+    }
+}
+
+public fn merge_nonempty_reject_shared_value() -> Int {
+    match nonempty_map_merge_rejecting_shared_keys<Text, Int>(single_map(), replacement_map()) {
+        succeeded(entries) => {
+            let entry = nonempty_map_first_entry_copy<Text, Int>(entries)
+            entry.value
+        },
+        failed(InputsHadSharedKey) => 7,
+    }
+}
+
+public fn merge_left_policy_duplicate_value() -> Int {
+    let entries = map_merge_using_left_bindings_for_shared_keys<Text, Int>(widened_map(single_map()), widened_map(replacement_map()))
+    match map_lookup_copy<Text, Int>(entries, "one") {
+        succeeded(value) => value,
+        failed(RequestedKeyHadNoBinding) => 3,
+        failed(RequestedKeyAlreadyHadBinding) => 3,
+    }
+}
+
+public fn merge_left_nonempty_policy_value() -> Int {
+    let entries = map_merge_left_nonempty_using_left_bindings_for_shared_keys<Text, Int>(single_map(), widened_map(replacement_map()))
+    match nonempty_map_lookup_copy<Text, Int>(entries, "one") {
+        succeeded(value) => value,
+        failed(RequestedKeyHadNoBinding) => 3,
+        failed(RequestedKeyAlreadyHadBinding) => 3,
+    }
+}
+
+public fn merge_right_nonempty_left_policy_value() -> Int {
+    let entries = map_merge_right_nonempty_using_left_bindings_for_shared_keys<Text, Int>(widened_map(single_map()), replacement_map())
+    match nonempty_map_lookup_copy<Text, Int>(entries, "one") {
+        succeeded(value) => value,
+        failed(RequestedKeyHadNoBinding) => 3,
+        failed(RequestedKeyAlreadyHadBinding) => 3,
+    }
+}
+
+public fn merge_nonempty_left_policy_value() -> Int {
+    let entries = nonempty_map_merge_using_left_bindings_for_shared_keys<Text, Int>(single_map(), replacement_map())
+    match nonempty_map_lookup_copy<Text, Int>(entries, "one") {
+        succeeded(value) => value,
+        failed(RequestedKeyHadNoBinding) => 3,
+        failed(RequestedKeyAlreadyHadBinding) => 3,
+    }
+}
+
+public fn merge_right_policy_duplicate_value() -> Int {
+    let entries = map_merge_using_right_bindings_for_shared_keys<Text, Int>(widened_map(replacement_map()), widened_map(single_map()))
+    match map_lookup_copy<Text, Int>(entries, "one") {
+        succeeded(value) => value,
+        failed(RequestedKeyHadNoBinding) => 3,
+        failed(RequestedKeyAlreadyHadBinding) => 3,
+    }
+}
+
+public fn merge_left_nonempty_right_policy_value() -> Int {
+    let entries = map_merge_left_nonempty_using_right_bindings_for_shared_keys<Text, Int>(replacement_map(), widened_map(single_map()))
+    match nonempty_map_lookup_copy<Text, Int>(entries, "one") {
+        succeeded(value) => value,
+        failed(RequestedKeyHadNoBinding) => 3,
+        failed(RequestedKeyAlreadyHadBinding) => 3,
+    }
+}
+
+public fn merge_right_nonempty_right_policy_value() -> Int {
+    let entries = map_merge_right_nonempty_using_right_bindings_for_shared_keys<Text, Int>(widened_map(replacement_map()), single_map())
+    match nonempty_map_lookup_copy<Text, Int>(entries, "one") {
+        succeeded(value) => value,
+        failed(RequestedKeyHadNoBinding) => 3,
+        failed(RequestedKeyAlreadyHadBinding) => 3,
+    }
+}
+
+public fn merge_nonempty_right_policy_value() -> Int {
+    let entries = nonempty_map_merge_using_right_bindings_for_shared_keys<Text, Int>(replacement_map(), single_map())
+    match nonempty_map_lookup_copy<Text, Int>(entries, "one") {
+        succeeded(value) => value,
+        failed(RequestedKeyHadNoBinding) => 3,
+        failed(RequestedKeyAlreadyHadBinding) => 3,
+    }
+}
+
+public fn merge_int_right_policy_value() -> Int {
+    let entries = map_merge_using_right_bindings_for_shared_keys<Int, Int>(widened_int_map(replacement_int_map()), widened_int_map(single_int_map()))
+    match map_lookup_copy<Int, Int>(entries, 4) {
+        succeeded(value) => value,
+        failed(RequestedKeyHadNoBinding) => 3,
+        failed(RequestedKeyAlreadyHadBinding) => 3,
+    }
+}
+
 public fn copied_empty_map_entries_count() -> Nat {
     let entries = map_entries_copy<Text, Int>(empty_map())
     list_count_copy<MapEntry<Text, Int>>(entries)
@@ -470,6 +619,20 @@ public fn main() -> Int {
     let consumed_missing_result = consume_missing_bound_value()
     let consumed_int_result = consume_bound_int_value()
     let consumed_inserted_first_result = consume_inserted_first_bound_value()
-    consume_inserted_last_bound_value()
+    let consumed_inserted_last_result = consume_inserted_last_bound_value()
+    let merged_empty_result = merge_empty_maps_value()
+    let merged_reject_result = merge_reject_disjoint_value()
+    let merged_left_nonempty_reject_result = merge_left_nonempty_reject_disjoint_value()
+    let merged_right_nonempty_reject_result = merge_right_nonempty_reject_disjoint_value()
+    let merged_nonempty_reject_result = merge_nonempty_reject_shared_value()
+    let merged_left_policy_result = merge_left_policy_duplicate_value()
+    let merged_left_nonempty_policy_result = merge_left_nonempty_policy_value()
+    let merged_right_nonempty_left_policy_result = merge_right_nonempty_left_policy_value()
+    let merged_nonempty_left_policy_result = merge_nonempty_left_policy_value()
+    let merged_right_policy_result = merge_right_policy_duplicate_value()
+    let merged_left_nonempty_right_policy_result = merge_left_nonempty_right_policy_value()
+    let merged_right_nonempty_right_policy_result = merge_right_nonempty_right_policy_value()
+    let merged_nonempty_right_policy_result = merge_nonempty_right_policy_value()
+    merge_int_right_policy_value()
 }
 }

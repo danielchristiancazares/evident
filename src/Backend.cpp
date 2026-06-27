@@ -410,6 +410,7 @@ enum class CompilerOwnedFunctionLowering {
     MapBindOrReplace,
     MapRemoveBound,
     MapConsumeBoundValue,
+    MapMerge,
     ListConsumeFirst,
     MapConsumeFirstEntry,
     MapEntries,
@@ -427,6 +428,12 @@ enum class MapBindingOperation {
     BindNew,
     ReplaceBound,
     BindOrReplace,
+};
+
+enum class MapMergeCollisionPolicy {
+    RejectSharedKeys,
+    UseLeftBinding,
+    UseRightBinding,
 };
 
 CompilerOwnedFunctionLowering compiler_owned_function_lowering(std::string_view qualified_name) {
@@ -473,6 +480,20 @@ CompilerOwnedFunctionLowering compiler_owned_function_lowering(std::string_view 
     }
     if (base_name == "map_consume_bound_value" || base_name == "nonempty_map_consume_bound_value") {
         return CompilerOwnedFunctionLowering::MapConsumeBoundValue;
+    }
+    if (base_name == "map_merge_rejecting_shared_keys"
+        || base_name == "map_merge_left_nonempty_rejecting_shared_keys"
+        || base_name == "map_merge_right_nonempty_rejecting_shared_keys"
+        || base_name == "nonempty_map_merge_rejecting_shared_keys"
+        || base_name == "map_merge_using_left_bindings_for_shared_keys"
+        || base_name == "map_merge_left_nonempty_using_left_bindings_for_shared_keys"
+        || base_name == "map_merge_right_nonempty_using_left_bindings_for_shared_keys"
+        || base_name == "nonempty_map_merge_using_left_bindings_for_shared_keys"
+        || base_name == "map_merge_using_right_bindings_for_shared_keys"
+        || base_name == "map_merge_left_nonempty_using_right_bindings_for_shared_keys"
+        || base_name == "map_merge_right_nonempty_using_right_bindings_for_shared_keys"
+        || base_name == "nonempty_map_merge_using_right_bindings_for_shared_keys") {
+        return CompilerOwnedFunctionLowering::MapMerge;
     }
     if (base_name == "nonempty_list_consume_first") {
         return CompilerOwnedFunctionLowering::ListConsumeFirst;
@@ -3963,6 +3984,432 @@ std::expected<std::string, std::string> FunctionEmitter::emit_compiler_owned_fun
         out << "\n";
         out << "missing:\n";
         emit_failure_return();
+        out << "}\n";
+        return out.str();
+    }
+
+    case CompilerOwnedFunctionLowering::MapMerge: {
+        if (param_types.size() != 2) {
+            return std::unexpected("internal backend error: map merge function '"
+                                   + hir_function_.qualified_name + "' expected two parameters");
+        }
+
+        const std::string_view base_name = function_base_name(hir_function_.qualified_name);
+        const auto rejects_shared_keys =
+            base_name == "map_merge_rejecting_shared_keys"
+            || base_name == "map_merge_left_nonempty_rejecting_shared_keys"
+            || base_name == "map_merge_right_nonempty_rejecting_shared_keys"
+            || base_name == "nonempty_map_merge_rejecting_shared_keys";
+        const auto left_nonempty =
+            base_name == "map_merge_left_nonempty_rejecting_shared_keys"
+            || base_name == "nonempty_map_merge_rejecting_shared_keys"
+            || base_name == "map_merge_left_nonempty_using_left_bindings_for_shared_keys"
+            || base_name == "nonempty_map_merge_using_left_bindings_for_shared_keys"
+            || base_name == "map_merge_left_nonempty_using_right_bindings_for_shared_keys"
+            || base_name == "nonempty_map_merge_using_right_bindings_for_shared_keys";
+        const auto right_nonempty =
+            base_name == "map_merge_right_nonempty_rejecting_shared_keys"
+            || base_name == "nonempty_map_merge_rejecting_shared_keys"
+            || base_name == "map_merge_right_nonempty_using_left_bindings_for_shared_keys"
+            || base_name == "nonempty_map_merge_using_left_bindings_for_shared_keys"
+            || base_name == "map_merge_right_nonempty_using_right_bindings_for_shared_keys"
+            || base_name == "nonempty_map_merge_using_right_bindings_for_shared_keys";
+        const MapMergeCollisionPolicy collision_policy = rejects_shared_keys
+            ? MapMergeCollisionPolicy::RejectSharedKeys
+            : ((base_name == "map_merge_using_left_bindings_for_shared_keys"
+                || base_name == "map_merge_left_nonempty_using_left_bindings_for_shared_keys"
+                || base_name == "map_merge_right_nonempty_using_left_bindings_for_shared_keys"
+                || base_name == "nonempty_map_merge_using_left_bindings_for_shared_keys")
+                   ? MapMergeCollisionPolicy::UseLeftBinding
+                   : MapMergeCollisionPolicy::UseRightBinding);
+
+        const BuiltinKind expected_left_kind = left_nonempty ? BuiltinKind::NonEmptyMap : BuiltinKind::Map;
+        const BuiltinKind expected_right_kind = right_nonempty ? BuiltinKind::NonEmptyMap : BuiltinKind::Map;
+        const BuiltinKind expected_return_kind = (left_nonempty || right_nonempty)
+            ? BuiltinKind::NonEmptyMap
+            : BuiltinKind::Map;
+        if (!has_builtin_kind(param_types[0], expected_left_kind)
+            || !has_builtin_kind(param_types[1], expected_right_kind)) {
+            return std::unexpected("internal backend error: map merge function '"
+                                   + hir_function_.qualified_name + "' has unsupported parameter types '"
+                                   + param_types[0].source_name() + "' and '"
+                                   + param_types[1].source_name() + "'");
+        }
+        if (hir_function_.params.size() != 2 || hir_function_.params[0].type.args.size() != 2
+            || hir_function_.params[1].type.args.size() != 2) {
+            return std::unexpected("internal backend error: map merge function '"
+                                   + hir_function_.qualified_name + "' has malformed HIR parameters");
+        }
+
+        const std::string key_source_name = hir_function_.params[0].type.args[0].text;
+        const std::string value_source_name = hir_function_.params[0].type.args[1].text;
+        if (hir_function_.params[1].type.args[0].text != key_source_name
+            || hir_function_.params[1].type.args[1].text != value_source_name) {
+            return std::unexpected("internal backend error: map merge function '"
+                                   + hir_function_.qualified_name + "' has mismatched map parameter types");
+        }
+
+        const std::expected<ResolvedType, std::string> key_type = model_.resolve_type_name(key_source_name);
+        if (!key_type.has_value()) {
+            return std::unexpected(key_type.error());
+        }
+        if (key_type->identity().category() != ResolvedTypeCategory::BuiltinType) {
+            return std::unexpected("internal backend error: map merge function '"
+                                   + hir_function_.qualified_name + "' uses non-builtin key type '"
+                                   + key_type->source_name() + "'");
+        }
+        const BuiltinKind key_kind = key_type->identity().builtin_kind();
+        switch (key_kind) {
+        case BuiltinKind::Int:
+        case BuiltinKind::Nat:
+        case BuiltinKind::Byte:
+        case BuiltinKind::Char:
+        case BuiltinKind::Text:
+        case BuiltinKind::Bytes:
+            break;
+        case BuiltinKind::Float:
+        case BuiltinKind::CInt:
+        case BuiltinKind::CSize:
+        case BuiltinKind::CString:
+        case BuiltinKind::List:
+        case BuiltinKind::NonEmptyList:
+        case BuiltinKind::Map:
+        case BuiltinKind::NonEmptyMap:
+        case BuiltinKind::Unit:
+        case BuiltinKind::Never:
+            return std::unexpected("internal backend error: map merge function '"
+                                   + hir_function_.qualified_name + "' uses unsupported key type '"
+                                   + key_type->source_name() + "'");
+        }
+
+        if (key_kind == BuiltinKind::Text || key_kind == BuiltinKind::Bytes) {
+            module_.require_runtime_helper(RuntimeHelper::Memcmp);
+        }
+
+        const std::expected<ResolvedType, std::string> success_type =
+            model_.resolve_type_name(hir_function_.return_type.text);
+        if (!success_type.has_value()) {
+            return std::unexpected(success_type.error());
+        }
+        if (!has_builtin_kind(*success_type, expected_return_kind)) {
+            return std::unexpected("internal backend error: map merge function '"
+                                   + hir_function_.qualified_name + "' returns '"
+                                   + success_type->source_name() + "'");
+        }
+
+        const std::string entry_source_name = "MapEntry<" + key_source_name + ", " + value_source_name + ">";
+        const std::expected<ResolvedType, std::string> entry_type = model_.resolve_type_name(entry_source_name);
+        if (!entry_type.has_value()) {
+            return std::unexpected(entry_type.error());
+        }
+        const std::expected<const TypeLayout*, std::string> entry_layout_result =
+            model_.ensure_backend_aggregate_layout(entry_source_name);
+        if (!entry_layout_result.has_value()) {
+            return std::unexpected(entry_layout_result.error());
+        }
+        const TypeLayout& entry_layout = **entry_layout_result;
+        const auto key_field_it = entry_layout.field_indices.find("key");
+        if (key_field_it == entry_layout.field_indices.end()) {
+            return std::unexpected("internal backend error: map merge entry layout for '"
+                                   + entry_source_name + "' is missing expected key field");
+        }
+
+        const YieldLayout* yield_layout = nullptr;
+        ResolvedType failure_type = ResolvedType::runtime_value("",
+                                                                "i8",
+                                                                1,
+                                                                1,
+                                                                RuntimeStorageShape::Scalar,
+                                                                ResolvedTypeIdentity::builtin_type(BuiltinKind::Unit));
+        std::uint32_t failure_variant_tag = 0;
+        if (collision_policy == MapMergeCollisionPolicy::RejectSharedKeys) {
+            if (hir_function_.failure.behavior() != hir::FunctionFailureBehavior::YieldsReason) {
+                return std::unexpected("internal backend error: map merge function '"
+                                       + hir_function_.qualified_name + "' does not declare fails");
+            }
+
+            const std::expected<const YieldLayout*, std::string> yield_layout_result =
+                model_.ensure_yield_layout(hir_function_.id);
+            if (!yield_layout_result.has_value()) {
+                return std::unexpected(yield_layout_result.error());
+            }
+            yield_layout = *yield_layout_result;
+            if (return_type.llvm_type() != yield_layout->llvm_type) {
+                return std::unexpected("internal backend error: map merge function '"
+                                       + hir_function_.qualified_name + "' has mismatched yield return type");
+            }
+
+            const hir::TypeDecl& reason_decl = model_.type(hir_function_.failure.reason_type_id());
+            if (reason_decl.qualified_name != "MapMergeFailure") {
+                return std::unexpected("internal backend error: map merge function '"
+                                       + hir_function_.qualified_name + "' fails with '"
+                                       + reason_decl.qualified_name + "'");
+            }
+            const std::expected<ResolvedType, std::string> failure_type_result =
+                model_.resolve_type_name(reason_decl.qualified_name);
+            if (!failure_type_result.has_value()) {
+                return std::unexpected(failure_type_result.error());
+            }
+            failure_type = *failure_type_result;
+            const std::expected<const TypeLayout*, std::string> failure_layout_result =
+                model_.ensure_type_layout(reason_decl.id);
+            if (!failure_layout_result.has_value()) {
+                return std::unexpected(failure_layout_result.error());
+            }
+            const TypeLayout& failure_layout = **failure_layout_result;
+
+            const std::expected<std::uint32_t, std::string> failure_variant_tag_result =
+                [&]() -> std::expected<std::uint32_t, std::string> {
+                for (const hir::VariantId variant_id : reason_decl.variants) {
+                    const hir::VariantDecl& variant_decl = model_.variant(variant_id);
+                    if (variant_decl.name != "InputsHadSharedKey") {
+                        continue;
+                    }
+                    const auto layout_it = failure_layout.variants.find(variant_id);
+                    if (layout_it == failure_layout.variants.end()) {
+                        return std::unexpected("internal backend error: missing layout for failure variant '"
+                                               + variant_decl.qualified_name + "'");
+                    }
+                    return layout_it->second.tag_value;
+                }
+                return std::unexpected("internal backend error: map merge function '"
+                                       + hir_function_.qualified_name
+                                       + "' could not find failure variant 'InputsHadSharedKey'");
+            }();
+            if (!failure_variant_tag_result.has_value()) {
+                return std::unexpected(failure_variant_tag_result.error());
+            }
+            failure_variant_tag = *failure_variant_tag_result;
+        } else {
+            if (hir_function_.failure.behavior() == hir::FunctionFailureBehavior::YieldsReason) {
+                return std::unexpected("internal backend error: map merge policy function '"
+                                       + hir_function_.qualified_name + "' unexpectedly declares fails");
+            }
+            if (return_type.llvm_type() != success_type->llvm_type()) {
+                return std::unexpected("internal backend error: map merge policy function '"
+                                       + hir_function_.qualified_name + "' has mismatched return type");
+            }
+        }
+
+        module_.require_runtime_helper(RuntimeHelper::Malloc);
+        module_.require_runtime_helper(RuntimeHelper::Memcpy);
+
+        const auto emit_yield_return =
+            [&](std::string_view prefix,
+                std::string_view wrapper_tag,
+                const ResolvedType& payload_type,
+                const std::string& payload_value) {
+            out << "  %" << prefix << ".tag = insertvalue " << yield_layout->llvm_type
+                << " zeroinitializer, i8 " << wrapper_tag << ", 0\n";
+            if (yield_layout->payload_size == 0) {
+                out << "  ret " << yield_layout->llvm_type << " %" << prefix << ".tag\n";
+                return;
+            }
+            out << "  %" << prefix << ".pack.slot = alloca " << yield_layout->payload_storage_type << "\n";
+            out << "  store " << yield_layout->payload_storage_type << " zeroinitializer, ptr %"
+                << prefix << ".pack.slot\n";
+            out << "  store " << payload_type.llvm_type() << " " << payload_value << ", ptr %"
+                << prefix << ".pack.slot\n";
+            out << "  %" << prefix << ".pack = load " << yield_layout->payload_storage_type
+                << ", ptr %" << prefix << ".pack.slot\n";
+            out << "  %" << prefix << ".value = insertvalue " << yield_layout->llvm_type
+                << " %" << prefix << ".tag, " << yield_layout->payload_storage_type << " %"
+                << prefix << ".pack, " << yield_layout->payload_field_index << "\n";
+            out << "  ret " << yield_layout->llvm_type << " %" << prefix << ".value\n";
+        };
+
+        const auto emit_success_return =
+            [&](std::string_view prefix, const std::string& carrier_value) {
+            if (collision_policy == MapMergeCollisionPolicy::RejectSharedKeys) {
+                emit_yield_return(prefix, "0", *success_type, carrier_value);
+                return;
+            }
+            out << "  ret " << success_type->llvm_type() << " " << carrier_value << "\n";
+        };
+
+        const auto emit_failure_return = [&]() {
+            out << "  %reason0 = insertvalue " << failure_type.llvm_type()
+                << " zeroinitializer, i32 " << failure_variant_tag << ", 0\n";
+            emit_yield_return("fail", "1", failure_type, "%reason0");
+        };
+
+        const std::size_t entry_stride = element_storage_stride(*entry_type);
+        out << "define " << linkage << return_type.llvm_type() << " @"
+            << model_.function_symbol(hir_function_.id) << "(" << param_types[0].llvm_type()
+            << " %arg0, " << param_types[1].llvm_type() << " %arg1) {\n";
+        out << "entry:\n";
+        out << "  %left_data0 = extractvalue " << param_types[0].llvm_type() << " %arg0, 0\n";
+        out << "  %left_count0 = extractvalue " << param_types[0].llvm_type() << " %arg0, 1\n";
+        out << "  %right_data0 = extractvalue " << param_types[1].llvm_type() << " %arg1, 0\n";
+        out << "  %right_count0 = extractvalue " << param_types[1].llvm_type() << " %arg1, 1\n";
+        out << "  %max_count0 = add i64 %left_count0, %right_count0\n";
+        out << "  %result_empty0 = icmp eq i64 %max_count0, 0\n";
+        out << "  br i1 %result_empty0, label %return_empty, label %allocate\n";
+        out << "\n";
+        out << "return_empty:\n";
+        emit_success_return("ok_empty", "zeroinitializer");
+        out << "\n";
+        out << "allocate:\n";
+        out << "  %alloc_bytes0 = mul i64 %max_count0, " << entry_stride << "\n";
+        out << "  %data0 = call ptr @malloc(i64 %alloc_bytes0)\n";
+        out << "  %left_index_slot = alloca i64\n";
+        out << "  %right_index_slot = alloca i64\n";
+        out << "  %out_index_slot = alloca i64\n";
+        out << "  store i64 0, ptr %left_index_slot\n";
+        out << "  store i64 0, ptr %right_index_slot\n";
+        out << "  store i64 0, ptr %out_index_slot\n";
+        out << "  br label %merge_loop\n";
+        out << "\n";
+        out << "merge_loop:\n";
+        out << "  %left_index0 = load i64, ptr %left_index_slot\n";
+        out << "  %right_index0 = load i64, ptr %right_index_slot\n";
+        out << "  %out_index0 = load i64, ptr %out_index_slot\n";
+        out << "  %left_done0 = icmp eq i64 %left_index0, %left_count0\n";
+        out << "  br i1 %left_done0, label %left_exhausted, label %left_available\n";
+        out << "\n";
+        out << "left_exhausted:\n";
+        out << "  %right_done0 = icmp eq i64 %right_index0, %right_count0\n";
+        out << "  br i1 %right_done0, label %merge_done, label %copy_right_tail\n";
+        out << "\n";
+        out << "left_available:\n";
+        out << "  %right_done1 = icmp eq i64 %right_index0, %right_count0\n";
+        out << "  br i1 %right_done1, label %copy_left_tail, label %compare_keys\n";
+        out << "\n";
+        out << "copy_right_tail:\n";
+        out << "  %right_remaining0 = sub i64 %right_count0, %right_index0\n";
+        out << "  %right_tail_bytes0 = mul i64 %right_remaining0, " << entry_stride << "\n";
+        out << "  %right_tail_src_offset0 = mul i64 %right_index0, " << entry_stride << "\n";
+        out << "  %right_tail_src0 = getelementptr i8, ptr %right_data0, i64 %right_tail_src_offset0\n";
+        out << "  %right_tail_dest_offset0 = mul i64 %out_index0, " << entry_stride << "\n";
+        out << "  %right_tail_dest0 = getelementptr i8, ptr %data0, i64 %right_tail_dest_offset0\n";
+        out << "  call void @llvm.memcpy.p0.p0.i64(ptr %right_tail_dest0, ptr %right_tail_src0, i64 %right_tail_bytes0, i1 false)\n";
+        out << "  %right_tail_out_next0 = add i64 %out_index0, %right_remaining0\n";
+        out << "  store i64 %right_tail_out_next0, ptr %out_index_slot\n";
+        out << "  br label %merge_done\n";
+        out << "\n";
+        out << "copy_left_tail:\n";
+        out << "  %left_remaining0 = sub i64 %left_count0, %left_index0\n";
+        out << "  %left_tail_bytes0 = mul i64 %left_remaining0, " << entry_stride << "\n";
+        out << "  %left_tail_src_offset0 = mul i64 %left_index0, " << entry_stride << "\n";
+        out << "  %left_tail_src0 = getelementptr i8, ptr %left_data0, i64 %left_tail_src_offset0\n";
+        out << "  %left_tail_dest_offset0 = mul i64 %out_index0, " << entry_stride << "\n";
+        out << "  %left_tail_dest0 = getelementptr i8, ptr %data0, i64 %left_tail_dest_offset0\n";
+        out << "  call void @llvm.memcpy.p0.p0.i64(ptr %left_tail_dest0, ptr %left_tail_src0, i64 %left_tail_bytes0, i1 false)\n";
+        out << "  %left_tail_out_next0 = add i64 %out_index0, %left_remaining0\n";
+        out << "  store i64 %left_tail_out_next0, ptr %out_index_slot\n";
+        out << "  br label %merge_done\n";
+        out << "\n";
+        out << "compare_keys:\n";
+        out << "  %left_offset0 = mul i64 %left_index0, " << entry_stride << "\n";
+        out << "  %left_entry_ptr0 = getelementptr i8, ptr %left_data0, i64 %left_offset0\n";
+        out << "  %left_entry0 = load " << entry_type->llvm_type() << ", ptr %left_entry_ptr0\n";
+        out << "  %left_key0 = extractvalue " << entry_type->llvm_type()
+            << " %left_entry0, " << key_field_it->second << "\n";
+        out << "  %right_offset0 = mul i64 %right_index0, " << entry_stride << "\n";
+        out << "  %right_entry_ptr0 = getelementptr i8, ptr %right_data0, i64 %right_offset0\n";
+        out << "  %right_entry0 = load " << entry_type->llvm_type() << ", ptr %right_entry_ptr0\n";
+        out << "  %right_key0 = extractvalue " << entry_type->llvm_type()
+            << " %right_entry0, " << key_field_it->second << "\n";
+        switch (key_kind) {
+        case BuiltinKind::Int:
+        case BuiltinKind::Nat:
+        case BuiltinKind::Byte:
+        case BuiltinKind::Char: {
+            const std::string less_predicate = key_kind == BuiltinKind::Int ? "slt" : "ult";
+            out << "  %key_equal0 = icmp eq " << key_type->llvm_type() << " %left_key0, %right_key0\n";
+            out << "  br i1 %key_equal0, label %shared_key, label %key_not_equal\n";
+            out << "\n";
+            out << "key_not_equal:\n";
+            out << "  %left_key_less0 = icmp " << less_predicate << " "
+                << key_type->llvm_type() << " %left_key0, %right_key0\n";
+            out << "  br i1 %left_key_less0, label %take_left, label %take_right\n";
+            break;
+        }
+        case BuiltinKind::Text:
+        case BuiltinKind::Bytes:
+            out << "  %left_key_data0 = extractvalue " << key_type->llvm_type() << " %left_key0, 0\n";
+            out << "  %left_key_count0 = extractvalue " << key_type->llvm_type() << " %left_key0, 1\n";
+            out << "  %right_key_data0 = extractvalue " << key_type->llvm_type() << " %right_key0, 0\n";
+            out << "  %right_key_count0 = extractvalue " << key_type->llvm_type() << " %right_key0, 1\n";
+            out << "  %left_key_shorter0 = icmp ult i64 %left_key_count0, %right_key_count0\n";
+            out << "  %min_key_count0 = select i1 %left_key_shorter0, i64 %left_key_count0, i64 %right_key_count0\n";
+            out << "  %min_key_empty0 = icmp eq i64 %min_key_count0, 0\n";
+            out << "  br i1 %min_key_empty0, label %key_bytes_equal_prefix, label %key_bytes_compare\n";
+            out << "\n";
+            out << "key_bytes_compare:\n";
+            out << "  %key_cmp0 = call i32 @memcmp(ptr %left_key_data0, ptr %right_key_data0, i64 %min_key_count0)\n";
+            out << "  %key_bytes_equal0 = icmp eq i32 %key_cmp0, 0\n";
+            out << "  br i1 %key_bytes_equal0, label %key_bytes_equal_prefix, label %key_bytes_ordered\n";
+            out << "\n";
+            out << "key_bytes_ordered:\n";
+            out << "  %left_key_bytes_less0 = icmp slt i32 %key_cmp0, 0\n";
+            out << "  br i1 %left_key_bytes_less0, label %take_left, label %take_right\n";
+            out << "\n";
+            out << "key_bytes_equal_prefix:\n";
+            out << "  %key_equal0 = icmp eq i64 %left_key_count0, %right_key_count0\n";
+            out << "  br i1 %key_equal0, label %shared_key, label %key_prefix_not_equal\n";
+            out << "\n";
+            out << "key_prefix_not_equal:\n";
+            out << "  br i1 %left_key_shorter0, label %take_left, label %take_right\n";
+            break;
+        case BuiltinKind::Float:
+        case BuiltinKind::CInt:
+        case BuiltinKind::CSize:
+        case BuiltinKind::CString:
+        case BuiltinKind::List:
+        case BuiltinKind::NonEmptyList:
+        case BuiltinKind::Map:
+        case BuiltinKind::NonEmptyMap:
+        case BuiltinKind::Unit:
+        case BuiltinKind::Never:
+            return std::unexpected("internal backend error: map merge function '"
+                                   + hir_function_.qualified_name + "' reached unsupported key lowering");
+        }
+        out << "\n";
+        out << "take_left:\n";
+        out << "  %take_left_out_offset0 = mul i64 %out_index0, " << entry_stride << "\n";
+        out << "  %take_left_out_ptr0 = getelementptr i8, ptr %data0, i64 %take_left_out_offset0\n";
+        out << "  store " << entry_type->llvm_type() << " %left_entry0, ptr %take_left_out_ptr0\n";
+        out << "  %take_left_next0 = add i64 %left_index0, 1\n";
+        out << "  %take_left_out_next0 = add i64 %out_index0, 1\n";
+        out << "  store i64 %take_left_next0, ptr %left_index_slot\n";
+        out << "  store i64 %take_left_out_next0, ptr %out_index_slot\n";
+        out << "  br label %merge_loop\n";
+        out << "\n";
+        out << "take_right:\n";
+        out << "  %take_right_out_offset0 = mul i64 %out_index0, " << entry_stride << "\n";
+        out << "  %take_right_out_ptr0 = getelementptr i8, ptr %data0, i64 %take_right_out_offset0\n";
+        out << "  store " << entry_type->llvm_type() << " %right_entry0, ptr %take_right_out_ptr0\n";
+        out << "  %take_right_next0 = add i64 %right_index0, 1\n";
+        out << "  %take_right_out_next0 = add i64 %out_index0, 1\n";
+        out << "  store i64 %take_right_next0, ptr %right_index_slot\n";
+        out << "  store i64 %take_right_out_next0, ptr %out_index_slot\n";
+        out << "  br label %merge_loop\n";
+        out << "\n";
+        out << "shared_key:\n";
+        if (collision_policy == MapMergeCollisionPolicy::RejectSharedKeys) {
+            emit_failure_return();
+            out << "\n";
+        } else {
+            const std::string selected_entry =
+                collision_policy == MapMergeCollisionPolicy::UseLeftBinding ? "%left_entry0" : "%right_entry0";
+            out << "  %shared_out_offset0 = mul i64 %out_index0, " << entry_stride << "\n";
+            out << "  %shared_out_ptr0 = getelementptr i8, ptr %data0, i64 %shared_out_offset0\n";
+            out << "  store " << entry_type->llvm_type() << " " << selected_entry << ", ptr %shared_out_ptr0\n";
+            out << "  %shared_left_next0 = add i64 %left_index0, 1\n";
+            out << "  %shared_right_next0 = add i64 %right_index0, 1\n";
+            out << "  %shared_out_next0 = add i64 %out_index0, 1\n";
+            out << "  store i64 %shared_left_next0, ptr %left_index_slot\n";
+            out << "  store i64 %shared_right_next0, ptr %right_index_slot\n";
+            out << "  store i64 %shared_out_next0, ptr %out_index_slot\n";
+            out << "  br label %merge_loop\n";
+            out << "\n";
+        }
+        out << "merge_done:\n";
+        out << "  %merged_count0 = load i64, ptr %out_index_slot\n";
+        out << "  %carrier0 = insertvalue " << success_type->llvm_type() << " zeroinitializer, ptr %data0, 0\n";
+        out << "  %carrier1 = insertvalue " << success_type->llvm_type() << " %carrier0, i64 %merged_count0, 1\n";
+        emit_success_return("ok", "%carrier1");
         out << "}\n";
         return out.str();
     }
