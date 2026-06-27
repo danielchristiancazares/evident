@@ -1,3 +1,6 @@
 <input>:2:8: error: pseudo-optional state detected; model inhabited domain alternatives instead
     public state Connection {
            ^^^^^^^^^^^^^^^^^^
+<input>:3:5: error: public name 'Known' is reserved or too generic
+        Known { id: Int },
+        ^^^^^^^^^^^^^^^^^

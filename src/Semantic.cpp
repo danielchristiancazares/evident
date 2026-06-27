@@ -34,8 +34,8 @@ const std::unordered_set<std::string_view> kReservedPublicNames = {
     "Yes",         "No",           "True",       "False",        "Some",
     "None",        "Present",      "Absent",     "Missing",      "Ready",
     "Unavailable", "Connected",    "Disconnected", "Default",      "Other",
-    "Unknown",     "Invalid",      "Unset",      "Any",          "All",
-    "Unrestricted", "AllowAll",
+    "Unknown",     "Known",        "Invalid",    "Unset",        "Reported",
+    "NotReported", "Any",          "All",        "Unrestricted", "AllowAll",
 };
 
 const std::unordered_set<std::string_view> kPseudoOptionalNames = {

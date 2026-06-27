@@ -83,4 +83,10 @@ public permit X
 
 public domain module Default {
 }
+
+public state GenericLifecycleNames {
+    Known,
+    Reported,
+    NotReported,
+}
 }
