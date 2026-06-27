@@ -313,30 +313,33 @@ int run_driver(const DriverOptions& options) {
         }
 
         if (native_emit_request == NativeEmitRequestState::NativeArtifactRequested) {
-            backend::EmitKind emit_kind = backend::EmitKind::Llvm;
-            switch (options.native_artifact.kind()) {
-            case NativeArtifactKind::Suppressed:
-                break;
-            case NativeArtifactKind::LlvmIr:
-                emit_kind = backend::EmitKind::Llvm;
-                break;
-            case NativeArtifactKind::Assembly:
-                emit_kind = backend::EmitKind::Assembly;
-                break;
-            case NativeArtifactKind::Object:
-                emit_kind = backend::EmitKind::Object;
-                break;
-            case NativeArtifactKind::Executable:
-                emit_kind = backend::EmitKind::Executable;
-                break;
-            }
-            const backend::EmitOptions emit_options{
-                emit_kind,
-                options.native_artifact.output_path(),
-                options.target_triple,
-            };
+            const auto emit_requested_artifact =
+                [&](backend::EmitKind emit_kind, const std::string& output_path) {
+                    const backend::EmitOptions emit_options{
+                        emit_kind,
+                        output_path,
+                        options.target_triple,
+                    };
+                    return backend::emit_artifact(backend_hir_package, mir_package, emit_options);
+                };
+
             const std::expected<backend::ArtifactEmissionSucceeded, std::string> emitted =
-                backend::emit_artifact(backend_hir_package, mir_package, emit_options);
+                options.native_artifact.match(
+                    []() -> std::expected<backend::ArtifactEmissionSucceeded, std::string> {
+                        return backend::ArtifactEmissionSucceeded{};
+                    },
+                    [&](const std::string& output_path) {
+                        return emit_requested_artifact(backend::EmitKind::Llvm, output_path);
+                    },
+                    [&](const std::string& output_path) {
+                        return emit_requested_artifact(backend::EmitKind::Assembly, output_path);
+                    },
+                    [&](const std::string& output_path) {
+                        return emit_requested_artifact(backend::EmitKind::Object, output_path);
+                    },
+                    [&](const std::string& output_path) {
+                        return emit_requested_artifact(backend::EmitKind::Executable, output_path);
+                    });
             if (!emitted.has_value()) {
                 std::cerr << emitted.error() << '\n';
                 return 1;
@@ -344,13 +347,21 @@ int run_driver(const DriverOptions& options) {
         }
     }
 
-    if (options.stub_emission.kind() == StubEmissionKind::WriteStub) {
-        const std::expected<TextFileWriteSucceeded, std::string> stub_written =
-            write_text_file(options.stub_emission.output_path(), hir::emit_stub_backend(package));
-        if (!stub_written.has_value()) {
-            std::cerr << "failed to write stub output to " << options.stub_emission.output_path() << '\n';
-            return 1;
-        }
+    const std::expected<TextFileWriteSucceeded, std::string> stub_written = options.stub_emission.match(
+        []() -> std::expected<TextFileWriteSucceeded, std::string> {
+            return TextFileWriteSucceeded{};
+        },
+        [&](const std::string& output_path) -> std::expected<TextFileWriteSucceeded, std::string> {
+            const std::expected<TextFileWriteSucceeded, std::string> written =
+                write_text_file(output_path, hir::emit_stub_backend(package));
+            if (!written.has_value()) {
+                return std::unexpected("failed to write stub output to " + output_path);
+            }
+            return written;
+        });
+    if (!stub_written.has_value()) {
+        std::cerr << stub_written.error() << '\n';
+        return 1;
     }
 
     return 0;

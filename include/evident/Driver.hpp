@@ -64,7 +64,15 @@ public:
     }
 
     [[nodiscard]] StubEmissionKind kind() const noexcept { return kind_; }
-    [[nodiscard]] const std::string& output_path() const noexcept { return output_path_; }
+
+    template <class SuppressedHandler, class WriteStubHandler>
+    [[nodiscard]] decltype(auto) match(SuppressedHandler&& suppressed_handler,
+                                       WriteStubHandler&& write_stub_handler) const {
+        if (kind_ == StubEmissionKind::Suppressed) {
+            return std::forward<SuppressedHandler>(suppressed_handler)();
+        }
+        return std::forward<WriteStubHandler>(write_stub_handler)(output_path_);
+    }
 
 private:
     StubEmissionKind kind_;
@@ -106,7 +114,31 @@ public:
     }
 
     [[nodiscard]] NativeArtifactKind kind() const noexcept { return kind_; }
-    [[nodiscard]] const std::string& output_path() const noexcept { return output_path_; }
+
+    template <class SuppressedHandler,
+              class LlvmIrHandler,
+              class AssemblyHandler,
+              class ObjectHandler,
+              class ExecutableHandler>
+    [[nodiscard]] decltype(auto) match(SuppressedHandler&& suppressed_handler,
+                                       LlvmIrHandler&& llvm_ir_handler,
+                                       AssemblyHandler&& assembly_handler,
+                                       ObjectHandler&& object_handler,
+                                       ExecutableHandler&& executable_handler) const {
+        switch (kind_) {
+        case NativeArtifactKind::Suppressed:
+            return std::forward<SuppressedHandler>(suppressed_handler)();
+        case NativeArtifactKind::LlvmIr:
+            return std::forward<LlvmIrHandler>(llvm_ir_handler)(output_path_);
+        case NativeArtifactKind::Assembly:
+            return std::forward<AssemblyHandler>(assembly_handler)(output_path_);
+        case NativeArtifactKind::Object:
+            return std::forward<ObjectHandler>(object_handler)(output_path_);
+        case NativeArtifactKind::Executable:
+            return std::forward<ExecutableHandler>(executable_handler)(output_path_);
+        }
+        return std::forward<SuppressedHandler>(suppressed_handler)();
+    }
 
 private:
     NativeArtifactKind kind_;
