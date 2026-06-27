@@ -1,6 +1,7 @@
 import bootstrap_host;
 import bootstrap_environment;
 import bootstrap_discovery;
+import bootstrap_release;
 import bootstrap_source;
 import bootstrap_pipeline;
 
@@ -9,6 +10,7 @@ public record BootstrapStatus {
     public host: bootstrap_host::CompilerHostSurface,
     public environment: bootstrap_environment::CompilerEnvironment,
     public discovery: bootstrap_discovery::SourceDiscovery,
+    public release: bootstrap_release::BootstrapReleaseEvidence,
     public package: bootstrap_source::PackageSource,
     public exit_status: bootstrap_host::ExitStatus,
     public pipeline: bootstrap_pipeline::CompilerPipeline::StageTwoValidated,
@@ -36,12 +38,14 @@ public fn build_status() -> BootstrapStatus {
         stage_two_receipt,
         equivalence,
     );
+    let release = bootstrap_release::bootstrap_release_evidence(environment, evidence);
     let outline = bootstrap_pipeline::record_outline("evident.compiler");
 
     BootstrapStatus {
         host,
         environment,
         discovery,
+        release,
         package: source,
         exit_status,
         pipeline: stage_two,

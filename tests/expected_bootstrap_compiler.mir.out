@@ -385,17 +385,19 @@ functions:
         %17[tmp] : bootstrap_discovery::SourceManifestEntry
         %18[pipeline] : NonEmptyList<bootstrap_discovery::SourceManifestEntry>
         %19[tmp] : bootstrap_discovery::SourceManifestEntry
-        %20[main] : NonEmptyList<bootstrap_discovery::SourceManifestEntry>
+        %20[release] : NonEmptyList<bootstrap_discovery::SourceManifestEntry>
         %21[tmp] : bootstrap_discovery::SourceManifestEntry
-        %22[package_root] : bootstrap_source::SourcePath
-        %23[tmp] : Text
-        %24[tmp] : bootstrap_host::HostPath
-        %25[manifest] : bootstrap_source::SourcePath
-        %26[tmp] : Text
-        %27[tmp] : bootstrap_host::HostPath
-        %28[source_root] : bootstrap_source::SourcePath
-        %29[tmp] : Text
-        %30[tmp] : bootstrap_host::HostPath
+        %22[main] : NonEmptyList<bootstrap_discovery::SourceManifestEntry>
+        %23[tmp] : bootstrap_discovery::SourceManifestEntry
+        %24[package_root] : bootstrap_source::SourcePath
+        %25[tmp] : Text
+        %26[tmp] : bootstrap_host::HostPath
+        %27[manifest] : bootstrap_source::SourcePath
+        %28[tmp] : Text
+        %29[tmp] : bootstrap_host::HostPath
+        %30[source_root] : bootstrap_source::SourcePath
+        %31[tmp] : Text
+        %32[tmp] : bootstrap_host::HostPath
       block %0
         %3[tmp] = call bootstrap_discovery::source_manifest_entry("src/source.evd", "package assembly helpers")
         %2[source] = call list_single$bootstrap_discovery__SourceManifestEntry(%3[tmp])
@@ -415,18 +417,20 @@ functions:
         %16[discovery] = call bootstrap_discovery::append_manifest_entry(%14[environment_entry], %17[tmp])
         %19[tmp] = call bootstrap_discovery::source_manifest_entry("src/pipeline.evd", "bootstrap pipeline phases and stage evidence")
         %18[pipeline] = call bootstrap_discovery::append_manifest_entry(%16[discovery], %19[tmp])
-        %21[tmp] = call bootstrap_discovery::source_manifest_entry("src/main.evd", "bootstrap package entrypoint and aggregate status")
-        %20[main] = call bootstrap_discovery::append_manifest_entry(%18[pipeline], %21[tmp])
-        %24[tmp] = %0[environment].package_root
-        %23[tmp] = %24[tmp].text
-        %22[package_root] = construct bootstrap_source::SourcePath {text: %23[tmp]}
-        %27[tmp] = %0[environment].manifest
-        %26[tmp] = %27[tmp].text
-        %25[manifest] = construct bootstrap_source::SourcePath {text: %26[tmp]}
-        %30[tmp] = %0[environment].source_root
-        %29[tmp] = %30[tmp].text
-        %28[source_root] = construct bootstrap_source::SourcePath {text: %29[tmp]}
-        %1[$return] = construct bootstrap_discovery::SourceDiscoveryPlan {package_root: %22[package_root], manifest: %25[manifest], source_root: %28[source_root], entries: %20[main]}
+        %21[tmp] = call bootstrap_discovery::source_manifest_entry("src/release.evd", "bootstrap stage harness and release evidence record")
+        %20[release] = call bootstrap_discovery::append_manifest_entry(%18[pipeline], %21[tmp])
+        %23[tmp] = call bootstrap_discovery::source_manifest_entry("src/main.evd", "bootstrap package entrypoint and aggregate status")
+        %22[main] = call bootstrap_discovery::append_manifest_entry(%20[release], %23[tmp])
+        %26[tmp] = %0[environment].package_root
+        %25[tmp] = %26[tmp].text
+        %24[package_root] = construct bootstrap_source::SourcePath {text: %25[tmp]}
+        %29[tmp] = %0[environment].manifest
+        %28[tmp] = %29[tmp].text
+        %27[manifest] = construct bootstrap_source::SourcePath {text: %28[tmp]}
+        %32[tmp] = %0[environment].source_root
+        %31[tmp] = %32[tmp].text
+        %30[source_root] = construct bootstrap_source::SourcePath {text: %31[tmp]}
+        %1[$return] = construct bootstrap_discovery::SourceDiscoveryPlan {package_root: %24[package_root], manifest: %27[manifest], source_root: %30[source_root], entries: %22[main]}
         return %1[$return]
   - public fn bootstrap_discovery::compiler_source_discovery -> bootstrap_discovery::SourceDiscovery
       locals:
@@ -451,11 +455,13 @@ functions:
         %18[tmp] : bootstrap_source::SourceFile
         %19[pipeline] : NonEmptyList<bootstrap_source::SourceFile>
         %20[tmp] : bootstrap_source::SourceFile
-        %21[main] : NonEmptyList<bootstrap_source::SourceFile>
+        %21[release] : NonEmptyList<bootstrap_source::SourceFile>
         %22[tmp] : bootstrap_source::SourceFile
-        %23[original_file_diagnostic] : bootstrap_diagnostics::OriginalFileDiagnostic
-        %24[tmp] : bootstrap_source::SourcePath
-        %25[tmp] : bootstrap_source::SourceGraph
+        %23[main] : NonEmptyList<bootstrap_source::SourceFile>
+        %24[tmp] : bootstrap_source::SourceFile
+        %25[original_file_diagnostic] : bootstrap_diagnostics::OriginalFileDiagnostic
+        %26[tmp] : bootstrap_source::SourcePath
+        %27[tmp] : bootstrap_source::SourceGraph
       block %0
         %2[plan] = call bootstrap_discovery::compiler_source_plan(%0[environment])
         %4[tmp] = call bootstrap_source::source_file("src/source.evd", "package assembly helpers")
@@ -476,12 +482,14 @@ functions:
         %17[discovery] = call bootstrap_discovery::append_source_file(%15[environment_files], %18[tmp])
         %20[tmp] = call bootstrap_source::source_file("src/pipeline.evd", "bootstrap pipeline phases and stage evidence")
         %19[pipeline] = call bootstrap_discovery::append_source_file(%17[discovery], %20[tmp])
-        %22[tmp] = call bootstrap_source::source_file("src/main.evd", "bootstrap package entrypoint and aggregate status")
-        %21[main] = call bootstrap_discovery::append_source_file(%19[pipeline], %22[tmp])
-        %24[tmp] = %2[plan].manifest
-        %23[original_file_diagnostic] = call bootstrap_diagnostics::original_file_diagnostic(%24[tmp], "package manifest retains original-file anchors for deterministic source discovery")
-        %25[tmp] = construct bootstrap_source::SourceGraph {files: %21[main]}
-        %1[$return] = construct bootstrap_discovery::SourceDiscovery {plan: %2[plan], graph: %25[tmp], original_file_diagnostic: %23[original_file_diagnostic], source_count: 10}
+        %22[tmp] = call bootstrap_source::source_file("src/release.evd", "bootstrap stage harness and release evidence record")
+        %21[release] = call bootstrap_discovery::append_source_file(%19[pipeline], %22[tmp])
+        %24[tmp] = call bootstrap_source::source_file("src/main.evd", "bootstrap package entrypoint and aggregate status")
+        %23[main] = call bootstrap_discovery::append_source_file(%21[release], %24[tmp])
+        %26[tmp] = %2[plan].manifest
+        %25[original_file_diagnostic] = call bootstrap_diagnostics::original_file_diagnostic(%26[tmp], "package manifest retains original-file anchors for deterministic source discovery")
+        %27[tmp] = construct bootstrap_source::SourceGraph {files: %23[main]}
+        %1[$return] = construct bootstrap_discovery::SourceDiscovery {plan: %2[plan], graph: %27[tmp], original_file_diagnostic: %25[original_file_diagnostic], source_count: 11}
         return %1[$return]
   - public fn bootstrap_pipeline::outline -> bootstrap_pipeline::CompilerPipeline::SourceOutlined
       locals:
@@ -586,6 +594,46 @@ functions:
       block %0
         %0[$return] = call bootstrap_pipeline::stage_receipt("stage-2", "stage-2 evidc", "source commit recorded in release evidence", "passes conformance, diagnostics, native emission, package, and release-contract checks")
         return %0[$return]
+  - public fn bootstrap_release::bootstrap_stage_invocation -> bootstrap_release::BootstrapStageInvocation
+      locals:
+        %0[stage_name] : Text
+        %1[compiler_name] : Text
+        %2[command_line] : Text
+        %3[validation_summary] : Text
+        %4[$return] : bootstrap_release::BootstrapStageInvocation
+      block %0
+        %4[$return] = construct bootstrap_release::BootstrapStageInvocation {stage_name: %0[stage_name], compiler_name: %1[compiler_name], command_line: %2[command_line], validation_summary: %3[validation_summary]}
+        return %4[$return]
+  - public fn bootstrap_release::bootstrap_stage_harness -> bootstrap_release::BootstrapStageHarness
+      locals:
+        %0[$return] : bootstrap_release::BootstrapStageHarness
+        %1[seed] : bootstrap_release::BootstrapStageInvocation
+        %2[stage_one] : bootstrap_release::BootstrapStageInvocation
+        %3[stage_two] : bootstrap_release::BootstrapStageInvocation
+      block %0
+        %1[seed] = call bootstrap_release::bootstrap_stage_invocation("seed", "cxx-seed-evidc", "ctest --preset windows-x64-ninja -R run_bootstrap_compiler_scaffold", "builds the bootstrap scaffold from the C++ seed compiler")
+        %2[stage_one] = call bootstrap_release::bootstrap_stage_invocation("stage-1", "stage-1 evidc", "stage-1 evidc --package bootstrap/compiler", "rebuilds the same Evident compiler package")
+        %3[stage_two] = call bootstrap_release::bootstrap_stage_invocation("stage-2", "stage-2 evidc", "stage-2 evidc --package bootstrap/compiler", "passes conformance, diagnostics, native emission, package, and release-contract checks")
+        %0[$return] = construct bootstrap_release::BootstrapStageHarness {seed: %1[seed], stage_one: %2[stage_one], stage_two: %3[stage_two]}
+        return %0[$return]
+  - public fn bootstrap_release::bootstrap_release_evidence -> bootstrap_release::BootstrapReleaseEvidence
+      locals:
+        %0[environment] : bootstrap_environment::CompilerEnvironment
+        %1[pipeline_evidence] : bootstrap_pipeline::BootstrapEvidence
+        %2[$return] : bootstrap_release::BootstrapReleaseEvidence
+        %3[stage_harness] : bootstrap_release::BootstrapStageHarness
+        %4[tmp] : Text
+        %5[tmp] : Text
+        %6[tmp] : Text
+        %7[tmp] : Text
+      block %0
+        %3[stage_harness] = call bootstrap_release::bootstrap_stage_harness()
+        %4[tmp] = %0[environment].source_commit
+        %5[tmp] = %0[environment].target_triple
+        %6[tmp] = %0[environment].clang_driver
+        %7[tmp] = %0[environment].linker_driver
+        %2[$return] = construct bootstrap_release::BootstrapReleaseEvidence {source_commit: %4[tmp], target_triple: %5[tmp], clang_driver: %6[tmp], linker_driver: %7[tmp], stage_harness: %3[stage_harness], pipeline_evidence: %1[pipeline_evidence]}
+        return %2[$return]
   - public fn bootstrap_compiler::build_status -> bootstrap_compiler::BootstrapStatus
       locals:
         %0[$return] : bootstrap_compiler::BootstrapStatus [affine]
@@ -604,7 +652,8 @@ functions:
         %13[stage_two_receipt] : bootstrap_pipeline::StageReceipt
         %14[equivalence] : bootstrap_pipeline::BootstrapEquivalence
         %15[evidence] : bootstrap_pipeline::BootstrapEvidence
-        %16[outline] : bootstrap_pipeline::BootstrapOutlineRecorded [affine]
+        %16[release] : bootstrap_release::BootstrapReleaseEvidence
+        %17[outline] : bootstrap_pipeline::BootstrapOutlineRecorded [affine]
       block %0
         %1[host] = call bootstrap_host::bootstrap_host_surface()
         %2[environment] = call bootstrap_environment::bootstrap_environment_surface()
@@ -621,8 +670,9 @@ functions:
         %13[stage_two_receipt] = call bootstrap_pipeline::stage_two_receipt()
         %14[equivalence] = call bootstrap_pipeline::bootstrap_equivalence()
         %15[evidence] = call bootstrap_pipeline::bootstrap_evidence(%11[seed_receipt], %12[stage_one_receipt], %13[stage_two_receipt], %14[equivalence])
-        %16[outline] = call bootstrap_pipeline::record_outline("evident.compiler")
-        %0[$return] = construct bootstrap_compiler::BootstrapStatus {host: %1[host], environment: %2[environment], discovery: %3[discovery], package: %5[source], exit_status: %4[exit_status], pipeline: %10[stage_two], evidence: %15[evidence], outline: %16[outline]}
+        %16[release] = call bootstrap_release::bootstrap_release_evidence(%2[environment], %15[evidence])
+        %17[outline] = call bootstrap_pipeline::record_outline("evident.compiler")
+        %0[$return] = construct bootstrap_compiler::BootstrapStatus {host: %1[host], environment: %2[environment], discovery: %3[discovery], release: %16[release], package: %5[source], exit_status: %4[exit_status], pipeline: %10[stage_two], evidence: %15[evidence], outline: %17[outline]}
         return %0[$return]
   - public fn bootstrap_compiler::bootstrap_stage_count -> Int
       locals:

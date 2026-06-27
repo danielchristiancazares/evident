@@ -54,7 +54,8 @@ public fn compiler_source_plan(environment: bootstrap_environment::CompilerEnvir
     let environment_entry = append_manifest_entry(host, source_manifest_entry("src/environment.evd", "environment boundary handles"));
     let discovery = append_manifest_entry(environment_entry, source_manifest_entry("src/discovery.evd", "deterministic source discovery and original-file diagnostics"));
     let pipeline = append_manifest_entry(discovery, source_manifest_entry("src/pipeline.evd", "bootstrap pipeline phases and stage evidence"));
-    let main = append_manifest_entry(pipeline, source_manifest_entry("src/main.evd", "bootstrap package entrypoint and aggregate status"));
+    let release = append_manifest_entry(pipeline, source_manifest_entry("src/release.evd", "bootstrap stage harness and release evidence record"));
+    let main = append_manifest_entry(release, source_manifest_entry("src/main.evd", "bootstrap package entrypoint and aggregate status"));
     let package_root = bootstrap_source::SourcePath { text: environment.package_root.text };
     let manifest = bootstrap_source::SourcePath { text: environment.manifest.text };
     let source_root = bootstrap_source::SourcePath { text: environment.source_root.text };
@@ -78,7 +79,8 @@ public fn compiler_source_discovery(environment: bootstrap_environment::Compiler
     let environment_files = append_source_file(host, bootstrap_source::source_file("src/environment.evd", "environment boundary handles"));
     let discovery = append_source_file(environment_files, bootstrap_source::source_file("src/discovery.evd", "deterministic source discovery and original-file diagnostics"));
     let pipeline = append_source_file(discovery, bootstrap_source::source_file("src/pipeline.evd", "bootstrap pipeline phases and stage evidence"));
-    let main = append_source_file(pipeline, bootstrap_source::source_file("src/main.evd", "bootstrap package entrypoint and aggregate status"));
+    let release = append_source_file(pipeline, bootstrap_source::source_file("src/release.evd", "bootstrap stage harness and release evidence record"));
+    let main = append_source_file(release, bootstrap_source::source_file("src/main.evd", "bootstrap package entrypoint and aggregate status"));
     let original_file_diagnostic = bootstrap_diagnostics::original_file_diagnostic(
         plan.manifest,
         "package manifest retains original-file anchors for deterministic source discovery",
@@ -90,7 +92,7 @@ public fn compiler_source_discovery(environment: bootstrap_environment::Compiler
             files: main,
         },
         original_file_diagnostic,
-        source_count: 10,
+        source_count: 11,
     }
 }
 }

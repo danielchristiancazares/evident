@@ -189,10 +189,27 @@ types:
       field stage_one: bootstrap_pipeline::StageReceipt
       field stage_two: bootstrap_pipeline::StageReceipt
       field equivalence: bootstrap_pipeline::BootstrapEquivalence
+  - public record bootstrap_release::BootstrapStageInvocation
+      field stage_name: Text
+      field compiler_name: Text
+      field command_line: Text
+      field validation_summary: Text
+  - public record bootstrap_release::BootstrapStageHarness
+      field seed: bootstrap_release::BootstrapStageInvocation
+      field stage_one: bootstrap_release::BootstrapStageInvocation
+      field stage_two: bootstrap_release::BootstrapStageInvocation
+  - public record bootstrap_release::BootstrapReleaseEvidence
+      field source_commit: Text
+      field target_triple: Text
+      field clang_driver: Text
+      field linker_driver: Text
+      field stage_harness: bootstrap_release::BootstrapStageHarness
+      field pipeline_evidence: bootstrap_pipeline::BootstrapEvidence
   - public record bootstrap_compiler::BootstrapStatus [affine]
       field host: bootstrap_host::CompilerHostSurface
       field environment: bootstrap_environment::CompilerEnvironment
       field discovery: bootstrap_discovery::SourceDiscovery
+      field release: bootstrap_release::BootstrapReleaseEvidence
       field package: bootstrap_source::PackageSource
       field exit_status: bootstrap_host::ExitStatus
       field pipeline: bootstrap_pipeline::CompilerPipeline::StageTwoValidated [affine]
@@ -631,9 +648,15 @@ functions:
             call bootstrap_discovery::source_manifest_entry -> bootstrap_discovery::SourceManifestEntry
               string "src/pipeline.evd" : Text
               string "bootstrap pipeline phases and stage evidence" : Text
-        let main: NonEmptyList<bootstrap_discovery::SourceManifestEntry>
+        let release: NonEmptyList<bootstrap_discovery::SourceManifestEntry>
           call bootstrap_discovery::append_manifest_entry -> NonEmptyList<bootstrap_discovery::SourceManifestEntry>
             local pipeline : NonEmptyList<bootstrap_discovery::SourceManifestEntry>
+            call bootstrap_discovery::source_manifest_entry -> bootstrap_discovery::SourceManifestEntry
+              string "src/release.evd" : Text
+              string "bootstrap stage harness and release evidence record" : Text
+        let main: NonEmptyList<bootstrap_discovery::SourceManifestEntry>
+          call bootstrap_discovery::append_manifest_entry -> NonEmptyList<bootstrap_discovery::SourceManifestEntry>
+            local release : NonEmptyList<bootstrap_discovery::SourceManifestEntry>
             call bootstrap_discovery::source_manifest_entry -> bootstrap_discovery::SourceManifestEntry
               string "src/main.evd" : Text
               string "bootstrap package entrypoint and aggregate status" : Text
@@ -723,9 +746,15 @@ functions:
             call bootstrap_source::source_file -> bootstrap_source::SourceFile
               string "src/pipeline.evd" : Text
               string "bootstrap pipeline phases and stage evidence" : Text
-        let main: NonEmptyList<bootstrap_source::SourceFile>
+        let release: NonEmptyList<bootstrap_source::SourceFile>
           call bootstrap_discovery::append_source_file -> NonEmptyList<bootstrap_source::SourceFile>
             local pipeline : NonEmptyList<bootstrap_source::SourceFile>
+            call bootstrap_source::source_file -> bootstrap_source::SourceFile
+              string "src/release.evd" : Text
+              string "bootstrap stage harness and release evidence record" : Text
+        let main: NonEmptyList<bootstrap_source::SourceFile>
+          call bootstrap_discovery::append_source_file -> NonEmptyList<bootstrap_source::SourceFile>
+            local release : NonEmptyList<bootstrap_source::SourceFile>
             call bootstrap_source::source_file -> bootstrap_source::SourceFile
               string "src/main.evd" : Text
               string "bootstrap package entrypoint and aggregate status" : Text
@@ -745,7 +774,7 @@ functions:
             init original_file_diagnostic [shorthand]
               local original_file_diagnostic : bootstrap_diagnostics::OriginalFileDiagnostic
             init source_count
-              number 10 : Int
+              number 11 : Int
   - public fn bootstrap_pipeline::outline(source: bootstrap_source::PackageSource) -> bootstrap_pipeline::CompilerPipeline::SourceOutlined [affine]
       block -> bootstrap_pipeline::CompilerPipeline::SourceOutlined [affine]
         let tokens: bootstrap_lexing::TokenStream
@@ -870,6 +899,68 @@ functions:
             string "stage-2 evidc" : Text
             string "source commit recorded in release evidence" : Text
             string "passes conformance, diagnostics, native emission, package, and release-contract checks" : Text
+  - public fn bootstrap_release::bootstrap_stage_invocation(stage_name: Text, compiler_name: Text, command_line: Text, validation_summary: Text) -> bootstrap_release::BootstrapStageInvocation
+      block -> bootstrap_release::BootstrapStageInvocation
+        result
+          construct bootstrap_release::BootstrapStageInvocation : bootstrap_release::BootstrapStageInvocation
+            init stage_name [shorthand]
+              local stage_name : Text
+            init compiler_name [shorthand]
+              local compiler_name : Text
+            init command_line [shorthand]
+              local command_line : Text
+            init validation_summary [shorthand]
+              local validation_summary : Text
+  - public fn bootstrap_release::bootstrap_stage_harness() -> bootstrap_release::BootstrapStageHarness
+      block -> bootstrap_release::BootstrapStageHarness
+        let seed: bootstrap_release::BootstrapStageInvocation
+          call bootstrap_release::bootstrap_stage_invocation -> bootstrap_release::BootstrapStageInvocation
+            string "seed" : Text
+            string "cxx-seed-evidc" : Text
+            string "ctest --preset windows-x64-ninja -R run_bootstrap_compiler_scaffold" : Text
+            string "builds the bootstrap scaffold from the C++ seed compiler" : Text
+        let stage_one: bootstrap_release::BootstrapStageInvocation
+          call bootstrap_release::bootstrap_stage_invocation -> bootstrap_release::BootstrapStageInvocation
+            string "stage-1" : Text
+            string "stage-1 evidc" : Text
+            string "stage-1 evidc --package bootstrap/compiler" : Text
+            string "rebuilds the same Evident compiler package" : Text
+        let stage_two: bootstrap_release::BootstrapStageInvocation
+          call bootstrap_release::bootstrap_stage_invocation -> bootstrap_release::BootstrapStageInvocation
+            string "stage-2" : Text
+            string "stage-2 evidc" : Text
+            string "stage-2 evidc --package bootstrap/compiler" : Text
+            string "passes conformance, diagnostics, native emission, package, and release-contract checks" : Text
+        result
+          construct bootstrap_release::BootstrapStageHarness : bootstrap_release::BootstrapStageHarness
+            init seed [shorthand]
+              local seed : bootstrap_release::BootstrapStageInvocation
+            init stage_one [shorthand]
+              local stage_one : bootstrap_release::BootstrapStageInvocation
+            init stage_two [shorthand]
+              local stage_two : bootstrap_release::BootstrapStageInvocation
+  - public fn bootstrap_release::bootstrap_release_evidence(environment: bootstrap_environment::CompilerEnvironment, pipeline_evidence: bootstrap_pipeline::BootstrapEvidence) -> bootstrap_release::BootstrapReleaseEvidence
+      block -> bootstrap_release::BootstrapReleaseEvidence
+        let stage_harness: bootstrap_release::BootstrapStageHarness
+          call bootstrap_release::bootstrap_stage_harness -> bootstrap_release::BootstrapStageHarness
+        result
+          construct bootstrap_release::BootstrapReleaseEvidence : bootstrap_release::BootstrapReleaseEvidence
+            init source_commit
+              field-access .source_commit : Text
+                local environment : bootstrap_environment::CompilerEnvironment
+            init target_triple
+              field-access .target_triple : Text
+                local environment : bootstrap_environment::CompilerEnvironment
+            init clang_driver
+              field-access .clang_driver : Text
+                local environment : bootstrap_environment::CompilerEnvironment
+            init linker_driver
+              field-access .linker_driver : Text
+                local environment : bootstrap_environment::CompilerEnvironment
+            init stage_harness [shorthand]
+              local stage_harness : bootstrap_release::BootstrapStageHarness
+            init pipeline_evidence [shorthand]
+              local pipeline_evidence : bootstrap_pipeline::BootstrapEvidence
   - public fn bootstrap_compiler::build_status() -> bootstrap_compiler::BootstrapStatus [affine]
       block -> bootstrap_compiler::BootstrapStatus [affine]
         let host: bootstrap_host::CompilerHostSurface
@@ -912,6 +1003,10 @@ functions:
             local stage_one_receipt : bootstrap_pipeline::StageReceipt
             local stage_two_receipt : bootstrap_pipeline::StageReceipt
             local equivalence : bootstrap_pipeline::BootstrapEquivalence
+        let release: bootstrap_release::BootstrapReleaseEvidence
+          call bootstrap_release::bootstrap_release_evidence -> bootstrap_release::BootstrapReleaseEvidence
+            local environment : bootstrap_environment::CompilerEnvironment
+            local evidence : bootstrap_pipeline::BootstrapEvidence
         let outline: bootstrap_pipeline::BootstrapOutlineRecorded [affine]
           call bootstrap_pipeline::record_outline -> bootstrap_pipeline::BootstrapOutlineRecorded [affine]
             string "evident.compiler" : Text
@@ -923,6 +1018,8 @@ functions:
               local environment : bootstrap_environment::CompilerEnvironment
             init discovery [shorthand]
               local discovery : bootstrap_discovery::SourceDiscovery
+            init release [shorthand]
+              local release : bootstrap_release::BootstrapReleaseEvidence
             init package
               local source : bootstrap_source::PackageSource
             init exit_status [shorthand]

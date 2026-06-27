@@ -1,0 +1,75 @@
+import bootstrap_environment;
+import bootstrap_pipeline;
+
+domain module bootstrap_release {
+public record BootstrapStageInvocation {
+    public stage_name: Text,
+    public compiler_name: Text,
+    public command_line: Text,
+    public validation_summary: Text,
+}
+
+public record BootstrapStageHarness {
+    public seed: BootstrapStageInvocation,
+    public stage_one: BootstrapStageInvocation,
+    public stage_two: BootstrapStageInvocation,
+}
+
+public record BootstrapReleaseEvidence {
+    public source_commit: Text,
+    public target_triple: Text,
+    public clang_driver: Text,
+    public linker_driver: Text,
+    public stage_harness: BootstrapStageHarness,
+    public pipeline_evidence: bootstrap_pipeline::BootstrapEvidence,
+}
+
+public fn bootstrap_stage_invocation(stage_name: Text, compiler_name: Text, command_line: Text, validation_summary: Text) -> BootstrapStageInvocation {
+    BootstrapStageInvocation {
+        stage_name,
+        compiler_name,
+        command_line,
+        validation_summary,
+    }
+}
+
+public fn bootstrap_stage_harness() -> BootstrapStageHarness {
+    let seed = bootstrap_stage_invocation(
+        "seed",
+        "cxx-seed-evidc",
+        "ctest --preset windows-x64-ninja -R run_bootstrap_compiler_scaffold",
+        "builds the bootstrap scaffold from the C++ seed compiler",
+    );
+    let stage_one = bootstrap_stage_invocation(
+        "stage-1",
+        "stage-1 evidc",
+        "stage-1 evidc --package bootstrap/compiler",
+        "rebuilds the same Evident compiler package",
+    );
+    let stage_two = bootstrap_stage_invocation(
+        "stage-2",
+        "stage-2 evidc",
+        "stage-2 evidc --package bootstrap/compiler",
+        "passes conformance, diagnostics, native emission, package, and release-contract checks",
+    );
+
+    BootstrapStageHarness {
+        seed,
+        stage_one,
+        stage_two,
+    }
+}
+
+public fn bootstrap_release_evidence(environment: bootstrap_environment::CompilerEnvironment, pipeline_evidence: bootstrap_pipeline::BootstrapEvidence) -> BootstrapReleaseEvidence {
+    let stage_harness = bootstrap_stage_harness();
+
+    BootstrapReleaseEvidence {
+        source_commit: environment.source_commit,
+        target_triple: environment.target_triple,
+        clang_driver: environment.clang_driver,
+        linker_driver: environment.linker_driver,
+        stage_harness,
+        pipeline_evidence,
+    }
+}
+}
