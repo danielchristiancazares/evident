@@ -11,6 +11,11 @@ enum class DeclarationStartState {
     StartsDeclaration,
 };
 
+enum class FieldSeparatorRecovery {
+    StopFieldBlock,
+    ContinueWithNextField,
+};
+
 DeclarationStartState declaration_start_state(TokenKind kind) {
     switch (kind) {
     case TokenKind::KeywordPublic:
@@ -41,6 +46,16 @@ std::unique_ptr<ast::PathExpr> make_shorthand_path_expr(const Token& token) {
     expr->path.push_back(token_text(token));
     expr->span = token.span();
     return expr;
+}
+
+FieldSeparatorRecovery field_after_missing_separator(TokenKind first, TokenKind second, TokenKind third) {
+    if (first == TokenKind::Identifier && second == TokenKind::Colon) {
+        return FieldSeparatorRecovery::ContinueWithNextField;
+    }
+    if (first == TokenKind::KeywordPublic && second == TokenKind::Identifier && third == TokenKind::Colon) {
+        return FieldSeparatorRecovery::ContinueWithNextField;
+    }
+    return FieldSeparatorRecovery::StopFieldBlock;
 }
 
 } // namespace
@@ -487,6 +502,11 @@ std::vector<ast::Field> Parser::parse_field_block(FieldBlockContext context) {
             if (token_check(TokenKind::RightBrace) == TokenCheckState::Matches) {
                 break;
             }
+            continue;
+        }
+        if (field_after_missing_separator(peek().kind(), peek(1).kind(), peek(2).kind())
+            == FieldSeparatorRecovery::ContinueWithNextField) {
+            diagnostics_.error(peek().span(), "expected ',' between fields");
             continue;
         }
         break;

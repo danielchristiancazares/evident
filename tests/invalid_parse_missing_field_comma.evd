@@ -1,0 +1,6 @@
+domain module test {
+public record Bad {
+    first: Int
+    second: Int,
+}
+}
