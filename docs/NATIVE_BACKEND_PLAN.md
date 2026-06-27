@@ -22,7 +22,7 @@ C is not treated as a backend target here. Emitting C would make Evident a trans
 - ABI: Windows x64 / MSVC
 - object format: `COFF`
 - linker: `lld-link` via `clang -fuse-ld=lld`
-- tool discovery: `clang` is found on `PATH` by default; set `EVIDENT_CLANG` to an explicit executable path to choose a specific driver; `evidc --print-toolchain` reports the selected target and driver without compiling an input file or launching external tools, and `evidc --check-toolchain` rejects unsupported native targets before probing the selected driver plus `lld-link` with `--version`
+- tool discovery: `clang` is found on `PATH` by default; set `EVIDENT_CLANG` to an explicit executable path to choose a specific driver; whitespace-only overrides are rejected before toolchain probing or native artifact emission; `evidc --print-toolchain` reports the selected target and driver without compiling an input file or launching external tools, and `evidc --check-toolchain` rejects unsupported native targets before probing the selected driver plus `lld-link` with `--version`
 
 ## Immediate next work items
 
@@ -65,7 +65,7 @@ The first native ABI/layout pass currently implements:
 
 Executable emission currently requires a public `fn main() -> Int` with no parameters and no `fails` (for example inside a `domain module`). The older `--emit-stub` output remains a diagnostic path, not the production backend.
 
-Native assembly, object, and executable emission invoke the LLVM `clang` driver. If the process cannot be launched, the backend reports the selected driver and suggests installing LLVM or setting `EVIDENT_CLANG`. The `--print-toolchain` command reports the configured native target, the supported target, the selected clang driver, the override environment variable, and the linker mode without launching external tools. The `--check-toolchain` command first rejects unsupported native targets, then prints the same stable fields, launches the selected driver with `--version`, verifies `lld-link --version`, and reports both first version lines.
+Native assembly, object, and executable emission invoke the LLVM `clang` driver. If the process cannot be launched, the backend reports the selected driver and suggests installing LLVM or setting `EVIDENT_CLANG`. If `EVIDENT_CLANG` is present but only contains whitespace, the compiler rejects that configuration before probing tools or writing native artifact intermediates. The `--print-toolchain` command reports the configured native target, the supported target, the selected clang driver, the override environment variable, and the linker mode without launching external tools. The `--check-toolchain` command first rejects unsupported native targets, then prints the same stable fields, launches the selected driver with `--version`, verifies `lld-link --version`, and reports both first version lines.
 
 The test suite includes COFF object and PE executable validation for the supported x64 target by checking artifact headers, section-table bounds, COFF symbol/string-table bounds, `.text` section shape, and PE entry-point placement. Native executable run tests validate the emitted PE structure before executing and checking the process result. Representative assembly validation also checks the backend entry symbol and Windows x64/SEH markers, in addition to broader smoke tests for assembly and object emission.
 

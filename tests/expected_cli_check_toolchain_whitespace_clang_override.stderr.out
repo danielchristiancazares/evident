@@ -1,0 +1,2 @@
+toolchain check failed:
+invalid EVIDENT_CLANG override: set it to a non-whitespace clang executable path, or unset it to use clang from PATH

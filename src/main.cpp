@@ -5,6 +5,7 @@
 #include <expected>
 #include <iostream>
 #include <ostream>
+#include <sstream>
 #include <string>
 #include <utility>
 #include <vector>
@@ -77,12 +78,19 @@ ToolchainReportCompatibility toolchain_report_compatibility(const evident::Drive
     return ToolchainReportCompatibility::ReportMayRunWithoutCompilation;
 }
 
-void print_toolchain(const evident::DriverOptions& options, std::ostream& out) {
+std::expected<std::string, std::string> format_toolchain_report(const evident::DriverOptions& options) {
+    const std::expected<std::string, std::string> driver = evident::backend::selected_toolchain_driver();
+    if (!driver.has_value()) {
+        return std::unexpected(driver.error());
+    }
+
+    std::ostringstream out;
     out << "native target: " << options.target_triple() << '\n'
         << "supported native target: " << evident::backend::supported_target_triple() << '\n'
-        << "clang driver: " << evident::backend::selected_toolchain_driver() << '\n'
+        << "clang driver: " << *driver << '\n'
         << "clang override env: " << evident::backend::toolchain_driver_environment_variable() << '\n'
         << "linker mode: clang -fuse-ld=lld\n";
+    return out.str();
 }
 
 } // namespace
@@ -244,7 +252,12 @@ int main(int argc, char** argv) {
             print_usage(std::cerr);
             return 2;
         }
-        print_toolchain(options, std::cout);
+        const std::expected<std::string, std::string> report = format_toolchain_report(options);
+        if (!report.has_value()) {
+            std::cerr << "toolchain configuration failed:\n" << report.error() << '\n';
+            return 1;
+        }
+        std::cout << *report;
         return 0;
     }
 
@@ -261,7 +274,12 @@ int main(int argc, char** argv) {
                       << "' (selected target: '" << options.target_triple() << "')\n";
             return 1;
         }
-        print_toolchain(options, std::cout);
+        const std::expected<std::string, std::string> report = format_toolchain_report(options);
+        if (!report.has_value()) {
+            std::cerr << "toolchain check failed:\n" << report.error() << '\n';
+            return 1;
+        }
+        std::cout << *report;
         const std::expected<std::string, std::string> version = evident::backend::probe_toolchain_driver_version();
         if (!version.has_value()) {
             std::cerr << "toolchain check failed:\n" << version.error() << '\n';

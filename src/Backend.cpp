@@ -1,6 +1,5 @@
 #include "evident/Backend.hpp"
 
-#include <algorithm>
 #include <array>
 #include <cerrno>
 #include <cctype>
@@ -89,10 +88,40 @@ std::expected<TextFileWriteSucceeded, std::string> write_text_file(const std::st
     return TextFileWriteSucceeded{};
 }
 
-std::string toolchain_driver() {
+enum class ToolchainOverrideText {
+    ContainsOnlyWhitespace,
+    ContainsDriverPath,
+};
+
+ToolchainOverrideText inspect_toolchain_override_text(std::string_view text) {
+    for (char ch : text) {
+        switch (ch) {
+        case ' ':
+        case '\t':
+        case '\n':
+        case '\r':
+        case '\f':
+        case '\v':
+            break;
+        default:
+            return ToolchainOverrideText::ContainsDriverPath;
+        }
+    }
+    return ToolchainOverrideText::ContainsOnlyWhitespace;
+}
+
+std::expected<std::string, std::string> toolchain_driver() {
     const char* override_path = std::getenv(kClangEnvVar);
     if (override_path != nullptr && override_path[0] != '\0') {
-        return override_path;
+        const std::string_view override_text = override_path;
+        if (inspect_toolchain_override_text(override_text)
+            == ToolchainOverrideText::ContainsOnlyWhitespace) {
+            return std::unexpected(std::string("invalid ")
+                                   + kClangEnvVar
+                                   + " override: set it to a non-whitespace clang executable path, "
+                                     "or unset it to use clang from PATH");
+        }
+        return std::string(override_text);
     }
     return "clang";
 }
@@ -6495,14 +6524,17 @@ const char* emit_kind_name(EmitKind kind) {
     return "artifact";
 }
 
-std::string selected_toolchain_driver() {
+std::expected<std::string, std::string> selected_toolchain_driver() {
     return toolchain_driver();
 }
 
 std::expected<std::string, std::string> probe_toolchain_driver_version() {
-    const std::string driver = toolchain_driver();
+    const std::expected<std::string, std::string> driver = toolchain_driver();
+    if (!driver.has_value()) {
+        return std::unexpected(driver.error());
+    }
     return probe_driver_version(
-        driver,
+        *driver,
         "toolchain driver",
         std::string("Install LLVM clang/lld or set ") + kClangEnvVar + " to the clang executable.");
 }
@@ -6570,6 +6602,11 @@ std::expected<ArtifactEmissionSucceeded, std::string> emit_artifact(const hir::P
         return ArtifactEmissionSucceeded{};
     }
 
+    const std::expected<std::string, std::string> driver = toolchain_driver();
+    if (!driver.has_value()) {
+        return std::unexpected(driver.error());
+    }
+
     const std::filesystem::path output_path(options.output_path());
     const std::filesystem::path temp_ir_path = output_path.string() + ".tmp.ll";
     const std::filesystem::path log_path = output_path.string() + ".tool.log";
@@ -6580,7 +6617,7 @@ std::expected<ArtifactEmissionSucceeded, std::string> emit_artifact(const hir::P
         return std::unexpected("failed to write temporary LLVM IR to '" + temp_ir_path.string() + "'");
     }
 
-    std::vector<std::string> command = {toolchain_driver(), "-target", options.target_triple()};
+    std::vector<std::string> command = {*driver, "-target", options.target_triple()};
     switch (options.kind()) {
     case EmitKind::Assembly:
         command.push_back("-S");

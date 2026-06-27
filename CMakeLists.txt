@@ -80,7 +80,7 @@ add_dependencies(package_checksum package)
 
 include(CTest)
 if(BUILD_TESTING)
-    set(EVIDENT_EXPECTED_CTEST_TOTAL 369)
+    set(EVIDENT_EXPECTED_CTEST_TOTAL 372)
 
     add_test(NAME parse_valid_example
         COMMAND evidc --dump-hir ${CMAKE_CURRENT_SOURCE_DIR}/examples/feature_mode.evd)
@@ -778,6 +778,17 @@ if(BUILD_TESTING)
         --check-toolchain
         --target
         x86_64-unknown-linux-gnu)
+    set(EVIDENT_WHITESPACE_CLANG_OVERRIDE "   ")
+    add_cli_failure_compare_test(cli_print_toolchain_whitespace_clang_override
+        expected_cli_print_toolchain_whitespace_clang_override.stderr.out
+        --print-toolchain)
+    set_tests_properties(cli_print_toolchain_whitespace_clang_override
+        PROPERTIES ENVIRONMENT "EVIDENT_CLANG=${EVIDENT_WHITESPACE_CLANG_OVERRIDE}")
+    add_cli_failure_compare_test(cli_check_toolchain_whitespace_clang_override
+        expected_cli_check_toolchain_whitespace_clang_override.stderr.out
+        --check-toolchain)
+    set_tests_properties(cli_check_toolchain_whitespace_clang_override
+        PROPERTIES ENVIRONMENT "EVIDENT_CLANG=${EVIDENT_WHITESPACE_CLANG_OVERRIDE}")
     if(EVIDENT_TEST_CLANG)
         add_cli_check_toolchain_missing_linker_test(cli_check_toolchain_missing_linker
             "${EVIDENT_TEST_CLANG}")
@@ -1307,6 +1318,12 @@ if(BUILD_TESTING)
         --emit-obj
         diag_toolchain_missing_clang.obj
         evident-missing-clang-for-diagnostic-test.exe)
+    add_toolchain_diagnostic_compare_test(diag_toolchain_whitespace_clang_override
+        native_main_constant.evd
+        expected_toolchain_whitespace_clang.diag.out
+        --emit-obj
+        diag_toolchain_whitespace_clang.obj
+        "${EVIDENT_WHITESPACE_CLANG_OVERRIDE}")
     add_multi_diagnostic_compare_test(diag_package_split_duplicate_member
         expected_package_split_duplicate_member.diag.out
         invalid_package_split_duplicate_member_first.evd
