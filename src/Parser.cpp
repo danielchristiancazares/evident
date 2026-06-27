@@ -26,6 +26,11 @@ enum class GenericParameterSeparatorRecovery {
     ContinueWithNextParameter,
 };
 
+enum class ArgumentSeparatorRecovery {
+    StopArgumentList,
+    ContinueWithNextArgument,
+};
+
 enum class VariantSeparatorRecovery {
     StopVariantBlock,
     ContinueWithNextVariant,
@@ -115,6 +120,24 @@ GenericParameterSeparatorRecovery generic_parameter_after_missing_separator(Toke
         return GenericParameterSeparatorRecovery::ContinueWithNextParameter;
     default:
         return GenericParameterSeparatorRecovery::StopGenericParameterList;
+    }
+}
+
+ArgumentSeparatorRecovery argument_after_missing_separator(TokenKind first) {
+    switch (first) {
+    case TokenKind::Identifier:
+    case TokenKind::Number:
+    case TokenKind::String:
+    case TokenKind::LeftBrace:
+    case TokenKind::KeywordMatch:
+    case TokenKind::KeywordGrant:
+    case TokenKind::KeywordTry:
+    case TokenKind::KeywordFail:
+    case TokenKind::KeywordProve:
+    case TokenKind::KeywordAs:
+        return ArgumentSeparatorRecovery::ContinueWithNextArgument;
+    default:
+        return ArgumentSeparatorRecovery::StopArgumentList;
     }
 }
 
@@ -1187,6 +1210,11 @@ std::unique_ptr<ast::Expr> Parser::parse_postfix_expr() {
                     if (token_check(TokenKind::RightParen) == TokenCheckState::Matches) {
                         break;
                     }
+                    continue;
+                }
+                if (argument_after_missing_separator(peek().kind())
+                    == ArgumentSeparatorRecovery::ContinueWithNextArgument) {
+                    diagnostics_.error(peek().span(), "expected ',' between arguments");
                     continue;
                 }
                 break;

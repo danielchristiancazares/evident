@@ -1,0 +1,3 @@
+<input>:7:11: error: expected ',' between arguments
+        add(1 2)
+              ^

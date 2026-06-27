@@ -1,0 +1,20 @@
+domain module test {
+public permit RenderPassActive
+
+record Mesh {
+    id: Int,
+}
+
+public fn start_pass() -> Unit grants RenderPassActive {
+}
+
+public fn submit(mesh: Mesh, as pass: RenderPassActive) -> Int {
+    mesh.id
+}
+
+public fn boot(mesh: Mesh) -> Int {
+    grant start_pass() as pass {
+        submit(mesh as pass)
+    }
+}
+}

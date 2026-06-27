@@ -1,0 +1,9 @@
+domain module test {
+fn add(left: Int, right: Int) -> Int {
+    left
+}
+
+public fn main() -> Int {
+    add(1 2)
+}
+}
