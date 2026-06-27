@@ -1,12 +1,12 @@
 <input>:2:41: error: 'fails' must reference a reason type, not generic parameter 'T'
-    public fn bad_generic<T>() -> Int fails T
+    public fn bad_generic<T>() -> Int fails T { 0 }
                                             ^
 <input>:15:36: error: 'fails' must reference a reason type, not 'state'
-    public fn bad_state() -> Int fails NotAReason
+    public fn bad_state() -> Int fails NotAReason { 0 }
                                        ^^^^^^^^^^
 <input>:17:38: error: 'fails' must reference a reason type, not builtin type 'Int'
-    public fn bad_builtin() -> Int fails Int
+    public fn bad_builtin() -> Int fails Int { 0 }
                                          ^^^
 <input>:19:41: error: 'fails' must reference a reason type, not builtin type 'List<Failure>'
-    public fn bad_collection() -> Int fails List<Failure>
+    public fn bad_collection() -> Int fails List<Failure> { 0 }
                                             ^^^^^^^^^^^^^

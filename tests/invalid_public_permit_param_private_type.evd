@@ -1,5 +1,5 @@
 domain module app {
 permit Access
 
-public fn use(as access: Access) -> Int
+public fn use(as access: Access) -> Int { 0 }
 }

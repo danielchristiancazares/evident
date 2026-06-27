@@ -3,5 +3,5 @@ proof Receipt {
     public value: Int,
 }
 
-public fn validate() -> Unit proves Receipt
+public fn validate() -> Unit proves Receipt {}
 }

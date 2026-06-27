@@ -3,5 +3,5 @@ record Hidden {
     public value: Int,
 }
 
-public fn leak() -> Hidden
+public fn leak() -> Hidden { Hidden { value: 1 } }
 }

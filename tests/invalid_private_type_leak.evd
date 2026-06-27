@@ -3,5 +3,5 @@ record Hidden {
     secret: Text,
 }
 
-public fn leak(x: Hidden) -> Int
+public fn leak(x: Hidden) -> Int { 0 }
 }

@@ -632,6 +632,7 @@ std::unique_ptr<ast::FunctionDecl> Parser::parse_function(ast::Visibility visibi
     } else if (token_check(TokenKind::LeftBrace) == TokenCheckState::Matches) {
         decl->body = parse_block_expr();
     } else {
+        diagnostics_.error(peek().span(), "expected function body block after signature");
         consume_optional_declaration_terminator();
     }
 

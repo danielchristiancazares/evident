@@ -1,0 +1,6 @@
+domain module test {
+public fn missing() -> Int
+public fn after() -> Int {
+    1
+}
+}

@@ -1,5 +1,5 @@
 foundation module support {
-public fn bad_generic<T>() -> Int fails T
+public fn bad_generic<T>() -> Int fails T { 0 }
 }
 
 domain module test {
@@ -12,9 +12,9 @@ public state NotAReason {
     Beta,
 }
 
-public fn bad_state() -> Int fails NotAReason
+public fn bad_state() -> Int fails NotAReason { 0 }
 
-public fn bad_builtin() -> Int fails Int
+public fn bad_builtin() -> Int fails Int { 0 }
 
-public fn bad_collection() -> Int fails List<Failure>
+public fn bad_collection() -> Int fails List<Failure> { 0 }
 }

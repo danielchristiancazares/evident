@@ -3,5 +3,5 @@ reason Failure {
     Bad,
 }
 
-public fn run() -> Int fails Failure
+public fn run() -> Int fails Failure { 0 }
 }

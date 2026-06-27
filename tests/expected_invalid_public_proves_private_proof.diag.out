@@ -1,3 +1,3 @@
 <input>:6:37: error: public API cannot reference private type 'Receipt'
-    public fn validate() -> Unit proves Receipt
+    public fn validate() -> Unit proves Receipt {}
                                         ^^^^^^^
