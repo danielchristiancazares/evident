@@ -3,3 +3,7 @@ public fn pair(left: Int right: Int) -> Int {
     left
 }
 }
+
+boundary module ffi {
+public foreign fn read(left: Int right: Int) -> Int
+}
