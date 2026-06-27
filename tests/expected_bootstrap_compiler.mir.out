@@ -38,6 +38,17 @@ functions:
         %3[tmp] = call bootstrap_source::compiler_package_identity(%0[environment])
         %2[$return] = construct bootstrap_source::PackageSource {identity: %3[tmp], graph: %1[graph]}
         return %2[$return]
+  - public fn bootstrap_source::compiler_package_file_count -> Nat
+      locals:
+        %0[package] : bootstrap_source::PackageSource
+        %1[$return] : Nat
+        %2[tmp] : NonEmptyList<bootstrap_source::SourceFile>
+        %3[tmp] : bootstrap_source::SourceGraph
+      block %0
+        %3[tmp] = %0[package].graph
+        %2[tmp] = %3[tmp].files
+        %1[$return] = call nonempty_list_count_copy$bootstrap_source__SourceFile(%2[tmp])
+        return %1[$return]
   - public fn bootstrap_lexing::source_offset -> bootstrap_lexing::SourceOffset
       locals:
         %0[byte_index] : Int
@@ -774,6 +785,15 @@ functions:
         %62[main] = call bootstrap_layout::append_bootstrap_package_module(%52[release], %63[tmp])
         %1[$return] = construct bootstrap_layout::BootstrapPackageLayout {package: %0[package], modules: %62[main]}
         return %1[$return]
+  - public fn bootstrap_layout::bootstrap_package_module_count -> Nat
+      locals:
+        %0[layout] : bootstrap_layout::BootstrapPackageLayout
+        %1[$return] : Nat
+        %2[tmp] : NonEmptyList<bootstrap_layout::BootstrapPackageModule>
+      block %0
+        %2[tmp] = %0[layout].modules
+        %1[$return] = call nonempty_list_count_copy$bootstrap_layout__BootstrapPackageModule(%2[tmp])
+        return %1[$return]
   - public fn bootstrap_manifest::bootstrap_package_manifest_entry -> bootstrap_manifest::BootstrapPackageManifestEntry
       locals:
         %0[module_name] : Text
@@ -953,6 +973,15 @@ functions:
         %70[main] = call bootstrap_manifest::append_bootstrap_package_manifest_entry(%59[release], %71[tmp])
         %2[$return] = construct bootstrap_manifest::BootstrapPackageManifest {package: %0[package], layout: %1[layout], entries: %70[main]}
         return %2[$return]
+  - public fn bootstrap_manifest::bootstrap_package_manifest_entry_count -> Nat
+      locals:
+        %0[manifest] : bootstrap_manifest::BootstrapPackageManifest
+        %1[$return] : Nat
+        %2[tmp] : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+      block %0
+        %2[tmp] = %0[manifest].entries
+        %1[$return] = call nonempty_list_count_copy$bootstrap_manifest__BootstrapPackageManifestEntry(%2[tmp])
+        return %1[$return]
   - public fn bootstrap_release::bootstrap_stage_invocation -> bootstrap_release::BootstrapStageInvocation
       locals:
         %0[stage_name] : Text
@@ -1005,17 +1034,20 @@ functions:
         %6[tmp] : bootstrap_source::SourceGraph
         %7[layout] : bootstrap_layout::BootstrapPackageLayout
         %8[manifest] : bootstrap_manifest::BootstrapPackageManifest
-        %9[outlined] : bootstrap_pipeline::CompilerPipeline::SourceOutlined [affine]
-        %10[seed] : bootstrap_pipeline::CompilerPipeline::SeedCompiled [affine]
-        %11[stage_one] : bootstrap_pipeline::CompilerPipeline::StageOneCompiled [affine]
-        %12[stage_two] : bootstrap_pipeline::CompilerPipeline::StageTwoValidated [affine]
-        %13[seed_receipt] : bootstrap_pipeline::StageReceipt
-        %14[stage_one_receipt] : bootstrap_pipeline::StageReceipt
-        %15[stage_two_receipt] : bootstrap_pipeline::StageReceipt
-        %16[equivalence] : bootstrap_pipeline::BootstrapEquivalence
-        %17[evidence] : bootstrap_pipeline::BootstrapEvidence
-        %18[release] : bootstrap_release::BootstrapReleaseEvidence
-        %19[outline] : bootstrap_pipeline::BootstrapOutlineRecorded [affine]
+        %9[source_file_count] : Nat
+        %10[module_count] : Nat
+        %11[manifest_entry_count] : Nat
+        %12[outlined] : bootstrap_pipeline::CompilerPipeline::SourceOutlined [affine]
+        %13[seed] : bootstrap_pipeline::CompilerPipeline::SeedCompiled [affine]
+        %14[stage_one] : bootstrap_pipeline::CompilerPipeline::StageOneCompiled [affine]
+        %15[stage_two] : bootstrap_pipeline::CompilerPipeline::StageTwoValidated [affine]
+        %16[seed_receipt] : bootstrap_pipeline::StageReceipt
+        %17[stage_one_receipt] : bootstrap_pipeline::StageReceipt
+        %18[stage_two_receipt] : bootstrap_pipeline::StageReceipt
+        %19[equivalence] : bootstrap_pipeline::BootstrapEquivalence
+        %20[evidence] : bootstrap_pipeline::BootstrapEvidence
+        %21[release] : bootstrap_release::BootstrapReleaseEvidence
+        %22[outline] : bootstrap_pipeline::BootstrapOutlineRecorded [affine]
       block %0
         %1[host] = call bootstrap_host::bootstrap_host_surface()
         %2[environment] = call bootstrap_environment::bootstrap_environment_surface()
@@ -1025,18 +1057,21 @@ functions:
         %5[source] = call bootstrap_source::compiler_package(%2[environment], %6[tmp])
         %7[layout] = call bootstrap_layout::bootstrap_package_layout(%5[source])
         %8[manifest] = call bootstrap_manifest::bootstrap_package_manifest(%5[source], %7[layout])
-        %9[outlined] = call bootstrap_pipeline::outline(%5[source])
-        %10[seed] = call bootstrap_pipeline::compile_with_seed(%9[outlined])
-        %11[stage_one] = call bootstrap_pipeline::compile_stage_one(%10[seed])
-        %12[stage_two] = call bootstrap_pipeline::validate_stage_two(%11[stage_one])
-        %13[seed_receipt] = call bootstrap_pipeline::seed_receipt()
-        %14[stage_one_receipt] = call bootstrap_pipeline::stage_one_receipt()
-        %15[stage_two_receipt] = call bootstrap_pipeline::stage_two_receipt()
-        %16[equivalence] = call bootstrap_pipeline::bootstrap_equivalence()
-        %17[evidence] = call bootstrap_pipeline::bootstrap_evidence(%13[seed_receipt], %14[stage_one_receipt], %15[stage_two_receipt], %16[equivalence])
-        %18[release] = call bootstrap_release::bootstrap_release_evidence(%2[environment], %8[manifest], %17[evidence])
-        %19[outline] = call bootstrap_pipeline::record_outline("evident.compiler")
-        %0[$return] = construct bootstrap_compiler::BootstrapStatus {host: %1[host], environment: %2[environment], discovery: %3[discovery], layout: %7[layout], manifest: %8[manifest], release: %18[release], package: %5[source], exit_status: %4[exit_status], pipeline: %12[stage_two], evidence: %17[evidence], outline: %19[outline]}
+        %9[source_file_count] = call bootstrap_source::compiler_package_file_count(%5[source])
+        %10[module_count] = call bootstrap_layout::bootstrap_package_module_count(%7[layout])
+        %11[manifest_entry_count] = call bootstrap_manifest::bootstrap_package_manifest_entry_count(%8[manifest])
+        %12[outlined] = call bootstrap_pipeline::outline(%5[source])
+        %13[seed] = call bootstrap_pipeline::compile_with_seed(%12[outlined])
+        %14[stage_one] = call bootstrap_pipeline::compile_stage_one(%13[seed])
+        %15[stage_two] = call bootstrap_pipeline::validate_stage_two(%14[stage_one])
+        %16[seed_receipt] = call bootstrap_pipeline::seed_receipt()
+        %17[stage_one_receipt] = call bootstrap_pipeline::stage_one_receipt()
+        %18[stage_two_receipt] = call bootstrap_pipeline::stage_two_receipt()
+        %19[equivalence] = call bootstrap_pipeline::bootstrap_equivalence()
+        %20[evidence] = call bootstrap_pipeline::bootstrap_evidence(%16[seed_receipt], %17[stage_one_receipt], %18[stage_two_receipt], %19[equivalence])
+        %21[release] = call bootstrap_release::bootstrap_release_evidence(%2[environment], %8[manifest], %20[evidence])
+        %22[outline] = call bootstrap_pipeline::record_outline("evident.compiler")
+        %0[$return] = construct bootstrap_compiler::BootstrapStatus {host: %1[host], environment: %2[environment], discovery: %3[discovery], layout: %7[layout], manifest: %8[manifest], release: %21[release], package: %5[source], source_file_count: %9[source_file_count], module_count: %10[module_count], manifest_entry_count: %11[manifest_entry_count], exit_status: %4[exit_status], pipeline: %15[stage_two], evidence: %20[evidence], outline: %22[outline]}
         return %0[$return]
   - public fn bootstrap_compiler::bootstrap_stage_count -> Int
       locals:
@@ -1054,6 +1089,10 @@ functions:
         %2[tmp] = %1[status].discovery
         %0[$return] = %2[tmp].source_count
         return %0[$return]
+  - public fn nonempty_list_count_copy$bootstrap_source__SourceFile -> Nat
+      locals:
+        %0[values] : NonEmptyList<bootstrap_source::SourceFile>
+      blocks: <none>
   - public fn list_single$bootstrap_lexing__Token -> NonEmptyList<bootstrap_lexing::Token>
       locals:
         %0[value] : bootstrap_lexing::Token
@@ -1125,6 +1164,10 @@ functions:
       locals:
         %0[value] : bootstrap_layout::BootstrapPackageModule
       blocks: <none>
+  - public fn nonempty_list_count_copy$bootstrap_layout__BootstrapPackageModule -> Nat
+      locals:
+        %0[values] : NonEmptyList<bootstrap_layout::BootstrapPackageModule>
+      blocks: <none>
   - public fn nonempty_list_widen$bootstrap_manifest__BootstrapPackageManifestEntry -> List<bootstrap_manifest::BootstrapPackageManifestEntry>
       locals:
         %0[values] : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
@@ -1137,4 +1180,8 @@ functions:
   - public fn list_single$bootstrap_manifest__BootstrapPackageManifestEntry -> NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
       locals:
         %0[value] : bootstrap_manifest::BootstrapPackageManifestEntry
+      blocks: <none>
+  - public fn nonempty_list_count_copy$bootstrap_manifest__BootstrapPackageManifestEntry -> Nat
+      locals:
+        %0[values] : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
       blocks: <none>

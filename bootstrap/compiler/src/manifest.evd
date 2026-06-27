@@ -171,4 +171,8 @@ public fn bootstrap_package_manifest(package: bootstrap_source::PackageSource, l
         entries: main,
     }
 }
+
+public fn bootstrap_package_manifest_entry_count(manifest: BootstrapPackageManifest) -> Nat {
+    nonempty_list_count_copy<BootstrapPackageManifestEntry>(manifest.entries)
+}
 }

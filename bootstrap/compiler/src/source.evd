@@ -46,4 +46,8 @@ public fn compiler_package(environment: bootstrap_environment::CompilerEnvironme
         graph,
     }
 }
+
+public fn compiler_package_file_count(package: PackageSource) -> Nat {
+    nonempty_list_count_copy<SourceFile>(package.graph.files)
+}
 }

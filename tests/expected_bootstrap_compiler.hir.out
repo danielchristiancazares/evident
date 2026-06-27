@@ -229,11 +229,15 @@ types:
       field manifest: bootstrap_manifest::BootstrapPackageManifest
       field release: bootstrap_release::BootstrapReleaseEvidence
       field package: bootstrap_source::PackageSource
+      field source_file_count: Nat
+      field module_count: Nat
+      field manifest_entry_count: Nat
       field exit_status: bootstrap_host::ExitStatus
       field pipeline: bootstrap_pipeline::CompilerPipeline::StageTwoValidated [affine]
       field evidence: bootstrap_pipeline::BootstrapEvidence
       field outline: bootstrap_pipeline::BootstrapOutlineRecorded [affine]
 functions:
+  - public fn nonempty_list_count_copy<T>(values: NonEmptyList<T>) -> Nat
   - public fn list_single<T>(value: T) -> NonEmptyList<T>
   - public fn map_single<K, V>(key: K, value: V) -> NonEmptyMap<K, V>
   - public fn nonempty_map_count_copy<K, V>(entries: NonEmptyMap<K, V>) -> Nat
@@ -277,6 +281,13 @@ functions:
                 local environment : bootstrap_environment::CompilerEnvironment
             init graph [shorthand]
               local graph : bootstrap_source::SourceGraph
+  - public fn bootstrap_source::compiler_package_file_count(package: bootstrap_source::PackageSource) -> Nat
+      block -> Nat
+        result
+          call nonempty_list_count_copy<bootstrap_source::SourceFile> -> Nat
+            field-access .files : NonEmptyList<bootstrap_source::SourceFile>
+              field-access .graph : bootstrap_source::SourceGraph
+                local package : bootstrap_source::PackageSource
   - public fn bootstrap_lexing::source_offset(byte_index: Int) -> bootstrap_lexing::SourceOffset
       block -> bootstrap_lexing::SourceOffset
         result
@@ -1166,6 +1177,12 @@ functions:
               local package : bootstrap_source::PackageSource
             init modules
               local main : NonEmptyList<bootstrap_layout::BootstrapPackageModule>
+  - public fn bootstrap_layout::bootstrap_package_module_count(layout: bootstrap_layout::BootstrapPackageLayout) -> Nat
+      block -> Nat
+        result
+          call nonempty_list_count_copy<bootstrap_layout::BootstrapPackageModule> -> Nat
+            field-access .modules : NonEmptyList<bootstrap_layout::BootstrapPackageModule>
+              local layout : bootstrap_layout::BootstrapPackageLayout
   - public fn bootstrap_manifest::bootstrap_package_manifest_entry(module_name: Text, source: Text, imports: List<Text>) -> bootstrap_manifest::BootstrapPackageManifestEntry
       block -> bootstrap_manifest::BootstrapPackageManifestEntry
         result
@@ -1416,6 +1433,12 @@ functions:
               local layout : bootstrap_layout::BootstrapPackageLayout
             init entries
               local main : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+  - public fn bootstrap_manifest::bootstrap_package_manifest_entry_count(manifest: bootstrap_manifest::BootstrapPackageManifest) -> Nat
+      block -> Nat
+        result
+          call nonempty_list_count_copy<bootstrap_manifest::BootstrapPackageManifestEntry> -> Nat
+            field-access .entries : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+              local manifest : bootstrap_manifest::BootstrapPackageManifest
   - public fn bootstrap_release::bootstrap_stage_invocation(stage_name: Text, compiler_name: Text, command_line: Text, validation_summary: Text) -> bootstrap_release::BootstrapStageInvocation
       block -> bootstrap_release::BootstrapStageInvocation
         result
@@ -1503,6 +1526,15 @@ functions:
           call bootstrap_manifest::bootstrap_package_manifest -> bootstrap_manifest::BootstrapPackageManifest
             local source : bootstrap_source::PackageSource
             local layout : bootstrap_layout::BootstrapPackageLayout
+        let source_file_count: Nat
+          call bootstrap_source::compiler_package_file_count -> Nat
+            local source : bootstrap_source::PackageSource
+        let module_count: Nat
+          call bootstrap_layout::bootstrap_package_module_count -> Nat
+            local layout : bootstrap_layout::BootstrapPackageLayout
+        let manifest_entry_count: Nat
+          call bootstrap_manifest::bootstrap_package_manifest_entry_count -> Nat
+            local manifest : bootstrap_manifest::BootstrapPackageManifest
         let outlined: bootstrap_pipeline::CompilerPipeline::SourceOutlined [affine]
           call bootstrap_pipeline::outline -> bootstrap_pipeline::CompilerPipeline::SourceOutlined [affine]
             local source : bootstrap_source::PackageSource
@@ -1553,6 +1585,12 @@ functions:
               local release : bootstrap_release::BootstrapReleaseEvidence
             init package
               local source : bootstrap_source::PackageSource
+            init source_file_count [shorthand]
+              local source_file_count : Nat
+            init module_count [shorthand]
+              local module_count : Nat
+            init manifest_entry_count [shorthand]
+              local manifest_entry_count : Nat
             init exit_status [shorthand]
               local exit_status : bootstrap_host::ExitStatus
             init pipeline

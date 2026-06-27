@@ -156,4 +156,8 @@ public fn bootstrap_package_layout(package: bootstrap_source::PackageSource) -> 
         modules: main,
     }
 }
+
+public fn bootstrap_package_module_count(layout: BootstrapPackageLayout) -> Nat {
+    nonempty_list_count_copy<BootstrapPackageModule>(layout.modules)
+}
 }
