@@ -1,5 +1,6 @@
 import bootstrap_host;
 import bootstrap_environment;
+import bootstrap_discovery;
 import bootstrap_source;
 import bootstrap_pipeline;
 
@@ -7,6 +8,7 @@ domain module bootstrap_compiler {
 public record BootstrapStatus {
     public host: bootstrap_host::CompilerHostSurface,
     public environment: bootstrap_environment::CompilerEnvironment,
+    public discovery: bootstrap_discovery::SourceDiscovery,
     public package: bootstrap_source::PackageSource,
     public exit_status: bootstrap_host::ExitStatus,
     public pipeline: bootstrap_pipeline::CompilerPipeline::StageTwoValidated,
@@ -17,8 +19,9 @@ public record BootstrapStatus {
 public fn build_status() -> BootstrapStatus {
     let host = bootstrap_host::bootstrap_host_surface();
     let environment = bootstrap_environment::bootstrap_environment_surface();
+    let discovery = bootstrap_discovery::compiler_source_discovery(environment);
     let exit_status = bootstrap_host::success_status();
-    let source = bootstrap_source::compiler_package(environment);
+    let source = bootstrap_source::compiler_package(environment, discovery.graph);
     let outlined = bootstrap_pipeline::outline(source);
     let seed = bootstrap_pipeline::compile_with_seed(outlined);
     let stage_one = bootstrap_pipeline::compile_stage_one(seed);
@@ -38,6 +41,7 @@ public fn build_status() -> BootstrapStatus {
     BootstrapStatus {
         host,
         environment,
+        discovery,
         package: source,
         exit_status,
         pipeline: stage_two,
@@ -52,6 +56,6 @@ public fn bootstrap_stage_count() -> Int {
 
 public fn main() -> Int {
     let status = build_status();
-    bootstrap_source::compiler_source_count()
+    status.discovery.source_count
 }
 }

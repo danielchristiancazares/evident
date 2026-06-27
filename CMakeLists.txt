@@ -826,7 +826,7 @@ if(BUILD_TESTING)
             -DCOMMAND_PATH=$<TARGET_FILE:evidc>
             -DPACKAGE_DIR=${CMAKE_CURRENT_SOURCE_DIR}/bootstrap/compiler
             -DOUTPUT_PATH=${CMAKE_CURRENT_BINARY_DIR}/bootstrap_compiler_scaffold.exe
-            -DEXPECTED_EXIT=9
+            -DEXPECTED_EXIT=10
             -DTARGET_TRIPLE=x86_64-pc-windows-msvc
             -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/RunEmitAndCheckExit.cmake)
 

@@ -1,0 +1,96 @@
+import bootstrap_environment;
+import bootstrap_diagnostics;
+import bootstrap_source;
+
+domain module bootstrap_discovery {
+public record SourceManifestEntry {
+    public path: bootstrap_source::SourcePath,
+    public summary: Text,
+}
+
+public record SourceDiscoveryPlan {
+    public package_root: bootstrap_source::SourcePath,
+    public manifest: bootstrap_source::SourcePath,
+    public source_root: bootstrap_source::SourcePath,
+    public entries: NonEmptyList<SourceManifestEntry>,
+}
+
+public record SourceDiscovery {
+    public plan: SourceDiscoveryPlan,
+    public graph: bootstrap_source::SourceGraph,
+    public original_file_diagnostic: bootstrap_diagnostics::OriginalFileDiagnostic,
+    public source_count: Int,
+}
+
+public reason SourceDiscoveryFailure {
+    ManifestMissing { path: bootstrap_source::SourcePath },
+    SourceEntryRejected { path: bootstrap_source::SourcePath },
+}
+
+public fn source_manifest_entry(path: Text, summary: Text) -> SourceManifestEntry {
+    SourceManifestEntry {
+        path: bootstrap_source::SourcePath { text: path },
+        summary,
+    }
+}
+
+fn append_manifest_entry(entries: NonEmptyList<SourceManifestEntry>, entry: SourceManifestEntry) -> NonEmptyList<SourceManifestEntry> {
+    let widened = nonempty_list_widen<SourceManifestEntry>(entries);
+    list_append<SourceManifestEntry>(widened, entry)
+}
+
+fn append_source_file(files: NonEmptyList<bootstrap_source::SourceFile>, file: bootstrap_source::SourceFile) -> NonEmptyList<bootstrap_source::SourceFile> {
+    let widened = nonempty_list_widen<bootstrap_source::SourceFile>(files);
+    list_append<bootstrap_source::SourceFile>(widened, file)
+}
+
+public fn compiler_source_plan(environment: bootstrap_environment::CompilerEnvironment) -> SourceDiscoveryPlan {
+    let source = list_single<SourceManifestEntry>(source_manifest_entry("src/source.evd", "package assembly helpers"));
+    let lexing = append_manifest_entry(source, source_manifest_entry("src/lexing.evd", "lexical token stream model"));
+    let parsing = append_manifest_entry(lexing, source_manifest_entry("src/parsing.evd", "parsed package syntax model"));
+    let semantics = append_manifest_entry(parsing, source_manifest_entry("src/semantics.evd", "semantic symbol catalog model"));
+    let diagnostics = append_manifest_entry(semantics, source_manifest_entry("src/diagnostics.evd", "diagnostics and bootstrap failure reasons"));
+    let host = append_manifest_entry(diagnostics, source_manifest_entry("src/host.evd", "host file, path, and tool boundary handles"));
+    let environment_entry = append_manifest_entry(host, source_manifest_entry("src/environment.evd", "environment boundary handles"));
+    let discovery = append_manifest_entry(environment_entry, source_manifest_entry("src/discovery.evd", "deterministic source discovery and original-file diagnostics"));
+    let pipeline = append_manifest_entry(discovery, source_manifest_entry("src/pipeline.evd", "bootstrap pipeline phases and stage evidence"));
+    let main = append_manifest_entry(pipeline, source_manifest_entry("src/main.evd", "bootstrap package entrypoint and aggregate status"));
+    let package_root = bootstrap_source::SourcePath { text: environment.package_root.text };
+    let manifest = bootstrap_source::SourcePath { text: environment.manifest.text };
+    let source_root = bootstrap_source::SourcePath { text: environment.source_root.text };
+
+    SourceDiscoveryPlan {
+        package_root,
+        manifest,
+        source_root,
+        entries: main,
+    }
+}
+
+public fn compiler_source_discovery(environment: bootstrap_environment::CompilerEnvironment) -> SourceDiscovery {
+    let plan = compiler_source_plan(environment);
+    let source = list_single<bootstrap_source::SourceFile>(bootstrap_source::source_file("src/source.evd", "package assembly helpers"));
+    let lexing = append_source_file(source, bootstrap_source::source_file("src/lexing.evd", "lexical token stream model"));
+    let parsing = append_source_file(lexing, bootstrap_source::source_file("src/parsing.evd", "parsed package syntax model"));
+    let semantics = append_source_file(parsing, bootstrap_source::source_file("src/semantics.evd", "semantic symbol catalog model"));
+    let diagnostics = append_source_file(semantics, bootstrap_source::source_file("src/diagnostics.evd", "diagnostics and bootstrap failure reasons"));
+    let host = append_source_file(diagnostics, bootstrap_source::source_file("src/host.evd", "host file, path, and tool boundary handles"));
+    let environment_files = append_source_file(host, bootstrap_source::source_file("src/environment.evd", "environment boundary handles"));
+    let discovery = append_source_file(environment_files, bootstrap_source::source_file("src/discovery.evd", "deterministic source discovery and original-file diagnostics"));
+    let pipeline = append_source_file(discovery, bootstrap_source::source_file("src/pipeline.evd", "bootstrap pipeline phases and stage evidence"));
+    let main = append_source_file(pipeline, bootstrap_source::source_file("src/main.evd", "bootstrap package entrypoint and aggregate status"));
+    let original_file_diagnostic = bootstrap_diagnostics::original_file_diagnostic(
+        plan.manifest,
+        "package manifest retains original-file anchors for deterministic source discovery",
+    );
+
+    SourceDiscovery {
+        plan,
+        graph: bootstrap_source::SourceGraph {
+            files: main,
+        },
+        original_file_diagnostic,
+        source_count: 10,
+    }
+}
+}

@@ -93,6 +93,9 @@ types:
   - public record bootstrap_diagnostics::Diagnostic
       field severity: bootstrap_diagnostics::DiagnosticSeverity
       field message: Text
+  - public record bootstrap_diagnostics::OriginalFileDiagnostic
+      field path: bootstrap_source::SourcePath
+      field message: Text
   - public reason bootstrap_diagnostics::BootstrapFailure
       variant SourcePackageRejected
         field message: Text
@@ -132,6 +135,24 @@ types:
       field clang_driver: Text
       field linker_driver: Text
       field source_commit: Text
+  - public record bootstrap_discovery::SourceManifestEntry
+      field path: bootstrap_source::SourcePath
+      field summary: Text
+  - public record bootstrap_discovery::SourceDiscoveryPlan
+      field package_root: bootstrap_source::SourcePath
+      field manifest: bootstrap_source::SourcePath
+      field source_root: bootstrap_source::SourcePath
+      field entries: NonEmptyList<bootstrap_discovery::SourceManifestEntry>
+  - public record bootstrap_discovery::SourceDiscovery
+      field plan: bootstrap_discovery::SourceDiscoveryPlan
+      field graph: bootstrap_source::SourceGraph
+      field original_file_diagnostic: bootstrap_diagnostics::OriginalFileDiagnostic
+      field source_count: Int
+  - public reason bootstrap_discovery::SourceDiscoveryFailure
+      variant ManifestMissing
+        field path: bootstrap_source::SourcePath
+      variant SourceEntryRejected
+        field path: bootstrap_source::SourcePath
   - public record bootstrap_pipeline::PackageOutline
       field source: bootstrap_source::PackageSource
       field tokens: bootstrap_lexing::TokenStream
@@ -171,18 +192,19 @@ types:
   - public record bootstrap_compiler::BootstrapStatus [affine]
       field host: bootstrap_host::CompilerHostSurface
       field environment: bootstrap_environment::CompilerEnvironment
+      field discovery: bootstrap_discovery::SourceDiscovery
       field package: bootstrap_source::PackageSource
       field exit_status: bootstrap_host::ExitStatus
       field pipeline: bootstrap_pipeline::CompilerPipeline::StageTwoValidated [affine]
       field evidence: bootstrap_pipeline::BootstrapEvidence
       field outline: bootstrap_pipeline::BootstrapOutlineRecorded [affine]
 functions:
-  - public fn nonempty_list_widen<T>(values: NonEmptyList<T>) -> List<T>
-  - public fn list_append<T>(values: List<T>, value: T) -> NonEmptyList<T>
   - public fn list_single<T>(value: T) -> NonEmptyList<T>
   - public fn map_single<K, V>(key: K, value: V) -> NonEmptyMap<K, V>
   - public fn nonempty_map_count_copy<K, V>(entries: NonEmptyMap<K, V>) -> Nat
   - public fn list_empty<T>() -> List<T>
+  - public fn nonempty_list_widen<T>(values: NonEmptyList<T>) -> List<T>
+  - public fn list_append<T>(values: List<T>, value: T) -> NonEmptyList<T>
   - public fn bootstrap_source::source_file(path: Text, contents: Text) -> bootstrap_source::SourceFile
       block -> bootstrap_source::SourceFile
         result
@@ -211,89 +233,15 @@ functions:
                   field-access .text : Text
                     field-access .manifest : bootstrap_host::HostPath
                       local environment : bootstrap_environment::CompilerEnvironment
-  - private fn bootstrap_source::append_source(files: NonEmptyList<bootstrap_source::SourceFile>, file: bootstrap_source::SourceFile) -> NonEmptyList<bootstrap_source::SourceFile>
-      block -> NonEmptyList<bootstrap_source::SourceFile>
-        let widened: List<bootstrap_source::SourceFile>
-          call nonempty_list_widen<bootstrap_source::SourceFile> -> List<bootstrap_source::SourceFile>
-            local files : NonEmptyList<bootstrap_source::SourceFile>
-        result
-          call list_append<bootstrap_source::SourceFile> -> NonEmptyList<bootstrap_source::SourceFile>
-            local widened : List<bootstrap_source::SourceFile>
-            local file : bootstrap_source::SourceFile
-  - public fn bootstrap_source::compiler_source_graph() -> bootstrap_source::SourceGraph
-      block -> bootstrap_source::SourceGraph
-        let source: NonEmptyList<bootstrap_source::SourceFile>
-          call list_single<bootstrap_source::SourceFile> -> NonEmptyList<bootstrap_source::SourceFile>
-            call bootstrap_source::source_file -> bootstrap_source::SourceFile
-              string "src/source.evd" : Text
-              string "source graph and environment-derived package identity" : Text
-        let lexing: NonEmptyList<bootstrap_source::SourceFile>
-          call bootstrap_source::append_source -> NonEmptyList<bootstrap_source::SourceFile>
-            local source : NonEmptyList<bootstrap_source::SourceFile>
-            call bootstrap_source::source_file -> bootstrap_source::SourceFile
-              string "src/lexing.evd" : Text
-              string "lexical token stream model" : Text
-        let parsing: NonEmptyList<bootstrap_source::SourceFile>
-          call bootstrap_source::append_source -> NonEmptyList<bootstrap_source::SourceFile>
-            local lexing : NonEmptyList<bootstrap_source::SourceFile>
-            call bootstrap_source::source_file -> bootstrap_source::SourceFile
-              string "src/parsing.evd" : Text
-              string "parsed package syntax model" : Text
-        let semantics: NonEmptyList<bootstrap_source::SourceFile>
-          call bootstrap_source::append_source -> NonEmptyList<bootstrap_source::SourceFile>
-            local parsing : NonEmptyList<bootstrap_source::SourceFile>
-            call bootstrap_source::source_file -> bootstrap_source::SourceFile
-              string "src/semantics.evd" : Text
-              string "semantic symbol catalog model" : Text
-        let diagnostics: NonEmptyList<bootstrap_source::SourceFile>
-          call bootstrap_source::append_source -> NonEmptyList<bootstrap_source::SourceFile>
-            local semantics : NonEmptyList<bootstrap_source::SourceFile>
-            call bootstrap_source::source_file -> bootstrap_source::SourceFile
-              string "src/diagnostics.evd" : Text
-              string "diagnostics and bootstrap failure reasons" : Text
-        let host: NonEmptyList<bootstrap_source::SourceFile>
-          call bootstrap_source::append_source -> NonEmptyList<bootstrap_source::SourceFile>
-            local diagnostics : NonEmptyList<bootstrap_source::SourceFile>
-            call bootstrap_source::source_file -> bootstrap_source::SourceFile
-              string "src/host.evd" : Text
-              string "host file, path, and tool boundary handles" : Text
-        let environment: NonEmptyList<bootstrap_source::SourceFile>
-          call bootstrap_source::append_source -> NonEmptyList<bootstrap_source::SourceFile>
-            local host : NonEmptyList<bootstrap_source::SourceFile>
-            call bootstrap_source::source_file -> bootstrap_source::SourceFile
-              string "src/environment.evd" : Text
-              string "environment boundary handles" : Text
-        let pipeline: NonEmptyList<bootstrap_source::SourceFile>
-          call bootstrap_source::append_source -> NonEmptyList<bootstrap_source::SourceFile>
-            local environment : NonEmptyList<bootstrap_source::SourceFile>
-            call bootstrap_source::source_file -> bootstrap_source::SourceFile
-              string "src/pipeline.evd" : Text
-              string "bootstrap pipeline phases and stage evidence" : Text
-        let main: NonEmptyList<bootstrap_source::SourceFile>
-          call bootstrap_source::append_source -> NonEmptyList<bootstrap_source::SourceFile>
-            local pipeline : NonEmptyList<bootstrap_source::SourceFile>
-            call bootstrap_source::source_file -> bootstrap_source::SourceFile
-              string "src/main.evd" : Text
-              string "bootstrap package entrypoint and aggregate status" : Text
-        result
-          construct bootstrap_source::SourceGraph : bootstrap_source::SourceGraph
-            init files
-              local main : NonEmptyList<bootstrap_source::SourceFile>
-  - public fn bootstrap_source::compiler_package(environment: bootstrap_environment::CompilerEnvironment) -> bootstrap_source::PackageSource
+  - public fn bootstrap_source::compiler_package(environment: bootstrap_environment::CompilerEnvironment, graph: bootstrap_source::SourceGraph) -> bootstrap_source::PackageSource
       block -> bootstrap_source::PackageSource
         result
           construct bootstrap_source::PackageSource : bootstrap_source::PackageSource
             init identity
               call bootstrap_source::compiler_package_identity -> bootstrap_source::PackageIdentity
                 local environment : bootstrap_environment::CompilerEnvironment
-            init graph
-              call bootstrap_source::compiler_source_graph -> bootstrap_source::SourceGraph
-  - public fn bootstrap_source::compiler_source_count() -> Int
-      block -> Int
-        let graph: bootstrap_source::SourceGraph
-          call bootstrap_source::compiler_source_graph -> bootstrap_source::SourceGraph
-        result
-          number 9 : Int
+            init graph [shorthand]
+              local graph : bootstrap_source::SourceGraph
   - public fn bootstrap_lexing::source_offset(byte_index: Int) -> bootstrap_lexing::SourceOffset
       block -> bootstrap_lexing::SourceOffset
         result
@@ -480,6 +428,14 @@ functions:
               construct bootstrap_diagnostics::DiagnosticSeverity::CompilationBlocked : bootstrap_diagnostics::DiagnosticSeverity
             init message [shorthand]
               local message : Text
+  - public fn bootstrap_diagnostics::original_file_diagnostic(path: bootstrap_source::SourcePath, message: Text) -> bootstrap_diagnostics::OriginalFileDiagnostic
+      block -> bootstrap_diagnostics::OriginalFileDiagnostic
+        result
+          construct bootstrap_diagnostics::OriginalFileDiagnostic : bootstrap_diagnostics::OriginalFileDiagnostic
+            init path [shorthand]
+              local path : bootstrap_source::SourcePath
+            init message [shorthand]
+              local message : Text
   - public foreign-fn bootstrap_host::read_text_file(request: bootstrap_host::HostReadRequest) -> bootstrap_host::HostFileContents
   - public foreign-fn bootstrap_host::write_text_file(request: bootstrap_host::HostWriteRequest) -> CInt
   - public foreign-fn bootstrap_host::resolve_path(base: bootstrap_host::HostPath, relative: bootstrap_host::HostPath) -> bootstrap_host::HostPath
@@ -592,6 +548,204 @@ functions:
               string "lld-link" : Text
             init source_commit
               string "source commit recorded in release evidence" : Text
+  - public fn bootstrap_discovery::source_manifest_entry(path: Text, summary: Text) -> bootstrap_discovery::SourceManifestEntry
+      block -> bootstrap_discovery::SourceManifestEntry
+        result
+          construct bootstrap_discovery::SourceManifestEntry : bootstrap_discovery::SourceManifestEntry
+            init path
+              construct bootstrap_source::SourcePath : bootstrap_source::SourcePath
+                init text
+                  local path : Text
+            init summary [shorthand]
+              local summary : Text
+  - private fn bootstrap_discovery::append_manifest_entry(entries: NonEmptyList<bootstrap_discovery::SourceManifestEntry>, entry: bootstrap_discovery::SourceManifestEntry) -> NonEmptyList<bootstrap_discovery::SourceManifestEntry>
+      block -> NonEmptyList<bootstrap_discovery::SourceManifestEntry>
+        let widened: List<bootstrap_discovery::SourceManifestEntry>
+          call nonempty_list_widen<bootstrap_discovery::SourceManifestEntry> -> List<bootstrap_discovery::SourceManifestEntry>
+            local entries : NonEmptyList<bootstrap_discovery::SourceManifestEntry>
+        result
+          call list_append<bootstrap_discovery::SourceManifestEntry> -> NonEmptyList<bootstrap_discovery::SourceManifestEntry>
+            local widened : List<bootstrap_discovery::SourceManifestEntry>
+            local entry : bootstrap_discovery::SourceManifestEntry
+  - private fn bootstrap_discovery::append_source_file(files: NonEmptyList<bootstrap_source::SourceFile>, file: bootstrap_source::SourceFile) -> NonEmptyList<bootstrap_source::SourceFile>
+      block -> NonEmptyList<bootstrap_source::SourceFile>
+        let widened: List<bootstrap_source::SourceFile>
+          call nonempty_list_widen<bootstrap_source::SourceFile> -> List<bootstrap_source::SourceFile>
+            local files : NonEmptyList<bootstrap_source::SourceFile>
+        result
+          call list_append<bootstrap_source::SourceFile> -> NonEmptyList<bootstrap_source::SourceFile>
+            local widened : List<bootstrap_source::SourceFile>
+            local file : bootstrap_source::SourceFile
+  - public fn bootstrap_discovery::compiler_source_plan(environment: bootstrap_environment::CompilerEnvironment) -> bootstrap_discovery::SourceDiscoveryPlan
+      block -> bootstrap_discovery::SourceDiscoveryPlan
+        let source: NonEmptyList<bootstrap_discovery::SourceManifestEntry>
+          call list_single<bootstrap_discovery::SourceManifestEntry> -> NonEmptyList<bootstrap_discovery::SourceManifestEntry>
+            call bootstrap_discovery::source_manifest_entry -> bootstrap_discovery::SourceManifestEntry
+              string "src/source.evd" : Text
+              string "package assembly helpers" : Text
+        let lexing: NonEmptyList<bootstrap_discovery::SourceManifestEntry>
+          call bootstrap_discovery::append_manifest_entry -> NonEmptyList<bootstrap_discovery::SourceManifestEntry>
+            local source : NonEmptyList<bootstrap_discovery::SourceManifestEntry>
+            call bootstrap_discovery::source_manifest_entry -> bootstrap_discovery::SourceManifestEntry
+              string "src/lexing.evd" : Text
+              string "lexical token stream model" : Text
+        let parsing: NonEmptyList<bootstrap_discovery::SourceManifestEntry>
+          call bootstrap_discovery::append_manifest_entry -> NonEmptyList<bootstrap_discovery::SourceManifestEntry>
+            local lexing : NonEmptyList<bootstrap_discovery::SourceManifestEntry>
+            call bootstrap_discovery::source_manifest_entry -> bootstrap_discovery::SourceManifestEntry
+              string "src/parsing.evd" : Text
+              string "parsed package syntax model" : Text
+        let semantics: NonEmptyList<bootstrap_discovery::SourceManifestEntry>
+          call bootstrap_discovery::append_manifest_entry -> NonEmptyList<bootstrap_discovery::SourceManifestEntry>
+            local parsing : NonEmptyList<bootstrap_discovery::SourceManifestEntry>
+            call bootstrap_discovery::source_manifest_entry -> bootstrap_discovery::SourceManifestEntry
+              string "src/semantics.evd" : Text
+              string "semantic symbol catalog model" : Text
+        let diagnostics: NonEmptyList<bootstrap_discovery::SourceManifestEntry>
+          call bootstrap_discovery::append_manifest_entry -> NonEmptyList<bootstrap_discovery::SourceManifestEntry>
+            local semantics : NonEmptyList<bootstrap_discovery::SourceManifestEntry>
+            call bootstrap_discovery::source_manifest_entry -> bootstrap_discovery::SourceManifestEntry
+              string "src/diagnostics.evd" : Text
+              string "diagnostics and bootstrap failure reasons" : Text
+        let host: NonEmptyList<bootstrap_discovery::SourceManifestEntry>
+          call bootstrap_discovery::append_manifest_entry -> NonEmptyList<bootstrap_discovery::SourceManifestEntry>
+            local diagnostics : NonEmptyList<bootstrap_discovery::SourceManifestEntry>
+            call bootstrap_discovery::source_manifest_entry -> bootstrap_discovery::SourceManifestEntry
+              string "src/host.evd" : Text
+              string "host file, path, and tool boundary handles" : Text
+        let environment_entry: NonEmptyList<bootstrap_discovery::SourceManifestEntry>
+          call bootstrap_discovery::append_manifest_entry -> NonEmptyList<bootstrap_discovery::SourceManifestEntry>
+            local host : NonEmptyList<bootstrap_discovery::SourceManifestEntry>
+            call bootstrap_discovery::source_manifest_entry -> bootstrap_discovery::SourceManifestEntry
+              string "src/environment.evd" : Text
+              string "environment boundary handles" : Text
+        let discovery: NonEmptyList<bootstrap_discovery::SourceManifestEntry>
+          call bootstrap_discovery::append_manifest_entry -> NonEmptyList<bootstrap_discovery::SourceManifestEntry>
+            local environment_entry : NonEmptyList<bootstrap_discovery::SourceManifestEntry>
+            call bootstrap_discovery::source_manifest_entry -> bootstrap_discovery::SourceManifestEntry
+              string "src/discovery.evd" : Text
+              string "deterministic source discovery and original-file diagnostics" : Text
+        let pipeline: NonEmptyList<bootstrap_discovery::SourceManifestEntry>
+          call bootstrap_discovery::append_manifest_entry -> NonEmptyList<bootstrap_discovery::SourceManifestEntry>
+            local discovery : NonEmptyList<bootstrap_discovery::SourceManifestEntry>
+            call bootstrap_discovery::source_manifest_entry -> bootstrap_discovery::SourceManifestEntry
+              string "src/pipeline.evd" : Text
+              string "bootstrap pipeline phases and stage evidence" : Text
+        let main: NonEmptyList<bootstrap_discovery::SourceManifestEntry>
+          call bootstrap_discovery::append_manifest_entry -> NonEmptyList<bootstrap_discovery::SourceManifestEntry>
+            local pipeline : NonEmptyList<bootstrap_discovery::SourceManifestEntry>
+            call bootstrap_discovery::source_manifest_entry -> bootstrap_discovery::SourceManifestEntry
+              string "src/main.evd" : Text
+              string "bootstrap package entrypoint and aggregate status" : Text
+        let package_root: bootstrap_source::SourcePath
+          construct bootstrap_source::SourcePath : bootstrap_source::SourcePath
+            init text
+              field-access .text : Text
+                field-access .package_root : bootstrap_host::HostPath
+                  local environment : bootstrap_environment::CompilerEnvironment
+        let manifest: bootstrap_source::SourcePath
+          construct bootstrap_source::SourcePath : bootstrap_source::SourcePath
+            init text
+              field-access .text : Text
+                field-access .manifest : bootstrap_host::HostPath
+                  local environment : bootstrap_environment::CompilerEnvironment
+        let source_root: bootstrap_source::SourcePath
+          construct bootstrap_source::SourcePath : bootstrap_source::SourcePath
+            init text
+              field-access .text : Text
+                field-access .source_root : bootstrap_host::HostPath
+                  local environment : bootstrap_environment::CompilerEnvironment
+        result
+          construct bootstrap_discovery::SourceDiscoveryPlan : bootstrap_discovery::SourceDiscoveryPlan
+            init package_root [shorthand]
+              local package_root : bootstrap_source::SourcePath
+            init manifest [shorthand]
+              local manifest : bootstrap_source::SourcePath
+            init source_root [shorthand]
+              local source_root : bootstrap_source::SourcePath
+            init entries
+              local main : NonEmptyList<bootstrap_discovery::SourceManifestEntry>
+  - public fn bootstrap_discovery::compiler_source_discovery(environment: bootstrap_environment::CompilerEnvironment) -> bootstrap_discovery::SourceDiscovery
+      block -> bootstrap_discovery::SourceDiscovery
+        let plan: bootstrap_discovery::SourceDiscoveryPlan
+          call bootstrap_discovery::compiler_source_plan -> bootstrap_discovery::SourceDiscoveryPlan
+            local environment : bootstrap_environment::CompilerEnvironment
+        let source: NonEmptyList<bootstrap_source::SourceFile>
+          call list_single<bootstrap_source::SourceFile> -> NonEmptyList<bootstrap_source::SourceFile>
+            call bootstrap_source::source_file -> bootstrap_source::SourceFile
+              string "src/source.evd" : Text
+              string "package assembly helpers" : Text
+        let lexing: NonEmptyList<bootstrap_source::SourceFile>
+          call bootstrap_discovery::append_source_file -> NonEmptyList<bootstrap_source::SourceFile>
+            local source : NonEmptyList<bootstrap_source::SourceFile>
+            call bootstrap_source::source_file -> bootstrap_source::SourceFile
+              string "src/lexing.evd" : Text
+              string "lexical token stream model" : Text
+        let parsing: NonEmptyList<bootstrap_source::SourceFile>
+          call bootstrap_discovery::append_source_file -> NonEmptyList<bootstrap_source::SourceFile>
+            local lexing : NonEmptyList<bootstrap_source::SourceFile>
+            call bootstrap_source::source_file -> bootstrap_source::SourceFile
+              string "src/parsing.evd" : Text
+              string "parsed package syntax model" : Text
+        let semantics: NonEmptyList<bootstrap_source::SourceFile>
+          call bootstrap_discovery::append_source_file -> NonEmptyList<bootstrap_source::SourceFile>
+            local parsing : NonEmptyList<bootstrap_source::SourceFile>
+            call bootstrap_source::source_file -> bootstrap_source::SourceFile
+              string "src/semantics.evd" : Text
+              string "semantic symbol catalog model" : Text
+        let diagnostics: NonEmptyList<bootstrap_source::SourceFile>
+          call bootstrap_discovery::append_source_file -> NonEmptyList<bootstrap_source::SourceFile>
+            local semantics : NonEmptyList<bootstrap_source::SourceFile>
+            call bootstrap_source::source_file -> bootstrap_source::SourceFile
+              string "src/diagnostics.evd" : Text
+              string "diagnostics and bootstrap failure reasons" : Text
+        let host: NonEmptyList<bootstrap_source::SourceFile>
+          call bootstrap_discovery::append_source_file -> NonEmptyList<bootstrap_source::SourceFile>
+            local diagnostics : NonEmptyList<bootstrap_source::SourceFile>
+            call bootstrap_source::source_file -> bootstrap_source::SourceFile
+              string "src/host.evd" : Text
+              string "host file, path, and tool boundary handles" : Text
+        let environment_files: NonEmptyList<bootstrap_source::SourceFile>
+          call bootstrap_discovery::append_source_file -> NonEmptyList<bootstrap_source::SourceFile>
+            local host : NonEmptyList<bootstrap_source::SourceFile>
+            call bootstrap_source::source_file -> bootstrap_source::SourceFile
+              string "src/environment.evd" : Text
+              string "environment boundary handles" : Text
+        let discovery: NonEmptyList<bootstrap_source::SourceFile>
+          call bootstrap_discovery::append_source_file -> NonEmptyList<bootstrap_source::SourceFile>
+            local environment_files : NonEmptyList<bootstrap_source::SourceFile>
+            call bootstrap_source::source_file -> bootstrap_source::SourceFile
+              string "src/discovery.evd" : Text
+              string "deterministic source discovery and original-file diagnostics" : Text
+        let pipeline: NonEmptyList<bootstrap_source::SourceFile>
+          call bootstrap_discovery::append_source_file -> NonEmptyList<bootstrap_source::SourceFile>
+            local discovery : NonEmptyList<bootstrap_source::SourceFile>
+            call bootstrap_source::source_file -> bootstrap_source::SourceFile
+              string "src/pipeline.evd" : Text
+              string "bootstrap pipeline phases and stage evidence" : Text
+        let main: NonEmptyList<bootstrap_source::SourceFile>
+          call bootstrap_discovery::append_source_file -> NonEmptyList<bootstrap_source::SourceFile>
+            local pipeline : NonEmptyList<bootstrap_source::SourceFile>
+            call bootstrap_source::source_file -> bootstrap_source::SourceFile
+              string "src/main.evd" : Text
+              string "bootstrap package entrypoint and aggregate status" : Text
+        let original_file_diagnostic: bootstrap_diagnostics::OriginalFileDiagnostic
+          call bootstrap_diagnostics::original_file_diagnostic -> bootstrap_diagnostics::OriginalFileDiagnostic
+            field-access .manifest : bootstrap_source::SourcePath
+              local plan : bootstrap_discovery::SourceDiscoveryPlan
+            string "package manifest retains original-file anchors for deterministic source discovery" : Text
+        result
+          construct bootstrap_discovery::SourceDiscovery : bootstrap_discovery::SourceDiscovery
+            init plan [shorthand]
+              local plan : bootstrap_discovery::SourceDiscoveryPlan
+            init graph
+              construct bootstrap_source::SourceGraph : bootstrap_source::SourceGraph
+                init files
+                  local main : NonEmptyList<bootstrap_source::SourceFile>
+            init original_file_diagnostic [shorthand]
+              local original_file_diagnostic : bootstrap_diagnostics::OriginalFileDiagnostic
+            init source_count
+              number 10 : Int
   - public fn bootstrap_pipeline::outline(source: bootstrap_source::PackageSource) -> bootstrap_pipeline::CompilerPipeline::SourceOutlined [affine]
       block -> bootstrap_pipeline::CompilerPipeline::SourceOutlined [affine]
         let tokens: bootstrap_lexing::TokenStream
@@ -722,11 +876,16 @@ functions:
           call bootstrap_host::bootstrap_host_surface -> bootstrap_host::CompilerHostSurface
         let environment: bootstrap_environment::CompilerEnvironment
           call bootstrap_environment::bootstrap_environment_surface -> bootstrap_environment::CompilerEnvironment
+        let discovery: bootstrap_discovery::SourceDiscovery
+          call bootstrap_discovery::compiler_source_discovery -> bootstrap_discovery::SourceDiscovery
+            local environment : bootstrap_environment::CompilerEnvironment
         let exit_status: bootstrap_host::ExitStatus
           call bootstrap_host::success_status -> bootstrap_host::ExitStatus
         let source: bootstrap_source::PackageSource
           call bootstrap_source::compiler_package -> bootstrap_source::PackageSource
             local environment : bootstrap_environment::CompilerEnvironment
+            field-access .graph : bootstrap_source::SourceGraph
+              local discovery : bootstrap_discovery::SourceDiscovery
         let outlined: bootstrap_pipeline::CompilerPipeline::SourceOutlined [affine]
           call bootstrap_pipeline::outline -> bootstrap_pipeline::CompilerPipeline::SourceOutlined [affine]
             local source : bootstrap_source::PackageSource
@@ -762,6 +921,8 @@ functions:
               local host : bootstrap_host::CompilerHostSurface
             init environment [shorthand]
               local environment : bootstrap_environment::CompilerEnvironment
+            init discovery [shorthand]
+              local discovery : bootstrap_discovery::SourceDiscovery
             init package
               local source : bootstrap_source::PackageSource
             init exit_status [shorthand]
@@ -781,4 +942,6 @@ functions:
         let status: bootstrap_compiler::BootstrapStatus [affine]
           call bootstrap_compiler::build_status -> bootstrap_compiler::BootstrapStatus [affine]
         result
-          call bootstrap_source::compiler_source_count -> Int
+          field-access .source_count : Int
+            field-access .discovery : bootstrap_discovery::SourceDiscovery
+              local status : bootstrap_compiler::BootstrapStatus [affine]

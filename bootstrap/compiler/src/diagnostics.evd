@@ -1,3 +1,5 @@
+import bootstrap_source;
+
 domain module bootstrap_diagnostics {
 public state DiagnosticSeverity {
     SourceRejected,
@@ -7,6 +9,11 @@ public state DiagnosticSeverity {
 
 public record Diagnostic {
     public severity: DiagnosticSeverity,
+    public message: Text,
+}
+
+public record OriginalFileDiagnostic {
+    public path: bootstrap_source::SourcePath,
     public message: Text,
 }
 
@@ -26,6 +33,13 @@ public fn source_rejected(message: Text) -> Diagnostic {
 public fn stage_blocked(message: Text) -> Diagnostic {
     Diagnostic {
         severity: CompilationBlocked,
+        message,
+    }
+}
+
+public fn original_file_diagnostic(path: bootstrap_source::SourcePath, message: Text) -> OriginalFileDiagnostic {
+    OriginalFileDiagnostic {
+        path,
         message,
     }
 }

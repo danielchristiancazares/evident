@@ -7,5 +7,6 @@ src/semantics.evd
 src/diagnostics.evd
 src/host.evd
 src/environment.evd
+src/discovery.evd
 src/pipeline.evd
 src/main.evd
