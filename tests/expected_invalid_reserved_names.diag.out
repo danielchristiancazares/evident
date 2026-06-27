@@ -1,21 +1,69 @@
-<input>:3:5: error: public name 'AllowAll' is reserved or too generic
+<input>:3:5: error: public name 'Yes' is reserved or too generic
+        Yes,
+        ^^^
+<input>:4:5: error: public name 'No' is reserved or too generic
+        No,
+        ^^
+<input>:5:5: error: public name 'True' is reserved or too generic
+        True,
+        ^^^^
+<input>:6:5: error: public name 'False' is reserved or too generic
+        False,
+        ^^^^^
+<input>:10:5: error: public name 'Some' is reserved or too generic
+        Some,
+        ^^^^
+<input>:11:5: error: public name 'None' is reserved or too generic
+        None,
+        ^^^^
+<input>:12:5: error: public name 'Absent' is reserved or too generic
+        Absent,
+        ^^^^^^
+<input>:16:5: error: public name 'AllowAll' is reserved or too generic
         AllowAll,
         ^^^^^^^^
-<input>:8:12: error: public name 'Missing' is reserved or too generic
+<input>:21:12: error: public name 'Missing' is reserved or too generic
         public Missing: Int,
                ^^^^^^^^^^^^
-<input>:12:14: error: public name 'Present' is reserved or too generic
+<input>:22:12: error: public name 'Default' is reserved or too generic
+        public Default: Int,
+               ^^^^^^^^^^^^
+<input>:23:12: error: public name 'Other' is reserved or too generic
+        public Other: Int,
+               ^^^^^^^^^^
+<input>:24:12: error: public name 'Invalid' is reserved or too generic
+        public Invalid: Int,
+               ^^^^^^^^^^^^
+<input>:25:12: error: public name 'Unset' is reserved or too generic
+        public Unset: Int,
+               ^^^^^^^^^^
+<input>:29:14: error: public name 'Present' is reserved or too generic
         Loaded { Present: Int },
                  ^^^^^^^^^^^^
-<input>:16:14: error: public name 'Unknown' is reserved or too generic
+<input>:33:14: error: public name 'Unknown' is reserved or too generic
         Denied { Unknown: Text },
                  ^^^^^^^^^^^^^
-<input>:20:12: error: public name 'Any' is reserved or too generic
+<input>:37:12: error: public name 'Any' is reserved or too generic
         public Any: Int,
                ^^^^^^^^
-<input>:28:9: error: public name 'Ready' is reserved or too generic
+<input>:46:9: error: public name 'Ready' is reserved or too generic
             Ready,
             ^^^^^
-<input>:25:16: error: public name 'All' is reserved or too generic
+<input>:47:9: error: public name 'Unavailable' is reserved or too generic
+            Unavailable,
+            ^^^^^^^^^^^
+<input>:48:9: error: public name 'Connected' is reserved or too generic
+            Connected,
+            ^^^^^^^^^
+<input>:49:9: error: public name 'Disconnected' is reserved or too generic
+            Disconnected,
+            ^^^^^^^^^^^^
+<input>:42:16: error: public name 'All' is reserved or too generic
             public All: Int,
                    ^^^^^^^^
+<input>:43:16: error: public name 'Unrestricted' is reserved or too generic
+            public Unrestricted: Int,
+                   ^^^^^^^^^^^^^^^^^
+<input>:53:8: error: public name 'X' is reserved or too generic
+    public permit X
+           ^^^^^^^^

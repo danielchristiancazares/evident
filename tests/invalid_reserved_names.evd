@@ -1,4 +1,17 @@
 domain module test {
+public state BooleanNames {
+    Yes,
+    No,
+    True,
+    False,
+}
+
+public state PresenceNames {
+    Some,
+    None,
+    Absent,
+}
+
 public state AccessMode {
     AllowAll,
     Restricted,
@@ -6,6 +19,10 @@ public state AccessMode {
 
 public record PublicRecord {
     public Missing: Int,
+    public Default: Int,
+    public Other: Int,
+    public Invalid: Int,
+    public Unset: Int,
 }
 
 public state PublicStatePayload {
@@ -23,10 +40,15 @@ public proof PublicProof {
 public phase Lifecycle {
     fields {
         public All: Int,
+        public Unrestricted: Int,
     }
     positions {
         Ready,
-        Draft,
+        Unavailable,
+        Connected,
+        Disconnected,
     }
 }
+
+public permit X
 }
