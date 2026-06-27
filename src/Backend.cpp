@@ -408,6 +408,7 @@ enum class CompilerOwnedFunctionLowering {
     MapBindNew,
     MapReplaceBound,
     MapBindOrReplace,
+    MapRemoveBound,
     ListConsumeFirst,
     MapConsumeFirstEntry,
     MapEntries,
@@ -465,6 +466,9 @@ CompilerOwnedFunctionLowering compiler_owned_function_lowering(std::string_view 
     }
     if (base_name == "map_bind_or_replace" || base_name == "nonempty_map_bind_or_replace") {
         return CompilerOwnedFunctionLowering::MapBindOrReplace;
+    }
+    if (base_name == "map_remove_bound" || base_name == "nonempty_map_remove_bound") {
+        return CompilerOwnedFunctionLowering::MapRemoveBound;
     }
     if (base_name == "nonempty_list_consume_first") {
         return CompilerOwnedFunctionLowering::ListConsumeFirst;
@@ -3363,6 +3367,281 @@ std::expected<std::string, std::string> FunctionEmitter::emit_compiler_owned_fun
             emit_failure_return("fail");
             out << "\n";
         }
+        out << "}\n";
+        return out.str();
+    }
+
+    case CompilerOwnedFunctionLowering::MapRemoveBound: {
+        if (param_types.size() != 2) {
+            return std::unexpected("internal backend error: map remove-bound function '"
+                                   + hir_function_.qualified_name + "' expected two parameters");
+        }
+        if (hir_function_.failure.behavior() != hir::FunctionFailureBehavior::YieldsReason) {
+            return std::unexpected("internal backend error: map remove-bound function '"
+                                   + hir_function_.qualified_name + "' does not declare fails");
+        }
+
+        const std::string_view base_name = function_base_name(hir_function_.qualified_name);
+        const BuiltinKind expected_param_kind = base_name == "nonempty_map_remove_bound"
+            ? BuiltinKind::NonEmptyMap
+            : BuiltinKind::Map;
+        if (!has_builtin_kind(param_types[0], expected_param_kind)) {
+            return std::unexpected("internal backend error: map remove-bound function '"
+                                   + hir_function_.qualified_name + "' has unsupported map parameter type '"
+                                   + param_types[0].source_name() + "'");
+        }
+        if (hir_function_.params.size() != 2 || hir_function_.params[0].type.args.size() != 2) {
+            return std::unexpected("internal backend error: map remove-bound function '"
+                                   + hir_function_.qualified_name + "' has malformed HIR parameters");
+        }
+
+        const std::string key_source_name = hir_function_.params[0].type.args[0].text;
+        const std::string value_source_name = hir_function_.params[0].type.args[1].text;
+        if (hir_function_.params[1].type.text != key_source_name) {
+            return std::unexpected("internal backend error: map remove-bound function '"
+                                   + hir_function_.qualified_name + "' has mismatched key parameter type");
+        }
+
+        const std::expected<ResolvedType, std::string> key_type = model_.resolve_type_name(key_source_name);
+        if (!key_type.has_value()) {
+            return std::unexpected(key_type.error());
+        }
+        if (key_type->identity().category() != ResolvedTypeCategory::BuiltinType) {
+            return std::unexpected("internal backend error: map remove-bound function '"
+                                   + hir_function_.qualified_name + "' uses non-builtin key type '"
+                                   + key_type->source_name() + "'");
+        }
+
+        const BuiltinKind key_kind = key_type->identity().builtin_kind();
+        switch (key_kind) {
+        case BuiltinKind::Int:
+        case BuiltinKind::Nat:
+        case BuiltinKind::Byte:
+        case BuiltinKind::Char:
+        case BuiltinKind::Text:
+        case BuiltinKind::Bytes:
+            break;
+        case BuiltinKind::Float:
+        case BuiltinKind::CInt:
+        case BuiltinKind::CSize:
+        case BuiltinKind::CString:
+        case BuiltinKind::List:
+        case BuiltinKind::NonEmptyList:
+        case BuiltinKind::Map:
+        case BuiltinKind::NonEmptyMap:
+        case BuiltinKind::Unit:
+        case BuiltinKind::Never:
+            return std::unexpected("internal backend error: map remove-bound function '"
+                                   + hir_function_.qualified_name + "' uses unsupported key type '"
+                                   + key_type->source_name() + "'");
+        }
+
+        if (key_kind == BuiltinKind::Text || key_kind == BuiltinKind::Bytes) {
+            module_.require_runtime_helper(RuntimeHelper::Memcmp);
+        }
+
+        const std::expected<ResolvedType, std::string> success_type =
+            model_.resolve_type_name(hir_function_.return_type.text);
+        if (!success_type.has_value()) {
+            return std::unexpected(success_type.error());
+        }
+        if (!has_builtin_kind(*success_type, BuiltinKind::Map)) {
+            return std::unexpected("internal backend error: map remove-bound function '"
+                                   + hir_function_.qualified_name + "' returns '"
+                                   + success_type->source_name() + "'");
+        }
+
+        const std::string entry_source_name = "MapEntry<" + key_source_name + ", " + value_source_name + ">";
+        const std::expected<ResolvedType, std::string> entry_type = model_.resolve_type_name(entry_source_name);
+        if (!entry_type.has_value()) {
+            return std::unexpected(entry_type.error());
+        }
+        const std::expected<const TypeLayout*, std::string> entry_layout_result =
+            model_.ensure_backend_aggregate_layout(entry_source_name);
+        if (!entry_layout_result.has_value()) {
+            return std::unexpected(entry_layout_result.error());
+        }
+        const TypeLayout& entry_layout = **entry_layout_result;
+        const auto key_field_it = entry_layout.field_indices.find("key");
+        if (key_field_it == entry_layout.field_indices.end()) {
+            return std::unexpected("internal backend error: map remove-bound entry layout for '"
+                                   + entry_source_name + "' is missing expected key field");
+        }
+
+        const std::expected<const YieldLayout*, std::string> yield_layout_result =
+            model_.ensure_yield_layout(hir_function_.id);
+        if (!yield_layout_result.has_value()) {
+            return std::unexpected(yield_layout_result.error());
+        }
+        const YieldLayout& yield_layout = **yield_layout_result;
+        if (return_type.llvm_type() != yield_layout.llvm_type) {
+            return std::unexpected("internal backend error: map remove-bound function '"
+                                   + hir_function_.qualified_name + "' has mismatched yield return type");
+        }
+
+        const hir::TypeDecl& reason_decl = model_.type(hir_function_.failure.reason_type_id());
+        if (reason_decl.qualified_name != "MapBindingFailure") {
+            return std::unexpected("internal backend error: map remove-bound function '"
+                                   + hir_function_.qualified_name + "' fails with '"
+                                   + reason_decl.qualified_name + "'");
+        }
+        const std::expected<ResolvedType, std::string> failure_type =
+            model_.resolve_type_name(reason_decl.qualified_name);
+        if (!failure_type.has_value()) {
+            return std::unexpected(failure_type.error());
+        }
+        const std::expected<const TypeLayout*, std::string> failure_layout_result =
+            model_.ensure_type_layout(reason_decl.id);
+        if (!failure_layout_result.has_value()) {
+            return std::unexpected(failure_layout_result.error());
+        }
+        const TypeLayout& failure_layout = **failure_layout_result;
+        const std::expected<std::uint32_t, std::string> failure_variant_tag_result =
+            [&]() -> std::expected<std::uint32_t, std::string> {
+            for (const hir::VariantId variant_id : reason_decl.variants) {
+                const hir::VariantDecl& variant_decl = model_.variant(variant_id);
+                if (variant_decl.name != "RequestedKeyHadNoBinding") {
+                    continue;
+                }
+                const auto layout_it = failure_layout.variants.find(variant_id);
+                if (layout_it == failure_layout.variants.end()) {
+                    return std::unexpected("internal backend error: missing layout for failure variant '"
+                                           + variant_decl.qualified_name + "'");
+                }
+                return layout_it->second.tag_value;
+            }
+            return std::unexpected("internal backend error: map remove-bound function '"
+                                   + hir_function_.qualified_name
+                                   + "' could not find failure variant 'RequestedKeyHadNoBinding'");
+        }();
+        if (!failure_variant_tag_result.has_value()) {
+            return std::unexpected(failure_variant_tag_result.error());
+        }
+        const std::uint32_t failure_variant_tag = *failure_variant_tag_result;
+
+        module_.require_runtime_helper(RuntimeHelper::Malloc);
+        module_.require_runtime_helper(RuntimeHelper::Memcpy);
+
+        const auto emit_yield_return =
+            [&](std::string_view prefix,
+                std::string_view wrapper_tag,
+                const ResolvedType& payload_type,
+                const std::string& payload_value) {
+            out << "  %" << prefix << ".tag = insertvalue " << yield_layout.llvm_type
+                << " zeroinitializer, i8 " << wrapper_tag << ", 0\n";
+            if (yield_layout.payload_size == 0) {
+                out << "  ret " << yield_layout.llvm_type << " %" << prefix << ".tag\n";
+                return;
+            }
+            out << "  %" << prefix << ".pack.slot = alloca " << yield_layout.payload_storage_type << "\n";
+            out << "  store " << yield_layout.payload_storage_type << " zeroinitializer, ptr %"
+                << prefix << ".pack.slot\n";
+            out << "  store " << payload_type.llvm_type() << " " << payload_value << ", ptr %"
+                << prefix << ".pack.slot\n";
+            out << "  %" << prefix << ".pack = load " << yield_layout.payload_storage_type
+                << ", ptr %" << prefix << ".pack.slot\n";
+            out << "  %" << prefix << ".value = insertvalue " << yield_layout.llvm_type
+                << " %" << prefix << ".tag, " << yield_layout.payload_storage_type << " %"
+                << prefix << ".pack, " << yield_layout.payload_field_index << "\n";
+            out << "  ret " << yield_layout.llvm_type << " %" << prefix << ".value\n";
+        };
+
+        const auto emit_failure_return = [&]() {
+            out << "  %reason0 = insertvalue " << failure_type->llvm_type()
+                << " zeroinitializer, i32 " << failure_variant_tag << ", 0\n";
+            emit_yield_return("fail", "1", *failure_type, "%reason0");
+        };
+
+        const std::size_t entry_stride = element_storage_stride(*entry_type);
+        out << "define " << linkage << yield_layout.llvm_type << " @"
+            << model_.function_symbol(hir_function_.id) << "(" << param_types[0].llvm_type()
+            << " %arg0, " << param_types[1].llvm_type() << " %arg1) {\n";
+        out << "entry:\n";
+        out << "  %old_data0 = extractvalue " << param_types[0].llvm_type() << " %arg0, 0\n";
+        out << "  %old_count0 = extractvalue " << param_types[0].llvm_type() << " %arg0, 1\n";
+        out << "  br label %scan\n";
+        out << "\n";
+        out << "scan:\n";
+        out << "  %index0 = phi i64 [ 0, %entry ], [ %next0, %not_match ]\n";
+        out << "  %at_end0 = icmp eq i64 %index0, %old_count0\n";
+        out << "  br i1 %at_end0, label %missing, label %probe\n";
+        out << "\n";
+        out << "probe:\n";
+        out << "  %offset0 = mul i64 %index0, " << entry_stride << "\n";
+        out << "  %entry_ptr0 = getelementptr i8, ptr %old_data0, i64 %offset0\n";
+        out << "  %entry0 = load " << entry_type->llvm_type() << ", ptr %entry_ptr0\n";
+        out << "  %candidate_key0 = extractvalue " << entry_type->llvm_type()
+            << " %entry0, " << key_field_it->second << "\n";
+        switch (key_kind) {
+        case BuiltinKind::Int:
+        case BuiltinKind::Nat:
+        case BuiltinKind::Byte:
+        case BuiltinKind::Char:
+            out << "  %key_equal0 = icmp eq " << key_type->llvm_type() << " %candidate_key0, %arg1\n";
+            out << "  br i1 %key_equal0, label %found, label %not_match\n";
+            break;
+        case BuiltinKind::Text:
+        case BuiltinKind::Bytes:
+            out << "  %candidate_data0 = extractvalue " << key_type->llvm_type() << " %candidate_key0, 0\n";
+            out << "  %candidate_count0 = extractvalue " << key_type->llvm_type() << " %candidate_key0, 1\n";
+            out << "  %lookup_data0 = extractvalue " << key_type->llvm_type() << " %arg1, 0\n";
+            out << "  %lookup_count0 = extractvalue " << key_type->llvm_type() << " %arg1, 1\n";
+            out << "  %key_size_equal0 = icmp eq i64 %candidate_count0, %lookup_count0\n";
+            out << "  br i1 %key_size_equal0, label %key_size_equal, label %not_match\n";
+            out << "\n";
+            out << "key_size_equal:\n";
+            out << "  %key_empty0 = icmp eq i64 %candidate_count0, 0\n";
+            out << "  br i1 %key_empty0, label %found, label %key_bytes_compare\n";
+            out << "\n";
+            out << "key_bytes_compare:\n";
+            out << "  %key_cmp0 = call i32 @memcmp(ptr %candidate_data0, ptr %lookup_data0, i64 %candidate_count0)\n";
+            out << "  %key_equal0 = icmp eq i32 %key_cmp0, 0\n";
+            out << "  br i1 %key_equal0, label %found, label %not_match\n";
+            break;
+        case BuiltinKind::Float:
+        case BuiltinKind::CInt:
+        case BuiltinKind::CSize:
+        case BuiltinKind::CString:
+        case BuiltinKind::List:
+        case BuiltinKind::NonEmptyList:
+        case BuiltinKind::Map:
+        case BuiltinKind::NonEmptyMap:
+        case BuiltinKind::Unit:
+        case BuiltinKind::Never:
+            return std::unexpected("internal backend error: map remove-bound function '"
+                                   + hir_function_.qualified_name + "' reached unsupported key lowering");
+        }
+        out << "\n";
+        out << "not_match:\n";
+        out << "  %next0 = add i64 %index0, 1\n";
+        out << "  br label %scan\n";
+        out << "\n";
+        out << "found:\n";
+        out << "  %new_count0 = sub i64 %old_count0, 1\n";
+        out << "  %result_empty0 = icmp eq i64 %new_count0, 0\n";
+        out << "  br i1 %result_empty0, label %removed_empty, label %removed_nonempty\n";
+        out << "\n";
+        out << "removed_nonempty:\n";
+        out << "  %prefix_bytes0 = mul i64 %index0, " << entry_stride << "\n";
+        out << "  %after_index0 = add i64 %index0, 1\n";
+        out << "  %suffix_count0 = sub i64 %old_count0, %after_index0\n";
+        out << "  %suffix_bytes0 = mul i64 %suffix_count0, " << entry_stride << "\n";
+        out << "  %alloc_bytes0 = mul i64 %new_count0, " << entry_stride << "\n";
+        out << "  %data0 = call ptr @malloc(i64 %alloc_bytes0)\n";
+        out << "  call void @llvm.memcpy.p0.p0.i64(ptr %data0, ptr %old_data0, i64 %prefix_bytes0, i1 false)\n";
+        out << "  %suffix_src_offset0 = mul i64 %after_index0, " << entry_stride << "\n";
+        out << "  %suffix_src0 = getelementptr i8, ptr %old_data0, i64 %suffix_src_offset0\n";
+        out << "  %suffix_dest0 = getelementptr i8, ptr %data0, i64 %prefix_bytes0\n";
+        out << "  call void @llvm.memcpy.p0.p0.i64(ptr %suffix_dest0, ptr %suffix_src0, i64 %suffix_bytes0, i1 false)\n";
+        out << "  %carrier0 = insertvalue " << success_type->llvm_type() << " zeroinitializer, ptr %data0, 0\n";
+        out << "  %carrier1 = insertvalue " << success_type->llvm_type() << " %carrier0, i64 %new_count0, 1\n";
+        emit_yield_return("ok_nonempty", "0", *success_type, "%carrier1");
+        out << "\n";
+        out << "removed_empty:\n";
+        emit_yield_return("ok_empty", "0", *success_type, "zeroinitializer");
+        out << "\n";
+        out << "missing:\n";
+        emit_failure_return();
         out << "}\n";
         return out.str();
     }

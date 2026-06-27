@@ -1,8 +1,8 @@
 domain module test {
 public fn main() -> Int {
     let empty = map_empty<Text, Int>()
-    match map_remove_bound<Text, Int>(empty, "one") {
-        succeeded(entries) => 0,
+    match map_consume_bound_value<Text, Int>(empty, "one") {
+        succeeded(consumed) => consumed.value,
         failed(RequestedKeyHadNoBinding) => 1,
         failed(RequestedKeyAlreadyHadBinding) => 2,
     }

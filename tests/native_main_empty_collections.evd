@@ -220,6 +220,82 @@ public fn bind_or_replace_new_first_value() -> Int {
     entry.value
 }
 
+public fn remove_single_map_then_missing_value() -> Int {
+    match nonempty_map_remove_bound<Text, Int>(single_map(), "one") {
+        succeeded(entries) => {
+            match map_lookup_copy<Text, Int>(entries, "one") {
+                succeeded(value) => value,
+                failed(RequestedKeyHadNoBinding) => 7,
+                failed(RequestedKeyAlreadyHadBinding) => 3,
+            }
+        },
+        failed(RequestedKeyHadNoBinding) => 3,
+        failed(RequestedKeyAlreadyHadBinding) => 3,
+    }
+}
+
+public fn remove_missing_map_value() -> Int {
+    match map_remove_bound<Text, Int>(widened_map(single_map()), "two") {
+        succeeded(entries) => 3,
+        failed(RequestedKeyHadNoBinding) => 7,
+        failed(RequestedKeyAlreadyHadBinding) => 3,
+    }
+}
+
+public fn remove_bound_int_map_value() -> Int {
+    match map_remove_bound<Int, Int>(widened_int_map(single_int_map()), 4) {
+        succeeded(entries) => {
+            match map_lookup_copy<Int, Int>(entries, 4) {
+                succeeded(value) => value,
+                failed(RequestedKeyHadNoBinding) => 7,
+                failed(RequestedKeyAlreadyHadBinding) => 3,
+            }
+        },
+        failed(RequestedKeyHadNoBinding) => 3,
+        failed(RequestedKeyAlreadyHadBinding) => 3,
+    }
+}
+
+public fn remove_inserted_first_map_value() -> Int {
+    match map_bind_new<Text, Int>(widened_map(single_map()), "alpha", 13) {
+        succeeded(inserted) => {
+            match nonempty_map_remove_bound<Text, Int>(inserted, "alpha") {
+                succeeded(remaining) => {
+                    match map_lookup_copy<Text, Int>(remaining, "one") {
+                        succeeded(value) => value,
+                        failed(RequestedKeyHadNoBinding) => 3,
+                        failed(RequestedKeyAlreadyHadBinding) => 3,
+                    }
+                },
+                failed(RequestedKeyHadNoBinding) => 3,
+                failed(RequestedKeyAlreadyHadBinding) => 3,
+            }
+        },
+        failed(RequestedKeyHadNoBinding) => 3,
+        failed(RequestedKeyAlreadyHadBinding) => 3,
+    }
+}
+
+public fn remove_inserted_last_map_value() -> Int {
+    match map_bind_new<Text, Int>(widened_map(single_map()), "alpha", 13) {
+        succeeded(inserted) => {
+            match nonempty_map_remove_bound<Text, Int>(inserted, "one") {
+                succeeded(remaining) => {
+                    match map_lookup_copy<Text, Int>(remaining, "alpha") {
+                        succeeded(value) => value,
+                        failed(RequestedKeyHadNoBinding) => 3,
+                        failed(RequestedKeyAlreadyHadBinding) => 3,
+                    }
+                },
+                failed(RequestedKeyHadNoBinding) => 3,
+                failed(RequestedKeyAlreadyHadBinding) => 3,
+            }
+        },
+        failed(RequestedKeyHadNoBinding) => 3,
+        failed(RequestedKeyAlreadyHadBinding) => 3,
+    }
+}
+
 public fn copied_empty_map_entries_count() -> Nat {
     let entries = map_entries_copy<Text, Int>(empty_map())
     list_count_copy<MapEntry<Text, Int>>(entries)
@@ -309,6 +385,11 @@ public fn main() -> Int {
     let bind_or_replace_result = bind_or_replace_existing_value()
     let bind_or_replace_new_result = bind_or_replace_new_first_value()
     let missing_replace_result = replace_missing_single_map_value()
+    let removed_single_result = remove_single_map_then_missing_value()
+    let removed_missing_result = remove_missing_map_value()
+    let removed_int_result = remove_bound_int_map_value()
+    let removed_inserted_first_result = remove_inserted_first_map_value()
+    let removed_inserted_last_result = remove_inserted_last_map_value()
     bind_duplicate_single_map_value()
 }
 }
