@@ -405,6 +405,7 @@ enum class CompilerOwnedFunctionLowering {
     ListFirstCopy,
     MapFirstEntryCopy,
     ListConsumeFirst,
+    MapConsumeFirstEntry,
     ListPrepend,
     ListAppend,
     ListConcat,
@@ -444,6 +445,9 @@ CompilerOwnedFunctionLowering compiler_owned_function_lowering(std::string_view 
     }
     if (base_name == "nonempty_list_consume_first") {
         return CompilerOwnedFunctionLowering::ListConsumeFirst;
+    }
+    if (base_name == "nonempty_map_consume_first_entry") {
+        return CompilerOwnedFunctionLowering::MapConsumeFirstEntry;
     }
     if (base_name == "list_prepend") {
         return CompilerOwnedFunctionLowering::ListPrepend;
@@ -2692,6 +2696,78 @@ std::expected<std::string, std::string> FunctionEmitter::emit_compiler_owned_fun
         out << "  ret " << return_type.llvm_type() << " %entry0\n";
         out << "}\n";
         return out.str();
+
+    case CompilerOwnedFunctionLowering::MapConsumeFirstEntry: {
+        if (param_types.size() != 1) {
+            return std::unexpected("internal backend error: map consume-first-entry function '"
+                                   + hir_function_.qualified_name + "' expected one parameter");
+        }
+        if (!has_builtin_kind(param_types[0], BuiltinKind::NonEmptyMap)) {
+            return std::unexpected("internal backend error: map consume-first-entry function '"
+                                   + hir_function_.qualified_name + "' has unsupported parameter type '"
+                                   + param_types[0].source_name() + "'");
+        }
+        if (return_type.identity().category() != ResolvedTypeCategory::BackendAggregateStorage
+            || type_base_name(return_type.source_name()) != "MapFirstEntryAndRest") {
+            return std::unexpected("internal backend error: map consume-first-entry function '"
+                                   + hir_function_.qualified_name + "' returns '"
+                                   + return_type.source_name() + "'");
+        }
+        if (hir_function_.params[0].type.args.size() != 2) {
+            return std::unexpected("internal backend error: map consume-first-entry function '"
+                                   + hir_function_.qualified_name + "' expected two map type arguments");
+        }
+
+        const std::string key_source_name = hir_function_.params[0].type.args[0].text;
+        const std::string value_source_name = hir_function_.params[0].type.args[1].text;
+        const std::string entry_source_name = "MapEntry<" + key_source_name + ", " + value_source_name + ">";
+        const std::expected<ResolvedType, std::string> entry_type = model_.resolve_type_name(entry_source_name);
+        if (!entry_type.has_value()) {
+            return std::unexpected(entry_type.error());
+        }
+        const std::string rest_source_name = "Map<" + key_source_name + ", " + value_source_name + ">";
+        const std::expected<ResolvedType, std::string> rest_type = model_.resolve_type_name(rest_source_name);
+        if (!rest_type.has_value()) {
+            return std::unexpected(rest_type.error());
+        }
+        if (!has_builtin_kind(*rest_type, BuiltinKind::Map)) {
+            return std::unexpected("internal backend error: map consume-first-entry function '"
+                                   + hir_function_.qualified_name + "' built unsupported rest type '"
+                                   + rest_type->source_name() + "'");
+        }
+
+        const std::expected<const TypeLayout*, std::string> result_layout =
+            model_.ensure_backend_aggregate_layout(return_type.source_name());
+        if (!result_layout.has_value()) {
+            return std::unexpected(result_layout.error());
+        }
+        const auto first_field_it = (*result_layout)->field_indices.find("first");
+        const auto rest_field_it = (*result_layout)->field_indices.find("rest");
+        if (first_field_it == (*result_layout)->field_indices.end()
+            || rest_field_it == (*result_layout)->field_indices.end()) {
+            return std::unexpected("internal backend error: map consume-first-entry result layout for '"
+                                   + return_type.source_name() + "' is missing expected fields");
+        }
+
+        const std::size_t entry_stride = element_storage_stride(*entry_type);
+        out << "define " << linkage << return_type.llvm_type() << " @"
+            << model_.function_symbol(hir_function_.id) << "(" << param_types[0].llvm_type() << " %arg0) {\n";
+        out << "entry:\n";
+        out << "  %data0 = extractvalue " << param_types[0].llvm_type() << " %arg0, 0\n";
+        out << "  %count0 = extractvalue " << param_types[0].llvm_type() << " %arg0, 1\n";
+        out << "  %entry0 = load " << entry_type->llvm_type() << ", ptr %data0\n";
+        out << "  %rest_count0 = sub i64 %count0, 1\n";
+        out << "  %rest_data0 = getelementptr i8, ptr %data0, i64 " << entry_stride << "\n";
+        out << "  %rest0 = insertvalue " << rest_type->llvm_type() << " zeroinitializer, ptr %rest_data0, 0\n";
+        out << "  %rest1 = insertvalue " << rest_type->llvm_type() << " %rest0, i64 %rest_count0, 1\n";
+        out << "  %result0 = insertvalue " << return_type.llvm_type() << " zeroinitializer, "
+            << entry_type->llvm_type() << " %entry0, " << first_field_it->second << "\n";
+        out << "  %result1 = insertvalue " << return_type.llvm_type() << " %result0, "
+            << rest_type->llvm_type() << " %rest1, " << rest_field_it->second << "\n";
+        out << "  ret " << return_type.llvm_type() << " %result1\n";
+        out << "}\n";
+        return out.str();
+    }
 
     case CompilerOwnedFunctionLowering::ListConsumeFirst: {
         if (param_types.size() != 1) {

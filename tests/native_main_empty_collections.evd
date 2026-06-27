@@ -88,6 +88,17 @@ public fn first_single_map_value() -> Int {
     entry.value
 }
 
+public fn consume_single_map_entry_value() -> Int {
+    let consumed = nonempty_map_consume_first_entry<Text, Int>(single_map())
+    match map_require_nonempty<Text, Int>(consumed.rest) {
+        succeeded(actual) => {
+            let entry = nonempty_map_first_entry_copy<Text, Int>(actual)
+            entry.value
+        },
+        failed(MapHadNoEntries) => consumed.first.value,
+    }
+}
+
 public fn require_single_list() -> Int {
     let values = single_list()
     let widened = widened_list(values)
@@ -127,6 +138,7 @@ public fn main() -> Int {
     let single_map_result = require_single_map()
     let single_result = require_single_list()
     let constructed_result = require_constructed_lists()
-    first_single_map_value()
+    let copied_map_entry_result = first_single_map_value()
+    consume_single_map_entry_value()
 }
 }
