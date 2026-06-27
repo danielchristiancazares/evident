@@ -1,3 +1,12 @@
-<input>:4:1: error: expected type name
+<input>:4:1: error: expected field type after ':'
     }
     ^
+<input>:7:21: error: expected field type after ':'
+        Broken { value: }
+                        ^
+<input>:12:1: error: expected field type after ':'
+    }
+    ^
+<input>:17:5: error: expected field type after ':'
+        }
+        ^

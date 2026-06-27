@@ -1,5 +1,23 @@
 domain module test {
-public record Bad {
+public record BadRecord {
     value:
+}
+
+public state BadState {
+    Broken { value: }
+}
+
+public proof BadProof {
+    public receipt:
+}
+
+public phase BadPhase {
+    fields {
+        public id:
+    }
+
+    positions {
+        Draft,
+    }
 }
 }

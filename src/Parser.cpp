@@ -698,7 +698,13 @@ std::vector<ast::Field> Parser::parse_field_block(FieldBlockContext context) {
         ast::Visibility field_vis = parse_visibility();
         const Token field_name = expect(TokenKind::Identifier, "expected field name");
         expect(TokenKind::Colon, "expected ':' after field name");
-        ast::TypeRef type = parse_type();
+        ast::TypeRef type;
+        if (token_check(TokenKind::Identifier) == TokenCheckState::Matches) {
+            type = parse_type();
+        } else {
+            diagnostics_.error(peek().span(), "expected field type after ':'");
+            type.span = peek().span();
+        }
         ast::Field field;
         field.visibility = field_vis;
         field.name = token_text(field_name);
