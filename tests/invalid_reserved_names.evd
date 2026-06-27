@@ -12,6 +12,35 @@ public state PresenceNames {
     Absent,
 }
 
+public record Other {
+    value: Int,
+}
+
+public state Invalid {
+    Consequence,
+}
+
+public reason Unset {
+    Denied,
+}
+
+public proof True {
+    value: Int,
+}
+
+public phase Connected {
+    fields {
+        value: Int,
+    }
+    positions {
+        Settled,
+    }
+}
+
+public fn No() -> Int {
+    1
+}
+
 public state AccessMode {
     AllowAll,
     Restricted,
