@@ -119,6 +119,7 @@ assert_doc_contains(README.md
     "The first bootstrap-oriented Evident package outline lives under `bootstrap/compiler`."
     "package identity, a deterministic source graph"
     "initial lexical token stream, parsed package syntax, and semantic symbol catalog models"
+    "Its package identity now comes from the bootstrap environment surface"
     "host file, path, environment, and tool boundary models plus bootstrap stage-provenance and equivalence records"
     "`run_bootstrap_compiler_scaffold`"
 )
@@ -407,7 +408,8 @@ assert_doc_contains(docs/COMPILER_FINISH_PLAN.md
     "### Milestone 7: Self-Hosting / Bootstrap"
     "Do not call the compiler self-hosting or bootstrap-capable"
     "The compiler can bootstrap itself through the documented seed, stage-1, and stage-2 process."
-    "It now also models the host runtime, environment, and bootstrap stage-provenance/equivalence records."
+    "It now also models the host runtime, environment, and bootstrap stage-provenance/equivalence records"
+    "the package identity is derived from the bootstrap environment surface"
 )
 
 assert_doc_contains(docs/BOOTSTRAP_PLAN.md
@@ -422,6 +424,7 @@ assert_doc_contains(docs/BOOTSTRAP_PLAN.md
     "That package is a compilable bootstrap scaffold, not a compiler implementation."
     "package identity, a deterministic source graph"
     "initial lexical token stream data, parsed package syntax data, and a semantic symbol catalog"
+    "Its package identity is derived from the bootstrap environment surface"
     "host file, path, environment, and tool boundary data plus bootstrap stage-provenance and equivalence records"
     "`run_bootstrap_compiler_scaffold`"
     "C emission can remain a temporary debugging or migration aid, but it is not the production bootstrap proof."

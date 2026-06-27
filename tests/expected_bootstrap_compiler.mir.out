@@ -9,6 +9,25 @@ functions:
         %3[tmp] = construct bootstrap_source::SourcePath {text: %0[path]}
         %2[$return] = construct bootstrap_source::SourceFile {path: %3[tmp], contents: %1[contents]}
         return %2[$return]
+  - public fn bootstrap_source::compiler_package_identity -> bootstrap_source::PackageIdentity
+      locals:
+        %0[environment] : bootstrap_environment::CompilerEnvironment
+        %1[$return] : bootstrap_source::PackageIdentity
+        %2[tmp] : bootstrap_source::SourcePath
+        %3[tmp] : Text
+        %4[tmp] : bootstrap_host::HostPath
+        %5[tmp] : bootstrap_source::SourcePath
+        %6[tmp] : Text
+        %7[tmp] : bootstrap_host::HostPath
+      block %0
+        %4[tmp] = %0[environment].package_root
+        %3[tmp] = %4[tmp].text
+        %2[tmp] = construct bootstrap_source::SourcePath {text: %3[tmp]}
+        %7[tmp] = %0[environment].manifest
+        %6[tmp] = %7[tmp].text
+        %5[tmp] = construct bootstrap_source::SourcePath {text: %6[tmp]}
+        %1[$return] = construct bootstrap_source::PackageIdentity {name: "evident.compiler", root: %2[tmp], manifest: %5[tmp]}
+        return %1[$return]
   - private fn bootstrap_source::append_source -> NonEmptyList<bootstrap_source::SourceFile>
       locals:
         %0[files] : NonEmptyList<bootstrap_source::SourceFile>
@@ -41,7 +60,7 @@ functions:
         %17[main] : NonEmptyList<bootstrap_source::SourceFile>
         %18[tmp] : bootstrap_source::SourceFile
       block %0
-        %2[tmp] = call bootstrap_source::source_file("src/source.evd", "source graph and package identity")
+        %2[tmp] = call bootstrap_source::source_file("src/source.evd", "source graph and environment-derived package identity")
         %1[source] = call list_single$bootstrap_source__SourceFile(%2[tmp])
         %4[tmp] = call bootstrap_source::source_file("src/lexing.evd", "lexical token stream model")
         %3[lexing] = call bootstrap_source::append_source(%1[source], %4[tmp])
@@ -63,18 +82,15 @@ functions:
         return %0[$return]
   - public fn bootstrap_source::compiler_package -> bootstrap_source::PackageSource
       locals:
-        %0[$return] : bootstrap_source::PackageSource
-        %1[tmp] : bootstrap_source::PackageIdentity
-        %2[tmp] : bootstrap_source::SourcePath
-        %3[tmp] : bootstrap_source::SourcePath
-        %4[tmp] : bootstrap_source::SourceGraph
+        %0[environment] : bootstrap_environment::CompilerEnvironment
+        %1[$return] : bootstrap_source::PackageSource
+        %2[tmp] : bootstrap_source::PackageIdentity
+        %3[tmp] : bootstrap_source::SourceGraph
       block %0
-        %2[tmp] = construct bootstrap_source::SourcePath {text: "bootstrap/compiler"}
-        %3[tmp] = construct bootstrap_source::SourcePath {text: "bootstrap/compiler/evident.pkg"}
-        %1[tmp] = construct bootstrap_source::PackageIdentity {name: "evident.compiler", root: %2[tmp], manifest: %3[tmp]}
-        %4[tmp] = call bootstrap_source::compiler_source_graph()
-        %0[$return] = construct bootstrap_source::PackageSource {identity: %1[tmp], graph: %4[tmp]}
-        return %0[$return]
+        %2[tmp] = call bootstrap_source::compiler_package_identity(%0[environment])
+        %3[tmp] = call bootstrap_source::compiler_source_graph()
+        %1[$return] = construct bootstrap_source::PackageSource {identity: %2[tmp], graph: %3[tmp]}
+        return %1[$return]
   - public fn bootstrap_source::compiler_source_count -> Int
       locals:
         %0[$return] : Int
@@ -494,7 +510,7 @@ functions:
         %1[host] = call bootstrap_host::bootstrap_host_surface()
         %2[environment] = call bootstrap_environment::bootstrap_environment_surface()
         %3[exit_status] = call bootstrap_host::success_status()
-        %4[source] = call bootstrap_source::compiler_package()
+        %4[source] = call bootstrap_source::compiler_package(%2[environment])
         %5[outlined] = call bootstrap_pipeline::outline(%4[source])
         %6[seed] = call bootstrap_pipeline::compile_with_seed(%5[outlined])
         %7[stage_one] = call bootstrap_pipeline::compile_stage_one(%6[seed])
@@ -505,7 +521,7 @@ functions:
         %12[equivalence] = call bootstrap_pipeline::bootstrap_equivalence()
         %13[evidence] = call bootstrap_pipeline::bootstrap_evidence(%9[seed_receipt], %10[stage_one_receipt], %11[stage_two_receipt], %12[equivalence])
         %14[outline] = call bootstrap_pipeline::record_outline("evident.compiler")
-        %0[$return] = construct bootstrap_compiler::BootstrapStatus {host: %1[host], environment: %2[environment], exit_status: %3[exit_status], pipeline: %8[stage_two], evidence: %13[evidence], outline: %14[outline]}
+        %0[$return] = construct bootstrap_compiler::BootstrapStatus {host: %1[host], environment: %2[environment], package: %4[source], exit_status: %3[exit_status], pipeline: %8[stage_two], evidence: %13[evidence], outline: %14[outline]}
         return %0[$return]
   - public fn bootstrap_compiler::bootstrap_stage_count -> Int
       locals:

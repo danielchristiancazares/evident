@@ -171,6 +171,7 @@ types:
   - public record bootstrap_compiler::BootstrapStatus [affine]
       field host: bootstrap_host::CompilerHostSurface
       field environment: bootstrap_environment::CompilerEnvironment
+      field package: bootstrap_source::PackageSource
       field exit_status: bootstrap_host::ExitStatus
       field pipeline: bootstrap_pipeline::CompilerPipeline::StageTwoValidated [affine]
       field evidence: bootstrap_pipeline::BootstrapEvidence
@@ -192,6 +193,24 @@ functions:
                   local path : Text
             init contents [shorthand]
               local contents : Text
+  - public fn bootstrap_source::compiler_package_identity(environment: bootstrap_environment::CompilerEnvironment) -> bootstrap_source::PackageIdentity
+      block -> bootstrap_source::PackageIdentity
+        result
+          construct bootstrap_source::PackageIdentity : bootstrap_source::PackageIdentity
+            init name
+              string "evident.compiler" : Text
+            init root
+              construct bootstrap_source::SourcePath : bootstrap_source::SourcePath
+                init text
+                  field-access .text : Text
+                    field-access .package_root : bootstrap_host::HostPath
+                      local environment : bootstrap_environment::CompilerEnvironment
+            init manifest
+              construct bootstrap_source::SourcePath : bootstrap_source::SourcePath
+                init text
+                  field-access .text : Text
+                    field-access .manifest : bootstrap_host::HostPath
+                      local environment : bootstrap_environment::CompilerEnvironment
   - private fn bootstrap_source::append_source(files: NonEmptyList<bootstrap_source::SourceFile>, file: bootstrap_source::SourceFile) -> NonEmptyList<bootstrap_source::SourceFile>
       block -> NonEmptyList<bootstrap_source::SourceFile>
         let widened: List<bootstrap_source::SourceFile>
@@ -207,7 +226,7 @@ functions:
           call list_single<bootstrap_source::SourceFile> -> NonEmptyList<bootstrap_source::SourceFile>
             call bootstrap_source::source_file -> bootstrap_source::SourceFile
               string "src/source.evd" : Text
-              string "source graph and package identity" : Text
+              string "source graph and environment-derived package identity" : Text
         let lexing: NonEmptyList<bootstrap_source::SourceFile>
           call bootstrap_source::append_source -> NonEmptyList<bootstrap_source::SourceFile>
             local source : NonEmptyList<bootstrap_source::SourceFile>
@@ -260,22 +279,13 @@ functions:
           construct bootstrap_source::SourceGraph : bootstrap_source::SourceGraph
             init files
               local main : NonEmptyList<bootstrap_source::SourceFile>
-  - public fn bootstrap_source::compiler_package() -> bootstrap_source::PackageSource
+  - public fn bootstrap_source::compiler_package(environment: bootstrap_environment::CompilerEnvironment) -> bootstrap_source::PackageSource
       block -> bootstrap_source::PackageSource
         result
           construct bootstrap_source::PackageSource : bootstrap_source::PackageSource
             init identity
-              construct bootstrap_source::PackageIdentity : bootstrap_source::PackageIdentity
-                init name
-                  string "evident.compiler" : Text
-                init root
-                  construct bootstrap_source::SourcePath : bootstrap_source::SourcePath
-                    init text
-                      string "bootstrap/compiler" : Text
-                init manifest
-                  construct bootstrap_source::SourcePath : bootstrap_source::SourcePath
-                    init text
-                      string "bootstrap/compiler/evident.pkg" : Text
+              call bootstrap_source::compiler_package_identity -> bootstrap_source::PackageIdentity
+                local environment : bootstrap_environment::CompilerEnvironment
             init graph
               call bootstrap_source::compiler_source_graph -> bootstrap_source::SourceGraph
   - public fn bootstrap_source::compiler_source_count() -> Int
@@ -716,6 +726,7 @@ functions:
           call bootstrap_host::success_status -> bootstrap_host::ExitStatus
         let source: bootstrap_source::PackageSource
           call bootstrap_source::compiler_package -> bootstrap_source::PackageSource
+            local environment : bootstrap_environment::CompilerEnvironment
         let outlined: bootstrap_pipeline::CompilerPipeline::SourceOutlined [affine]
           call bootstrap_pipeline::outline -> bootstrap_pipeline::CompilerPipeline::SourceOutlined [affine]
             local source : bootstrap_source::PackageSource
@@ -751,6 +762,8 @@ functions:
               local host : bootstrap_host::CompilerHostSurface
             init environment [shorthand]
               local environment : bootstrap_environment::CompilerEnvironment
+            init package
+              local source : bootstrap_source::PackageSource
             init exit_status [shorthand]
               local exit_status : bootstrap_host::ExitStatus
             init pipeline

@@ -7,6 +7,7 @@ domain module bootstrap_compiler {
 public record BootstrapStatus {
     public host: bootstrap_host::CompilerHostSurface,
     public environment: bootstrap_environment::CompilerEnvironment,
+    public package: bootstrap_source::PackageSource,
     public exit_status: bootstrap_host::ExitStatus,
     public pipeline: bootstrap_pipeline::CompilerPipeline::StageTwoValidated,
     public evidence: bootstrap_pipeline::BootstrapEvidence,
@@ -17,7 +18,7 @@ public fn build_status() -> BootstrapStatus {
     let host = bootstrap_host::bootstrap_host_surface();
     let environment = bootstrap_environment::bootstrap_environment_surface();
     let exit_status = bootstrap_host::success_status();
-    let source = bootstrap_source::compiler_package();
+    let source = bootstrap_source::compiler_package(environment);
     let outlined = bootstrap_pipeline::outline(source);
     let seed = bootstrap_pipeline::compile_with_seed(outlined);
     let stage_one = bootstrap_pipeline::compile_stage_one(seed);
@@ -37,6 +38,7 @@ public fn build_status() -> BootstrapStatus {
     BootstrapStatus {
         host,
         environment,
+        package: source,
         exit_status,
         pipeline: stage_two,
         evidence,

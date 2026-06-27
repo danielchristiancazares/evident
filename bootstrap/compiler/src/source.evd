@@ -1,3 +1,5 @@
+import bootstrap_environment;
+
 domain module bootstrap_source {
 public record SourcePath {
     public text: Text,
@@ -30,13 +32,21 @@ public fn source_file(path: Text, contents: Text) -> SourceFile {
     }
 }
 
+public fn compiler_package_identity(environment: bootstrap_environment::CompilerEnvironment) -> PackageIdentity {
+    PackageIdentity {
+        name: "evident.compiler",
+        root: SourcePath { text: environment.package_root.text },
+        manifest: SourcePath { text: environment.manifest.text },
+    }
+}
+
 fn append_source(files: NonEmptyList<SourceFile>, file: SourceFile) -> NonEmptyList<SourceFile> {
     let widened = nonempty_list_widen<SourceFile>(files);
     list_append<SourceFile>(widened, file)
 }
 
 public fn compiler_source_graph() -> SourceGraph {
-    let source = list_single<SourceFile>(source_file("src/source.evd", "source graph and package identity"));
+    let source = list_single<SourceFile>(source_file("src/source.evd", "source graph and environment-derived package identity"));
     let lexing = append_source(source, source_file("src/lexing.evd", "lexical token stream model"));
     let parsing = append_source(lexing, source_file("src/parsing.evd", "parsed package syntax model"));
     let semantics = append_source(parsing, source_file("src/semantics.evd", "semantic symbol catalog model"));
@@ -51,13 +61,9 @@ public fn compiler_source_graph() -> SourceGraph {
     }
 }
 
-public fn compiler_package() -> PackageSource {
+public fn compiler_package(environment: bootstrap_environment::CompilerEnvironment) -> PackageSource {
     PackageSource {
-        identity: PackageIdentity {
-            name: "evident.compiler",
-            root: SourcePath { text: "bootstrap/compiler" },
-            manifest: SourcePath { text: "bootstrap/compiler/evident.pkg" },
-        },
+        identity: compiler_package_identity(environment),
         graph: compiler_source_graph(),
     }
 }
