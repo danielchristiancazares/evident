@@ -777,6 +777,18 @@ struct BackendStepSucceeded final {};
 
 using BackendStepResult = std::expected<BackendStepSucceeded, std::string>;
 
+enum class TemporaryInputCleanup {
+    RemoveTemporaryInput,
+    PreserveTemporaryInput,
+};
+
+struct ToolchainCommandFailure final {
+    std::string message;
+    TemporaryInputCleanup temporary_input_cleanup;
+};
+
+using ToolchainCommandResult = std::expected<BackendStepSucceeded, ToolchainCommandFailure>;
+
 enum class YieldReturnKind {
     Success,
     Failure,
@@ -6445,16 +6457,19 @@ std::expected<std::pair<int, std::string>, std::string> run_process_capture(cons
 
 #endif
 
-BackendStepResult run_toolchain_command(const std::vector<std::string>& args,
-                                        const std::filesystem::path& log_path,
-                                        const std::string& temp_input_path) {
+ToolchainCommandResult run_toolchain_command(const std::vector<std::string>& args,
+                                             const std::filesystem::path& log_path,
+                                             const std::string& temp_input_path) {
     const std::expected<std::pair<int, std::string>, std::string> result = run_process_capture(args, log_path);
     if (!result.has_value()) {
         std::ostringstream error;
         error << result.error() << '\n'
               << "required toolchain driver: " << args.front() << '\n'
               << "Install LLVM clang/lld or set " << kClangEnvVar << " to the clang executable.";
-        return std::unexpected(error.str());
+        return std::unexpected(ToolchainCommandFailure{
+            error.str(),
+            TemporaryInputCleanup::RemoveTemporaryInput,
+        });
     }
     if (result->first != 0) {
         std::ostringstream error;
@@ -6465,7 +6480,10 @@ BackendStepResult run_toolchain_command(const std::vector<std::string>& args,
         if (!result->second.empty()) {
             error << result->second;
         }
-        return std::unexpected(error.str());
+        return std::unexpected(ToolchainCommandFailure{
+            error.str(),
+            TemporaryInputCleanup::PreserveTemporaryInput,
+        });
     }
     return BackendStepSucceeded{};
 }
@@ -6635,17 +6653,20 @@ std::expected<ArtifactEmissionSucceeded, std::string> emit_artifact(const hir::P
     command.push_back("-o");
     command.push_back(output_path.string());
 
-    const BackendStepResult command_result = run_toolchain_command(
+    const ToolchainCommandResult command_result = run_toolchain_command(
         command,
         log_path,
         temp_ir_path.string());
+    std::error_code remove_error;
+    std::filesystem::remove(log_path, remove_error);
     if (!command_result.has_value()) {
-        return std::unexpected(command_result.error());
+        if (command_result.error().temporary_input_cleanup == TemporaryInputCleanup::RemoveTemporaryInput) {
+            std::filesystem::remove(temp_ir_path, remove_error);
+        }
+        return std::unexpected(command_result.error().message);
     }
 
-    std::error_code remove_error;
     std::filesystem::remove(temp_ir_path, remove_error);
-    std::filesystem::remove(log_path, remove_error);
     return ArtifactEmissionSucceeded{};
 }
 
