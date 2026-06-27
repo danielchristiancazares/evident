@@ -1,0 +1,3 @@
+<input>:8:27: error: expected permit binder name
+        grant start_pass() as {
+                              ^

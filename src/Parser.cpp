@@ -1141,6 +1141,11 @@ std::unique_ptr<ast::Expr> Parser::parse_grant_expr() {
     expect(TokenKind::KeywordAs, "expected 'as' after grant call");
     const Token binder = expect(TokenKind::Identifier, "expected permit binder name");
     expr->binder_name = token_text(binder);
+    if (token_check(TokenKind::LeftBrace) == TokenCheckState::DifferentToken) {
+        diagnostics_.error(peek().span(), "expected grant body block after permit binder");
+        expr->span = SourceSpan{start.span().begin, binder.span().end};
+        return expr;
+    }
     expr->body = parse_block_expr();
     expr->span = SourceSpan{start.span().begin, expr->body != nullptr ? expr->body->span.end : binder.span().end};
     return expr;

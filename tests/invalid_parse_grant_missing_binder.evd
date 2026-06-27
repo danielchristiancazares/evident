@@ -1,0 +1,12 @@
+domain module test {
+public permit Access
+
+public fn start_pass() -> Unit grants Access {
+}
+
+public fn main() -> Int {
+    grant start_pass() as {
+        1
+    }
+}
+}
