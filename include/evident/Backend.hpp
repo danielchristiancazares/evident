@@ -6,6 +6,7 @@
 #include <expected>
 #include <string>
 #include <string_view>
+#include <utility>
 
 namespace evident::backend {
 
@@ -21,10 +22,27 @@ enum class EntryPointEmission {
     IncludeExecutableEntryPoint,
 };
 
-struct EmitOptions {
-    EmitKind kind = EmitKind::Llvm;
-    std::string output_path;
-    std::string target_triple = "x86_64-pc-windows-msvc";
+class EmitOptions final {
+public:
+    [[nodiscard]] static EmitOptions requested_artifact(EmitKind kind,
+                                                        std::string output_path,
+                                                        std::string target_triple) {
+        return EmitOptions(kind, std::move(output_path), std::move(target_triple));
+    }
+
+    [[nodiscard]] EmitKind kind() const noexcept { return kind_; }
+    [[nodiscard]] const std::string& output_path() const noexcept { return output_path_; }
+    [[nodiscard]] const std::string& target_triple() const noexcept { return target_triple_; }
+
+private:
+    EmitKind kind_;
+    std::string output_path_;
+    std::string target_triple_;
+
+    EmitOptions(EmitKind kind, std::string output_path, std::string target_triple)
+        : kind_(kind),
+          output_path_(std::move(output_path)),
+          target_triple_(std::move(target_triple)) {}
 };
 
 struct ArtifactEmissionSucceeded final {};

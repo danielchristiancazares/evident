@@ -3334,28 +3334,28 @@ std::expected<ArtifactEmissionSucceeded, std::string> emit_artifact(const hir::P
                                                                     const mir::Package& mir_package,
                                                                     const EmitOptions& options) {
     EntryPointEmission entry_point_emission = EntryPointEmission::UserFunctionsOnly;
-    if (options.kind == EmitKind::Executable) {
+    if (options.kind() == EmitKind::Executable) {
         entry_point_emission = EntryPointEmission::IncludeExecutableEntryPoint;
     }
     const std::expected<std::string, std::string> llvm_ir = emit_llvm_ir(
         hir_package,
         mir_package,
-        options.target_triple,
+        options.target_triple(),
         entry_point_emission);
     if (!llvm_ir.has_value()) {
         return std::unexpected(llvm_ir.error());
     }
 
-    if (options.kind == EmitKind::Llvm) {
+    if (options.kind() == EmitKind::Llvm) {
         const std::expected<TextFileWriteSucceeded, std::string> written =
-            write_text_file(options.output_path, *llvm_ir);
+            write_text_file(options.output_path(), *llvm_ir);
         if (!written.has_value()) {
-            return std::unexpected("failed to write LLVM IR output to '" + options.output_path + "'");
+            return std::unexpected("failed to write LLVM IR output to '" + options.output_path() + "'");
         }
         return ArtifactEmissionSucceeded{};
     }
 
-    const std::filesystem::path output_path(options.output_path);
+    const std::filesystem::path output_path(options.output_path());
     const std::filesystem::path temp_ir_path = output_path.string() + ".tmp.ll";
     const std::filesystem::path log_path = output_path.string() + ".tool.log";
 
@@ -3365,8 +3365,8 @@ std::expected<ArtifactEmissionSucceeded, std::string> emit_artifact(const hir::P
         return std::unexpected("failed to write temporary LLVM IR to '" + temp_ir_path.string() + "'");
     }
 
-    std::vector<std::string> command = {toolchain_driver(), "-target", options.target_triple};
-    switch (options.kind) {
+    std::vector<std::string> command = {toolchain_driver(), "-target", options.target_triple()};
+    switch (options.kind()) {
     case EmitKind::Assembly:
         command.push_back("-S");
         break;

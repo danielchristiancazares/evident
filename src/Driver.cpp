@@ -315,11 +315,10 @@ int run_driver(const DriverOptions& options) {
         if (native_emit_request == NativeEmitRequestState::NativeArtifactRequested) {
             const auto emit_requested_artifact =
                 [&](backend::EmitKind emit_kind, const std::string& output_path) {
-                    const backend::EmitOptions emit_options{
+                    const backend::EmitOptions emit_options = backend::EmitOptions::requested_artifact(
                         emit_kind,
                         output_path,
-                        options.target_triple(),
-                    };
+                        options.target_triple());
                     return backend::emit_artifact(backend_hir_package, mir_package, emit_options);
                 };
 
