@@ -26,6 +26,11 @@ enum class VariantSeparatorRecovery {
     ContinueWithNextVariant,
 };
 
+enum class PhasePositionSeparatorRecovery {
+    StopPositionList,
+    ContinueWithNextPosition,
+};
+
 DeclarationStartState declaration_start_state(TokenKind kind) {
     switch (kind) {
     case TokenKind::KeywordPublic:
@@ -90,6 +95,13 @@ VariantSeparatorRecovery variant_after_missing_separator(TokenKind first, TokenK
     default:
         return VariantSeparatorRecovery::StopVariantBlock;
     }
+}
+
+PhasePositionSeparatorRecovery phase_position_after_missing_separator(TokenKind first) {
+    if (first == TokenKind::Identifier) {
+        return PhasePositionSeparatorRecovery::ContinueWithNextPosition;
+    }
+    return PhasePositionSeparatorRecovery::StopPositionList;
 }
 
 } // namespace
@@ -449,6 +461,11 @@ std::unique_ptr<ast::PhaseDecl> Parser::parse_phase(ast::Visibility visibility) 
             if (token_check(TokenKind::RightBrace) == TokenCheckState::Matches) {
                 break;
             }
+            continue;
+        }
+        if (phase_position_after_missing_separator(peek().kind())
+            == PhasePositionSeparatorRecovery::ContinueWithNextPosition) {
+            diagnostics_.error(peek().span(), "expected ',' between phase positions");
             continue;
         }
         break;

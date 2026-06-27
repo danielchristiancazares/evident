@@ -1,0 +1,11 @@
+domain module test {
+public phase Flow {
+    fields {
+        public id: Int,
+    }
+    positions {
+        Draft
+        Validated,
+    }
+}
+}

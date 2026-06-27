@@ -1,0 +1,3 @@
+<input>:8:9: error: expected ',' between phase positions
+            Validated,
+            ^^^^^^^^^
