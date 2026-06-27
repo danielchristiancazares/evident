@@ -1,0 +1,5 @@
+domain module lexer_diagnostics {
+    public fn phrase() -> Text {
+        "morning
+    }
+}
