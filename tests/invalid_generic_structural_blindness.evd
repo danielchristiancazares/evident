@@ -1,0 +1,17 @@
+foundation module support {
+public record Validated<T> {
+    value: T,
+}
+
+public record Box<Authorized> {
+    value: Authorized,
+}
+
+public fn settled<T>(value: T) -> T {
+    value
+}
+
+public fn relay<draft>(value: draft) -> draft {
+    value
+}
+}

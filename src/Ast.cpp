@@ -5,6 +5,28 @@
 
 namespace evident::ast {
 
+FunctionFailureContract FunctionFailureContract::returns_declared_value() {
+    return FunctionFailureContract(FunctionFailureBehavior::ReturnsDeclaredValue, TypeRef{});
+}
+
+FunctionFailureContract FunctionFailureContract::yields_reason(TypeRef reason_type) {
+    return FunctionFailureContract(FunctionFailureBehavior::YieldsReason, std::move(reason_type));
+}
+
+FunctionFailureContract::FunctionFailureContract(FunctionFailureBehavior behavior, TypeRef reason_type)
+    : behavior_(behavior), reason_type_(std::move(reason_type)) {}
+
+FunctionAuthorityContract FunctionAuthorityContract::ordinary_call() {
+    return FunctionAuthorityContract(FunctionAuthorityEffect::OrdinaryCall, TypeRef{});
+}
+
+FunctionAuthorityContract FunctionAuthorityContract::grants_scoped_permit(TypeRef permit_type) {
+    return FunctionAuthorityContract(FunctionAuthorityEffect::GrantsScopedPermit, std::move(permit_type));
+}
+
+FunctionAuthorityContract::FunctionAuthorityContract(FunctionAuthorityEffect effect, TypeRef permit_type)
+    : effect_(effect), permit_type_(std::move(permit_type)) {}
+
 namespace {
 
 void indent(std::ostream& out, std::size_t depth) {
@@ -51,7 +73,7 @@ void dump_record_fields(std::ostream& out, const std::vector<RecordFieldInit>& f
     for (const RecordFieldInit& field : fields) {
         indent(out, depth);
         out << "init " << field.name;
-        if (field.shorthand) {
+        if (field.spelling == FieldInitSpelling::ShorthandBinding) {
             out << " [shorthand]";
         }
         out << '\n';
@@ -99,7 +121,7 @@ void dump_expr(std::ostream& out, const Expr& expr, std::size_t depth) {
     }
     case ExprKind::Path: {
         const auto& path_expr = static_cast<const PathExpr&>(expr);
-        out << (path_expr.explicit_permit_argument ? "permit-arg " : "path ");
+        out << (path_expr.argument_role == PathArgumentRole::PermitArgument ? "permit-arg " : "path ");
         dump_path(out, path_expr.path);
         out << '\n';
         break;
@@ -249,10 +271,10 @@ void dump_pattern(std::ostream& out, const Pattern& pattern, std::size_t depth) 
     case PatternKind::Succeeded: {
         const auto& succeeded = static_cast<const SucceededPattern&>(pattern);
         out << "pattern succeeded(";
-        if (succeeded.ignore) {
+        if (succeeded.binding == SuccessPatternBinding::DiscardedValue) {
             out << '_';
-        } else if (succeeded.binding_name.has_value()) {
-            out << *succeeded.binding_name;
+        } else {
+            out << succeeded.binding_name;
         }
         out << ")\n";
         break;
@@ -334,17 +356,17 @@ void dump_decl(std::ostream& out, const Decl& decl, std::size_t depth) {
             if (i > 0) {
                 out << ", ";
             }
-            if (fn_decl.signature.params[i].is_permit_param) {
+            if (fn_decl.signature.params[i].authority == ParameterAuthority::PermitBinding) {
                 out << "as ";
             }
             out << fn_decl.signature.params[i].name << ": " << format_type(fn_decl.signature.params[i].type);
         }
         out << ") -> " << format_type(fn_decl.signature.return_type);
-        if (fn_decl.signature.fails_type.has_value()) {
-            out << " fails " << format_type(*fn_decl.signature.fails_type);
+        if (fn_decl.signature.failure.behavior() == FunctionFailureBehavior::YieldsReason) {
+            out << " fails " << format_type(fn_decl.signature.failure.reason_type());
         }
-        if (fn_decl.signature.grants_type.has_value()) {
-            out << " grants " << format_type(*fn_decl.signature.grants_type);
+        if (fn_decl.signature.authority.effect() == FunctionAuthorityEffect::GrantsScopedPermit) {
+            out << " grants " << format_type(fn_decl.signature.authority.permit_type());
         }
         for (const auto& proves : fn_decl.signature.proves_types) {
             out << " proves " << format_type(proves);

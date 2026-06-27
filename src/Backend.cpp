@@ -9,7 +9,6 @@
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
-#include <optional>
 #include <sstream>
 #include <string_view>
 #include <system_error>
@@ -41,6 +40,34 @@ constexpr const char* kSupportedTarget = "x86_64-pc-windows-msvc";
 constexpr const char* kClangEnvVar = "EVIDENT_CLANG";
 constexpr const char* kLinkerDriver = "lld-link";
 
+struct TextFileWriteSucceeded final {};
+
+enum class ArgumentQuotingState {
+    CanPassUnquoted,
+    MustQuote,
+};
+
+enum class CompileTimeArgumentEncoding {
+    ErasedToUnitOperand,
+    CarriesRuntimeOperand,
+};
+
+CompileTimeArgumentEncoding compile_time_argument_encoding_of(const mir::Operand& operand) {
+    return operand.match(
+        [](mir::Operand::LocalValue) {
+            return CompileTimeArgumentEncoding::CarriesRuntimeOperand;
+        },
+        [](mir::Operand::IntLiteralValue) {
+            return CompileTimeArgumentEncoding::CarriesRuntimeOperand;
+        },
+        [](mir::Operand::StringLiteralValue) {
+            return CompileTimeArgumentEncoding::CarriesRuntimeOperand;
+        },
+        [](mir::Operand::UnitValue) {
+            return CompileTimeArgumentEncoding::ErasedToUnitOperand;
+        });
+}
+
 std::size_t align_up(std::size_t value, std::size_t alignment) {
     if (alignment == 0) {
         return value;
@@ -49,13 +76,17 @@ std::size_t align_up(std::size_t value, std::size_t alignment) {
     return remainder == 0 ? value : value + (alignment - remainder);
 }
 
-bool write_text_file(const std::string& path, const std::string& text) {
+std::expected<TextFileWriteSucceeded, std::string> write_text_file(const std::string& path,
+                                                                   const std::string& text) {
     std::ofstream out(path, std::ios::binary);
     if (!out) {
-        return false;
+        return std::unexpected("failed to open text output file");
     }
     out << text;
-    return static_cast<bool>(out);
+    if (!out) {
+        return std::unexpected("failed to write text output file");
+    }
+    return TextFileWriteSucceeded{};
 }
 
 std::string toolchain_driver() {
@@ -119,9 +150,8 @@ std::string_view type_base_name(std::string_view name) {
     return generic_start == std::string_view::npos ? name : name.substr(0, generic_start);
 }
 
-bool is_unsupported_builtin_type(std::string_view name) {
-    const std::string_view base_name = type_base_name(name);
-    return base_name == "CString" || base_name == "Map" || base_name == "NonEmptyMap";
+typesys::DisciplineMaterialization materialization_of(typesys::UseDiscipline discipline) {
+    return typesys::discipline_materialization(discipline);
 }
 
 std::string sanitize_llvm_name(std::string_view text, char scope_separator) {
@@ -256,7 +286,72 @@ std::expected<std::string, std::string> make_storage_type(std::size_t size, std:
     }
 }
 
-enum class BuiltinKind;
+enum class BuiltinKind {
+    Int,
+    Nat,
+    Float,
+    Char,
+    Byte,
+    CInt,
+    CSize,
+    CString,
+    Text,
+    Bytes,
+    List,
+    NonEmptyList,
+    Map,
+    NonEmptyMap,
+    Unit,
+    Never,
+};
+
+enum class ResolvedTypeCategory {
+    BuiltinType,
+    PackageTypeDeclaration,
+    BackendAggregateStorage,
+};
+
+class ResolvedTypeIdentity final {
+public:
+    [[nodiscard]] static ResolvedTypeIdentity builtin_type(BuiltinKind kind) {
+        return ResolvedTypeIdentity(ResolvedTypeCategory::BuiltinType, hir::TypeId{}, kind);
+    }
+
+    [[nodiscard]] static ResolvedTypeIdentity package_type(hir::TypeId type_id) {
+        return ResolvedTypeIdentity(ResolvedTypeCategory::PackageTypeDeclaration, type_id, BuiltinKind{});
+    }
+
+    [[nodiscard]] static ResolvedTypeIdentity backend_aggregate_storage() {
+        return ResolvedTypeIdentity(ResolvedTypeCategory::BackendAggregateStorage, hir::TypeId{}, BuiltinKind{});
+    }
+
+    [[nodiscard]] ResolvedTypeCategory category() const noexcept { return category_; }
+    [[nodiscard]] hir::TypeId package_type_id() const noexcept { return package_type_id_; }
+    [[nodiscard]] BuiltinKind builtin_kind() const noexcept { return builtin_kind_; }
+
+private:
+    ResolvedTypeCategory category_;
+    hir::TypeId package_type_id_;
+    BuiltinKind builtin_kind_;
+
+    ResolvedTypeIdentity(ResolvedTypeCategory category, hir::TypeId package_type_id, BuiltinKind builtin_kind)
+        : category_(category), package_type_id_(package_type_id), builtin_kind_(builtin_kind) {}
+};
+
+enum class RuntimeStorageShape {
+    Aggregate,
+    Scalar,
+};
+
+enum class MaterializationState {
+    RuntimeValue,
+    NeverValue,
+};
+
+enum class PayloadStorageState {
+    TagOnly,
+    CarriesPayload,
+};
 
 struct FieldLayout {
     std::string name;
@@ -265,10 +360,9 @@ struct FieldLayout {
     std::size_t index = 0;
     std::size_t size = 0;
     std::size_t align = 1;
-    bool is_scalar = false;
-    bool is_never = false;
-    std::optional<hir::TypeId> type_id;
-    std::optional<BuiltinKind> builtin;
+    RuntimeStorageShape storage_shape = RuntimeStorageShape::Aggregate;
+    MaterializationState materialization = MaterializationState::RuntimeValue;
+    ResolvedTypeIdentity identity;
 };
 
 struct VariantLayout {
@@ -292,27 +386,11 @@ struct TypeLayout {
     std::unordered_map<hir::VariantId, VariantLayout> variants;
     std::size_t size = 0;
     std::size_t align = 1;
-    bool has_payload = false;
+    PayloadStorageState payload_state = PayloadStorageState::TagOnly;
     std::string payload_storage_type;
     std::size_t payload_size = 0;
     std::size_t payload_align = 1;
     std::size_t payload_field_index = 0;
-};
-
-enum class BuiltinKind {
-    Int,
-    Nat,
-    Float,
-    Char,
-    Byte,
-    CInt,
-    CSize,
-    Text,
-    Bytes,
-    List,
-    NonEmptyList,
-    Unit,
-    Never,
 };
 
 struct ResolvedType {
@@ -320,10 +398,9 @@ struct ResolvedType {
     std::string llvm_type;
     std::size_t size = 0;
     std::size_t align = 1;
-    bool is_scalar = false;
-    bool is_never = false;
-    std::optional<hir::TypeId> type_id;
-    std::optional<BuiltinKind> builtin;
+    RuntimeStorageShape storage_shape = RuntimeStorageShape::Aggregate;
+    MaterializationState materialization = MaterializationState::RuntimeValue;
+    ResolvedTypeIdentity identity;
 };
 
 struct YieldLayout {
@@ -376,6 +453,20 @@ struct StringGlobal {
 class ModuleEmitter;
 class FunctionEmitter;
 
+struct BackendStepSucceeded final {};
+
+using BackendStepResult = std::expected<BackendStepSucceeded, std::string>;
+
+enum class YieldReturnKind {
+    Success,
+    Failure,
+};
+
+enum class BlockVisitState {
+    AwaitingFirstVisit,
+    AlreadyVisited,
+};
+
 class FunctionEmitter {
 public:
     FunctionEmitter(ModuleEmitter& module,
@@ -391,43 +482,49 @@ private:
         std::string value;
     };
 
-    [[nodiscard]] std::expected<void, std::string> prepare_locals();
-    [[nodiscard]] std::expected<void, std::string> emit_statement(const mir::Statement& statement);
-    [[nodiscard]] std::expected<void, std::string> emit_assign_use(mir::LocalId dest, const mir::Operand& operand);
-    [[nodiscard]] std::expected<void, std::string> emit_assign_call(mir::LocalId dest, const mir::Rvalue& value);
-    [[nodiscard]] std::expected<void, std::string> emit_assign_construct(mir::LocalId dest, const mir::Rvalue& value);
-    [[nodiscard]] std::expected<void, std::string> emit_assign_project_field(mir::LocalId dest, const mir::Rvalue& value);
-    [[nodiscard]] std::expected<void, std::string> emit_terminator(const mir::Terminator& terminator);
-    [[nodiscard]] std::expected<void, std::string> emit_switch_variant(const mir::Terminator& terminator);
-    [[nodiscard]] std::expected<void, std::string> emit_invoke(const mir::Terminator& terminator);
-    [[nodiscard]] std::expected<void, std::string> emit_function_return(const mir::Operand& operand);
-    [[nodiscard]] std::expected<void, std::string> emit_function_fail(const mir::Operand& operand);
-    [[nodiscard]] std::expected<void, std::string> emit_success_or_failure_return(const mir::Operand& operand,
-                                                                                  bool is_failure);
+    [[nodiscard]] BackendStepResult prepare_locals();
+    [[nodiscard]] BackendStepResult emit_statement(const mir::Statement& statement);
+    [[nodiscard]] BackendStepResult emit_assign_use(mir::LocalId dest, const mir::Operand& operand);
+    [[nodiscard]] BackendStepResult emit_assign_call(mir::LocalId dest, mir::Rvalue::CallValue value);
+    [[nodiscard]] BackendStepResult emit_assign_construct(mir::LocalId dest,
+                                                          mir::Rvalue::ConstructNamedTypeValue value);
+    [[nodiscard]] BackendStepResult emit_assign_construct(mir::LocalId dest,
+                                                          mir::Rvalue::ConstructNamedVariantValue value);
+    [[nodiscard]] BackendStepResult emit_assign_project_field(mir::LocalId dest,
+                                                              mir::Rvalue::ProjectNamedTypeFieldValue value);
+    [[nodiscard]] BackendStepResult emit_assign_project_field(
+        mir::LocalId dest,
+        mir::Rvalue::ProjectNamedVariantPayloadFieldValue value);
+    [[nodiscard]] BackendStepResult emit_terminator(const mir::Terminator& terminator);
+    [[nodiscard]] BackendStepResult emit_switch_variant(mir::Terminator::SwitchVariantValue terminator);
+    [[nodiscard]] BackendStepResult emit_invoke(mir::Terminator::InvokeValue terminator);
+    [[nodiscard]] BackendStepResult emit_function_return(const mir::Operand& operand);
+    [[nodiscard]] BackendStepResult emit_function_fail(const mir::Operand& operand);
+    [[nodiscard]] BackendStepResult emit_success_or_failure_return(const mir::Operand& operand,
+                                                                   YieldReturnKind return_kind);
     [[nodiscard]] std::expected<TypedValue, std::string> materialize_operand(const mir::Operand& operand,
                                                                              const ResolvedType& expected_type);
     [[nodiscard]] std::expected<std::string, std::string> local_slot(mir::LocalId local_id) const;
     [[nodiscard]] std::expected<const ResolvedType*, std::string> local_type(mir::LocalId local_id) const;
-    [[nodiscard]] std::expected<const TypeLayout*, std::string> user_layout_for_local(mir::LocalId local_id) const;
-    [[nodiscard]] std::expected<void, std::string> store_typed_value(const std::string& slot_ptr,
-                                                                     const ResolvedType& type,
-                                                                     const std::string& value);
+    [[nodiscard]] std::expected<const TypeLayout*, std::string> user_layout_for_local(mir::LocalId local_id);
+    [[nodiscard]] BackendStepResult store_typed_value(const std::string& slot_ptr,
+                                                      const ResolvedType& type,
+                                                      const std::string& value);
     [[nodiscard]] std::expected<std::string, std::string> load_from_slot(const std::string& slot_ptr,
                                                                          const ResolvedType& type);
-    [[nodiscard]] std::expected<void, std::string> store_text_literal(const std::string& slot_ptr,
-                                                                      const ResolvedType& type,
-                                                                      const std::string& lexeme);
-    [[nodiscard]] std::expected<TypedValue, std::string> make_text_literal_value(const ResolvedType& type,
-                                                                                 const std::string& lexeme);
+    [[nodiscard]] BackendStepResult store_string_literal(const std::string& slot_ptr,
+                                                         const ResolvedType& type,
+                                                         const std::string& lexeme);
+    [[nodiscard]] std::expected<TypedValue, std::string> make_string_literal_value(const ResolvedType& type,
+                                                                                   const std::string& lexeme);
     [[nodiscard]] std::expected<std::string, std::string> insert_value(const std::string& aggregate_type,
                                                                        const std::string& aggregate_value,
                                                                        const std::string& element_type,
                                                                        const std::string& element_value,
                                                                        std::size_t field_index);
     [[nodiscard]] std::expected<std::string, std::string> extract_value(const std::string& aggregate_type,
-                                                                        const std::string& aggregate_value,
-                                                                        const std::string& element_type,
-                                                                        std::size_t field_index);
+                                                                         const std::string& aggregate_value,
+                                                                         std::size_t field_index);
     [[nodiscard]] std::expected<std::string, std::string> pack_value_for_storage(const TypedValue& value,
                                                                                  const std::string& storage_type,
                                                                                  std::size_t storage_size);
@@ -462,12 +559,12 @@ public:
                   const hir::Package& hir_package,
                   const mir::Package& mir_package,
                   std::string target_triple,
-                  bool include_entry_wrapper)
+                  EntryPointEmission entry_point_emission)
         : model_(model),
           hir_package_(hir_package),
           mir_package_(mir_package),
           target_triple_(std::move(target_triple)),
-          include_entry_wrapper_(include_entry_wrapper) {}
+          entry_point_emission_(entry_point_emission) {}
 
     [[nodiscard]] std::expected<std::string, std::string> emit();
     [[nodiscard]] std::expected<StringGlobal, std::string> intern_string(const std::string& lexeme);
@@ -479,7 +576,7 @@ private:
     const hir::Package& hir_package_;
     const mir::Package& mir_package_;
     std::string target_triple_;
-    bool include_entry_wrapper_ = false;
+    EntryPointEmission entry_point_emission_ = EntryPointEmission::UserFunctionsOnly;
     std::vector<StringGlobal> string_globals_;
     std::unordered_map<std::string, std::size_t> string_indices_;
 };
@@ -489,10 +586,10 @@ private:
                                                    std::string llvm_type,
                                                    std::size_t size,
                                                    std::size_t align);
-[[nodiscard]] std::expected<void, std::string> validate_backend_package(BackendModel& model,
-                                                                        const hir::Package& hir_package,
-                                                                        const mir::Package& mir_package,
-                                                                        bool include_entry_wrapper);
+[[nodiscard]] BackendStepResult validate_backend_package(BackendModel& model,
+                                                         const hir::Package& hir_package,
+                                                         const mir::Package& mir_package,
+                                                         EntryPointEmission entry_point_emission);
 
 BackendModel::BackendModel(const hir::Package& package)
     : package_(package), visit_state_(package.types.size(), 0) {
@@ -530,47 +627,84 @@ const std::vector<std::string>& BackendModel::yield_definitions() const {
 
 std::expected<ResolvedType, std::string> BackendModel::resolve_type_name(const std::string& name) {
     if (name == "Int") {
-        return ResolvedType{name, "i64", 8, 8, true, false, std::nullopt, BuiltinKind::Int};
+        return ResolvedType{
+            name, "i64", 8, 8, RuntimeStorageShape::Scalar, MaterializationState::RuntimeValue,
+            ResolvedTypeIdentity::builtin_type(BuiltinKind::Int)};
     }
     if (name == "Nat") {
-        return ResolvedType{name, "i64", 8, 8, true, false, std::nullopt, BuiltinKind::Nat};
+        return ResolvedType{
+            name, "i64", 8, 8, RuntimeStorageShape::Scalar, MaterializationState::RuntimeValue,
+            ResolvedTypeIdentity::builtin_type(BuiltinKind::Nat)};
     }
     if (name == "Float") {
-        return ResolvedType{name, "double", 8, 8, true, false, std::nullopt, BuiltinKind::Float};
+        return ResolvedType{
+            name, "double", 8, 8, RuntimeStorageShape::Scalar, MaterializationState::RuntimeValue,
+            ResolvedTypeIdentity::builtin_type(BuiltinKind::Float)};
     }
     if (name == "Char") {
-        return ResolvedType{name, "i32", 4, 4, true, false, std::nullopt, BuiltinKind::Char};
+        return ResolvedType{
+            name, "i32", 4, 4, RuntimeStorageShape::Scalar, MaterializationState::RuntimeValue,
+            ResolvedTypeIdentity::builtin_type(BuiltinKind::Char)};
     }
     if (name == "Byte") {
-        return ResolvedType{name, "i8", 1, 1, true, false, std::nullopt, BuiltinKind::Byte};
+        return ResolvedType{
+            name, "i8", 1, 1, RuntimeStorageShape::Scalar, MaterializationState::RuntimeValue,
+            ResolvedTypeIdentity::builtin_type(BuiltinKind::Byte)};
     }
     if (name == "CInt") {
-        return ResolvedType{name, "i32", 4, 4, true, false, std::nullopt, BuiltinKind::CInt};
+        return ResolvedType{
+            name, "i32", 4, 4, RuntimeStorageShape::Scalar, MaterializationState::RuntimeValue,
+            ResolvedTypeIdentity::builtin_type(BuiltinKind::CInt)};
     }
     if (name == "CSize") {
-        return ResolvedType{name, "i64", 8, 8, true, false, std::nullopt, BuiltinKind::CSize};
+        return ResolvedType{
+            name, "i64", 8, 8, RuntimeStorageShape::Scalar, MaterializationState::RuntimeValue,
+            ResolvedTypeIdentity::builtin_type(BuiltinKind::CSize)};
+    }
+    if (name == "CString") {
+        return ResolvedType{
+            name, "ptr", 8, 8, RuntimeStorageShape::Aggregate, MaterializationState::RuntimeValue,
+            ResolvedTypeIdentity::builtin_type(BuiltinKind::CString)};
     }
     if (name == "Text") {
-        return ResolvedType{name, "{ ptr, i64 }", 16, 8, false, false, std::nullopt, BuiltinKind::Text};
+        return ResolvedType{
+            name, "{ ptr, i64 }", 16, 8, RuntimeStorageShape::Aggregate, MaterializationState::RuntimeValue,
+            ResolvedTypeIdentity::builtin_type(BuiltinKind::Text)};
     }
     if (name == "Bytes") {
-        return ResolvedType{name, "{ ptr, i64 }", 16, 8, false, false, std::nullopt, BuiltinKind::Bytes};
+        return ResolvedType{
+            name, "{ ptr, i64 }", 16, 8, RuntimeStorageShape::Aggregate, MaterializationState::RuntimeValue,
+            ResolvedTypeIdentity::builtin_type(BuiltinKind::Bytes)};
     }
     if (type_base_name(name) == "List") {
-        return ResolvedType{name, "{ ptr, i64 }", 16, 8, false, false, std::nullopt, BuiltinKind::List};
+        return ResolvedType{
+            name, "{ ptr, i64 }", 16, 8, RuntimeStorageShape::Aggregate, MaterializationState::RuntimeValue,
+            ResolvedTypeIdentity::builtin_type(BuiltinKind::List)};
     }
     if (type_base_name(name) == "NonEmptyList") {
-        return ResolvedType{name, "{ ptr, i64 }", 16, 8, false, false, std::nullopt, BuiltinKind::NonEmptyList};
+        return ResolvedType{
+            name, "{ ptr, i64 }", 16, 8, RuntimeStorageShape::Aggregate, MaterializationState::RuntimeValue,
+            ResolvedTypeIdentity::builtin_type(BuiltinKind::NonEmptyList)};
+    }
+    if (type_base_name(name) == "Map") {
+        return ResolvedType{
+            name, "{ ptr, i64 }", 16, 8, RuntimeStorageShape::Aggregate, MaterializationState::RuntimeValue,
+            ResolvedTypeIdentity::builtin_type(BuiltinKind::Map)};
+    }
+    if (type_base_name(name) == "NonEmptyMap") {
+        return ResolvedType{
+            name, "{ ptr, i64 }", 16, 8, RuntimeStorageShape::Aggregate, MaterializationState::RuntimeValue,
+            ResolvedTypeIdentity::builtin_type(BuiltinKind::NonEmptyMap)};
     }
     if (name == "Unit") {
-        return ResolvedType{name, "i8", 1, 1, true, false, std::nullopt, BuiltinKind::Unit};
+        return ResolvedType{
+            name, "i8", 1, 1, RuntimeStorageShape::Scalar, MaterializationState::RuntimeValue,
+            ResolvedTypeIdentity::builtin_type(BuiltinKind::Unit)};
     }
     if (name == "Never") {
-        return ResolvedType{name, "i8", 1, 1, true, true, std::nullopt, BuiltinKind::Never};
-    }
-    if (is_unsupported_builtin_type(name)) {
-        return std::unexpected(std::string("backend does not yet support builtin type '")
-                               + std::string(type_base_name(name)) + "'");
+        return ResolvedType{
+            name, "i8", 1, 1, RuntimeStorageShape::Scalar, MaterializationState::NeverValue,
+            ResolvedTypeIdentity::builtin_type(BuiltinKind::Never)};
     }
 
     const auto type_it = type_ids_by_name_.find(name);
@@ -587,10 +721,9 @@ std::expected<ResolvedType, std::string> BackendModel::resolve_type_name(const s
         (*layout)->llvm_type,
         (*layout)->size,
         (*layout)->align,
-        false,
-        false,
-        type_it->second,
-        std::nullopt,
+        RuntimeStorageShape::Aggregate,
+        MaterializationState::RuntimeValue,
+        ResolvedTypeIdentity::package_type(type_it->second),
     };
 }
 
@@ -620,7 +753,7 @@ std::expected<const YieldLayout*, std::string> BackendModel::ensure_yield_layout
     }
 
     const hir::FunctionDecl& function_decl = function(id);
-    if (!function_decl.fails_reason_type_id.has_value()) {
+    if (function_decl.failure.behavior() != hir::FunctionFailureBehavior::YieldsReason) {
         return std::unexpected("internal backend error: function '" + function_decl.qualified_name
                                + "' does not declare fails");
     }
@@ -634,7 +767,7 @@ std::expected<const YieldLayout*, std::string> BackendModel::ensure_yield_layout
         return std::unexpected(success_type.error());
     }
     const std::expected<ResolvedType, std::string> failure_type = resolve_type_name(
-        hir::lookup_type(package_, *function_decl.fails_reason_type_id).qualified_name);
+        hir::lookup_type(package_, function_decl.failure.reason_type_id()).qualified_name);
     if (!failure_type.has_value()) {
         return std::unexpected(failure_type.error());
     }
@@ -685,7 +818,7 @@ std::expected<const hir::FunctionDecl*, std::string> BackendModel::validate_entr
     if (main_function->visibility != ast::Visibility::Public) {
         return std::unexpected("entry `main` must be declared `public`");
     }
-    if (main_function->is_foreign || main_function->body == nullptr) {
+    if (main_function->implementation == ast::FunctionImplementation::ForeignImport || main_function->body == nullptr) {
         return std::unexpected("entry `main` must have a function body");
     }
     if (!main_function->generics.empty()) {
@@ -694,7 +827,7 @@ std::expected<const hir::FunctionDecl*, std::string> BackendModel::validate_entr
     if (!main_function->params.empty()) {
         return std::unexpected("entry `main` may not take parameters");
     }
-    if (main_function->fails_reason_type_id.has_value()) {
+    if (main_function->failure.behavior() == hir::FunctionFailureBehavior::YieldsReason) {
         return std::unexpected("entry `main` may not use `fails`");
     }
     if (main_function->return_type.text != "Int") {
@@ -739,7 +872,7 @@ std::expected<TypeLayout, std::string> BackendModel::build_record_layout(const h
             return std::unexpected("while lowering field '" + field.name + "' of '"
                                    + type_decl.qualified_name + "': " + field_type.error());
         }
-        if (field_type->is_never) {
+        if (field_type->materialization == MaterializationState::NeverValue) {
             return std::unexpected("backend does not support materialized field type `Never` in '"
                                    + type_decl.qualified_name + "'");
         }
@@ -754,10 +887,9 @@ std::expected<TypeLayout, std::string> BackendModel::build_record_layout(const h
             layout.fields.size(),
             field_type->size,
             field_type->align,
-            field_type->is_scalar,
-            field_type->is_never,
-            field_type->type_id,
-            field_type->builtin,
+            field_type->storage_shape,
+            field_type->materialization,
+            field_type->identity,
         });
         field_types.push_back(field_type->llvm_type);
         offset += field_type->size;
@@ -823,7 +955,7 @@ std::expected<TypeLayout, std::string> BackendModel::build_tagged_union_layout(c
             if (!field_type.has_value()) {
                 return std::unexpected(field_type.error());
             }
-            if (field_type->is_never) {
+            if (field_type->materialization == MaterializationState::NeverValue) {
                 return std::unexpected("backend does not support materialized field type `Never` in '"
                                        + variant_decl.qualified_name + "'");
             }
@@ -838,10 +970,9 @@ std::expected<TypeLayout, std::string> BackendModel::build_tagged_union_layout(c
                 variant_layout.fields.size(),
                 field_type->size,
                 field_type->align,
-                field_type->is_scalar,
-                field_type->is_never,
-                field_type->type_id,
-                field_type->builtin,
+                field_type->storage_shape,
+                field_type->materialization,
+                field_type->identity,
             });
             field_types.push_back(field_type->llvm_type);
             offset += field_type->size;
@@ -881,7 +1012,7 @@ std::expected<TypeLayout, std::string> BackendModel::build_tagged_union_layout(c
             return std::unexpected(storage_type.error());
         }
         const std::size_t padding = align_up(4, max_payload_align) - 4;
-        layout.has_payload = true;
+        layout.payload_state = PayloadStorageState::CarriesPayload;
         layout.payload_storage_type = *storage_type;
         layout.payload_size = max_payload_size;
         layout.payload_align = max_payload_align;
@@ -909,10 +1040,9 @@ ResolvedType resolved_type_from_field(const FieldLayout& field) {
         field.llvm_type,
         field.size,
         field.align,
-        field.is_scalar,
-        field.is_never,
-        field.type_id,
-        field.builtin,
+        field.storage_shape,
+        field.materialization,
+        field.identity,
     };
 }
 
@@ -925,18 +1055,17 @@ ResolvedType resolved_aggregate_type(std::string source_name,
         std::move(llvm_type),
         size,
         align,
-        false,
-        false,
-        std::nullopt,
-        std::nullopt,
+        RuntimeStorageShape::Aggregate,
+        MaterializationState::RuntimeValue,
+        ResolvedTypeIdentity::backend_aggregate_storage(),
     };
 }
 
-std::expected<void, std::string> validate_backend_package(BackendModel& model,
-                                                          const hir::Package& hir_package,
-                                                          const mir::Package& mir_package,
-                                                          bool include_entry_wrapper) {
-    if (include_entry_wrapper) {
+BackendStepResult validate_backend_package(BackendModel& model,
+                                           const hir::Package& hir_package,
+                                           const mir::Package& mir_package,
+                                           EntryPointEmission entry_point_emission) {
+    if (entry_point_emission == EntryPointEmission::IncludeExecutableEntryPoint) {
         const std::expected<const hir::FunctionDecl*, std::string> validated_main = model.validate_entry_main();
         if (!validated_main.has_value()) {
             return std::unexpected(validated_main.error());
@@ -944,11 +1073,11 @@ std::expected<void, std::string> validate_backend_package(BackendModel& model,
     }
 
     auto require_materializable_type = [](const ResolvedType& type, const std::string& context)
-        -> std::expected<void, std::string> {
-        if (type.is_never) {
+        -> BackendStepResult {
+        if (type.materialization == MaterializationState::NeverValue) {
             return std::unexpected("backend does not yet support materialized `Never` in " + context);
         }
-        return {};
+        return BackendStepSucceeded{};
     };
 
     auto resolve_materializable_type = [&](const std::string& type_name,
@@ -957,7 +1086,7 @@ std::expected<void, std::string> validate_backend_package(BackendModel& model,
         if (!resolved.has_value()) {
             return std::unexpected(resolved.error());
         }
-        if (const std::expected<void, std::string> valid = require_materializable_type(*resolved, context);
+        if (const BackendStepResult valid = require_materializable_type(*resolved, context);
             !valid.has_value()) {
             return std::unexpected(valid.error());
         }
@@ -984,7 +1113,7 @@ std::expected<void, std::string> validate_backend_package(BackendModel& model,
             return std::unexpected(return_type.error());
         }
         for (const hir::Parameter& param : function_decl.params) {
-            if (param.is_compile_time_only) {
+            if (materialization_of(param.type.discipline) == typesys::DisciplineMaterialization::CompileTimeOnly) {
                 continue;
             }
             const std::expected<ResolvedType, std::string> param_type = resolve_materializable_type(
@@ -994,12 +1123,12 @@ std::expected<void, std::string> validate_backend_package(BackendModel& model,
                 return std::unexpected(param_type.error());
             }
         }
-        if (function_decl.fails_reason_type_id.has_value()) {
+        if (function_decl.failure.behavior() == hir::FunctionFailureBehavior::YieldsReason) {
             const std::expected<const YieldLayout*, std::string> yield_layout = model.ensure_yield_layout(function_decl.id);
             if (!yield_layout.has_value()) {
                 return std::unexpected(yield_layout.error());
             }
-            const hir::TypeDecl& reason_type = model.type(*function_decl.fails_reason_type_id);
+            const hir::TypeDecl& reason_type = model.type(function_decl.failure.reason_type_id());
             const std::expected<ResolvedType, std::string> resolved_reason = resolve_materializable_type(
                 reason_type.qualified_name,
                 "yield reason of function '" + function_decl.qualified_name + "'");
@@ -1019,26 +1148,27 @@ std::expected<void, std::string> validate_backend_package(BackendModel& model,
         }
 
         const hir::FunctionDecl& hir_function = hir::lookup_function(hir_package, mir_function.function_id);
-        if (mir_function.is_foreign != hir_function.is_foreign) {
-            return std::unexpected("internal backend error: foreign flag mismatch for function '"
+        if (mir_function.implementation != hir_function.implementation) {
+            return std::unexpected("internal backend error: function implementation mode mismatch for function '"
                                    + hir_function.qualified_name + "'");
         }
 
         std::unordered_map<mir::LocalId, ResolvedType> local_types;
         local_types.reserve(mir_function.locals.size());
-        std::unordered_map<mir::LocalId, bool> local_compile_time_only;
-        local_compile_time_only.reserve(mir_function.locals.size());
+        std::unordered_map<mir::LocalId, typesys::UseDiscipline> local_disciplines;
+        local_disciplines.reserve(mir_function.locals.size());
         for (const mir::Local& local : mir_function.locals) {
-            const std::expected<ResolvedType, std::string> resolved = local.is_compile_time_only
-                ? model.resolve_type_name(local.type)
+            const std::expected<ResolvedType, std::string> resolved =
+                materialization_of(local.discipline()) == typesys::DisciplineMaterialization::CompileTimeOnly
+                ? model.resolve_type_name(local.type_name())
                 : resolve_materializable_type(
-                    local.type,
-                    "local '" + local.name + "' in function '" + hir_function.qualified_name + "'");
+                    local.type_name(),
+                    "local '" + local.name() + "' in function '" + hir_function.qualified_name + "'");
             if (!resolved.has_value()) {
                 return std::unexpected(resolved.error());
             }
-            local_types.emplace(local.id, *resolved);
-            local_compile_time_only.emplace(local.id, local.is_compile_time_only);
+            local_types.emplace(local.id(), *resolved);
+            local_disciplines.emplace(local.id(), local.discipline());
         }
 
         auto local_type = [&](mir::LocalId local_id, const std::string& context)
@@ -1053,58 +1183,65 @@ std::expected<void, std::string> validate_backend_package(BackendModel& model,
 
         auto validate_operand = [&](const mir::Operand& operand,
                                     const ResolvedType& expected_type,
-                                    const std::string& context) -> std::expected<void, std::string> {
-            switch (operand.kind) {
-            case mir::OperandKind::Local: {
-                const auto compile_time_only_it = local_compile_time_only.find(operand.local_id);
-                if (compile_time_only_it != local_compile_time_only.end() && compile_time_only_it->second) {
-                    return std::unexpected("internal backend error: compile-time-only local %"
-                                           + std::to_string(operand.local_id) + " used in " + context);
-                }
-                const std::expected<const ResolvedType*, std::string> actual_type = local_type(operand.local_id, context);
-                if (!actual_type.has_value()) {
-                    return std::unexpected(actual_type.error());
-                }
-                if ((*actual_type)->source_name != expected_type.source_name) {
-                    return std::unexpected("backend type mismatch in " + context + ": expected '"
-                                           + expected_type.source_name + "', got '" + (*actual_type)->source_name + "'");
-                }
-                return {};
-            }
-            case mir::OperandKind::IntLiteral:
-                if (!expected_type.is_scalar
-                    || (expected_type.llvm_type != "i64" && expected_type.llvm_type != "i32"
-                        && expected_type.llvm_type != "i8")) {
-                    return std::unexpected("backend only supports integer literals in integer destinations for "
-                                           + context + ", got '" + expected_type.source_name + "'");
-                }
-                return {};
-            case mir::OperandKind::StringLiteral:
-                if (expected_type.builtin != BuiltinKind::Text && expected_type.builtin != BuiltinKind::Bytes) {
-                    return std::unexpected("backend only supports string literals for Text/Bytes values in "
-                                           + context + ", got '" + expected_type.source_name + "'");
-                }
-                return {};
-            case mir::OperandKind::Unit:
-                if (expected_type.builtin != BuiltinKind::Unit) {
-                    return std::unexpected("backend expected Unit in " + context + ", got '"
-                                           + expected_type.source_name + "'");
-                }
-                return {};
-            }
-            return std::unexpected("internal backend error: unsupported operand in " + context);
+                                    const std::string& context) -> BackendStepResult {
+            return operand.match(
+                [&](mir::Operand::LocalValue local) -> BackendStepResult {
+                    const auto discipline_it = local_disciplines.find(local.local_id);
+                    if (discipline_it != local_disciplines.end()
+                        && materialization_of(discipline_it->second)
+                            == typesys::DisciplineMaterialization::CompileTimeOnly) {
+                        return std::unexpected("internal backend error: compile-time-only local %"
+                                               + std::to_string(local.local_id) + " used in " + context);
+                    }
+                    const std::expected<const ResolvedType*, std::string> actual_type = local_type(local.local_id, context);
+                    if (!actual_type.has_value()) {
+                        return std::unexpected(actual_type.error());
+                    }
+                    if ((*actual_type)->source_name != expected_type.source_name) {
+                        return std::unexpected("backend type mismatch in " + context + ": expected '"
+                                               + expected_type.source_name + "', got '" + (*actual_type)->source_name + "'");
+                    }
+                    return BackendStepSucceeded{};
+                },
+                [&](mir::Operand::IntLiteralValue) -> BackendStepResult {
+                    if (expected_type.storage_shape != RuntimeStorageShape::Scalar
+                        || (expected_type.llvm_type != "i64" && expected_type.llvm_type != "i32"
+                            && expected_type.llvm_type != "i8")) {
+                        return std::unexpected("backend only supports integer literals in integer destinations for "
+                                               + context + ", got '" + expected_type.source_name + "'");
+                    }
+                    return BackendStepSucceeded{};
+                },
+                [&](mir::Operand::StringLiteralValue) -> BackendStepResult {
+                    if (expected_type.identity.category() != ResolvedTypeCategory::BuiltinType
+                        || (expected_type.identity.builtin_kind() != BuiltinKind::Text
+                            && expected_type.identity.builtin_kind() != BuiltinKind::Bytes
+                            && expected_type.identity.builtin_kind() != BuiltinKind::CString)) {
+                        return std::unexpected("backend only supports string literals for Text/Bytes/CString values in "
+                                               + context + ", got '" + expected_type.source_name + "'");
+                    }
+                    return BackendStepSucceeded{};
+                },
+                [&](mir::Operand::UnitValue) -> BackendStepResult {
+                    if (expected_type.identity.category() != ResolvedTypeCategory::BuiltinType
+                        || expected_type.identity.builtin_kind() != BuiltinKind::Unit) {
+                        return std::unexpected("backend expected Unit in " + context + ", got '"
+                                               + expected_type.source_name + "'");
+                    }
+                    return BackendStepSucceeded{};
+                });
         };
 
         auto validate_block_target = [&](mir::BlockId block_id, const std::string& context)
-            -> std::expected<void, std::string> {
+            -> BackendStepResult {
             if (block_id >= mir_function.blocks.size()) {
                 return std::unexpected("internal backend error: target block %" + std::to_string(block_id)
                                        + " out of range in " + context);
             }
-            return {};
+            return BackendStepSucceeded{};
         };
 
-        if (hir_function.is_foreign) {
+        if (hir_function.implementation == ast::FunctionImplementation::ForeignImport) {
             if (!mir_function.blocks.empty()) {
                 return std::unexpected("internal backend error: foreign function '" + hir_function.qualified_name
                                        + "' unexpectedly has MIR blocks");
@@ -1112,55 +1249,60 @@ std::expected<void, std::string> validate_backend_package(BackendModel& model,
             continue;
         }
 
-        std::vector<bool> seen_blocks(mir_function.blocks.size(), false);
+        std::vector<BlockVisitState> block_visit_states(
+            mir_function.blocks.size(),
+            BlockVisitState::AwaitingFirstVisit);
         for (const mir::BasicBlock& block : mir_function.blocks) {
             if (block.id >= mir_function.blocks.size()) {
                 return std::unexpected("internal backend error: block id out of range in function '"
                                        + hir_function.qualified_name + "'");
             }
-            if (seen_blocks[block.id]) {
+            if (block_visit_states[block.id] == BlockVisitState::AlreadyVisited) {
                 return std::unexpected("internal backend error: duplicate block id %" + std::to_string(block.id)
                                        + " in function '" + hir_function.qualified_name + "'");
             }
-            seen_blocks[block.id] = true;
+            block_visit_states[block.id] = BlockVisitState::AlreadyVisited;
 
             for (const mir::Statement& statement : block.statements) {
+                const mir::LocalId statement_dest = statement.dest_local();
+                const mir::Rvalue& statement_value = statement.rvalue();
                 const std::string statement_context = "function '" + hir_function.qualified_name + "'";
                 const std::expected<const ResolvedType*, std::string> dest_type
-                    = local_type(statement.dest_local, statement_context);
+                    = local_type(statement_dest, statement_context);
                 if (!dest_type.has_value()) {
                     return std::unexpected(dest_type.error());
                 }
-                const auto dest_compile_time_only = local_compile_time_only.find(statement.dest_local);
-                if (dest_compile_time_only != local_compile_time_only.end() && dest_compile_time_only->second) {
+                const auto dest_discipline = local_disciplines.find(statement_dest);
+                if (dest_discipline != local_disciplines.end()
+                    && materialization_of(dest_discipline->second) == typesys::DisciplineMaterialization::CompileTimeOnly) {
                     return std::unexpected("internal backend error: compile-time-only local %"
-                                           + std::to_string(statement.dest_local)
+                                           + std::to_string(statement_dest)
                                            + " cannot be assigned in function '" + hir_function.qualified_name + "'");
                 }
 
-                switch (statement.value.kind) {
-                case mir::RvalueKind::Use: {
-                    if (const std::expected<void, std::string> valid = validate_operand(
-                            statement.value.operand,
+                const BackendStepResult statement_valid = statement_value.match(
+                    [&](mir::Rvalue::UseValue value) -> BackendStepResult {
+                    if (const BackendStepResult valid = validate_operand(
+                            value.operand,
                             *(*dest_type),
-                            "assignment to local %" + std::to_string(statement.dest_local)
+                            "assignment to local %" + std::to_string(statement_dest)
                                 + " in function '" + hir_function.qualified_name + "'");
                         !valid.has_value()) {
                         return std::unexpected(valid.error());
                     }
-                    break;
-                }
-                case mir::RvalueKind::Call: {
-                    if (statement.value.function_id >= hir_package.functions.size()) {
+                    return BackendStepSucceeded{};
+                    },
+                    [&](mir::Rvalue::CallValue value) -> BackendStepResult {
+                    if (value.function_id >= hir_package.functions.size()) {
                         return std::unexpected("internal backend error: call target id out of range in function '"
                                                + hir_function.qualified_name + "'");
                     }
-                    const hir::FunctionDecl& callee = hir::lookup_function(hir_package, statement.value.function_id);
-                    if (callee.fails_reason_type_id.has_value()) {
+                    const hir::FunctionDecl& callee = hir::lookup_function(hir_package, value.function_id);
+                    if (callee.failure.behavior() == hir::FunctionFailureBehavior::YieldsReason) {
                         return std::unexpected("backend does not support lowering a yielding call as a plain assignment in '"
                                                + hir_function.qualified_name + "'");
                     }
-                    if (statement.value.args.size() != callee.params.size()) {
+                    if (value.args.size() != callee.params.size()) {
                         return std::unexpected("internal backend error: call arity mismatch for '"
                                                + callee.qualified_name + "'");
                     }
@@ -1175,9 +1317,11 @@ std::expected<void, std::string> validate_backend_package(BackendModel& model,
                                                + "': expected '" + (*dest_type)->source_name + "', got '"
                                                + return_type->source_name + "'");
                     }
-                    for (std::size_t index = 0; index < statement.value.args.size(); ++index) {
-                        if (callee.params[index].is_compile_time_only) {
-                            if (statement.value.args[index].kind != mir::OperandKind::Unit) {
+                    for (std::size_t index = 0; index < value.args.size(); ++index) {
+                        if (materialization_of(callee.params[index].type.discipline)
+                            == typesys::DisciplineMaterialization::CompileTimeOnly) {
+                            if (compile_time_argument_encoding_of(value.args[index])
+                                != CompileTimeArgumentEncoding::ErasedToUnitOperand) {
                                 return std::unexpected("internal backend error: compile-time-only parameter "
                                                        + std::to_string(index) + " of callee '"
                                                        + callee.qualified_name + "' was not erased");
@@ -1190,220 +1334,228 @@ std::expected<void, std::string> validate_backend_package(BackendModel& model,
                         if (!param_type.has_value()) {
                             return std::unexpected(param_type.error());
                         }
-                        const std::expected<void, std::string> valid = validate_operand(
-                            statement.value.args[index],
+                        const BackendStepResult valid = validate_operand(
+                            value.args[index],
                             *param_type,
                             "argument " + std::to_string(index) + " of call to '" + callee.qualified_name + "'");
                         if (!valid.has_value()) {
                             return std::unexpected(valid.error());
                         }
                     }
-                    break;
-                }
-                case mir::RvalueKind::Construct: {
-                    if (!(*dest_type)->type_id.has_value()) {
+                    return BackendStepSucceeded{};
+                    },
+                    [&](mir::Rvalue::ConstructNamedTypeValue value) -> BackendStepResult {
+                    if ((*dest_type)->identity.category() != ResolvedTypeCategory::PackageTypeDeclaration) {
                         return std::unexpected("backend only supports constructing user-defined values, got '"
                                                + (*dest_type)->source_name + "'");
                     }
                     const std::expected<const TypeLayout*, std::string> owner_layout
-                        = model.ensure_type_layout(statement.value.owner_type_id);
+                        = model.ensure_type_layout(value.owner_type_id);
                     if (!owner_layout.has_value()) {
                         return std::unexpected(owner_layout.error());
                     }
-                    if (statement.value.variant_id.has_value()) {
-                        const auto variant_it = (*owner_layout)->variants.find(*statement.value.variant_id);
-                        if (variant_it == (*owner_layout)->variants.end()) {
-                            return std::unexpected("backend could not resolve variant layout for '"
-                                                   + statement.value.qualified_name + "'");
+                    for (const mir::FieldValue& field : value.fields) {
+                        const auto field_it = (*owner_layout)->field_indices.find(field.field_name());
+                        if (field_it == (*owner_layout)->field_indices.end()) {
+                            return std::unexpected("backend could not resolve field '" + field.field_name()
+                                                   + "' in '" + value.qualified_name + "'");
                         }
-                        const VariantLayout& variant_layout = variant_it->second;
-                        for (const mir::FieldValue& field : statement.value.fields) {
-                            const auto field_it = variant_layout.field_indices.find(field.name);
-                            if (field_it == variant_layout.field_indices.end()) {
-                                return std::unexpected("backend could not resolve variant field '" + field.name
-                                                       + "' in '" + statement.value.qualified_name + "'");
-                            }
-                            const ResolvedType field_type = resolved_type_from_field(variant_layout.fields[field_it->second]);
-                            const std::expected<void, std::string> valid = validate_operand(
-                                field.value,
-                                field_type,
-                                "field '" + field.name + "' of '" + statement.value.qualified_name + "'");
-                            if (!valid.has_value()) {
-                                return std::unexpected(valid.error());
-                            }
-                        }
-                    } else {
-                        for (const mir::FieldValue& field : statement.value.fields) {
-                            const auto field_it = (*owner_layout)->field_indices.find(field.name);
-                            if (field_it == (*owner_layout)->field_indices.end()) {
-                                return std::unexpected("backend could not resolve field '" + field.name
-                                                       + "' in '" + statement.value.qualified_name + "'");
-                            }
-                            const ResolvedType field_type = resolved_type_from_field((*owner_layout)->fields[field_it->second]);
-                            const std::expected<void, std::string> valid = validate_operand(
-                                field.value,
-                                field_type,
-                                "field '" + field.name + "' of '" + statement.value.qualified_name + "'");
-                            if (!valid.has_value()) {
-                                return std::unexpected(valid.error());
-                            }
+                        const ResolvedType field_type = resolved_type_from_field((*owner_layout)->fields[field_it->second]);
+                        const BackendStepResult valid = validate_operand(
+                            field.operand(),
+                            field_type,
+                            "field '" + field.field_name() + "' of '" + value.qualified_name + "'");
+                        if (!valid.has_value()) {
+                            return std::unexpected(valid.error());
                         }
                     }
-                    break;
-                }
-                case mir::RvalueKind::ProjectField: {
+                    return BackendStepSucceeded{};
+                    },
+                    [&](mir::Rvalue::ConstructNamedVariantValue value) -> BackendStepResult {
+                    if ((*dest_type)->identity.category() != ResolvedTypeCategory::PackageTypeDeclaration) {
+                        return std::unexpected("backend only supports constructing user-defined values, got '"
+                                               + (*dest_type)->source_name + "'");
+                    }
+                    const std::expected<const TypeLayout*, std::string> owner_layout
+                        = model.ensure_type_layout(value.owner_type_id);
+                    if (!owner_layout.has_value()) {
+                        return std::unexpected(owner_layout.error());
+                    }
+                    const auto variant_it = (*owner_layout)->variants.find(value.variant_id);
+                    if (variant_it == (*owner_layout)->variants.end()) {
+                        return std::unexpected("backend could not resolve variant layout for '"
+                                               + value.qualified_name + "'");
+                    }
+                    const VariantLayout& variant_layout = variant_it->second;
+                    for (const mir::FieldValue& field : value.fields) {
+                        const auto field_it = variant_layout.field_indices.find(field.field_name());
+                        if (field_it == variant_layout.field_indices.end()) {
+                            return std::unexpected("backend could not resolve variant field '" + field.field_name()
+                                                   + "' in '" + value.qualified_name + "'");
+                        }
+                        const ResolvedType field_type = resolved_type_from_field(variant_layout.fields[field_it->second]);
+                        const BackendStepResult valid = validate_operand(
+                            field.operand(),
+                            field_type,
+                            "field '" + field.field_name() + "' of '" + value.qualified_name + "'");
+                        if (!valid.has_value()) {
+                            return std::unexpected(valid.error());
+                        }
+                    }
+                    return BackendStepSucceeded{};
+                    },
+                    [&](mir::Rvalue::ProjectNamedTypeFieldValue value) -> BackendStepResult {
                     const std::expected<const ResolvedType*, std::string> base_type
-                        = local_type(statement.value.base_local, statement_context);
+                        = local_type(value.base_local, statement_context);
                     if (!base_type.has_value()) {
                         return std::unexpected(base_type.error());
                     }
-                    if (!(*base_type)->type_id.has_value()) {
+                    if ((*base_type)->identity.category() != ResolvedTypeCategory::PackageTypeDeclaration) {
                         return std::unexpected("backend expected a user-defined base for projection in function '"
                                                + hir_function.qualified_name + "'");
                     }
-                    if (statement.value.projection_variant_id.has_value()) {
-                        const std::expected<const TypeLayout*, std::string> owner_layout
-                            = model.ensure_type_layout(statement.value.projection_owner_type_id);
-                        if (!owner_layout.has_value()) {
-                            return std::unexpected(owner_layout.error());
-                        }
-                        const auto variant_it = (*owner_layout)->variants.find(*statement.value.projection_variant_id);
-                        if (variant_it == (*owner_layout)->variants.end()) {
-                            return std::unexpected("backend could not resolve projection variant for field '"
-                                                   + statement.value.field_name + "'");
-                        }
-                        const auto field_it = variant_it->second.field_indices.find(statement.value.field_name);
-                        if (field_it == variant_it->second.field_indices.end()) {
-                            return std::unexpected("backend could not resolve projected field '"
-                                                   + statement.value.field_name + "'");
-                        }
-                        const ResolvedType field_type
-                            = resolved_type_from_field(variant_it->second.fields[field_it->second]);
-                        if (field_type.source_name != (*dest_type)->source_name) {
-                            return std::unexpected("backend type mismatch for projected field '" + statement.value.field_name
-                                                   + "': expected '" + (*dest_type)->source_name + "', got '"
-                                                   + field_type.source_name + "'");
-                        }
-                    } else {
-                        const std::expected<const TypeLayout*, std::string> owner_layout
-                            = model.ensure_type_layout(*(*base_type)->type_id);
-                        if (!owner_layout.has_value()) {
-                            return std::unexpected(owner_layout.error());
-                        }
-                        const auto field_it = (*owner_layout)->field_indices.find(statement.value.field_name);
-                        if (field_it == (*owner_layout)->field_indices.end()) {
-                            return std::unexpected("backend could not resolve projected field '"
-                                                   + statement.value.field_name + "'");
-                        }
-                        const ResolvedType field_type = resolved_type_from_field((*owner_layout)->fields[field_it->second]);
-                        if (field_type.source_name != (*dest_type)->source_name) {
-                            return std::unexpected("backend type mismatch for projected field '" + statement.value.field_name
-                                                   + "': expected '" + (*dest_type)->source_name + "', got '"
-                                                   + field_type.source_name + "'");
-                        }
+                    const std::expected<const TypeLayout*, std::string> owner_layout
+                        = model.ensure_type_layout((*base_type)->identity.package_type_id());
+                    if (!owner_layout.has_value()) {
+                        return std::unexpected(owner_layout.error());
                     }
-                    break;
+                    const auto field_it = (*owner_layout)->field_indices.find(value.field_name);
+                    if (field_it == (*owner_layout)->field_indices.end()) {
+                        return std::unexpected("backend could not resolve projected field '"
+                                               + value.field_name + "'");
+                    }
+                    const ResolvedType field_type = resolved_type_from_field((*owner_layout)->fields[field_it->second]);
+                    if (field_type.source_name != (*dest_type)->source_name) {
+                        return std::unexpected("backend type mismatch for projected field '" + value.field_name
+                                               + "': expected '" + (*dest_type)->source_name + "', got '"
+                                               + field_type.source_name + "'");
+                    }
+                    return BackendStepSucceeded{};
+                    },
+                    [&](mir::Rvalue::ProjectNamedVariantPayloadFieldValue value) -> BackendStepResult {
+                    const std::expected<const ResolvedType*, std::string> base_type
+                        = local_type(value.base_local, statement_context);
+                    if (!base_type.has_value()) {
+                        return std::unexpected(base_type.error());
+                    }
+                    if ((*base_type)->identity.category() != ResolvedTypeCategory::PackageTypeDeclaration) {
+                        return std::unexpected("backend expected a user-defined base for projection in function '"
+                                               + hir_function.qualified_name + "'");
+                    }
+                    const std::expected<const TypeLayout*, std::string> owner_layout
+                        = model.ensure_type_layout(value.projection_owner_type_id);
+                    if (!owner_layout.has_value()) {
+                        return std::unexpected(owner_layout.error());
+                    }
+                    const auto variant_it = (*owner_layout)->variants.find(value.variant_id);
+                    if (variant_it == (*owner_layout)->variants.end()) {
+                        return std::unexpected("backend could not resolve projection variant for field '"
+                                               + value.field_name + "'");
+                    }
+                    const auto field_it = variant_it->second.field_indices.find(value.field_name);
+                    if (field_it == variant_it->second.field_indices.end()) {
+                        return std::unexpected("backend could not resolve projected field '"
+                                               + value.field_name + "'");
+                    }
+                    const ResolvedType field_type
+                        = resolved_type_from_field(variant_it->second.fields[field_it->second]);
+                    if (field_type.source_name != (*dest_type)->source_name) {
+                        return std::unexpected("backend type mismatch for projected field '" + value.field_name
+                                               + "': expected '" + (*dest_type)->source_name + "', got '"
+                                               + field_type.source_name + "'");
+                    }
+                    return BackendStepSucceeded{};
+                    });
+                if (!statement_valid.has_value()) {
+                    return std::unexpected(statement_valid.error());
                 }
-                }
-            }
-
-            if (!block.has_terminator) {
-                continue;
             }
 
             const mir::Terminator& terminator = block.terminator;
-            switch (terminator.kind) {
-            case mir::TerminatorKind::Return: {
-                if (!terminator.value.has_value()) {
-                    return std::unexpected("internal backend error: missing return value in function '"
-                                           + hir_function.qualified_name + "'");
-                }
+            const BackendStepResult terminator_valid = terminator.match(
+                [&](mir::Terminator::ReturnValue terminator) -> BackendStepResult {
                 const std::expected<ResolvedType, std::string> return_type = resolve_materializable_type(
                     hir_function.return_type.text,
                     "return type of function '" + hir_function.qualified_name + "'");
                 if (!return_type.has_value()) {
                     return std::unexpected(return_type.error());
                 }
-                const std::expected<void, std::string> valid = validate_operand(
-                    *terminator.value,
+                const BackendStepResult valid = validate_operand(
+                    terminator.value,
                     *return_type,
                     "return from function '" + hir_function.qualified_name + "'");
                 if (!valid.has_value()) {
                     return std::unexpected(valid.error());
                 }
-                break;
-            }
-            case mir::TerminatorKind::Fail: {
-                if (!hir_function.fails_reason_type_id.has_value()) {
+                return BackendStepSucceeded{};
+                },
+                [&](mir::Terminator::FailValue terminator) -> BackendStepResult {
+                if (hir_function.failure.behavior() != hir::FunctionFailureBehavior::YieldsReason) {
                     return std::unexpected("internal backend error: `fail` terminator in non-yielding function '"
                                            + hir_function.qualified_name + "'");
                 }
-                if (!terminator.value.has_value()) {
-                    return std::unexpected("internal backend error: missing fail value in function '"
-                                           + hir_function.qualified_name + "'");
-                }
-                const hir::TypeDecl& reason_type = model.type(*hir_function.fails_reason_type_id);
+                const hir::TypeDecl& reason_type = model.type(hir_function.failure.reason_type_id());
                 const std::expected<ResolvedType, std::string> resolved_reason = resolve_materializable_type(
                     reason_type.qualified_name,
                     "fail reason of function '" + hir_function.qualified_name + "'");
                 if (!resolved_reason.has_value()) {
                     return std::unexpected(resolved_reason.error());
                 }
-                const std::expected<void, std::string> valid = validate_operand(
-                    *terminator.value,
+                const BackendStepResult valid = validate_operand(
+                    terminator.reason,
                     *resolved_reason,
                     "fail from function '" + hir_function.qualified_name + "'");
                 if (!valid.has_value()) {
                     return std::unexpected(valid.error());
                 }
-                break;
-            }
-            case mir::TerminatorKind::Goto: {
-                const std::expected<void, std::string> valid = validate_block_target(
+                return BackendStepSucceeded{};
+                },
+                [&](mir::Terminator::GotoValue terminator) -> BackendStepResult {
+                const BackendStepResult valid = validate_block_target(
                     terminator.target_block,
                     "function '" + hir_function.qualified_name + "'");
                 if (!valid.has_value()) {
                     return std::unexpected(valid.error());
                 }
-                break;
-            }
-            case mir::TerminatorKind::SwitchVariant: {
+                return BackendStepSucceeded{};
+                },
+                [&](mir::Terminator::SwitchVariantValue terminator) -> BackendStepResult {
                 const std::expected<const ResolvedType*, std::string> scrutinee_type
                     = local_type(terminator.scrutinee_local, "switch in function '" + hir_function.qualified_name + "'");
                 if (!scrutinee_type.has_value()) {
                     return std::unexpected(scrutinee_type.error());
                 }
-                if (!(*scrutinee_type)->type_id.has_value()) {
+                if ((*scrutinee_type)->identity.category() != ResolvedTypeCategory::PackageTypeDeclaration) {
                     return std::unexpected("backend expected a user-defined scrutinee for variant switch in function '"
                                            + hir_function.qualified_name + "'");
                 }
                 const std::expected<const TypeLayout*, std::string> owner_layout
-                    = model.ensure_type_layout(*(*scrutinee_type)->type_id);
+                    = model.ensure_type_layout((*scrutinee_type)->identity.package_type_id());
                 if (!owner_layout.has_value()) {
                     return std::unexpected(owner_layout.error());
                 }
                 for (const mir::SwitchEdge& edge : terminator.edges) {
-                    if ((*owner_layout)->variants.find(edge.variant_id) == (*owner_layout)->variants.end()) {
+                    if ((*owner_layout)->variants.find(edge.variant_id()) == (*owner_layout)->variants.end()) {
                         return std::unexpected("backend could not resolve switched variant id "
-                                               + std::to_string(edge.variant_id) + " in function '"
+                                               + std::to_string(edge.variant_id()) + " in function '"
                                                + hir_function.qualified_name + "'");
                     }
-                    const std::expected<void, std::string> valid = validate_block_target(
-                        edge.target_block,
+                    const BackendStepResult valid = validate_block_target(
+                        edge.target_block(),
                         "switch in function '" + hir_function.qualified_name + "'");
                     if (!valid.has_value()) {
                         return std::unexpected(valid.error());
                     }
                 }
-                break;
-            }
-            case mir::TerminatorKind::Invoke: {
+                return BackendStepSucceeded{};
+                },
+                [&](mir::Terminator::InvokeValue terminator) -> BackendStepResult {
                 if (terminator.function_id >= hir_package.functions.size()) {
                     return std::unexpected("internal backend error: invoke target id out of range in function '"
                                            + hir_function.qualified_name + "'");
                 }
                 const hir::FunctionDecl& callee = hir::lookup_function(hir_package, terminator.function_id);
-                if (!callee.fails_reason_type_id.has_value()) {
+                if (callee.failure.behavior() != hir::FunctionFailureBehavior::YieldsReason) {
                     return std::unexpected("internal backend error: invoke used on non-yielding function '"
                                            + callee.qualified_name + "'");
                 }
@@ -1412,8 +1564,10 @@ std::expected<void, std::string> validate_backend_package(BackendModel& model,
                                            + callee.qualified_name + "'");
                 }
                 for (std::size_t index = 0; index < terminator.args.size(); ++index) {
-                    if (callee.params[index].is_compile_time_only) {
-                        if (terminator.args[index].kind != mir::OperandKind::Unit) {
+                    if (materialization_of(callee.params[index].type.discipline)
+                        == typesys::DisciplineMaterialization::CompileTimeOnly) {
+                        if (compile_time_argument_encoding_of(terminator.args[index])
+                            != CompileTimeArgumentEncoding::ErasedToUnitOperand) {
                             return std::unexpected("internal backend error: compile-time-only parameter "
                                                    + std::to_string(index) + " of callee '"
                                                    + callee.qualified_name + "' was not erased");
@@ -1426,7 +1580,7 @@ std::expected<void, std::string> validate_backend_package(BackendModel& model,
                     if (!param_type.has_value()) {
                         return std::unexpected(param_type.error());
                     }
-                    const std::expected<void, std::string> valid = validate_operand(
+                    const BackendStepResult valid = validate_operand(
                         terminator.args[index],
                         *param_type,
                         "argument " + std::to_string(index) + " of invoke '" + callee.qualified_name + "'");
@@ -1440,7 +1594,7 @@ std::expected<void, std::string> validate_backend_package(BackendModel& model,
                 if (!success_type.has_value()) {
                     return std::unexpected(success_type.error());
                 }
-                const hir::TypeDecl& callee_reason = model.type(*callee.fails_reason_type_id);
+                const hir::TypeDecl& callee_reason = model.type(callee.failure.reason_type_id());
                 const std::expected<ResolvedType, std::string> failure_type = resolve_materializable_type(
                     callee_reason.qualified_name,
                     "failure result of invoke '" + callee.qualified_name + "'");
@@ -1467,32 +1621,35 @@ std::expected<void, std::string> validate_backend_package(BackendModel& model,
                                            + hir_function.qualified_name + "': expected '" + failure_type->source_name
                                            + "', got '" + (*failure_local_type)->source_name + "'");
                 }
-                if (const std::expected<void, std::string> valid = validate_block_target(
+                if (const BackendStepResult valid = validate_block_target(
                         terminator.success_block,
                         "invoke success in function '" + hir_function.qualified_name + "'");
                     !valid.has_value()) {
                     return std::unexpected(valid.error());
                 }
-                if (const std::expected<void, std::string> valid = validate_block_target(
+                if (const BackendStepResult valid = validate_block_target(
                         terminator.failure_block,
                         "invoke failure in function '" + hir_function.qualified_name + "'");
                     !valid.has_value()) {
                     return std::unexpected(valid.error());
                 }
-                break;
-            }
-            case mir::TerminatorKind::Unreachable:
-                break;
+                return BackendStepSucceeded{};
+                },
+                [&](mir::Terminator::UnreachableValue) -> BackendStepResult {
+                    return BackendStepSucceeded{};
+                });
+            if (!terminator_valid.has_value()) {
+                return std::unexpected(terminator_valid.error());
             }
         }
     }
 
-    return {};
+    return BackendStepSucceeded{};
 }
 
 std::expected<std::string, std::string> ModuleEmitter::emit() {
     const hir::FunctionDecl* entry_main = nullptr;
-    if (include_entry_wrapper_) {
+    if (entry_point_emission_ == EntryPointEmission::IncludeExecutableEntryPoint) {
         const std::expected<const hir::FunctionDecl*, std::string> validated_main = model_.validate_entry_main();
         if (!validated_main.has_value()) {
             return std::unexpected(validated_main.error());
@@ -1595,18 +1752,18 @@ FunctionEmitter::FunctionEmitter(ModuleEmitter& module,
       mir_function_(mir_function),
       block_preludes_(mir_function.blocks.size()) {}
 
-std::expected<void, std::string> FunctionEmitter::prepare_locals() {
+BackendStepResult FunctionEmitter::prepare_locals() {
     for (const mir::Local& local : mir_function_.locals) {
-        const std::expected<ResolvedType, std::string> resolved = model_.resolve_type_name(local.type);
+        const std::expected<ResolvedType, std::string> resolved = model_.resolve_type_name(local.type_name());
         if (!resolved.has_value()) {
             return std::unexpected(resolved.error());
         }
-        local_types_.emplace(local.id, *resolved);
-        if (!local.is_compile_time_only) {
-            local_slots_.emplace(local.id, "%slot" + std::to_string(local.id));
+        local_types_.emplace(local.id(), *resolved);
+        if (materialization_of(local.discipline()) != typesys::DisciplineMaterialization::CompileTimeOnly) {
+            local_slots_.emplace(local.id(), "%slot" + std::to_string(local.id()));
         }
     }
-    return {};
+    return BackendStepSucceeded{};
 }
 
 std::string FunctionEmitter::next_temp(std::string_view prefix) {
@@ -1640,7 +1797,8 @@ std::expected<std::string, std::string> FunctionEmitter::local_slot(mir::LocalId
         return it->second;
     }
     for (const mir::Local& local : mir_function_.locals) {
-        if (local.id == local_id && local.is_compile_time_only) {
+        if (local.id() == local_id
+            && materialization_of(local.discipline()) == typesys::DisciplineMaterialization::CompileTimeOnly) {
             return std::unexpected("internal backend error: compile-time-only local %"
                                    + std::to_string(local_id) + " has no runtime storage");
         }
@@ -1655,32 +1813,31 @@ std::expected<const ResolvedType*, std::string> FunctionEmitter::local_type(mir:
     return std::unexpected("internal backend error: unknown local type for %" + std::to_string(local_id));
 }
 
-std::expected<const TypeLayout*, std::string> FunctionEmitter::user_layout_for_local(mir::LocalId local_id) const {
+std::expected<const TypeLayout*, std::string> FunctionEmitter::user_layout_for_local(mir::LocalId local_id) {
     const std::expected<const ResolvedType*, std::string> resolved = local_type(local_id);
     if (!resolved.has_value()) {
         return std::unexpected(resolved.error());
     }
-    if (!(*resolved)->type_id.has_value()) {
+    if ((*resolved)->identity.category() != ResolvedTypeCategory::PackageTypeDeclaration) {
         return std::unexpected("backend expected a user-defined type for local %" + std::to_string(local_id)
                                + ", got '" + (*resolved)->source_name + "'");
     }
-    auto& mutable_model = const_cast<BackendModel&>(model_);
-    return mutable_model.ensure_type_layout(*(*resolved)->type_id);
+    return model_.ensure_type_layout((*resolved)->identity.package_type_id());
 }
 
-std::expected<void, std::string> FunctionEmitter::store_typed_value(const std::string& slot_ptr,
-                                                                    const ResolvedType& type,
-                                                                    const std::string& value) {
-    if (type.is_never) {
+BackendStepResult FunctionEmitter::store_typed_value(const std::string& slot_ptr,
+                                                     const ResolvedType& type,
+                                                     const std::string& value) {
+    if (type.materialization == MaterializationState::NeverValue) {
         return std::unexpected("backend attempted to materialize `Never`");
     }
     append_line("store " + type.llvm_type + " " + value + ", ptr " + slot_ptr);
-    return {};
+    return BackendStepSucceeded{};
 }
 
 std::expected<std::string, std::string> FunctionEmitter::load_from_slot(const std::string& slot_ptr,
                                                                         const ResolvedType& type) {
-    if (type.is_never) {
+    if (type.materialization == MaterializationState::NeverValue) {
         return std::unexpected("backend attempted to load a `Never` value");
     }
     const std::string value = next_temp("load");
@@ -1688,21 +1845,24 @@ std::expected<std::string, std::string> FunctionEmitter::load_from_slot(const st
     return value;
 }
 
-std::expected<void, std::string> FunctionEmitter::store_text_literal(const std::string& slot_ptr,
-                                                                     const ResolvedType& type,
-                                                                     const std::string& lexeme) {
-    const std::expected<TypedValue, std::string> literal_value = make_text_literal_value(type, lexeme);
+BackendStepResult FunctionEmitter::store_string_literal(const std::string& slot_ptr,
+                                                        const ResolvedType& type,
+                                                        const std::string& lexeme) {
+    const std::expected<TypedValue, std::string> literal_value = make_string_literal_value(type, lexeme);
     if (!literal_value.has_value()) {
         return std::unexpected(literal_value.error());
     }
     return store_typed_value(slot_ptr, literal_value->type, literal_value->value);
 }
 
-std::expected<FunctionEmitter::TypedValue, std::string> FunctionEmitter::make_text_literal_value(
+std::expected<FunctionEmitter::TypedValue, std::string> FunctionEmitter::make_string_literal_value(
     const ResolvedType& type,
     const std::string& lexeme) {
-    if (type.builtin != BuiltinKind::Text && type.builtin != BuiltinKind::Bytes) {
-        return std::unexpected("backend expected Text/Bytes storage for string literal, got '" + type.source_name + "'");
+    if (type.identity.category() != ResolvedTypeCategory::BuiltinType
+        || (type.identity.builtin_kind() != BuiltinKind::Text
+            && type.identity.builtin_kind() != BuiltinKind::Bytes
+            && type.identity.builtin_kind() != BuiltinKind::CString)) {
+        return std::unexpected("backend expected Text/Bytes/CString storage for string literal, got '" + type.source_name + "'");
     }
 
     const std::expected<StringGlobal, std::string> global = module_.intern_string(lexeme);
@@ -1714,6 +1874,11 @@ std::expected<FunctionEmitter::TypedValue, std::string> FunctionEmitter::make_te
     append_line(ptr_value + " = getelementptr inbounds ["
                 + std::to_string(global->bytes.size() + 1) + " x i8], ptr @" + global->name
                 + ", i64 0, i64 0");
+
+    if (type.identity.category() == ResolvedTypeCategory::BuiltinType
+        && type.identity.builtin_kind() == BuiltinKind::CString) {
+        return TypedValue{type, ptr_value};
+    }
 
     const std::expected<std::string, std::string> with_ptr = insert_value(
         type.llvm_type,
@@ -1749,9 +1914,7 @@ std::expected<std::string, std::string> FunctionEmitter::insert_value(const std:
 
 std::expected<std::string, std::string> FunctionEmitter::extract_value(const std::string& aggregate_type,
                                                                        const std::string& aggregate_value,
-                                                                       const std::string& element_type,
                                                                        std::size_t field_index) {
-    (void)element_type;
     const std::string extracted = next_temp("ext");
     append_line(extracted + " = extractvalue " + aggregate_type + " " + aggregate_value + ", "
                 + std::to_string(field_index));
@@ -1761,7 +1924,7 @@ std::expected<std::string, std::string> FunctionEmitter::extract_value(const std
 std::expected<std::string, std::string> FunctionEmitter::pack_value_for_storage(const TypedValue& value,
                                                                                 const std::string& storage_type,
                                                                                 std::size_t storage_size) {
-    if (value.type.is_never) {
+    if (value.type.materialization == MaterializationState::NeverValue) {
         return std::unexpected("backend attempted to materialize `Never`");
     }
     if (storage_size == 0 || value.type.size == 0) {
@@ -1785,7 +1948,7 @@ std::expected<FunctionEmitter::TypedValue, std::string> FunctionEmitter::unpack_
     const std::string& storage_value,
     const std::string& storage_type,
     const ResolvedType& expected_type) {
-    if (expected_type.is_never) {
+    if (expected_type.materialization == MaterializationState::NeverValue) {
         return std::unexpected("backend attempted to materialize `Never`");
     }
     if (expected_type.size == 0) {
@@ -1804,10 +1967,11 @@ std::expected<FunctionEmitter::TypedValue, std::string> FunctionEmitter::unpack_
 }
 
 std::string FunctionEmitter::zero_value(const ResolvedType& type) const {
-    if (!type.is_scalar) {
+    if (type.storage_shape != RuntimeStorageShape::Scalar) {
         return "zeroinitializer";
     }
-    if (type.builtin == BuiltinKind::Float) {
+    if (type.identity.category() == ResolvedTypeCategory::BuiltinType
+        && type.identity.builtin_kind() == BuiltinKind::Float) {
         return "0.000000e+00";
     }
     return "0";
@@ -1816,50 +1980,55 @@ std::string FunctionEmitter::zero_value(const ResolvedType& type) const {
 std::expected<FunctionEmitter::TypedValue, std::string> FunctionEmitter::materialize_operand(
     const mir::Operand& operand,
     const ResolvedType& expected_type) {
-    switch (operand.kind) {
-    case mir::OperandKind::Local: {
-        const std::expected<const ResolvedType*, std::string> source_type = local_type(operand.local_id);
-        if (!source_type.has_value()) {
-            return std::unexpected(source_type.error());
-        }
-        if ((*source_type)->source_name != expected_type.source_name) {
-            return std::unexpected("backend type mismatch: expected '" + expected_type.source_name
-                                   + "', got '" + (*source_type)->source_name + "'");
-        }
-        const std::expected<std::string, std::string> slot = local_slot(operand.local_id);
-        if (!slot.has_value()) {
-            return std::unexpected(slot.error());
-        }
-        const std::expected<std::string, std::string> loaded = load_from_slot(*slot, *(*source_type));
-        if (!loaded.has_value()) {
-            return std::unexpected(loaded.error());
-        }
-        return TypedValue{expected_type, *loaded};
-    }
-    case mir::OperandKind::IntLiteral:
-        if (!expected_type.is_scalar
-            || (expected_type.llvm_type != "i64" && expected_type.llvm_type != "i32" && expected_type.llvm_type != "i8")) {
-            return std::unexpected("backend only supports integer literals in integer destinations, got '"
-                                   + expected_type.source_name + "'");
-        }
-        return TypedValue{expected_type, operand.text};
-    case mir::OperandKind::StringLiteral: {
-        if (expected_type.builtin != BuiltinKind::Text && expected_type.builtin != BuiltinKind::Bytes) {
-            return std::unexpected("backend only supports string literals for Text/Bytes values, got '"
-                                   + expected_type.source_name + "'");
-        }
-        return make_text_literal_value(expected_type, operand.text);
-    }
-    case mir::OperandKind::Unit:
-        if (expected_type.builtin != BuiltinKind::Unit) {
-            return std::unexpected("backend expected Unit, got '" + expected_type.source_name + "'");
-        }
-        return TypedValue{expected_type, "0"};
-    }
-    return std::unexpected("internal backend error: unsupported operand");
+    return operand.match(
+        [&](mir::Operand::LocalValue local) -> std::expected<TypedValue, std::string> {
+            const std::expected<const ResolvedType*, std::string> source_type = local_type(local.local_id);
+            if (!source_type.has_value()) {
+                return std::unexpected(source_type.error());
+            }
+            if ((*source_type)->source_name != expected_type.source_name) {
+                return std::unexpected("backend type mismatch: expected '" + expected_type.source_name
+                                       + "', got '" + (*source_type)->source_name + "'");
+            }
+            const std::expected<std::string, std::string> slot = local_slot(local.local_id);
+            if (!slot.has_value()) {
+                return std::unexpected(slot.error());
+            }
+            const std::expected<std::string, std::string> loaded = load_from_slot(*slot, *(*source_type));
+            if (!loaded.has_value()) {
+                return std::unexpected(loaded.error());
+            }
+            return TypedValue{expected_type, *loaded};
+        },
+        [&](mir::Operand::IntLiteralValue literal) -> std::expected<TypedValue, std::string> {
+            if (expected_type.storage_shape != RuntimeStorageShape::Scalar
+                || (expected_type.llvm_type != "i64" && expected_type.llvm_type != "i32"
+                    && expected_type.llvm_type != "i8")) {
+                return std::unexpected("backend only supports integer literals in integer destinations, got '"
+                                       + expected_type.source_name + "'");
+            }
+            return TypedValue{expected_type, literal.text};
+        },
+        [&](mir::Operand::StringLiteralValue literal) -> std::expected<TypedValue, std::string> {
+            if (expected_type.identity.category() != ResolvedTypeCategory::BuiltinType
+                || (expected_type.identity.builtin_kind() != BuiltinKind::Text
+                    && expected_type.identity.builtin_kind() != BuiltinKind::Bytes
+                    && expected_type.identity.builtin_kind() != BuiltinKind::CString)) {
+                return std::unexpected("backend only supports string literals for Text/Bytes/CString values, got '"
+                                       + expected_type.source_name + "'");
+            }
+            return make_string_literal_value(expected_type, literal.text);
+        },
+        [&](mir::Operand::UnitValue) -> std::expected<TypedValue, std::string> {
+            if (expected_type.identity.category() != ResolvedTypeCategory::BuiltinType
+                || expected_type.identity.builtin_kind() != BuiltinKind::Unit) {
+                return std::unexpected("backend expected Unit, got '" + expected_type.source_name + "'");
+            }
+            return TypedValue{expected_type, "0"};
+        });
 }
 
-std::expected<void, std::string> FunctionEmitter::emit_assign_use(mir::LocalId dest, const mir::Operand& operand) {
+BackendStepResult FunctionEmitter::emit_assign_use(mir::LocalId dest, const mir::Operand& operand) {
     const std::expected<const ResolvedType*, std::string> dest_type = local_type(dest);
     if (!dest_type.has_value()) {
         return std::unexpected(dest_type.error());
@@ -1869,23 +2038,35 @@ std::expected<void, std::string> FunctionEmitter::emit_assign_use(mir::LocalId d
         return std::unexpected(dest_slot.error());
     }
 
-    if (operand.kind == mir::OperandKind::StringLiteral) {
-        return store_text_literal(*dest_slot, *(*dest_type), operand.text);
-    }
+    const auto store_materialized_operand = [&]() -> BackendStepResult {
+        const std::expected<TypedValue, std::string> value = materialize_operand(operand, *(*dest_type));
+        if (!value.has_value()) {
+            return std::unexpected(value.error());
+        }
+        return store_typed_value(*dest_slot, value->type, value->value);
+    };
 
-    const std::expected<TypedValue, std::string> value = materialize_operand(operand, *(*dest_type));
-    if (!value.has_value()) {
-        return std::unexpected(value.error());
-    }
-    return store_typed_value(*dest_slot, value->type, value->value);
+    return operand.match(
+        [&](mir::Operand::LocalValue) -> BackendStepResult {
+            return store_materialized_operand();
+        },
+        [&](mir::Operand::IntLiteralValue) -> BackendStepResult {
+            return store_materialized_operand();
+        },
+        [&](mir::Operand::StringLiteralValue literal) -> BackendStepResult {
+            return store_string_literal(*dest_slot, *(*dest_type), literal.text);
+        },
+        [&](mir::Operand::UnitValue) -> BackendStepResult {
+            return store_materialized_operand();
+        });
 }
 
-std::expected<void, std::string> FunctionEmitter::emit_assign_call(mir::LocalId dest, const mir::Rvalue& value) {
+BackendStepResult FunctionEmitter::emit_assign_call(mir::LocalId dest, mir::Rvalue::CallValue value) {
     const hir::FunctionDecl& callee = model_.function(value.function_id);
     if (!callee.generics.empty()) {
         return std::unexpected("backend does not yet support generic function '" + callee.qualified_name + "'");
     }
-    if (callee.fails_reason_type_id.has_value()) {
+    if (callee.failure.behavior() == hir::FunctionFailureBehavior::YieldsReason) {
         return std::unexpected("internal backend error: `fails` call used as a plain assignment for '"
                                + callee.qualified_name + "'");
     }
@@ -1898,8 +2079,10 @@ std::expected<void, std::string> FunctionEmitter::emit_assign_call(mir::LocalId 
     std::vector<std::string> args;
     args.reserve(value.args.size());
     for (std::size_t index = 0; index < value.args.size(); ++index) {
-        if (callee.params[index].is_compile_time_only) {
-            if (value.args[index].kind != mir::OperandKind::Unit) {
+        if (materialization_of(callee.params[index].type.discipline)
+            == typesys::DisciplineMaterialization::CompileTimeOnly) {
+            if (compile_time_argument_encoding_of(value.args[index])
+                != CompileTimeArgumentEncoding::ErasedToUnitOperand) {
                 return std::unexpected("internal backend error: compile-time-only parameter "
                                        + std::to_string(index) + " of callee '" + callee.qualified_name
                                        + "' was not erased");
@@ -1936,7 +2119,8 @@ std::expected<void, std::string> FunctionEmitter::emit_assign_call(mir::LocalId 
     return store_typed_value(*dest_slot, *return_type, call_value);
 }
 
-std::expected<void, std::string> FunctionEmitter::emit_assign_construct(mir::LocalId dest, const mir::Rvalue& value) {
+BackendStepResult FunctionEmitter::emit_assign_construct(mir::LocalId dest,
+                                                         mir::Rvalue::ConstructNamedTypeValue value) {
     const std::expected<const ResolvedType*, std::string> dest_type = local_type(dest);
     if (!dest_type.has_value()) {
         return std::unexpected(dest_type.error());
@@ -1945,13 +2129,13 @@ std::expected<void, std::string> FunctionEmitter::emit_assign_construct(mir::Loc
     if (!dest_slot.has_value()) {
         return std::unexpected(dest_slot.error());
     }
-    if (!(*dest_type)->type_id.has_value()) {
+    if ((*dest_type)->identity.category() != ResolvedTypeCategory::PackageTypeDeclaration) {
         return std::unexpected("backend only supports constructing user-defined records and variants, got '"
                                + (*dest_type)->source_name + "'");
     }
 
     auto& mutable_model = model_;
-    if (*(*dest_type)->type_id != value.owner_type_id) {
+    if ((*dest_type)->identity.package_type_id() != value.owner_type_id) {
         return std::unexpected("internal backend error: construct owner type mismatch for '" + value.qualified_name + "'");
     }
     const std::expected<const TypeLayout*, std::string> owner_layout = mutable_model.ensure_type_layout(value.owner_type_id);
@@ -1959,84 +2143,16 @@ std::expected<void, std::string> FunctionEmitter::emit_assign_construct(mir::Loc
         return std::unexpected(owner_layout.error());
     }
 
-    if (value.variant_id.has_value()) {
-        const auto variant_it = (*owner_layout)->variants.find(*value.variant_id);
-        if (variant_it == (*owner_layout)->variants.end()) {
-            return std::unexpected("backend could not resolve variant layout for '" + value.qualified_name + "'");
-        }
-        const VariantLayout& variant_layout = variant_it->second;
-
-        std::expected<std::string, std::string> aggregate_value = insert_value(
-            (*owner_layout)->llvm_type,
-            "zeroinitializer",
-            "i32",
-            std::to_string(variant_layout.tag_value),
-            0);
-        if (!aggregate_value.has_value()) {
-            return std::unexpected(aggregate_value.error());
-        }
-
-        if (!value.fields.empty() && (*owner_layout)->has_payload) {
-            std::string payload_value = "zeroinitializer";
-            for (const mir::FieldValue& field : value.fields) {
-                const auto field_it = variant_layout.field_indices.find(field.name);
-                if (field_it == variant_layout.field_indices.end()) {
-                    return std::unexpected("backend could not resolve variant field '" + field.name
-                                           + "' in '" + value.qualified_name + "'");
-                }
-                const FieldLayout& field_layout = variant_layout.fields[field_it->second];
-                const ResolvedType field_type = resolved_type_from_field(field_layout);
-                const std::expected<TypedValue, std::string> field_value = materialize_operand(field.value, field_type);
-                if (!field_value.has_value()) {
-                    return std::unexpected(field_value.error());
-                }
-                const std::expected<std::string, std::string> inserted_payload = insert_value(
-                    variant_layout.payload_llvm_type,
-                    payload_value,
-                    field_type.llvm_type,
-                    field_value->value,
-                    field_layout.index);
-                if (!inserted_payload.has_value()) {
-                    return std::unexpected(inserted_payload.error());
-                }
-                payload_value = *inserted_payload;
-            }
-
-            const ResolvedType payload_type = resolved_aggregate_type(
-                variant_layout.payload_llvm_type,
-                variant_layout.payload_llvm_type,
-                variant_layout.payload_size,
-                variant_layout.payload_align);
-            const std::expected<std::string, std::string> packed_payload = pack_value_for_storage(
-                TypedValue{payload_type, payload_value},
-                (*owner_layout)->payload_storage_type,
-                (*owner_layout)->payload_size);
-            if (!packed_payload.has_value()) {
-                return std::unexpected(packed_payload.error());
-            }
-            aggregate_value = insert_value(
-                (*owner_layout)->llvm_type,
-                *aggregate_value,
-                (*owner_layout)->payload_storage_type,
-                *packed_payload,
-                (*owner_layout)->payload_field_index);
-            if (!aggregate_value.has_value()) {
-                return std::unexpected(aggregate_value.error());
-            }
-        }
-
-        return store_typed_value(*dest_slot, *(*dest_type), *aggregate_value);
-    }
-
     std::string record_value = "zeroinitializer";
     for (const mir::FieldValue& field : value.fields) {
-        const auto field_it = (*owner_layout)->field_indices.find(field.name);
+        const auto field_it = (*owner_layout)->field_indices.find(field.field_name());
         if (field_it == (*owner_layout)->field_indices.end()) {
-            return std::unexpected("backend could not resolve field '" + field.name + "' in '" + value.qualified_name + "'");
+            return std::unexpected("backend could not resolve field '" + field.field_name()
+                                   + "' in '" + value.qualified_name + "'");
         }
         const FieldLayout& field_layout = (*owner_layout)->fields[field_it->second];
         const ResolvedType field_type = resolved_type_from_field(field_layout);
-        const std::expected<TypedValue, std::string> field_value = materialize_operand(field.value, field_type);
+        const std::expected<TypedValue, std::string> field_value = materialize_operand(field.operand(), field_type);
         if (!field_value.has_value()) {
             return std::unexpected(field_value.error());
         }
@@ -2055,7 +2171,100 @@ std::expected<void, std::string> FunctionEmitter::emit_assign_construct(mir::Loc
     return store_typed_value(*dest_slot, *(*dest_type), record_value);
 }
 
-std::expected<void, std::string> FunctionEmitter::emit_assign_project_field(mir::LocalId dest, const mir::Rvalue& value) {
+BackendStepResult FunctionEmitter::emit_assign_construct(mir::LocalId dest,
+                                                         mir::Rvalue::ConstructNamedVariantValue value) {
+    const std::expected<const ResolvedType*, std::string> dest_type = local_type(dest);
+    if (!dest_type.has_value()) {
+        return std::unexpected(dest_type.error());
+    }
+    const std::expected<std::string, std::string> dest_slot = local_slot(dest);
+    if (!dest_slot.has_value()) {
+        return std::unexpected(dest_slot.error());
+    }
+    if ((*dest_type)->identity.category() != ResolvedTypeCategory::PackageTypeDeclaration) {
+        return std::unexpected("backend only supports constructing user-defined records and variants, got '"
+                               + (*dest_type)->source_name + "'");
+    }
+
+    auto& mutable_model = model_;
+    if ((*dest_type)->identity.package_type_id() != value.owner_type_id) {
+        return std::unexpected("internal backend error: construct owner type mismatch for '" + value.qualified_name + "'");
+    }
+    const std::expected<const TypeLayout*, std::string> owner_layout = mutable_model.ensure_type_layout(value.owner_type_id);
+    if (!owner_layout.has_value()) {
+        return std::unexpected(owner_layout.error());
+    }
+
+    const auto variant_it = (*owner_layout)->variants.find(value.variant_id);
+    if (variant_it == (*owner_layout)->variants.end()) {
+        return std::unexpected("backend could not resolve variant layout for '" + value.qualified_name + "'");
+    }
+    const VariantLayout& variant_layout = variant_it->second;
+
+    std::expected<std::string, std::string> aggregate_value = insert_value(
+        (*owner_layout)->llvm_type,
+        "zeroinitializer",
+        "i32",
+        std::to_string(variant_layout.tag_value),
+        0);
+    if (!aggregate_value.has_value()) {
+        return std::unexpected(aggregate_value.error());
+    }
+
+    if (!value.fields.empty() && (*owner_layout)->payload_state == PayloadStorageState::CarriesPayload) {
+        std::string payload_value = "zeroinitializer";
+        for (const mir::FieldValue& field : value.fields) {
+            const auto field_it = variant_layout.field_indices.find(field.field_name());
+            if (field_it == variant_layout.field_indices.end()) {
+                return std::unexpected("backend could not resolve variant field '" + field.field_name()
+                                       + "' in '" + value.qualified_name + "'");
+            }
+            const FieldLayout& field_layout = variant_layout.fields[field_it->second];
+            const ResolvedType field_type = resolved_type_from_field(field_layout);
+            const std::expected<TypedValue, std::string> field_value = materialize_operand(field.operand(), field_type);
+            if (!field_value.has_value()) {
+                return std::unexpected(field_value.error());
+            }
+            const std::expected<std::string, std::string> inserted_payload = insert_value(
+                variant_layout.payload_llvm_type,
+                payload_value,
+                field_type.llvm_type,
+                field_value->value,
+                field_layout.index);
+            if (!inserted_payload.has_value()) {
+                return std::unexpected(inserted_payload.error());
+            }
+            payload_value = *inserted_payload;
+        }
+
+        const ResolvedType payload_type = resolved_aggregate_type(
+            variant_layout.payload_llvm_type,
+            variant_layout.payload_llvm_type,
+            variant_layout.payload_size,
+            variant_layout.payload_align);
+        const std::expected<std::string, std::string> packed_payload = pack_value_for_storage(
+            TypedValue{payload_type, payload_value},
+            (*owner_layout)->payload_storage_type,
+            (*owner_layout)->payload_size);
+        if (!packed_payload.has_value()) {
+            return std::unexpected(packed_payload.error());
+        }
+        aggregate_value = insert_value(
+            (*owner_layout)->llvm_type,
+            *aggregate_value,
+            (*owner_layout)->payload_storage_type,
+            *packed_payload,
+            (*owner_layout)->payload_field_index);
+        if (!aggregate_value.has_value()) {
+            return std::unexpected(aggregate_value.error());
+        }
+    }
+
+    return store_typed_value(*dest_slot, *(*dest_type), *aggregate_value);
+}
+
+BackendStepResult FunctionEmitter::emit_assign_project_field(mir::LocalId dest,
+                                                             mir::Rvalue::ProjectNamedTypeFieldValue value) {
     const std::expected<const ResolvedType*, std::string> dest_type = local_type(dest);
     if (!dest_type.has_value()) {
         return std::unexpected(dest_type.error());
@@ -2067,62 +2276,6 @@ std::expected<void, std::string> FunctionEmitter::emit_assign_project_field(mir:
     const std::expected<std::string, std::string> base_slot = local_slot(value.base_local);
     if (!base_slot.has_value()) {
         return std::unexpected(base_slot.error());
-    }
-
-    if (value.projection_variant_id.has_value()) {
-        auto& mutable_model = model_;
-        const std::expected<const TypeLayout*, std::string> owner_layout = mutable_model.ensure_type_layout(value.projection_owner_type_id);
-        if (!owner_layout.has_value()) {
-            return std::unexpected(owner_layout.error());
-        }
-        const std::expected<const ResolvedType*, std::string> base_type = local_type(value.base_local);
-        if (!base_type.has_value()) {
-            return std::unexpected(base_type.error());
-        }
-        const auto variant_it = (*owner_layout)->variants.find(*value.projection_variant_id);
-        if (variant_it == (*owner_layout)->variants.end()) {
-            return std::unexpected("backend could not resolve projection variant for field '" + value.field_name + "'");
-        }
-        const VariantLayout& variant_layout = variant_it->second;
-        const auto field_it = variant_layout.field_indices.find(value.field_name);
-        if (field_it == variant_layout.field_indices.end()) {
-            return std::unexpected("backend could not resolve projected field '" + value.field_name + "'");
-        }
-        const std::expected<std::string, std::string> base_value = load_from_slot(*base_slot, *(*base_type));
-        if (!base_value.has_value()) {
-            return std::unexpected(base_value.error());
-        }
-        const std::expected<std::string, std::string> raw_payload = extract_value(
-            (*owner_layout)->llvm_type,
-            *base_value,
-            (*owner_layout)->payload_storage_type,
-            (*owner_layout)->payload_field_index);
-        if (!raw_payload.has_value()) {
-            return std::unexpected(raw_payload.error());
-        }
-        const ResolvedType payload_type = resolved_aggregate_type(
-            variant_layout.payload_llvm_type,
-            variant_layout.payload_llvm_type,
-            variant_layout.payload_size,
-            variant_layout.payload_align);
-        const std::expected<TypedValue, std::string> payload_value = unpack_value_from_storage(
-            *raw_payload,
-            (*owner_layout)->payload_storage_type,
-            payload_type);
-        if (!payload_value.has_value()) {
-            return std::unexpected(payload_value.error());
-        }
-        const FieldLayout& field_layout = variant_layout.fields[field_it->second];
-        const ResolvedType field_type = resolved_type_from_field(field_layout);
-        const std::expected<std::string, std::string> field_value = extract_value(
-            variant_layout.payload_llvm_type,
-            payload_value->value,
-            field_type.llvm_type,
-            field_layout.index);
-        if (!field_value.has_value()) {
-            return std::unexpected(field_value.error());
-        }
-        return store_typed_value(*dest_slot, *(*dest_type), *field_value);
     }
 
     const std::expected<const TypeLayout*, std::string> owner_layout = user_layout_for_local(value.base_local);
@@ -2146,7 +2299,6 @@ std::expected<void, std::string> FunctionEmitter::emit_assign_project_field(mir:
     const std::expected<std::string, std::string> field_value = extract_value(
         (*owner_layout)->llvm_type,
         *base_value,
-        field_type.llvm_type,
         field_layout.index);
     if (!field_value.has_value()) {
         return std::unexpected(field_value.error());
@@ -2154,32 +2306,115 @@ std::expected<void, std::string> FunctionEmitter::emit_assign_project_field(mir:
     return store_typed_value(*dest_slot, *(*dest_type), *field_value);
 }
 
-std::expected<void, std::string> FunctionEmitter::emit_statement(const mir::Statement& statement) {
-    switch (statement.value.kind) {
-    case mir::RvalueKind::Use:
-        return emit_assign_use(statement.dest_local, statement.value.operand);
-    case mir::RvalueKind::Call:
-        return emit_assign_call(statement.dest_local, statement.value);
-    case mir::RvalueKind::Construct:
-        return emit_assign_construct(statement.dest_local, statement.value);
-    case mir::RvalueKind::ProjectField:
-        return emit_assign_project_field(statement.dest_local, statement.value);
+BackendStepResult FunctionEmitter::emit_assign_project_field(
+    mir::LocalId dest,
+    mir::Rvalue::ProjectNamedVariantPayloadFieldValue value) {
+    const std::expected<const ResolvedType*, std::string> dest_type = local_type(dest);
+    if (!dest_type.has_value()) {
+        return std::unexpected(dest_type.error());
     }
-    return std::unexpected("internal backend error: unsupported MIR statement");
+    const std::expected<std::string, std::string> dest_slot = local_slot(dest);
+    if (!dest_slot.has_value()) {
+        return std::unexpected(dest_slot.error());
+    }
+    const std::expected<std::string, std::string> base_slot = local_slot(value.base_local);
+    if (!base_slot.has_value()) {
+        return std::unexpected(base_slot.error());
+    }
+
+    auto& mutable_model = model_;
+    const std::expected<const TypeLayout*, std::string> owner_layout = mutable_model.ensure_type_layout(
+        value.projection_owner_type_id);
+    if (!owner_layout.has_value()) {
+        return std::unexpected(owner_layout.error());
+    }
+    const std::expected<const ResolvedType*, std::string> base_type = local_type(value.base_local);
+    if (!base_type.has_value()) {
+        return std::unexpected(base_type.error());
+    }
+    const auto variant_it = (*owner_layout)->variants.find(value.variant_id);
+    if (variant_it == (*owner_layout)->variants.end()) {
+        return std::unexpected("backend could not resolve projection variant for field '" + value.field_name + "'");
+    }
+    const VariantLayout& variant_layout = variant_it->second;
+    const auto field_it = variant_layout.field_indices.find(value.field_name);
+    if (field_it == variant_layout.field_indices.end()) {
+        return std::unexpected("backend could not resolve projected field '" + value.field_name + "'");
+    }
+    const std::expected<std::string, std::string> base_value = load_from_slot(*base_slot, *(*base_type));
+    if (!base_value.has_value()) {
+        return std::unexpected(base_value.error());
+    }
+    const std::expected<std::string, std::string> raw_payload = extract_value(
+        (*owner_layout)->llvm_type,
+        *base_value,
+        (*owner_layout)->payload_field_index);
+    if (!raw_payload.has_value()) {
+        return std::unexpected(raw_payload.error());
+    }
+    const ResolvedType payload_type = resolved_aggregate_type(
+        variant_layout.payload_llvm_type,
+        variant_layout.payload_llvm_type,
+        variant_layout.payload_size,
+        variant_layout.payload_align);
+    const std::expected<TypedValue, std::string> payload_value = unpack_value_from_storage(
+        *raw_payload,
+        (*owner_layout)->payload_storage_type,
+        payload_type);
+    if (!payload_value.has_value()) {
+        return std::unexpected(payload_value.error());
+    }
+    const FieldLayout& field_layout = variant_layout.fields[field_it->second];
+    const ResolvedType field_type = resolved_type_from_field(field_layout);
+    const std::expected<std::string, std::string> field_value = extract_value(
+        variant_layout.payload_llvm_type,
+        payload_value->value,
+        field_layout.index);
+    if (!field_value.has_value()) {
+        return std::unexpected(field_value.error());
+    }
+    return store_typed_value(*dest_slot, *(*dest_type), *field_value);
 }
 
-std::expected<void, std::string> FunctionEmitter::emit_success_or_failure_return(const mir::Operand& operand,
-                                                                                 bool is_failure) {
+BackendStepResult FunctionEmitter::emit_statement(const mir::Statement& statement) {
+    const mir::LocalId statement_dest = statement.dest_local();
+    const mir::Rvalue& statement_value = statement.rvalue();
+
+    return statement_value.match(
+        [&](mir::Rvalue::UseValue value) -> BackendStepResult {
+            return emit_assign_use(statement_dest, value.operand);
+        },
+        [&](mir::Rvalue::CallValue value) -> BackendStepResult {
+            return emit_assign_call(statement_dest, value);
+        },
+        [&](mir::Rvalue::ConstructNamedTypeValue value) -> BackendStepResult {
+            return emit_assign_construct(statement_dest, value);
+        },
+        [&](mir::Rvalue::ConstructNamedVariantValue value) -> BackendStepResult {
+            return emit_assign_construct(statement_dest, value);
+        },
+        [&](mir::Rvalue::ProjectNamedTypeFieldValue value) -> BackendStepResult {
+            return emit_assign_project_field(statement_dest, value);
+        },
+        [&](mir::Rvalue::ProjectNamedVariantPayloadFieldValue value) -> BackendStepResult {
+            return emit_assign_project_field(statement_dest, value);
+        });
+}
+
+BackendStepResult FunctionEmitter::emit_success_or_failure_return(const mir::Operand& operand,
+                                                                  YieldReturnKind return_kind) {
     auto& mutable_model = model_;
     const std::expected<const YieldLayout*, std::string> yield_layout = mutable_model.ensure_yield_layout(hir_function_.id);
     if (!yield_layout.has_value()) {
         return std::unexpected(yield_layout.error());
     }
 
+    const std::string payload_type_name = return_kind == YieldReturnKind::Failure
+        ? model_.type(hir_function_.failure.reason_type_id()).qualified_name
+        : hir_function_.return_type.text;
+    const std::string wrapper_tag = return_kind == YieldReturnKind::Failure ? "1" : "0";
     const std::expected<ResolvedType, std::string> payload_type = model_.resolve_type_name(
-        is_failure
-            ? model_.type(*hir_function_.fails_reason_type_id).qualified_name
-            : hir_function_.return_type.text);
+        payload_type_name);
     if (!payload_type.has_value()) {
         return std::unexpected(payload_type.error());
     }
@@ -2192,7 +2427,7 @@ std::expected<void, std::string> FunctionEmitter::emit_success_or_failure_return
         (*yield_layout)->llvm_type,
         "zeroinitializer",
         "i8",
-        is_failure ? "1" : "0",
+        wrapper_tag,
         0);
     if (!wrapper_value.has_value()) {
         return std::unexpected(wrapper_value.error());
@@ -2218,12 +2453,12 @@ std::expected<void, std::string> FunctionEmitter::emit_success_or_failure_return
     }
 
     append_line("ret " + (*yield_layout)->llvm_type + " " + *wrapper_value);
-    return {};
+    return BackendStepSucceeded{};
 }
 
-std::expected<void, std::string> FunctionEmitter::emit_function_return(const mir::Operand& operand) {
-    if (hir_function_.fails_reason_type_id.has_value()) {
-        return emit_success_or_failure_return(operand, false);
+BackendStepResult FunctionEmitter::emit_function_return(const mir::Operand& operand) {
+    if (hir_function_.failure.behavior() == hir::FunctionFailureBehavior::YieldsReason) {
+        return emit_success_or_failure_return(operand, YieldReturnKind::Success);
     }
 
     const std::expected<ResolvedType, std::string> return_type = model_.resolve_type_name(hir_function_.return_type.text);
@@ -2235,18 +2470,18 @@ std::expected<void, std::string> FunctionEmitter::emit_function_return(const mir
         return std::unexpected(value.error());
     }
     append_line("ret " + return_type->llvm_type + " " + value->value);
-    return {};
+    return BackendStepSucceeded{};
 }
 
-std::expected<void, std::string> FunctionEmitter::emit_function_fail(const mir::Operand& operand) {
-    if (!hir_function_.fails_reason_type_id.has_value()) {
+BackendStepResult FunctionEmitter::emit_function_fail(const mir::Operand& operand) {
+    if (hir_function_.failure.behavior() != hir::FunctionFailureBehavior::YieldsReason) {
         return std::unexpected("internal backend error: `fail` terminator in non-yielding function '"
                                + hir_function_.qualified_name + "'");
     }
-    return emit_success_or_failure_return(operand, true);
+    return emit_success_or_failure_return(operand, YieldReturnKind::Failure);
 }
 
-std::expected<void, std::string> FunctionEmitter::emit_switch_variant(const mir::Terminator& terminator) {
+BackendStepResult FunctionEmitter::emit_switch_variant(mir::Terminator::SwitchVariantValue terminator) {
     const std::expected<const TypeLayout*, std::string> layout = user_layout_for_local(terminator.scrutinee_local);
     if (!layout.has_value()) {
         return std::unexpected(layout.error());
@@ -2267,7 +2502,6 @@ std::expected<void, std::string> FunctionEmitter::emit_switch_variant(const mir:
     const std::expected<std::string, std::string> tag_value = extract_value(
         (*layout)->llvm_type,
         *scrutinee_value,
-        "i32",
         0);
     if (!tag_value.has_value()) {
         return std::unexpected(tag_value.error());
@@ -2276,7 +2510,7 @@ std::expected<void, std::string> FunctionEmitter::emit_switch_variant(const mir:
     const std::string default_block = next_aux_block();
     append_line("switch i32 " + *tag_value + ", label %" + default_block + " [");
     for (const mir::SwitchEdge& edge : terminator.edges) {
-        append_line("  i32 " + std::to_string(edge.variant_id) + ", label %" + block_name(edge.target_block));
+        append_line("  i32 " + std::to_string(edge.variant_id()) + ", label %" + block_name(edge.target_block()));
     }
     append_line("]");
 
@@ -2284,10 +2518,10 @@ std::expected<void, std::string> FunctionEmitter::emit_switch_variant(const mir:
     unreachable_block << default_block << ":\n";
     unreachable_block << "  unreachable\n";
     extra_blocks_.push_back(unreachable_block.str());
-    return {};
+    return BackendStepSucceeded{};
 }
 
-std::expected<void, std::string> FunctionEmitter::emit_invoke(const mir::Terminator& terminator) {
+BackendStepResult FunctionEmitter::emit_invoke(mir::Terminator::InvokeValue terminator) {
     const hir::FunctionDecl& callee = model_.function(terminator.function_id);
     auto& mutable_model = model_;
     const std::expected<const YieldLayout*, std::string> yield_layout = mutable_model.ensure_yield_layout(callee.id);
@@ -2298,8 +2532,10 @@ std::expected<void, std::string> FunctionEmitter::emit_invoke(const mir::Termina
     std::vector<std::string> args;
     args.reserve(terminator.args.size());
     for (std::size_t index = 0; index < terminator.args.size(); ++index) {
-        if (callee.params[index].is_compile_time_only) {
-            if (terminator.args[index].kind != mir::OperandKind::Unit) {
+        if (materialization_of(callee.params[index].type.discipline)
+            == typesys::DisciplineMaterialization::CompileTimeOnly) {
+            if (compile_time_argument_encoding_of(terminator.args[index])
+                != CompileTimeArgumentEncoding::ErasedToUnitOperand) {
                 return std::unexpected("internal backend error: compile-time-only parameter "
                                        + std::to_string(index) + " of callee '" + callee.qualified_name
                                        + "' was not erased");
@@ -2332,7 +2568,6 @@ std::expected<void, std::string> FunctionEmitter::emit_invoke(const mir::Termina
     const std::expected<std::string, std::string> tag_value = extract_value(
         (*yield_layout)->llvm_type,
         call_value,
-        "i8",
         0);
     if (!tag_value.has_value()) {
         return std::unexpected(tag_value.error());
@@ -2361,7 +2596,6 @@ std::expected<void, std::string> FunctionEmitter::emit_invoke(const mir::Termina
         const std::expected<std::string, std::string> raw_payload = extract_value(
             (*yield_layout)->llvm_type,
             call_value,
-            (*yield_layout)->payload_storage_type,
             (*yield_layout)->payload_field_index);
         if (!raw_payload.has_value()) {
             return std::unexpected(raw_payload.error());
@@ -2408,36 +2642,40 @@ std::expected<void, std::string> FunctionEmitter::emit_invoke(const mir::Termina
     unreachable_block << default_block << ":\n";
     unreachable_block << "  unreachable\n";
     extra_blocks_.push_back(unreachable_block.str());
-    return {};
+    return BackendStepSucceeded{};
 }
 
-std::expected<void, std::string> FunctionEmitter::emit_terminator(const mir::Terminator& terminator) {
-    switch (terminator.kind) {
-    case mir::TerminatorKind::Return:
-        return emit_function_return(*terminator.value);
-    case mir::TerminatorKind::Fail:
-        return emit_function_fail(*terminator.value);
-    case mir::TerminatorKind::Goto:
-        append_line("br label %" + block_name(terminator.target_block));
-        return {};
-    case mir::TerminatorKind::SwitchVariant:
-        return emit_switch_variant(terminator);
-    case mir::TerminatorKind::Invoke:
-        return emit_invoke(terminator);
-    case mir::TerminatorKind::Unreachable:
-        append_line("unreachable");
-        return {};
-    }
-    return std::unexpected("internal backend error: unknown terminator");
+BackendStepResult FunctionEmitter::emit_terminator(const mir::Terminator& terminator) {
+    return terminator.match(
+        [&](mir::Terminator::ReturnValue terminator) -> BackendStepResult {
+            return emit_function_return(terminator.value);
+        },
+        [&](mir::Terminator::FailValue terminator) -> BackendStepResult {
+            return emit_function_fail(terminator.reason);
+        },
+        [&](mir::Terminator::GotoValue terminator) -> BackendStepResult {
+            append_line("br label %" + block_name(terminator.target_block));
+            return BackendStepSucceeded{};
+        },
+        [&](mir::Terminator::SwitchVariantValue terminator) -> BackendStepResult {
+            return emit_switch_variant(terminator);
+        },
+        [&](mir::Terminator::InvokeValue terminator) -> BackendStepResult {
+            return emit_invoke(terminator);
+        },
+        [&](mir::Terminator::UnreachableValue) -> BackendStepResult {
+            append_line("unreachable");
+            return BackendStepSucceeded{};
+        });
 }
 
 std::expected<std::string, std::string> FunctionEmitter::emit() {
-    if (const std::expected<void, std::string> prepared = prepare_locals(); !prepared.has_value()) {
+    if (const BackendStepResult prepared = prepare_locals(); !prepared.has_value()) {
         return std::unexpected(prepared.error());
     }
 
     std::expected<ResolvedType, std::string> signature_return_type = model_.resolve_type_name(hir_function_.return_type.text);
-    if (hir_function_.fails_reason_type_id.has_value()) {
+    if (hir_function_.failure.behavior() == hir::FunctionFailureBehavior::YieldsReason) {
         const std::expected<const YieldLayout*, std::string> yield_layout = model_.ensure_yield_layout(hir_function_.id);
         if (!yield_layout.has_value()) {
             return std::unexpected(yield_layout.error());
@@ -2447,10 +2685,9 @@ std::expected<std::string, std::string> FunctionEmitter::emit() {
             (*yield_layout)->llvm_type,
             0,
             1,
-            false,
-            false,
-            std::nullopt,
-            std::nullopt,
+            RuntimeStorageShape::Aggregate,
+            MaterializationState::RuntimeValue,
+            ResolvedTypeIdentity::backend_aggregate_storage(),
         };
     }
     if (!signature_return_type.has_value()) {
@@ -2458,22 +2695,26 @@ std::expected<std::string, std::string> FunctionEmitter::emit() {
     }
 
     std::ostringstream out;
-    if (hir_function_.is_foreign) {
+    if (hir_function_.implementation == ast::FunctionImplementation::ForeignImport) {
         out << "declare " << signature_return_type->llvm_type << " @" << model_.function_symbol(hir_function_.id) << '(';
-        bool first = true;
+        std::vector<std::string> runtime_params;
+        runtime_params.reserve(hir_function_.params.size());
         for (std::size_t index = 0; index < hir_function_.params.size(); ++index) {
-            if (hir_function_.params[index].is_compile_time_only) {
+            if (materialization_of(hir_function_.params[index].type.discipline)
+                == typesys::DisciplineMaterialization::CompileTimeOnly) {
                 continue;
             }
             const std::expected<ResolvedType, std::string> param_type = model_.resolve_type_name(hir_function_.params[index].type.text);
             if (!param_type.has_value()) {
                 return std::unexpected(param_type.error());
             }
-            if (!first) {
+            runtime_params.push_back(param_type->llvm_type);
+        }
+        for (std::size_t index = 0; index < runtime_params.size(); ++index) {
+            if (index > 0) {
                 out << ", ";
             }
-            first = false;
-            out << param_type->llvm_type;
+            out << runtime_params[index];
         }
         out << ")\n";
         return out.str();
@@ -2482,41 +2723,46 @@ std::expected<std::string, std::string> FunctionEmitter::emit() {
     const std::string linkage = hir_function_.visibility == ast::Visibility::Public ? "" : "internal ";
     out << "define " << linkage << signature_return_type->llvm_type << " @" << model_.function_symbol(hir_function_.id)
         << '(';
-    bool first = true;
+    std::vector<std::string> runtime_params;
+    runtime_params.reserve(hir_function_.params.size());
     std::size_t runtime_arg_index = 0;
     for (std::size_t index = 0; index < hir_function_.params.size(); ++index) {
-        if (hir_function_.params[index].is_compile_time_only) {
+        if (materialization_of(hir_function_.params[index].type.discipline)
+            == typesys::DisciplineMaterialization::CompileTimeOnly) {
             continue;
         }
         const std::expected<ResolvedType, std::string> param_type = model_.resolve_type_name(hir_function_.params[index].type.text);
         if (!param_type.has_value()) {
             return std::unexpected(param_type.error());
         }
-        if (!first) {
+        runtime_params.push_back(param_type->llvm_type + " %arg" + std::to_string(runtime_arg_index++));
+    }
+    for (std::size_t index = 0; index < runtime_params.size(); ++index) {
+        if (index > 0) {
             out << ", ";
         }
-        first = false;
-        out << param_type->llvm_type << " %arg" << runtime_arg_index++;
+        out << runtime_params[index];
     }
     out << ") {\n";
     out << "entry:\n";
 
     for (const mir::Local& local : mir_function_.locals) {
-        if (local.is_compile_time_only) {
+        if (materialization_of(local.discipline()) == typesys::DisciplineMaterialization::CompileTimeOnly) {
             continue;
         }
-        const std::expected<const ResolvedType*, std::string> local_type_result = local_type(local.id);
+        const std::expected<const ResolvedType*, std::string> local_type_result = local_type(local.id());
         if (!local_type_result.has_value()) {
             return std::unexpected(local_type_result.error());
         }
-        emit_instruction(out, *local_slot(local.id) + " = alloca " + (*local_type_result)->llvm_type);
+        emit_instruction(out, *local_slot(local.id()) + " = alloca " + (*local_type_result)->llvm_type);
     }
     runtime_arg_index = 0;
     for (std::size_t index = 0; index < hir_function_.params.size(); ++index) {
-        if (hir_function_.params[index].is_compile_time_only) {
+        if (materialization_of(hir_function_.params[index].type.discipline)
+            == typesys::DisciplineMaterialization::CompileTimeOnly) {
             continue;
         }
-        const mir::LocalId local_id = mir_function_.locals[index].id;
+        const mir::LocalId local_id = mir_function_.locals[index].id();
         const std::expected<const ResolvedType*, std::string> param_type = local_type(local_id);
         if (!param_type.has_value()) {
             return std::unexpected(param_type.error());
@@ -2539,16 +2785,12 @@ std::expected<std::string, std::string> FunctionEmitter::emit() {
         emit_block_lines(out, block_preludes_.at(block.id));
         current_block_lines_.clear();
         for (const mir::Statement& statement : block.statements) {
-            if (const std::expected<void, std::string> emitted = emit_statement(statement); !emitted.has_value()) {
+            if (const BackendStepResult emitted = emit_statement(statement); !emitted.has_value()) {
                 return std::unexpected(emitted.error());
             }
         }
-        if (block.has_terminator) {
-            if (const std::expected<void, std::string> emitted = emit_terminator(block.terminator); !emitted.has_value()) {
-                return std::unexpected(emitted.error());
-            }
-        } else {
-            current_block_lines_.push_back("unreachable");
+        if (const BackendStepResult emitted = emit_terminator(block.terminator); !emitted.has_value()) {
+            return std::unexpected(emitted.error());
         }
         emit_block_lines(out, current_block_lines_);
         out << '\n';
@@ -2585,8 +2827,10 @@ std::string narrow_utf8(std::wstring_view text) {
 }
 
 std::wstring quote_windows_arg(std::string_view arg) {
-    const bool needs_quotes = arg.empty() || arg.find_first_of(" \t\"") != std::string_view::npos;
-    if (!needs_quotes) {
+    const ArgumentQuotingState quoting = arg.empty() || arg.find_first_of(" \t\"") != std::string_view::npos
+        ? ArgumentQuotingState::MustQuote
+        : ArgumentQuotingState::CanPassUnquoted;
+    if (quoting == ArgumentQuotingState::CanPassUnquoted) {
         return widen_utf8(arg);
     }
 
@@ -2702,8 +2946,10 @@ std::string quote_posix_arg(std::string_view arg) {
         return "''";
     }
 
-    const bool needs_quotes = arg.find_first_of(" \t\n'\"\\$&;()<>|*?![]{}") != std::string_view::npos;
-    if (!needs_quotes) {
+    const ArgumentQuotingState quoting = arg.find_first_of(" \t\n'\"\\$&;()<>|*?![]{}") != std::string_view::npos
+        ? ArgumentQuotingState::MustQuote
+        : ArgumentQuotingState::CanPassUnquoted;
+    if (quoting == ArgumentQuotingState::CanPassUnquoted) {
         return std::string(arg);
     }
 
@@ -2768,10 +3014,14 @@ std::expected<std::pair<int, std::string>, std::string> run_process_capture(cons
                                + posix_error_message(action_result) + ")");
     }
 
+    std::vector<std::vector<char>> argv_storage;
     std::vector<char*> argv;
+    argv_storage.reserve(args.size());
     argv.reserve(args.size() + 1);
     for (const std::string& arg : args) {
-        argv.push_back(const_cast<char*>(arg.c_str()));
+        argv_storage.emplace_back(arg.begin(), arg.end());
+        argv_storage.back().push_back('\0');
+        argv.push_back(argv_storage.back().data());
     }
     argv.push_back(nullptr);
 
@@ -2821,9 +3071,9 @@ std::expected<std::pair<int, std::string>, std::string> run_process_capture(cons
 
 #endif
 
-std::expected<void, std::string> run_toolchain_command(const std::vector<std::string>& args,
-                                                       const std::filesystem::path& log_path,
-                                                       const std::string& temp_input_path) {
+BackendStepResult run_toolchain_command(const std::vector<std::string>& args,
+                                        const std::filesystem::path& log_path,
+                                        const std::string& temp_input_path) {
     const std::expected<std::pair<int, std::string>, std::string> result = run_process_capture(args, log_path);
     if (!result.has_value()) {
         std::ostringstream error;
@@ -2843,7 +3093,7 @@ std::expected<void, std::string> run_toolchain_command(const std::vector<std::st
         }
         return std::unexpected(error.str());
     }
-    return {};
+    return BackendStepSucceeded{};
 }
 
 std::expected<std::string, std::string> probe_driver_version(const std::string& driver,
@@ -2930,51 +3180,58 @@ std::string_view toolchain_driver_environment_variable() {
 std::expected<std::string, std::string> emit_llvm_ir(const hir::Package& hir_package,
                                                      const mir::Package& mir_package,
                                                      const std::string& target_triple,
-                                                     bool include_entry_wrapper) {
+                                                     EntryPointEmission entry_point_emission) {
     if (target_triple != kSupportedTarget) {
         return std::unexpected("backend currently supports only target '" + std::string(kSupportedTarget) + "'");
     }
 
     BackendModel validation_model(hir_package);
-    if (const std::expected<void, std::string> validated = validate_backend_package(
+    if (const BackendStepResult validated = validate_backend_package(
             validation_model,
             hir_package,
             mir_package,
-            include_entry_wrapper);
+            entry_point_emission);
         !validated.has_value()) {
         return std::unexpected(validated.error());
     }
 
     BackendModel model(hir_package);
-    ModuleEmitter emitter(model, hir_package, mir_package, target_triple, include_entry_wrapper);
+    ModuleEmitter emitter(model, hir_package, mir_package, target_triple, entry_point_emission);
     return emitter.emit();
 }
 
-std::expected<void, std::string> emit_artifact(const hir::Package& hir_package,
-                                               const mir::Package& mir_package,
-                                               const EmitOptions& options) {
-    const bool include_entry_wrapper = options.kind == EmitKind::Executable;
+std::expected<ArtifactEmissionSucceeded, std::string> emit_artifact(const hir::Package& hir_package,
+                                                                    const mir::Package& mir_package,
+                                                                    const EmitOptions& options) {
+    EntryPointEmission entry_point_emission = EntryPointEmission::UserFunctionsOnly;
+    if (options.kind == EmitKind::Executable) {
+        entry_point_emission = EntryPointEmission::IncludeExecutableEntryPoint;
+    }
     const std::expected<std::string, std::string> llvm_ir = emit_llvm_ir(
         hir_package,
         mir_package,
         options.target_triple,
-        include_entry_wrapper);
+        entry_point_emission);
     if (!llvm_ir.has_value()) {
         return std::unexpected(llvm_ir.error());
     }
 
     if (options.kind == EmitKind::Llvm) {
-        if (!write_text_file(options.output_path, *llvm_ir)) {
+        const std::expected<TextFileWriteSucceeded, std::string> written =
+            write_text_file(options.output_path, *llvm_ir);
+        if (!written.has_value()) {
             return std::unexpected("failed to write LLVM IR output to '" + options.output_path + "'");
         }
-        return {};
+        return ArtifactEmissionSucceeded{};
     }
 
     const std::filesystem::path output_path(options.output_path);
     const std::filesystem::path temp_ir_path = output_path.string() + ".tmp.ll";
     const std::filesystem::path log_path = output_path.string() + ".tool.log";
 
-    if (!write_text_file(temp_ir_path.string(), *llvm_ir)) {
+    const std::expected<TextFileWriteSucceeded, std::string> temp_ir_written =
+        write_text_file(temp_ir_path.string(), *llvm_ir);
+    if (!temp_ir_written.has_value()) {
         return std::unexpected("failed to write temporary LLVM IR to '" + temp_ir_path.string() + "'");
     }
 
@@ -2996,7 +3253,7 @@ std::expected<void, std::string> emit_artifact(const hir::Package& hir_package,
     command.push_back("-o");
     command.push_back(output_path.string());
 
-    const std::expected<void, std::string> command_result = run_toolchain_command(
+    const BackendStepResult command_result = run_toolchain_command(
         command,
         log_path,
         temp_ir_path.string());
@@ -3007,7 +3264,7 @@ std::expected<void, std::string> emit_artifact(const hir::Package& hir_package,
     std::error_code remove_error;
     std::filesystem::remove(temp_ir_path, remove_error);
     std::filesystem::remove(log_path, remove_error);
-    return {};
+    return ArtifactEmissionSucceeded{};
 }
 
 } // namespace evident::backend

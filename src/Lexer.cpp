@@ -39,14 +39,30 @@ const std::unordered_map<std::string_view, TokenKind> kKeywords = {
     {"failed", TokenKind::KeywordFailed},
 };
 
-bool is_ident_start(char ch) {
+enum class IdentifierStartRole {
+    StartsIdentifier,
+    ExcludedFromIdentifierStart,
+};
+
+enum class IdentifierContinuationRole {
+    ContinuesIdentifier,
+    EndsIdentifier,
+};
+
+IdentifierStartRole identifier_start_role(char ch) {
     const unsigned char u = static_cast<unsigned char>(ch);
-    return std::isalpha(u) != 0 || ch == '_';
+    if (std::isalpha(u) != 0 || ch == '_') {
+        return IdentifierStartRole::StartsIdentifier;
+    }
+    return IdentifierStartRole::ExcludedFromIdentifierStart;
 }
 
-bool is_ident_continue(char ch) {
+IdentifierContinuationRole identifier_continuation_role(char ch) {
     const unsigned char u = static_cast<unsigned char>(ch);
-    return std::isalnum(u) != 0 || ch == '_';
+    if (std::isalnum(u) != 0 || ch == '_') {
+        return IdentifierContinuationRole::ContinuesIdentifier;
+    }
+    return IdentifierContinuationRole::EndsIdentifier;
 }
 
 } // namespace
@@ -56,9 +72,9 @@ Lexer::Lexer(const SourceFile& source, DiagnosticSink& diagnostics)
 
 std::vector<Token> Lexer::lex() {
     std::vector<Token> tokens;
-    while (!at_end()) {
+    while (source_cursor_state() == SourceCursorState::HasMoreSource) {
         skip_whitespace_and_comments();
-        if (at_end()) {
+        if (source_cursor_state() == SourceCursorState::ReachedEnd) {
             break;
         }
 
@@ -93,7 +109,7 @@ std::vector<Token> Lexer::lex() {
             tokens.push_back(make_token(TokenKind::Comma, begin, offset_));
             break;
         case ':':
-            if (match(':')) {
+            if (match_next(':') == CharacterMatchState::ConsumedExpectedCharacter) {
                 tokens.push_back(make_token(TokenKind::DoubleColon, begin, offset_));
             } else {
                 tokens.push_back(make_token(TokenKind::Colon, begin, offset_));
@@ -103,21 +119,21 @@ std::vector<Token> Lexer::lex() {
             tokens.push_back(make_token(TokenKind::Semicolon, begin, offset_));
             break;
         case '.':
-            if (match('.')) {
+            if (match_next('.') == CharacterMatchState::ConsumedExpectedCharacter) {
                 tokens.push_back(make_token(TokenKind::DotDot, begin, offset_));
             } else {
                 tokens.push_back(make_token(TokenKind::Dot, begin, offset_));
             }
             break;
         case '=':
-            if (match('>')) {
+            if (match_next('>') == CharacterMatchState::ConsumedExpectedCharacter) {
                 tokens.push_back(make_token(TokenKind::FatArrow, begin, offset_));
             } else {
                 tokens.push_back(make_token(TokenKind::Equals, begin, offset_));
             }
             break;
         case '-':
-            if (match('>')) {
+            if (match_next('>') == CharacterMatchState::ConsumedExpectedCharacter) {
                 tokens.push_back(make_token(TokenKind::Arrow, begin, offset_));
             } else {
                 report_unknown(begin, ch);
@@ -129,7 +145,7 @@ std::vector<Token> Lexer::lex() {
             tokens.push_back(lex_string());
             break;
         default:
-            if (is_ident_start(ch)) {
+            if (identifier_start_role(ch) == IdentifierStartRole::StartsIdentifier) {
                 --offset_;
                 tokens.push_back(lex_identifier_or_keyword());
             } else if (std::isdigit(static_cast<unsigned char>(ch)) != 0) {
@@ -147,8 +163,11 @@ std::vector<Token> Lexer::lex() {
     return tokens;
 }
 
-bool Lexer::at_end() const noexcept {
-    return offset_ >= source_.text().size();
+SourceCursorState Lexer::source_cursor_state() const noexcept {
+    if (offset_ >= source_.text().size()) {
+        return SourceCursorState::ReachedEnd;
+    }
+    return SourceCursorState::HasMoreSource;
 }
 
 char Lexer::peek(std::size_t lookahead) const noexcept {
@@ -160,28 +179,29 @@ char Lexer::peek(std::size_t lookahead) const noexcept {
 }
 
 char Lexer::advance() noexcept {
-    if (at_end()) {
+    if (source_cursor_state() == SourceCursorState::ReachedEnd) {
         return '\0';
     }
     return source_.text()[offset_++];
 }
 
-bool Lexer::match(char expected) noexcept {
-    if (at_end() || source_.text()[offset_] != expected) {
-        return false;
+CharacterMatchState Lexer::match_next(char expected) noexcept {
+    if (source_cursor_state() == SourceCursorState::ReachedEnd || source_.text()[offset_] != expected) {
+        return CharacterMatchState::ExpectedCharacterAbsent;
     }
     ++offset_;
-    return true;
+    return CharacterMatchState::ConsumedExpectedCharacter;
 }
 
 void Lexer::skip_whitespace_and_comments() {
     for (;;) {
-        while (!at_end() && std::isspace(static_cast<unsigned char>(peek())) != 0) {
+        while (source_cursor_state() == SourceCursorState::HasMoreSource
+               && std::isspace(static_cast<unsigned char>(peek())) != 0) {
             advance();
         }
 
         if (peek() == '-' && peek(1) == '-') {
-            while (!at_end() && peek() != '\n') {
+            while (source_cursor_state() == SourceCursorState::HasMoreSource && peek() != '\n') {
                 advance();
             }
             continue;
@@ -192,7 +212,8 @@ void Lexer::skip_whitespace_and_comments() {
 
 Token Lexer::lex_identifier_or_keyword() {
     const std::size_t begin = offset_;
-    while (!at_end() && is_ident_continue(peek())) {
+    while (source_cursor_state() == SourceCursorState::HasMoreSource
+           && identifier_continuation_role(peek()) == IdentifierContinuationRole::ContinuesIdentifier) {
         advance();
     }
     const Token token = make_token(TokenKind::Identifier, begin, offset_);
@@ -205,7 +226,8 @@ Token Lexer::lex_identifier_or_keyword() {
 
 Token Lexer::lex_number() {
     const std::size_t begin = offset_;
-    while (!at_end() && std::isdigit(static_cast<unsigned char>(peek())) != 0) {
+    while (source_cursor_state() == SourceCursorState::HasMoreSource
+           && std::isdigit(static_cast<unsigned char>(peek())) != 0) {
         advance();
     }
     return make_token(TokenKind::Number, begin, offset_);
@@ -214,12 +236,12 @@ Token Lexer::lex_number() {
 Token Lexer::lex_string() {
     const std::size_t begin = offset_;
     advance();
-    while (!at_end()) {
+    while (source_cursor_state() == SourceCursorState::HasMoreSource) {
         const char ch = advance();
         if (ch == '"') {
             return make_token(TokenKind::String, begin, offset_);
         }
-        if (ch == '\\' && !at_end()) {
+        if (ch == '\\' && source_cursor_state() == SourceCursorState::HasMoreSource) {
             advance();
         }
     }

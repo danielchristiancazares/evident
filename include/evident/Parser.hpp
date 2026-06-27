@@ -5,10 +5,39 @@
 #include "evident/Source.hpp"
 #include "evident/Token.hpp"
 
-#include <optional>
 #include <vector>
 
 namespace evident {
+
+enum class ParserCursorState {
+    HasMoreTokens,
+    ReachedEnd,
+};
+
+enum class TokenCheckState {
+    DifferentToken,
+    Matches,
+};
+
+enum class TokenConsumptionState {
+    NotConsumed,
+    Consumed,
+};
+
+enum class ExpressionStartState {
+    DoesNotBeginExpression,
+    BeginsExpression,
+};
+
+enum class RecordInitializerLookahead {
+    BlockExpression,
+    RecordInitializer,
+};
+
+enum class ModuleKindTokenRole {
+    OrdinaryToken,
+    ModuleKindKeyword,
+};
 
 class Parser {
 public:
@@ -17,17 +46,17 @@ public:
 
 private:
     [[nodiscard]] const Token& peek(std::size_t lookahead = 0) const;
-    [[nodiscard]] bool at_end() const noexcept;
-    [[nodiscard]] bool check(TokenKind kind) const noexcept;
-    [[nodiscard]] bool check_any(std::initializer_list<TokenKind> kinds) const noexcept;
+    [[nodiscard]] ParserCursorState cursor_state() const noexcept;
+    [[nodiscard]] TokenCheckState token_check(TokenKind kind) const noexcept;
+    [[nodiscard]] TokenCheckState token_check_any(std::initializer_list<TokenKind> kinds) const noexcept;
     const Token& advance();
-    [[nodiscard]] bool match(TokenKind kind);
-    [[nodiscard]] bool match_any(std::initializer_list<TokenKind> kinds);
+    [[nodiscard]] TokenConsumptionState consume_if(TokenKind kind);
+    [[nodiscard]] TokenConsumptionState consume_any(std::initializer_list<TokenKind> kinds);
     const Token& expect(TokenKind kind, std::string_view message);
 
     void synchronize();
     ast::Visibility parse_visibility();
-    std::optional<ast::ImportDecl> parse_import();
+    void parse_import_into(ast::TranslationUnit& unit);
     std::unique_ptr<ast::Decl> parse_top_level_decl();
     std::unique_ptr<ast::Decl> parse_decl();
     std::unique_ptr<ast::ModuleDecl> parse_module(ast::Visibility visibility);
@@ -37,7 +66,8 @@ private:
     std::unique_ptr<ast::ProofDecl> parse_proof(ast::Visibility visibility);
     std::unique_ptr<ast::PermitDecl> parse_permit(ast::Visibility visibility);
     std::unique_ptr<ast::PhaseDecl> parse_phase(ast::Visibility visibility);
-    std::unique_ptr<ast::FunctionDecl> parse_function(ast::Visibility visibility, bool is_foreign);
+    std::unique_ptr<ast::FunctionDecl> parse_function(ast::Visibility visibility,
+                                                      ast::FunctionImplementation implementation);
 
     std::vector<ast::GenericParam> parse_generic_params();
     std::vector<ast::Field> parse_field_block();
@@ -65,9 +95,10 @@ private:
     std::unique_ptr<ast::VariantPattern> parse_variant_pattern_from_path(std::vector<std::string> path, SourceSpan path_span);
 
     void consume_optional_declaration_terminator();
-    [[nodiscard]] bool begins_expr(TokenKind kind) const noexcept;
-    [[nodiscard]] bool looks_like_record_initializer() const noexcept;
-    [[nodiscard]] bool is_module_kind_keyword(TokenKind kind) const noexcept;
+    void consume_optional_statement_terminator();
+    [[nodiscard]] ExpressionStartState expression_start_state(TokenKind kind) const noexcept;
+    [[nodiscard]] RecordInitializerLookahead record_initializer_lookahead() const noexcept;
+    [[nodiscard]] ModuleKindTokenRole module_kind_token_role(TokenKind kind) const noexcept;
 
     const SourceFile& source_;
     std::vector<Token> tokens_;

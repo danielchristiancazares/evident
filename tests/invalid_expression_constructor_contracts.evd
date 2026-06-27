@@ -1,6 +1,6 @@
 domain module test {
 public record Point {
-    public x: Int,
+    x: Int,
 }
 
 public state Packet {

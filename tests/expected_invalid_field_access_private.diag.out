@@ -1,3 +1,9 @@
-<input>:10:9: error: field 'y' is private
-            r.y
-            ^^^
+<input>:34:9: error: field 'detail' is private
+            r.detail
+            ^^^^^^^^
+<input>:38:9: error: field 'count' is private
+            r.count
+            ^^^^^^^
+<input>:42:9: error: field 'secret' is private
+            c.secret
+            ^^^^^^^^

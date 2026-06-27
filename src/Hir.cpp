@@ -10,6 +10,74 @@
 
 namespace evident::hir {
 
+TypeIdentity TypeIdentity::from_type_flavor() {
+    return TypeIdentity(TypeIdentitySource::TypeFlavor, TypeId{});
+}
+
+TypeIdentity TypeIdentity::from_package_type(TypeId type_id) {
+    return TypeIdentity(TypeIdentitySource::PackageTypeDeclaration, type_id);
+}
+
+TypeIdentity::TypeIdentity(TypeIdentitySource source, TypeId package_type_id)
+    : source_(source), package_type_id_(package_type_id) {}
+
+TypeDisciplineResolution TypeDisciplineResolution::requires_concrete_instantiation() {
+    return TypeDisciplineResolution(TypeDisciplineResolutionState::RequiresConcreteInstantiation,
+                                    typesys::UseDiscipline::Copyable);
+}
+
+TypeDisciplineResolution TypeDisciplineResolution::concrete_use_discipline(typesys::UseDiscipline discipline) {
+    return TypeDisciplineResolution(TypeDisciplineResolutionState::ConcreteUseDisciplineKnown, discipline);
+}
+
+TypeDisciplineResolution::TypeDisciplineResolution(TypeDisciplineResolutionState state,
+                                                   typesys::UseDiscipline discipline)
+    : state_(state), discipline_(discipline) {}
+
+FunctionFailureContract FunctionFailureContract::returns_declared_value() {
+    return FunctionFailureContract(FunctionFailureBehavior::ReturnsDeclaredValue, TypeId{});
+}
+
+FunctionFailureContract FunctionFailureContract::yields_reason(TypeId reason_type_id) {
+    return FunctionFailureContract(FunctionFailureBehavior::YieldsReason, reason_type_id);
+}
+
+FunctionFailureContract::FunctionFailureContract(FunctionFailureBehavior behavior, TypeId reason_type_id)
+    : behavior_(behavior), reason_type_id_(reason_type_id) {}
+
+FunctionAuthorityContract FunctionAuthorityContract::ordinary_call() {
+    return FunctionAuthorityContract(FunctionAuthorityEffect::OrdinaryCall, TypeId{});
+}
+
+FunctionAuthorityContract FunctionAuthorityContract::grants_scoped_permit(TypeId permit_type_id) {
+    return FunctionAuthorityContract(FunctionAuthorityEffect::GrantsScopedPermit, permit_type_id);
+}
+
+FunctionAuthorityContract::FunctionAuthorityContract(FunctionAuthorityEffect effect, TypeId permit_type_id)
+    : effect_(effect), permit_type_id_(permit_type_id) {}
+
+ExprFailureContract ExprFailureContract::returns_value_only() {
+    return ExprFailureContract(ExprFailureEffect::ReturnsValueOnly, TypeId{});
+}
+
+ExprFailureContract ExprFailureContract::yields_reason(TypeId reason_type_id) {
+    return ExprFailureContract(ExprFailureEffect::YieldsReason, reason_type_id);
+}
+
+ExprFailureContract::ExprFailureContract(ExprFailureEffect effect, TypeId reason_type_id)
+    : effect_(effect), reason_type_id_(reason_type_id) {}
+
+ConstructVariantTarget ConstructVariantTarget::constructs_named_type() {
+    return ConstructVariantTarget(ConstructVariantTargetState::ConstructsNamedType, VariantId{});
+}
+
+ConstructVariantTarget ConstructVariantTarget::constructs_named_variant(VariantId variant_id) {
+    return ConstructVariantTarget(ConstructVariantTargetState::ConstructsNamedVariant, variant_id);
+}
+
+ConstructVariantTarget::ConstructVariantTarget(ConstructVariantTargetState state, VariantId variant_id)
+    : state_(state), variant_id_(variant_id) {}
+
 namespace {
 
 const std::unordered_set<std::string_view> kBuiltins = {
@@ -37,10 +105,41 @@ struct ValueEnv {
     std::unordered_map<std::string, TypeRef> values;
 };
 
+enum class VariantOwnerKind {
+    StateDeclaration,
+    ReasonDeclaration,
+};
+
+enum class VariantResolutionState {
+    NoMatchingVariant,
+    UniqueVariant,
+    AmbiguousVariant,
+};
+
+enum class ArgumentLoweringMode {
+    RuntimeValue,
+    PreserveCompileTimePath,
+};
+
+enum class BuiltinNameState {
+    UserDeclaredName,
+    CompilerBuiltinName,
+};
+
+enum class StringLiteralTypingState {
+    RequiresTextDefault,
+    AcceptsStringLiteral,
+};
+
+enum class TypeEquivalenceState {
+    DifferentTypes,
+    SameType,
+};
+
 struct VariantResolution {
     const ast::Decl* owner_decl = nullptr;
     VariantId variant_id = 0;
-    bool ambiguous = false;
+    VariantResolutionState state = VariantResolutionState::NoMatchingVariant;
 };
 
 struct FunctionContext {
@@ -49,8 +148,24 @@ struct FunctionContext {
     std::vector<std::string> generics;
 };
 
-bool is_builtin(std::string_view name) {
-    return kBuiltins.contains(name);
+BuiltinNameState builtin_name_state(std::string_view name) {
+    return kBuiltins.contains(name) ? BuiltinNameState::CompilerBuiltinName
+                                    : BuiltinNameState::UserDeclaredName;
+}
+
+ArgumentLoweringMode argument_lowering_mode(const TypeRef* concrete_arg_type,
+                                            const TypeRef* declared_arg_type) {
+    if (concrete_arg_type != nullptr
+        && typesys::discipline_materialization(concrete_arg_type->discipline)
+            == typesys::DisciplineMaterialization::CompileTimeOnly) {
+        return ArgumentLoweringMode::PreserveCompileTimePath;
+    }
+    if (declared_arg_type != nullptr
+        && typesys::discipline_materialization(declared_arg_type->discipline)
+            == typesys::DisciplineMaterialization::CompileTimeOnly) {
+        return ArgumentLoweringMode::PreserveCompileTimePath;
+    }
+    return ArgumentLoweringMode::RuntimeValue;
 }
 
 TypeKind type_kind_from_decl(ast::DeclKind kind) {
@@ -105,7 +220,7 @@ std::string format_type_args(const std::string& base, const std::vector<TypeRef>
 }
 
 TypeRef substitute_type_ref(const TypeRef& type, const std::unordered_map<std::string, TypeRef>& substitutions) {
-    if (type.is_generic) {
+    if (type.flavor == typesys::TypeFlavor::Generic) {
         if (const auto it = substitutions.find(type.text); it != substitutions.end()) {
             return it->second;
         }
@@ -135,10 +250,16 @@ void indent(std::ostream& out, std::size_t depth) {
 
 std::string dump_type_ref(const TypeRef& type) {
     std::string text = type.text;
-    if (typesys::is_affine(type.discipline)) {
+    if (typesys::discipline_movement(type.discipline) == typesys::DisciplineMovement::Affine) {
         text += " [affine]";
     }
     return text;
+}
+
+typesys::TypeErrorState type_ref_error_state(const TypeRef& type) {
+    return type.flavor == typesys::TypeFlavor::Error
+        ? typesys::TypeErrorState::SuppressesFollowupDiagnostics
+        : typesys::TypeErrorState::CarriesTypeFacts;
 }
 
 struct Lowerer {
@@ -151,6 +272,8 @@ struct Lowerer {
     std::unordered_map<std::string, TypeId> qualified_type_ids;
     std::unordered_map<const ast::Decl*, FunctionId> function_ids;
     typesys::DisciplineClassifier discipline_classifier;
+
+    using ExpectedFieldTypes = std::unordered_map<std::string, TypeRef>;
 
     Lowerer()
         : discipline_classifier([this](const ast::Decl* owner_decl,
@@ -177,8 +300,7 @@ private:
                                                        const std::vector<std::string>& path) const;
     [[nodiscard]] VariantResolution resolve_variant(const Scope& scope,
                                                     const std::vector<std::string>& path,
-                                                    bool allow_state,
-                                                    bool allow_reason) const;
+                                                    VariantOwnerKind owner_kind) const;
     [[nodiscard]] TypeRef builtin_type(std::string name) const;
     [[nodiscard]] TypeRef named_type(TypeId type_id) const;
     [[nodiscard]] TypeRef generic_type(std::string name) const;
@@ -199,14 +321,22 @@ private:
         const ast::FunctionDecl& function_decl,
         const ast::CallExpr& call,
         const FunctionContext& context) const;
-    [[nodiscard]] bool is_compile_time_only_type(const TypeRef& type) const;
+    [[nodiscard]] StringLiteralTypingState string_literal_typing_state(const TypeRef& type) const;
+    [[nodiscard]] const ast::PathExpr* path_expr(const ast::Expr& expr) const;
+    [[nodiscard]] const ast::CallExpr* call_expr(const ast::Expr& expr) const;
     [[nodiscard]] const TypeRef* lookup_binding(const ValueEnv& env, const std::string& name) const;
     void bind_value(ValueEnv& env, const std::string& name, TypeRef type) const;
-    [[nodiscard]] bool types_equal(const TypeRef& lhs, const TypeRef& rhs) const;
+    [[nodiscard]] TypeEquivalenceState type_equivalence_state(const TypeRef& lhs,
+                                                              const TypeRef& rhs) const;
     [[nodiscard]] TypeRef unify_types(const TypeRef& lhs, const TypeRef& rhs) const;
+    [[nodiscard]] ExpectedFieldTypes expected_field_types_from_hir_fields(const std::vector<FieldDecl>& fields) const;
+    [[nodiscard]] ExpectedFieldTypes expected_field_types_from_ast_fields(const ast::Decl* owner_decl,
+                                                                          const std::vector<ast::Field>& fields,
+                                                                          const std::vector<typesys::Type>& owner_args = {}) const;
     [[nodiscard]] std::vector<FieldInit> lower_field_inits(const std::vector<ast::RecordFieldInit>& fields,
                                                            const FunctionContext& context,
-                                                           ValueEnv& env);
+                                                           ValueEnv& env,
+                                                           const ExpectedFieldTypes* expected_types = nullptr);
     [[nodiscard]] std::unique_ptr<Expr> lower_path_expr(const ast::PathExpr& expr,
                                                         const FunctionContext& context,
                                                         ValueEnv& env);
@@ -223,16 +353,19 @@ private:
                              const VariantDecl& variant) const;
     [[nodiscard]] std::unique_ptr<Expr> lower_match_expr(const ast::MatchExpr& expr,
                                                          const FunctionContext& context,
-                                                         ValueEnv& env);
+                                                         ValueEnv& env,
+                                                         const TypeRef* expected_type = nullptr);
     [[nodiscard]] std::unique_ptr<BlockExpr> lower_block_expr(const ast::BlockExpr& expr,
                                                               const FunctionContext& context,
-                                                              ValueEnv& env);
+                                                              ValueEnv& env,
+                                                              const TypeRef* expected_type = nullptr);
     [[nodiscard]] std::unique_ptr<Expr> lower_fail_expr(const ast::FailExpr& expr,
                                                         const FunctionContext& context,
                                                         ValueEnv& env);
     [[nodiscard]] std::unique_ptr<Expr> lower_grant_expr(const ast::GrantExpr& expr,
                                                          const FunctionContext& context,
-                                                         ValueEnv& env);
+                                                         ValueEnv& env,
+                                                         const TypeRef* expected_type = nullptr);
     [[nodiscard]] std::unique_ptr<Expr> lower_field_access_expr(const ast::FieldAccessExpr& expr,
                                                                 const FunctionContext& context,
                                                                 ValueEnv& env);
@@ -241,7 +374,8 @@ private:
                                                          ValueEnv& env);
     [[nodiscard]] std::unique_ptr<Expr> lower_expr(const ast::Expr& expr,
                                                    const FunctionContext& context,
-                                                   ValueEnv& env);
+                                                   ValueEnv& env,
+                                                   const TypeRef* expected_type = nullptr);
 };
 
 Package Lowerer::lower(const ast::TranslationUnit& unit) {
@@ -317,7 +451,8 @@ void Lowerer::declare_decls(const std::vector<std::unique_ptr<ast::Decl>>& decls
             function.id = package.functions.size();
             function.visibility = decl.visibility;
             function.qualified_name = qualified;
-            function.is_foreign = decl.kind == ast::DeclKind::ForeignFunction;
+            const auto& function_decl = static_cast<const ast::FunctionDecl&>(decl);
+            function.implementation = function_decl.implementation();
             package.functions.push_back(std::move(function));
             function_ids[&decl] = package.functions.back().id;
             break;
@@ -350,8 +485,8 @@ void Lowerer::populate_types(const std::vector<std::unique_ptr<ast::Decl>>& decl
                         lower_type_ref(scope, {}, field.type),
                     });
                 }
-                phase_type.concrete_discipline = discipline_classifier.classify(
-                    typesys::named_type(phase_type.qualified_name, &decl));
+                phase_type.discipline = TypeDisciplineResolution::concrete_use_discipline(
+                    discipline_classifier.classify(typesys::named_type(phase_type.qualified_name, &decl)));
             }
             continue;
         }
@@ -406,8 +541,8 @@ void Lowerer::populate_types(const std::vector<std::unique_ptr<ast::Decl>>& decl
         }
 
         if (type.generics.empty()) {
-            type.concrete_discipline = discipline_classifier.classify(
-                typesys::named_type(type.qualified_name, &decl));
+            type.discipline = TypeDisciplineResolution::concrete_use_discipline(
+                discipline_classifier.classify(typesys::named_type(type.qualified_name, &decl)));
         }
     }
 }
@@ -461,23 +596,26 @@ void Lowerer::populate_functions(const std::vector<std::unique_ptr<ast::Decl>>& 
             function.params.push_back(Parameter{
                 param.name,
                 lowered_type,
-                is_compile_time_only_type(lowered_type),
-                param.is_permit_param,
+                param.authority,
             });
         }
         function.return_type = lower_type_ref(scope, function.generics, function_decl.signature.return_type);
-        if (function_decl.signature.fails_type.has_value()) {
-            TypeRef fails_type = lower_type_ref(scope, function.generics, *function_decl.signature.fails_type);
-            function.fails_reason_type_id = fails_type.type_id;
+        if (function_decl.signature.failure.behavior() == ast::FunctionFailureBehavior::YieldsReason) {
+            TypeRef fails_type = lower_type_ref(scope, function.generics, function_decl.signature.failure.reason_type());
+            if (fails_type.identity.source() == TypeIdentitySource::PackageTypeDeclaration) {
+                function.failure = FunctionFailureContract::yields_reason(fails_type.identity.package_type_id());
+            }
         }
-        if (function_decl.signature.grants_type.has_value()) {
-            TypeRef grants_type = lower_type_ref(scope, function.generics, *function_decl.signature.grants_type);
-            function.grants_permit_type_id = grants_type.type_id;
+        if (function_decl.signature.authority.effect() == ast::FunctionAuthorityEffect::GrantsScopedPermit) {
+            TypeRef grants_type = lower_type_ref(scope, function.generics, function_decl.signature.authority.permit_type());
+            if (grants_type.identity.source() == TypeIdentitySource::PackageTypeDeclaration) {
+                function.authority = FunctionAuthorityContract::grants_scoped_permit(grants_type.identity.package_type_id());
+            }
         }
         for (const ast::TypeRef& proves_ast : function_decl.signature.proves_types) {
             TypeRef proves_type = lower_type_ref(scope, function.generics, proves_ast);
-            if (proves_type.type_id.has_value()) {
-                function.proves_proof_type_ids.push_back(*proves_type.type_id);
+            if (proves_type.identity.source() == TypeIdentitySource::PackageTypeDeclaration) {
+                function.proves_proof_type_ids.push_back(proves_type.identity.package_type_id());
             }
         }
     }
@@ -511,7 +649,7 @@ void Lowerer::lower_function_bodies(const std::vector<std::unique_ptr<ast::Decl>
         for (const Parameter& param : function.params) {
             env.values.emplace(param.name, param.type);
         }
-        function.body = lower_block_expr(*function_decl.body, context, env);
+        function.body = lower_block_expr(*function_decl.body, context, env, &function.return_type);
     }
 }
 
@@ -541,7 +679,8 @@ const Symbol* Lowerer::resolve_symbol(const Scope& scope,
 
     if (path.size() == 1) {
         const std::string& name = path.front();
-        if (std::find(generics.begin(), generics.end(), name) != generics.end() || is_builtin(name)) {
+        if (std::find(generics.begin(), generics.end(), name) != generics.end()
+            || builtin_name_state(name) == BuiltinNameState::CompilerBuiltinName) {
             return nullptr;
         }
         for (const Scope* current = &scope; current != nullptr; current = current->parent) {
@@ -591,12 +730,21 @@ const FunctionDecl* Lowerer::resolve_function(const Scope& scope, const std::vec
 
 VariantResolution Lowerer::resolve_variant(const Scope& scope,
                                            const std::vector<std::string>& path,
-                                           bool allow_state,
-                                           bool allow_reason) const {
+                                           VariantOwnerKind owner_kind) const {
     VariantResolution result;
     if (path.empty()) {
         return result;
     }
+
+    auto owner_kind_matches = [owner_kind](TypeKind candidate) {
+        switch (owner_kind) {
+        case VariantOwnerKind::StateDeclaration:
+            return candidate == TypeKind::State;
+        case VariantOwnerKind::ReasonDeclaration:
+            return candidate == TypeKind::Reason;
+        }
+        return false;
+    };
 
     auto try_owner = [&](const ast::Decl* owner_decl, std::string_view variant_name) {
         if (owner_decl == nullptr) {
@@ -607,22 +755,19 @@ VariantResolution Lowerer::resolve_variant(const Scope& scope,
             return;
         }
         const TypeDecl& owner = package.types[type_it->second];
-        if ((owner.kind == TypeKind::State && !allow_state)
-            || (owner.kind == TypeKind::Reason && !allow_reason)) {
-            return;
-        }
-        if (owner.kind != TypeKind::State && owner.kind != TypeKind::Reason) {
+        if (!owner_kind_matches(owner.kind)) {
             return;
         }
         for (VariantId variant_id : owner.variants) {
             const VariantDecl& variant = package.variants[variant_id];
             if (variant.name == variant_name) {
                 if (result.owner_decl != nullptr && result.owner_decl != owner_decl) {
-                    result.ambiguous = true;
+                    result.state = VariantResolutionState::AmbiguousVariant;
                     return;
                 }
                 result.owner_decl = owner_decl;
                 result.variant_id = variant_id;
+                result.state = VariantResolutionState::UniqueVariant;
                 return;
             }
         }
@@ -639,7 +784,7 @@ VariantResolution Lowerer::resolve_variant(const Scope& scope,
     for (const Scope* current = &scope; current != nullptr; current = current->parent) {
         for (const auto& [_, symbol] : current->symbols) {
             try_owner(symbol.decl, path.front());
-            if (result.ambiguous) {
+            if (result.state == VariantResolutionState::AmbiguousVariant) {
                 return result;
             }
         }
@@ -648,28 +793,44 @@ VariantResolution Lowerer::resolve_variant(const Scope& scope,
 }
 
 TypeRef Lowerer::builtin_type(std::string name) const {
-    return TypeRef{std::move(name), std::nullopt, true, false, typesys::UseDiscipline::Copyable, {}};
+    return TypeRef{
+        std::move(name),
+        TypeIdentity::from_type_flavor(),
+        typesys::TypeFlavor::Builtin,
+        typesys::UseDiscipline::Copyable,
+        {},
+    };
 }
 
 TypeRef Lowerer::named_type(TypeId type_id) const {
-    const auto decl_it = decl_by_type_id.find(type_id);
-    if (decl_it == decl_by_type_id.end()) {
+    if (type_id >= package.types.size()) {
         return {};
     }
-    const auto qualified_it = qualified_names.find(decl_it->second);
-    const std::string qualified = qualified_it != qualified_names.end() ? qualified_it->second : package.types[type_id].qualified_name;
-    return lower_resolved_type(typesys::named_type(qualified, decl_it->second));
+    const TypeDecl& type = package.types[type_id];
+    TypeRef lowered;
+    lowered.text = type.qualified_name;
+    lowered.identity = TypeIdentity::from_package_type(type_id);
+    lowered.flavor = typesys::TypeFlavor::Named;
+    if (type.discipline.state() == TypeDisciplineResolutionState::ConcreteUseDisciplineKnown) {
+        lowered.discipline = type.discipline.discipline();
+    }
+    return lowered;
 }
 
 TypeRef Lowerer::generic_type(std::string name) const {
-    return TypeRef{std::move(name), std::nullopt, false, true, typesys::UseDiscipline::Copyable, {}};
+    return TypeRef{
+        std::move(name),
+        TypeIdentity::from_type_flavor(),
+        typesys::TypeFlavor::Generic,
+        typesys::UseDiscipline::Copyable,
+        {},
+    };
 }
 
 TypeRef Lowerer::lower_resolved_type(const typesys::Type& type) const {
     TypeRef lowered;
     lowered.text = typesys::type_name(type);
-    lowered.is_builtin = type.flavor == typesys::TypeFlavor::Builtin;
-    lowered.is_generic = type.flavor == typesys::TypeFlavor::Generic;
+    lowered.flavor = type.flavor;
     lowered.discipline = discipline_classifier.classify(type);
     lowered.args.reserve(type.args.size());
     for (const typesys::Type& arg : type.args) {
@@ -678,10 +839,10 @@ TypeRef Lowerer::lower_resolved_type(const typesys::Type& type) const {
     if (type.flavor == typesys::TypeFlavor::Named && type.decl != nullptr) {
         if (type.decl->kind == ast::DeclKind::Phase) {
             if (const auto phase_it = qualified_type_ids.find(type.name); phase_it != qualified_type_ids.end()) {
-                lowered.type_id = phase_it->second;
+                lowered.identity = TypeIdentity::from_package_type(phase_it->second);
             }
         } else if (const auto type_it = type_ids.find(type.decl); type_it != type_ids.end()) {
-            lowered.type_id = type_it->second;
+            lowered.identity = TypeIdentity::from_package_type(type_it->second);
         }
     }
     return lowered;
@@ -711,7 +872,7 @@ typesys::Type Lowerer::resolve_type(const Scope& scope,
         if (std::find(generics.begin(), generics.end(), name) != generics.end()) {
             return typesys::generic_type(name);
         }
-        if (is_builtin(name)) {
+        if (builtin_name_state(name) == BuiltinNameState::CompilerBuiltinName) {
             return typesys::builtin_type(name, std::move(args));
         }
     }
@@ -791,8 +952,22 @@ std::vector<std::pair<std::string, typesys::Type>> Lowerer::build_call_substitut
     return substitutions;
 }
 
-bool Lowerer::is_compile_time_only_type(const TypeRef& type) const {
-    return typesys::is_compile_time_only(type.discipline);
+StringLiteralTypingState Lowerer::string_literal_typing_state(const TypeRef& type) const {
+    if (type.flavor == typesys::TypeFlavor::Builtin
+        && type.identity.source() == TypeIdentitySource::TypeFlavor
+        && type.args.empty()
+        && (type.text == "Text" || type.text == "Bytes" || type.text == "CString")) {
+        return StringLiteralTypingState::AcceptsStringLiteral;
+    }
+    return StringLiteralTypingState::RequiresTextDefault;
+}
+
+const ast::PathExpr* Lowerer::path_expr(const ast::Expr& expr) const {
+    return expr.kind == ast::ExprKind::Path ? &static_cast<const ast::PathExpr&>(expr) : nullptr;
+}
+
+const ast::CallExpr* Lowerer::call_expr(const ast::Expr& expr) const {
+    return expr.kind == ast::ExprKind::Call ? &static_cast<const ast::CallExpr&>(expr) : nullptr;
 }
 
 const TypeRef* Lowerer::lookup_binding(const ValueEnv& env, const std::string& name) const {
@@ -809,25 +984,27 @@ void Lowerer::bind_value(ValueEnv& env, const std::string& name, TypeRef type) c
     env.values[name] = std::move(type);
 }
 
-bool Lowerer::types_equal(const TypeRef& lhs, const TypeRef& rhs) const {
-    if (lhs.text != rhs.text || lhs.type_id != rhs.type_id
-        || lhs.is_builtin != rhs.is_builtin || lhs.is_generic != rhs.is_generic
+TypeEquivalenceState Lowerer::type_equivalence_state(const TypeRef& lhs, const TypeRef& rhs) const {
+    if (lhs.text != rhs.text
+        || lhs.identity.source() != rhs.identity.source()
+        || lhs.identity.package_type_id() != rhs.identity.package_type_id()
+        || lhs.flavor != rhs.flavor
         || lhs.discipline != rhs.discipline || lhs.args.size() != rhs.args.size()) {
-        return false;
+        return TypeEquivalenceState::DifferentTypes;
     }
     for (std::size_t index = 0; index < lhs.args.size(); ++index) {
-        if (!types_equal(lhs.args[index], rhs.args[index])) {
-            return false;
+        if (type_equivalence_state(lhs.args[index], rhs.args[index]) == TypeEquivalenceState::DifferentTypes) {
+            return TypeEquivalenceState::DifferentTypes;
         }
     }
-    return true;
+    return TypeEquivalenceState::SameType;
 }
 
 TypeRef Lowerer::unify_types(const TypeRef& lhs, const TypeRef& rhs) const {
-    if (lhs.text.empty()) {
+    if (type_ref_error_state(lhs) == typesys::TypeErrorState::SuppressesFollowupDiagnostics) {
         return rhs;
     }
-    if (rhs.text.empty()) {
+    if (type_ref_error_state(rhs) == typesys::TypeErrorState::SuppressesFollowupDiagnostics) {
         return lhs;
     }
     if (lhs.text == "Never") {
@@ -836,19 +1013,51 @@ TypeRef Lowerer::unify_types(const TypeRef& lhs, const TypeRef& rhs) const {
     if (rhs.text == "Never") {
         return lhs;
     }
-    return types_equal(lhs, rhs) ? lhs : lhs;
+    if (type_equivalence_state(lhs, rhs) == TypeEquivalenceState::SameType) {
+        return lhs;
+    }
+    return lhs;
+}
+
+Lowerer::ExpectedFieldTypes Lowerer::expected_field_types_from_hir_fields(const std::vector<FieldDecl>& fields) const {
+    ExpectedFieldTypes expected;
+    expected.reserve(fields.size());
+    for (const FieldDecl& field : fields) {
+        expected.emplace(field.name, field.type);
+    }
+    return expected;
+}
+
+Lowerer::ExpectedFieldTypes Lowerer::expected_field_types_from_ast_fields(
+    const ast::Decl* owner_decl,
+    const std::vector<ast::Field>& fields,
+    const std::vector<typesys::Type>& owner_args) const {
+    ExpectedFieldTypes expected;
+    expected.reserve(fields.size());
+    for (const ast::Field& field : fields) {
+        expected.emplace(field.name, lower_resolved_type(resolve_member_type(owner_decl, owner_args, field.type)));
+    }
+    return expected;
 }
 
 std::vector<FieldInit> Lowerer::lower_field_inits(const std::vector<ast::RecordFieldInit>& fields,
                                                   const FunctionContext& context,
-                                                  ValueEnv& env) {
+                                                  ValueEnv& env,
+                                                  const ExpectedFieldTypes* expected_types) {
     std::vector<FieldInit> lowered;
     lowered.reserve(fields.size());
     for (const ast::RecordFieldInit& field : fields) {
         FieldInit init;
         init.name = field.name;
-        init.shorthand = field.shorthand;
-        init.value = lower_expr(*field.value, context, env);
+        init.spelling = field.spelling;
+        const TypeRef* expected_type = nullptr;
+        if (expected_types != nullptr) {
+            const auto expected_it = expected_types->find(field.name);
+            if (expected_it != expected_types->end()) {
+                expected_type = &expected_it->second;
+            }
+        }
+        init.value = lower_expr(*field.value, context, env, expected_type);
         lowered.push_back(std::move(init));
     }
     return lowered;
@@ -863,14 +1072,17 @@ std::unique_ptr<Expr> Lowerer::lower_path_expr(const ast::PathExpr& expr,
         }
     }
 
-    if (VariantResolution state_variant = resolve_variant(context.scope, expr.path, true, false);
-        state_variant.owner_decl != nullptr && !state_variant.ambiguous) {
+    if (VariantResolution state_variant = resolve_variant(
+            context.scope,
+            expr.path,
+            VariantOwnerKind::StateDeclaration);
+        state_variant.state == VariantResolutionState::UniqueVariant) {
         const VariantDecl& variant = package.variants[state_variant.variant_id];
         if (variant.fields.empty()) {
             auto lowered = std::make_unique<ConstructExpr>(named_type(variant.owner_type));
             lowered->construct_kind = ConstructKind::StateVariant;
             lowered->owner_type_id = variant.owner_type;
-            lowered->variant_id = variant.id;
+            lowered->variant_target = ConstructVariantTarget::constructs_named_variant(variant.id);
             lowered->qualified_name = variant.qualified_name;
             return lowered;
         }
@@ -916,7 +1128,7 @@ std::unique_ptr<Expr> Lowerer::lower_call_expr(const ast::CallExpr& expr,
     const FunctionDecl* function = nullptr;
     const ast::FunctionDecl* ast_function = nullptr;
     std::vector<TypeRef> concrete_param_types;
-    if (const auto* callee_path = dynamic_cast<const ast::PathExpr*>(expr.callee.get())) {
+    if (const ast::PathExpr* callee_path = path_expr(*expr.callee)) {
         const Symbol* symbol = resolve_symbol(context.scope, {}, callee_path->path);
         if (symbol != nullptr
             && (symbol->kind == ast::DeclKind::Function || symbol->kind == ast::DeclKind::ForeignFunction)) {
@@ -927,7 +1139,9 @@ std::unique_ptr<Expr> Lowerer::lower_call_expr(const ast::CallExpr& expr,
             lowered->function_id = function->id;
             lowered->callee_name = function->qualified_name;
             lowered->result_type = function->return_type;
-            lowered->fails_reason_type_id = function->fails_reason_type_id;
+            if (function->failure.behavior() == FunctionFailureBehavior::YieldsReason) {
+                lowered->failure = ExprFailureContract::yields_reason(function->failure.reason_type_id());
+            }
             if (ast_function != nullptr) {
                 const Scope& callee_scope = *decl_scopes.at(ast_function);
                 const std::vector<std::string> callee_generics = generic_names_for(
@@ -941,12 +1155,14 @@ std::unique_ptr<Expr> Lowerer::lower_call_expr(const ast::CallExpr& expr,
                                                                         callee_generics,
                                                                         substitutions,
                                                                         ast_function->signature.return_type));
-                if (ast_function->signature.fails_type.has_value()) {
+                if (ast_function->signature.failure.behavior() == ast::FunctionFailureBehavior::YieldsReason) {
                     TypeRef fails_type = lower_resolved_type(resolve_type(callee_scope,
                                                                          callee_generics,
                                                                          substitutions,
-                                                                         *ast_function->signature.fails_type));
-                    lowered->fails_reason_type_id = fails_type.type_id;
+                                                                         ast_function->signature.failure.reason_type()));
+                    if (fails_type.identity.source() == TypeIdentitySource::PackageTypeDeclaration) {
+                        lowered->failure = ExprFailureContract::yields_reason(fails_type.identity.package_type_id());
+                    }
                 }
                 concrete_param_types.reserve(ast_function->signature.params.size());
                 for (const ast::Parameter& param : ast_function->signature.params) {
@@ -961,19 +1177,25 @@ std::unique_ptr<Expr> Lowerer::lower_call_expr(const ast::CallExpr& expr,
         }
     }
     for (std::size_t index = 0; index < expr.args.size(); ++index) {
-        const bool concrete_compile_time_only = index < concrete_param_types.size()
-            && is_compile_time_only_type(concrete_param_types[index]);
-        const bool declared_compile_time_only = function != nullptr && index < function->params.size()
-            && function->params[index].is_compile_time_only;
-        if (concrete_compile_time_only || declared_compile_time_only) {
-            if (const auto* path_arg = dynamic_cast<const ast::PathExpr*>(expr.args[index].get())) {
+        const TypeRef* concrete_arg_type = nullptr;
+        const TypeRef* declared_arg_type = nullptr;
+        if (index < concrete_param_types.size()) {
+            concrete_arg_type = &concrete_param_types[index];
+        }
+        if (function != nullptr && index < function->params.size()) {
+            declared_arg_type = &function->params[index].type;
+        }
+        const TypeRef* expected_arg_type = concrete_arg_type != nullptr ? concrete_arg_type : declared_arg_type;
+        if (argument_lowering_mode(concrete_arg_type, declared_arg_type)
+            == ArgumentLoweringMode::PreserveCompileTimePath) {
+            if (const ast::PathExpr* path_arg = path_expr(*expr.args[index])) {
                 lowered->args.push_back(lower_path_expr(*path_arg, context, env));
             } else {
-                lowered->args.push_back(lower_expr(*expr.args[index], context, env));
+                lowered->args.push_back(lower_expr(*expr.args[index], context, env, expected_arg_type));
             }
             continue;
         }
-        lowered->args.push_back(lower_expr(*expr.args[index], context, env));
+        lowered->args.push_back(lower_expr(*expr.args[index], context, env, expected_arg_type));
     }
     return lowered;
 }
@@ -982,7 +1204,6 @@ std::unique_ptr<Expr> Lowerer::lower_construct_expr(const ast::ConstructExpr& ex
                                                     const FunctionContext& context,
                                                     ValueEnv& env) {
     auto lowered = std::make_unique<ConstructExpr>();
-    lowered->fields = lower_field_inits(expr.fields, context, env);
 
     if (expr.path.size() >= 2) {
         std::vector<std::string> family_path(expr.path.begin(), expr.path.end() - 1);
@@ -999,6 +1220,8 @@ std::unique_ptr<Expr> Lowerer::lower_construct_expr(const ast::ConstructExpr& ex
                     lowered->construct_kind = ConstructKind::Record;
                     lowered->owner_type_id = type.id;
                     lowered->qualified_name = type.qualified_name;
+                    const ExpectedFieldTypes expected = expected_field_types_from_hir_fields(type.fields);
+                    lowered->fields = lower_field_inits(expr.fields, context, env, &expected);
                     return lowered;
                 }
             }
@@ -1010,6 +1233,7 @@ std::unique_ptr<Expr> Lowerer::lower_construct_expr(const ast::ConstructExpr& ex
         if (type_it != type_ids.end()) {
             const TypeDecl& type = package.types[type_it->second];
             if (type.kind == TypeKind::Record) {
+                const auto& record_decl = static_cast<const ast::RecordDecl&>(*symbol->decl);
                 std::vector<typesys::Type> type_args;
                 type_args.reserve(expr.type_args.size());
                 for (const ast::TypeRef& type_arg : expr.type_args) {
@@ -1017,26 +1241,39 @@ std::unique_ptr<Expr> Lowerer::lower_construct_expr(const ast::ConstructExpr& ex
                 }
                 lowered->result_type = lower_resolved_type(typesys::named_type(type.qualified_name,
                                                                                 symbol->decl,
-                                                                                std::move(type_args)));
+                                                                                type_args));
                 lowered->construct_kind = ConstructKind::Record;
                 lowered->owner_type_id = type.id;
-                lowered->qualified_name = lowered->result_type.text.empty() ? type.qualified_name : lowered->result_type.text;
+                lowered->qualified_name = type_ref_error_state(lowered->result_type)
+                        == typesys::TypeErrorState::SuppressesFollowupDiagnostics
+                    ? type.qualified_name
+                    : lowered->result_type.text;
+                const ExpectedFieldTypes expected = expected_field_types_from_ast_fields(symbol->decl,
+                                                                                         record_decl.fields,
+                                                                                         type_args);
+                lowered->fields = lower_field_inits(expr.fields, context, env, &expected);
                 return lowered;
             }
         }
     }
 
-    if (VariantResolution state_variant = resolve_variant(context.scope, expr.path, true, false);
-        state_variant.owner_decl != nullptr && !state_variant.ambiguous) {
+    if (VariantResolution state_variant = resolve_variant(
+            context.scope,
+            expr.path,
+            VariantOwnerKind::StateDeclaration);
+        state_variant.state == VariantResolutionState::UniqueVariant) {
         const VariantDecl& variant = package.variants[state_variant.variant_id];
         lowered->result_type = named_type(variant.owner_type);
         lowered->construct_kind = ConstructKind::StateVariant;
         lowered->owner_type_id = variant.owner_type;
-        lowered->variant_id = variant.id;
+        lowered->variant_target = ConstructVariantTarget::constructs_named_variant(variant.id);
         lowered->qualified_name = variant.qualified_name;
+        const ExpectedFieldTypes expected = expected_field_types_from_hir_fields(variant.fields);
+        lowered->fields = lower_field_inits(expr.fields, context, env, &expected);
         return lowered;
     }
 
+    lowered->fields = lower_field_inits(expr.fields, context, env);
     return lowered;
 }
 
@@ -1083,7 +1320,8 @@ void Lowerer::bind_variant_fields(ValueEnv& env,
 
 std::unique_ptr<Expr> Lowerer::lower_match_expr(const ast::MatchExpr& expr,
                                                 const FunctionContext& context,
-                                                ValueEnv& env) {
+                                                ValueEnv& env,
+                                                const TypeRef* expected_type) {
     auto lowered = std::make_unique<MatchExpr>();
     lowered->scrutinee = lower_expr(*expr.scrutinee, context, env);
     TypeRef result_type;
@@ -1092,24 +1330,27 @@ std::unique_ptr<Expr> Lowerer::lower_match_expr(const ast::MatchExpr& expr,
         MatchArm lowered_arm;
         ValueEnv arm_env{&env, {}};
 
-        if (lowered->scrutinee->fails_reason_type_id.has_value()) {
+        if (lowered->scrutinee->failure.effect() == ExprFailureEffect::YieldsReason) {
             switch (arm.pattern->kind) {
             case ast::PatternKind::Succeeded: {
                 const auto& pattern = static_cast<const ast::SucceededPattern&>(*arm.pattern);
                 auto lowered_pattern = std::make_unique<SucceededPattern>();
                 lowered_pattern->binding_name = pattern.binding_name;
-                lowered_pattern->ignore = pattern.ignore;
-                if (pattern.binding_name.has_value()) {
-                    bind_value(arm_env, *pattern.binding_name, lowered->scrutinee->result_type);
+                lowered_pattern->binding = pattern.binding;
+                if (pattern.binding == ast::SuccessPatternBinding::NamedBinding) {
+                    bind_value(arm_env, pattern.binding_name, lowered->scrutinee->result_type);
                 }
                 lowered_arm.pattern = std::move(lowered_pattern);
                 break;
             }
             case ast::PatternKind::Failed: {
                 const auto& pattern = static_cast<const ast::FailedPattern&>(*arm.pattern);
-                VariantResolution resolution = resolve_variant(context.scope, pattern.variant->path, false, true);
+                VariantResolution resolution = resolve_variant(
+                    context.scope,
+                    pattern.variant->path,
+                    VariantOwnerKind::ReasonDeclaration);
                 auto lowered_pattern = std::make_unique<FailedPattern>();
-                if (resolution.owner_decl != nullptr && !resolution.ambiguous) {
+                if (resolution.state == VariantResolutionState::UniqueVariant) {
                     lowered_pattern->variant = lower_variant_pattern(*pattern.variant, resolution.variant_id);
                     bind_variant_fields(arm_env, *lowered_pattern->variant, package.variants[resolution.variant_id]);
                 }
@@ -1121,8 +1362,11 @@ std::unique_ptr<Expr> Lowerer::lower_match_expr(const ast::MatchExpr& expr,
             }
         } else if (arm.pattern->kind == ast::PatternKind::Variant) {
             const auto& pattern = static_cast<const ast::VariantPattern&>(*arm.pattern);
-            VariantResolution resolution = resolve_variant(context.scope, pattern.path, true, false);
-            if (resolution.owner_decl != nullptr && !resolution.ambiguous) {
+            VariantResolution resolution = resolve_variant(
+                context.scope,
+                pattern.path,
+                VariantOwnerKind::StateDeclaration);
+            if (resolution.state == VariantResolutionState::UniqueVariant) {
                 auto lowered_pattern = lower_variant_pattern(pattern, resolution.variant_id);
                 bind_variant_fields(arm_env,
                                     static_cast<const VariantPattern&>(*lowered_pattern),
@@ -1131,18 +1375,21 @@ std::unique_ptr<Expr> Lowerer::lower_match_expr(const ast::MatchExpr& expr,
             }
         }
 
-        lowered_arm.body = lower_expr(*arm.body, context, arm_env);
+        lowered_arm.body = lower_expr(*arm.body, context, arm_env, expected_type);
         result_type = unify_types(result_type, lowered_arm.body->result_type);
         lowered->arms.push_back(std::move(lowered_arm));
     }
 
-    lowered->result_type = result_type.text.empty() ? builtin_type("Unit") : result_type;
+    lowered->result_type = type_ref_error_state(result_type) == typesys::TypeErrorState::SuppressesFollowupDiagnostics
+        ? builtin_type("Unit")
+        : result_type;
     return lowered;
 }
 
 std::unique_ptr<BlockExpr> Lowerer::lower_block_expr(const ast::BlockExpr& expr,
                                                      const FunctionContext& context,
-                                                     ValueEnv& env) {
+                                                     ValueEnv& env,
+                                                     const TypeRef* expected_type) {
     auto lowered = std::make_unique<BlockExpr>();
     ValueEnv local{&env, {}};
 
@@ -1170,9 +1417,9 @@ std::unique_ptr<BlockExpr> Lowerer::lower_block_expr(const ast::BlockExpr& expr,
     }
 
     if (expr.result != nullptr) {
-        lowered->result = lower_expr(*expr.result, context, local);
+        lowered->result = lower_expr(*expr.result, context, local, expected_type);
         lowered->result_type = lowered->result->result_type;
-        lowered->fails_reason_type_id = lowered->result->fails_reason_type_id;
+        lowered->failure = lowered->result->failure;
     } else {
         lowered->result = std::make_unique<UnitExpr>(builtin_type("Unit"));
         lowered->result_type = builtin_type("Unit");
@@ -1184,14 +1431,20 @@ std::unique_ptr<Expr> Lowerer::lower_fail_expr(const ast::FailExpr& expr,
                                                const FunctionContext& context,
                                                ValueEnv& env) {
     auto lowered = std::make_unique<FailExpr>(builtin_type("Never"));
-    lowered->fields = lower_field_inits(expr.fields, context, env);
-    if (VariantResolution resolution = resolve_variant(context.scope, expr.path, false, true);
-        resolution.owner_decl != nullptr && !resolution.ambiguous) {
+    if (VariantResolution resolution = resolve_variant(
+            context.scope,
+            expr.path,
+            VariantOwnerKind::ReasonDeclaration);
+        resolution.state == VariantResolutionState::UniqueVariant) {
         lowered->reason_type_id = type_ids.at(resolution.owner_decl);
         lowered->variant_id = resolution.variant_id;
         lowered->reason_name = package.types[lowered->reason_type_id].qualified_name;
         lowered->variant_name = package.variants[resolution.variant_id].name;
+        const ExpectedFieldTypes expected = expected_field_types_from_hir_fields(package.variants[resolution.variant_id].fields);
+        lowered->fields = lower_field_inits(expr.fields, context, env, &expected);
+        return lowered;
     }
+    lowered->fields = lower_field_inits(expr.fields, context, env);
     return lowered;
 }
 
@@ -1202,8 +1455,8 @@ std::unique_ptr<Expr> Lowerer::lower_field_access_expr(const ast::FieldAccessExp
     lowered->object = lower_expr(*expr.object, context, env);
     lowered->field_name = expr.field_name;
     lowered->result_type = TypeRef{};
-    if (lowered->object->result_type.type_id.has_value()) {
-        const TypeDecl& owner = package.types[*lowered->object->result_type.type_id];
+    if (lowered->object->result_type.identity.source() == TypeIdentitySource::PackageTypeDeclaration) {
+        const TypeDecl& owner = package.types[lowered->object->result_type.identity.package_type_id()];
         std::unordered_map<std::string, TypeRef> substitutions;
         const std::size_t substitution_count = std::min(owner.generics.size(), lowered->object->result_type.args.size());
         for (std::size_t index = 0; index < substitution_count; ++index) {
@@ -1221,29 +1474,36 @@ std::unique_ptr<Expr> Lowerer::lower_field_access_expr(const ast::FieldAccessExp
 
 std::unique_ptr<Expr> Lowerer::lower_grant_expr(const ast::GrantExpr& expr,
                                                 const FunctionContext& context,
-                                                ValueEnv& env) {
+                                                ValueEnv& env,
+                                                const TypeRef* expected_type) {
     auto lowered = std::make_unique<GrantExpr>();
     lowered->result_type = builtin_type("Unit");
 
-    if (const auto* grant_call = dynamic_cast<const ast::CallExpr*>(expr.grant_call.get())) {
-        if (const auto* callee_path = dynamic_cast<const ast::PathExpr*>(grant_call->callee.get())) {
+    if (const ast::CallExpr* grant_call = call_expr(*expr.grant_call)) {
+        if (const ast::PathExpr* callee_path = path_expr(*grant_call->callee)) {
             if (const FunctionDecl* function = resolve_function(context.scope, callee_path->path); function != nullptr) {
                 lowered->grant_function_id = function->id;
                 lowered->grant_name = function->qualified_name;
-                lowered->fails_reason_type_id = function->fails_reason_type_id;
-                if (function->grants_permit_type_id.has_value()) {
-                    lowered->permit_type_id = *function->grants_permit_type_id;
+                if (function->failure.behavior() == FunctionFailureBehavior::YieldsReason) {
+                    lowered->failure = ExprFailureContract::yields_reason(function->failure.reason_type_id());
+                }
+                if (function->authority.effect() == FunctionAuthorityEffect::GrantsScopedPermit) {
+                    lowered->permit_type_id = function->authority.permit_type_id();
                     lowered->permit_name = package.types[lowered->permit_type_id].qualified_name;
                 }
                 for (std::size_t index = 0; index < grant_call->args.size(); ++index) {
-                    if (index < function->params.size() && function->params[index].is_compile_time_only) {
-                        if (const auto* path_arg = dynamic_cast<const ast::PathExpr*>(grant_call->args[index].get())) {
+                    const TypeRef* expected_arg_type = index < function->params.size()
+                        ? &function->params[index].type
+                        : nullptr;
+                    if (argument_lowering_mode(nullptr, expected_arg_type)
+                        == ArgumentLoweringMode::PreserveCompileTimePath) {
+                        if (const ast::PathExpr* path_arg = path_expr(*grant_call->args[index])) {
                             lowered->args.push_back(lower_path_expr(*path_arg, context, env));
                         } else {
-                            lowered->args.push_back(lower_expr(*grant_call->args[index], context, env));
+                            lowered->args.push_back(lower_expr(*grant_call->args[index], context, env, expected_arg_type));
                         }
                     } else {
-                        lowered->args.push_back(lower_expr(*grant_call->args[index], context, env));
+                        lowered->args.push_back(lower_expr(*grant_call->args[index], context, env, expected_arg_type));
                     }
                 }
             }
@@ -1255,10 +1515,10 @@ std::unique_ptr<Expr> Lowerer::lower_grant_expr(const ast::GrantExpr& expr,
         bind_value(body_env, expr.binder_name, named_type(lowered->permit_type_id));
     }
     lowered->binder_name = expr.binder_name;
-    lowered->body = lower_block_expr(*expr.body, context, body_env);
+    lowered->body = lower_block_expr(*expr.body, context, body_env, expected_type);
     lowered->result_type = lowered->body->result_type;
-    if (!lowered->fails_reason_type_id.has_value()) {
-        lowered->fails_reason_type_id = lowered->body->fails_reason_type_id;
+    if (lowered->failure.effect() != ExprFailureEffect::YieldsReason) {
+        lowered->failure = lowered->body->failure;
     }
     return lowered;
 }
@@ -1267,7 +1527,6 @@ std::unique_ptr<Expr> Lowerer::lower_prove_expr(const ast::ProveExpr& expr,
                                                 const FunctionContext& context,
                                                 ValueEnv& env) {
     auto lowered = std::make_unique<ProveExpr>();
-    lowered->fields = lower_field_inits(expr.fields, context, env);
     if (const Symbol* symbol = resolve_symbol(context.scope, context.generics, expr.path); symbol != nullptr) {
         const auto type_it = type_ids.find(symbol->decl);
         if (type_it != type_ids.end()) {
@@ -1276,22 +1535,32 @@ std::unique_ptr<Expr> Lowerer::lower_prove_expr(const ast::ProveExpr& expr,
                 lowered->proof_type_id = type.id;
                 lowered->qualified_name = type.qualified_name;
                 lowered->result_type = named_type(type.id);
+                const ExpectedFieldTypes expected = expected_field_types_from_hir_fields(type.fields);
+                lowered->fields = lower_field_inits(expr.fields, context, env, &expected);
+                return lowered;
             }
         }
     }
+    lowered->fields = lower_field_inits(expr.fields, context, env);
     return lowered;
 }
 
 std::unique_ptr<Expr> Lowerer::lower_expr(const ast::Expr& expr,
                                           const FunctionContext& context,
-                                          ValueEnv& env) {
+                                          ValueEnv& env,
+                                          const TypeRef* expected_type) {
     switch (expr.kind) {
     case ast::ExprKind::NumberLiteral:
         return std::make_unique<NumberLiteralExpr>(
             static_cast<const ast::NumberLiteralExpr&>(expr).lexeme, builtin_type("Int"));
-    case ast::ExprKind::StringLiteral:
-        return std::make_unique<StringLiteralExpr>(
-            static_cast<const ast::StringLiteralExpr&>(expr).lexeme, builtin_type("Text"));
+    case ast::ExprKind::StringLiteral: {
+        const auto& literal_expr = static_cast<const ast::StringLiteralExpr&>(expr);
+        if (expected_type != nullptr
+            && string_literal_typing_state(*expected_type) == StringLiteralTypingState::AcceptsStringLiteral) {
+            return std::make_unique<StringLiteralExpr>(literal_expr.lexeme, *expected_type);
+        }
+        return std::make_unique<StringLiteralExpr>(literal_expr.lexeme, builtin_type("Text"));
+    }
     case ast::ExprKind::Path:
         return lower_path_expr(static_cast<const ast::PathExpr&>(expr), context, env);
     case ast::ExprKind::Call:
@@ -1306,13 +1575,13 @@ std::unique_ptr<Expr> Lowerer::lower_expr(const ast::Expr& expr,
         return lowered;
     }
     case ast::ExprKind::Match:
-        return lower_match_expr(static_cast<const ast::MatchExpr&>(expr), context, env);
+        return lower_match_expr(static_cast<const ast::MatchExpr&>(expr), context, env, expected_type);
     case ast::ExprKind::Block:
-        return lower_block_expr(static_cast<const ast::BlockExpr&>(expr), context, env);
+        return lower_block_expr(static_cast<const ast::BlockExpr&>(expr), context, env, expected_type);
     case ast::ExprKind::Fail:
         return lower_fail_expr(static_cast<const ast::FailExpr&>(expr), context, env);
     case ast::ExprKind::Grant:
-        return lower_grant_expr(static_cast<const ast::GrantExpr&>(expr), context, env);
+        return lower_grant_expr(static_cast<const ast::GrantExpr&>(expr), context, env, expected_type);
     case ast::ExprKind::FieldAccess:
         return lower_field_access_expr(static_cast<const ast::FieldAccessExpr&>(expr), context, env);
     case ast::ExprKind::Prove:
@@ -1373,13 +1642,66 @@ std::string specialization_key(std::string_view prefix, std::size_t source_id, c
     return out.str();
 }
 
+enum class DeclarationRemapState {
+    RequiresBaseOutputSignature,
+    CopiedToBaseOutput,
+    SpecializedOnDemand,
+};
+
+template <typename Id>
+class DeclarationRemap final {
+public:
+    [[nodiscard]] static DeclarationRemap requires_base_output_signature() {
+        return DeclarationRemap(DeclarationRemapState::RequiresBaseOutputSignature, Id{});
+    }
+
+    [[nodiscard]] static DeclarationRemap copied_to_base_output(Id id) {
+        return DeclarationRemap(DeclarationRemapState::CopiedToBaseOutput, id);
+    }
+
+    [[nodiscard]] static DeclarationRemap specialized_on_demand() {
+        return DeclarationRemap(DeclarationRemapState::SpecializedOnDemand, Id{});
+    }
+
+    [[nodiscard]] DeclarationRemapState state() const noexcept { return state_; }
+    [[nodiscard]] Id output_id() const noexcept { return output_id_; }
+
+private:
+    DeclarationRemapState state_;
+    Id output_id_;
+
+    DeclarationRemap(DeclarationRemapState state, Id output_id)
+        : state_(state), output_id_(output_id) {}
+};
+
 class Monomorphizer {
 public:
     explicit Monomorphizer(const Package& source_package)
-        : source(source_package),
-          base_type_ids(source_package.types.size()),
-          base_variant_ids(source_package.variants.size()),
-          base_function_ids(source_package.functions.size()) {}
+        : source(source_package) {
+        base_type_ids.reserve(source.types.size());
+        for (const TypeDecl& type : source.types) {
+            base_type_ids.push_back(type.generics.empty()
+                ? DeclarationRemap<TypeId>::requires_base_output_signature()
+                : DeclarationRemap<TypeId>::specialized_on_demand());
+        }
+
+        base_variant_ids.reserve(source.variants.size());
+        for (const VariantDecl& variant : source.variants) {
+            const DeclarationRemapState owner_state = variant.owner_type < source.types.size()
+                ? base_type_ids[variant.owner_type].state()
+                : DeclarationRemapState::SpecializedOnDemand;
+            base_variant_ids.push_back(owner_state == DeclarationRemapState::RequiresBaseOutputSignature
+                ? DeclarationRemap<VariantId>::requires_base_output_signature()
+                : DeclarationRemap<VariantId>::specialized_on_demand());
+        }
+
+        base_function_ids.reserve(source.functions.size());
+        for (const FunctionDecl& function : source.functions) {
+            base_function_ids.push_back(function.generics.empty()
+                ? DeclarationRemap<FunctionId>::requires_base_output_signature()
+                : DeclarationRemap<FunctionId>::specialized_on_demand());
+        }
+    }
 
     [[nodiscard]] Package run() {
         for (const TypeDecl& type : source.types) {
@@ -1387,34 +1709,34 @@ public:
                 continue;
             }
             const TypeId new_id = add_type_signature(type, type.qualified_name);
-            base_type_ids[type.id] = new_id;
+            base_type_ids[type.id] = DeclarationRemap<TypeId>::copied_to_base_output(new_id);
         }
 
         for (const VariantDecl& variant : source.variants) {
-            if (variant.owner_type >= base_type_ids.size() || !base_type_ids[variant.owner_type].has_value()) {
+            if (variant.owner_type >= base_type_ids.size()
+                || base_type_ids[variant.owner_type].state() != DeclarationRemapState::CopiedToBaseOutput) {
                 continue;
             }
-            const VariantId new_id = add_variant_signature(variant, *base_type_ids[variant.owner_type]);
-            base_variant_ids[variant.id] = new_id;
+            const VariantId new_id = add_variant_signature(variant, base_type_ids[variant.owner_type].output_id());
+            base_variant_ids[variant.id] = DeclarationRemap<VariantId>::copied_to_base_output(new_id);
         }
 
         for (const TypeDecl& type : source.types) {
-            const std::optional<TypeId> mapped_id = type.id < base_type_ids.size() ? base_type_ids[type.id] : std::nullopt;
-            if (!mapped_id.has_value()) {
+            if (type.id >= base_type_ids.size()
+                || base_type_ids[type.id].state() != DeclarationRemapState::CopiedToBaseOutput) {
                 continue;
             }
-            output.types[*mapped_id].fields = clone_fields(type.fields, {});
-            output.types[*mapped_id].concrete_discipline = type.concrete_discipline;
+            const TypeId mapped_id = base_type_ids[type.id].output_id();
+            output.types[mapped_id].fields = clone_fields(type.fields, {});
+            output.types[mapped_id].discipline = type.discipline;
         }
 
         for (const VariantDecl& variant : source.variants) {
-            const std::optional<VariantId> mapped_id = variant.id < base_variant_ids.size()
-                ? base_variant_ids[variant.id]
-                : std::nullopt;
-            if (!mapped_id.has_value()) {
+            if (variant.id >= base_variant_ids.size()
+                || base_variant_ids[variant.id].state() != DeclarationRemapState::CopiedToBaseOutput) {
                 continue;
             }
-            output.variants[*mapped_id].fields = clone_fields(variant.fields, {});
+            output.variants[base_variant_ids[variant.id].output_id()].fields = clone_fields(variant.fields, {});
         }
 
         for (const FunctionDecl& function : source.functions) {
@@ -1422,18 +1744,18 @@ public:
                 continue;
             }
             const FunctionId new_id = add_signature(function, function.qualified_name, {});
-            base_function_ids[function.id] = new_id;
+            base_function_ids[function.id] = DeclarationRemap<FunctionId>::copied_to_base_output(new_id);
         }
 
         for (const FunctionDecl& function : source.functions) {
             if (!function.generics.empty()) {
                 continue;
             }
-            const std::optional<FunctionId> mapped_id = base_function_ids[function.id];
-            if (!mapped_id.has_value() || function.body == nullptr) {
+            if (base_function_ids[function.id].state() != DeclarationRemapState::CopiedToBaseOutput
+                || function.body == nullptr) {
                 continue;
             }
-            output.functions[*mapped_id].body = clone_block(*function.body, {});
+            output.functions[base_function_ids[function.id].output_id()].body = clone_block(*function.body, {});
         }
 
         return std::move(output);
@@ -1442,9 +1764,9 @@ public:
 private:
     const Package& source;
     Package output;
-    std::vector<std::optional<TypeId>> base_type_ids;
-    std::vector<std::optional<VariantId>> base_variant_ids;
-    std::vector<std::optional<FunctionId>> base_function_ids;
+    std::vector<DeclarationRemap<TypeId>> base_type_ids;
+    std::vector<DeclarationRemap<VariantId>> base_variant_ids;
+    std::vector<DeclarationRemap<FunctionId>> base_function_ids;
     std::unordered_map<std::string, TypeId> type_specializations;
     std::unordered_map<std::string, FunctionId> function_specializations;
 
@@ -1456,7 +1778,7 @@ private:
         cloned.kind = source_type.kind;
         cloned.visibility = source_type.visibility;
         cloned.qualified_name = std::move(qualified_name);
-        cloned.concrete_discipline = source_type.concrete_discipline;
+        cloned.discipline = source_type.discipline;
         output.types.push_back(std::move(cloned));
         return output.types.back().id;
     }
@@ -1493,18 +1815,23 @@ private:
         return discipline;
     }
 
-    [[nodiscard]] std::optional<TypeId> map_optional_type_id(std::optional<TypeId> source_id) {
-        if (!source_id.has_value()) {
-            return std::nullopt;
+    [[nodiscard]] ExprFailureContract map_expr_failure(const ExprFailureContract& source,
+                                                       const Substitutions& substitutions) {
+        if (source.effect() != ExprFailureEffect::YieldsReason) {
+            return ExprFailureContract::returns_value_only();
         }
-        return map_type_id(*source_id, {}, {});
+        return ExprFailureContract::yields_reason(map_type_id(source.reason_type_id(), {}, substitutions));
     }
 
     [[nodiscard]] VariantId map_variant_id(VariantId source_id) const {
         if (source_id >= base_variant_ids.size()) {
             return source_id;
         }
-        return base_variant_ids[source_id].value_or(source_id);
+        const DeclarationRemap<VariantId>& mapped = base_variant_ids[source_id];
+        if (mapped.state() == DeclarationRemapState::CopiedToBaseOutput) {
+            return mapped.output_id();
+        }
+        return source_id;
     }
 
     [[nodiscard]] TypeId map_type_id(TypeId source_id,
@@ -1515,7 +1842,11 @@ private:
         }
         const TypeDecl& type = source.types[source_id];
         if (type.generics.empty()) {
-            return base_type_ids[source_id].value_or(source_id);
+            const DeclarationRemap<TypeId>& mapped = base_type_ids[source_id];
+            if (mapped.state() == DeclarationRemapState::CopiedToBaseOutput) {
+                return mapped.output_id();
+            }
+            return source_id;
         }
 
         std::vector<TypeRef> concrete_args;
@@ -1538,7 +1869,8 @@ private:
         const TypeId instance_id = add_type_signature(type, type_specialization_name(type, concrete_args));
         type_specializations.emplace(key, instance_id);
         output.types[instance_id].fields = clone_fields(type.fields, instance_substitutions);
-        output.types[instance_id].concrete_discipline = discipline_for_fields(output.types[instance_id].fields);
+        output.types[instance_id].discipline = TypeDisciplineResolution::concrete_use_discipline(
+            discipline_for_fields(output.types[instance_id].fields));
         return instance_id;
     }
 
@@ -1550,21 +1882,26 @@ private:
         cloned.visibility = source_function.visibility;
         cloned.qualified_name = std::move(qualified_name);
         cloned.return_type = substitute_type(source_function.return_type, substitutions);
-        cloned.fails_reason_type_id = map_optional_type_id(source_function.fails_reason_type_id);
-        cloned.grants_permit_type_id = map_optional_type_id(source_function.grants_permit_type_id);
+        if (source_function.failure.behavior() == FunctionFailureBehavior::YieldsReason) {
+            cloned.failure = FunctionFailureContract::yields_reason(
+                map_type_id(source_function.failure.reason_type_id(), {}, substitutions));
+        }
+        if (source_function.authority.effect() == FunctionAuthorityEffect::GrantsScopedPermit) {
+            cloned.authority = FunctionAuthorityContract::grants_scoped_permit(
+                map_type_id(source_function.authority.permit_type_id(), {}, substitutions));
+        }
         cloned.proves_proof_type_ids.reserve(source_function.proves_proof_type_ids.size());
         for (TypeId proof_type_id : source_function.proves_proof_type_ids) {
             cloned.proves_proof_type_ids.push_back(map_type_id(proof_type_id, {}, substitutions));
         }
-        cloned.is_foreign = source_function.is_foreign;
+        cloned.implementation = source_function.implementation;
         cloned.params.reserve(source_function.params.size());
         for (const Parameter& param : source_function.params) {
             const TypeRef param_type = substitute_type(param.type, substitutions);
             cloned.params.push_back(Parameter{
                 param.name,
                 param_type,
-                typesys::is_compile_time_only(param_type.discipline),
-                param.is_permit_param,
+                param.authority,
             });
         }
         output.functions.push_back(std::move(cloned));
@@ -1579,8 +1916,11 @@ private:
         }
         const FunctionDecl& function = source.functions[source_id];
         if (function.generics.empty()) {
-            const std::optional<FunctionId> mapped = base_function_ids[source_id];
-            return mapped.value_or(source_id);
+            const DeclarationRemap<FunctionId>& mapped = base_function_ids[source_id];
+            if (mapped.state() == DeclarationRemapState::CopiedToBaseOutput) {
+                return mapped.output_id();
+            }
+            return source_id;
         }
 
         std::vector<TypeRef> concrete_args;
@@ -1610,7 +1950,7 @@ private:
     }
 
     [[nodiscard]] TypeRef substitute_type(const TypeRef& type, const Substitutions& substitutions) {
-        if (type.is_generic) {
+        if (type.flavor == typesys::TypeFlavor::Generic) {
             if (const auto it = substitutions.find(type.text); it != substitutions.end()) {
                 return it->second;
             }
@@ -1629,17 +1969,16 @@ private:
             substituted.text = format_type_args(type_base_name(type.text), substituted.args);
         }
         substituted.discipline = discipline;
-        if (type.type_id.has_value()) {
-            const TypeId mapped_id = map_type_id(*type.type_id, type.args, substitutions);
-            substituted.type_id = mapped_id;
+        if (type.identity.source() == TypeIdentitySource::PackageTypeDeclaration) {
+            const TypeId mapped_id = map_type_id(type.identity.package_type_id(), type.args, substitutions);
+            substituted.identity = TypeIdentity::from_package_type(mapped_id);
             if (mapped_id < output.types.size()) {
                 const TypeDecl& mapped_type = output.types[mapped_id];
                 substituted.text = mapped_type.qualified_name;
                 substituted.args.clear();
-                substituted.is_builtin = false;
-                substituted.is_generic = false;
-                if (mapped_type.concrete_discipline.has_value()) {
-                    substituted.discipline = *mapped_type.concrete_discipline;
+                substituted.flavor = typesys::TypeFlavor::Named;
+                if (mapped_type.discipline.state() == TypeDisciplineResolutionState::ConcreteUseDisciplineKnown) {
+                    substituted.discipline = mapped_type.discipline.discipline();
                 }
             }
         }
@@ -1653,7 +1992,7 @@ private:
         for (const FieldInit& field : fields) {
             FieldInit copy;
             copy.name = field.name;
-            copy.shorthand = field.shorthand;
+            copy.spelling = field.spelling;
             copy.value = clone_expr(*field.value, substitutions);
             cloned.push_back(std::move(copy));
         }
@@ -1680,7 +2019,7 @@ private:
             const auto& succeeded = static_cast<const SucceededPattern&>(pattern);
             auto cloned = std::make_unique<SucceededPattern>();
             cloned->binding_name = succeeded.binding_name;
-            cloned->ignore = succeeded.ignore;
+            cloned->binding = succeeded.binding;
             return cloned;
         }
         case PatternKind::Failed: {
@@ -1726,7 +2065,7 @@ private:
     [[nodiscard]] std::unique_ptr<BlockExpr> clone_block(const BlockExpr& block,
                                                         const Substitutions& substitutions) {
         auto cloned = std::make_unique<BlockExpr>(substitute_type(block.result_type, substitutions));
-        cloned->fails_reason_type_id = map_optional_type_id(block.fails_reason_type_id);
+        cloned->failure = map_expr_failure(block.failure, substitutions);
         cloned->statements.reserve(block.statements.size());
         for (const auto& stmt : block.statements) {
             cloned->statements.push_back(clone_stmt(*stmt, substitutions));
@@ -1742,24 +2081,24 @@ private:
         case ExprKind::NumberLiteral: {
             const auto& number = static_cast<const NumberLiteralExpr&>(expr);
             auto cloned = std::make_unique<NumberLiteralExpr>(number.lexeme, substitute_type(expr.result_type, substitutions));
-            cloned->fails_reason_type_id = map_optional_type_id(expr.fails_reason_type_id);
+            cloned->failure = map_expr_failure(expr.failure, substitutions);
             return cloned;
         }
         case ExprKind::StringLiteral: {
             const auto& string = static_cast<const StringLiteralExpr&>(expr);
             auto cloned = std::make_unique<StringLiteralExpr>(string.lexeme, substitute_type(expr.result_type, substitutions));
-            cloned->fails_reason_type_id = map_optional_type_id(expr.fails_reason_type_id);
+            cloned->failure = map_expr_failure(expr.failure, substitutions);
             return cloned;
         }
         case ExprKind::Unit: {
             auto cloned = std::make_unique<UnitExpr>(substitute_type(expr.result_type, substitutions));
-            cloned->fails_reason_type_id = map_optional_type_id(expr.fails_reason_type_id);
+            cloned->failure = map_expr_failure(expr.failure, substitutions);
             return cloned;
         }
         case ExprKind::LocalRef: {
             const auto& local = static_cast<const LocalRefExpr&>(expr);
             auto cloned = std::make_unique<LocalRefExpr>(local.name, substitute_type(expr.result_type, substitutions));
-            cloned->fails_reason_type_id = map_optional_type_id(expr.fails_reason_type_id);
+            cloned->failure = map_expr_failure(expr.failure, substitutions);
             return cloned;
         }
         case ExprKind::Call: {
@@ -1769,7 +2108,7 @@ private:
             cloned->function_id = mapped_id;
             cloned->callee_name = mapped_id < output.functions.size() ? output.functions[mapped_id].qualified_name
                                                                        : call.callee_name;
-            cloned->fails_reason_type_id = map_optional_type_id(expr.fails_reason_type_id);
+            cloned->failure = map_expr_failure(expr.failure, substitutions);
             cloned->args.reserve(call.args.size());
             for (const auto& arg : call.args) {
                 cloned->args.push_back(clone_expr(*arg, substitutions));
@@ -1779,18 +2118,20 @@ private:
         case ExprKind::Construct: {
             const auto& construct = static_cast<const ConstructExpr&>(expr);
             auto cloned = std::make_unique<ConstructExpr>(substitute_type(expr.result_type, substitutions));
-            cloned->fails_reason_type_id = map_optional_type_id(expr.fails_reason_type_id);
+            cloned->failure = map_expr_failure(expr.failure, substitutions);
             cloned->construct_kind = construct.construct_kind;
-            if (cloned->result_type.type_id.has_value()) {
-                cloned->owner_type_id = *cloned->result_type.type_id;
+            if (cloned->result_type.identity.source() == TypeIdentitySource::PackageTypeDeclaration) {
+                cloned->owner_type_id = cloned->result_type.identity.package_type_id();
             } else {
                 cloned->owner_type_id = map_type_id(construct.owner_type_id, {}, substitutions);
             }
-            if (construct.variant_id.has_value()) {
-                cloned->variant_id = map_variant_id(*construct.variant_id);
+            if (construct.variant_target.state() == ConstructVariantTargetState::ConstructsNamedVariant) {
+                cloned->variant_target = ConstructVariantTarget::constructs_named_variant(
+                    map_variant_id(construct.variant_target.variant_id()));
             }
-            if (cloned->variant_id.has_value() && *cloned->variant_id < output.variants.size()) {
-                cloned->qualified_name = output.variants[*cloned->variant_id].qualified_name;
+            if (cloned->variant_target.state() == ConstructVariantTargetState::ConstructsNamedVariant
+                && cloned->variant_target.variant_id() < output.variants.size()) {
+                cloned->qualified_name = output.variants[cloned->variant_target.variant_id()].qualified_name;
             } else if (cloned->owner_type_id < output.types.size()) {
                 cloned->qualified_name = output.types[cloned->owner_type_id].qualified_name;
             } else {
@@ -1802,14 +2143,14 @@ private:
         case ExprKind::Try: {
             const auto& try_expr = static_cast<const TryExpr&>(expr);
             auto cloned = std::make_unique<TryExpr>(substitute_type(expr.result_type, substitutions));
-            cloned->fails_reason_type_id = map_optional_type_id(expr.fails_reason_type_id);
+            cloned->failure = map_expr_failure(expr.failure, substitutions);
             cloned->operand = clone_expr(*try_expr.operand, substitutions);
             return cloned;
         }
         case ExprKind::Match: {
             const auto& match = static_cast<const MatchExpr&>(expr);
             auto cloned = std::make_unique<MatchExpr>(substitute_type(expr.result_type, substitutions));
-            cloned->fails_reason_type_id = map_optional_type_id(expr.fails_reason_type_id);
+            cloned->failure = map_expr_failure(expr.failure, substitutions);
             cloned->scrutinee = clone_expr(*match.scrutinee, substitutions);
             cloned->arms.reserve(match.arms.size());
             for (const MatchArm& arm : match.arms) {
@@ -1822,7 +2163,7 @@ private:
         case ExprKind::Fail: {
             const auto& fail = static_cast<const FailExpr&>(expr);
             auto cloned = std::make_unique<FailExpr>(substitute_type(expr.result_type, substitutions));
-            cloned->fails_reason_type_id = map_optional_type_id(expr.fails_reason_type_id);
+            cloned->failure = map_expr_failure(expr.failure, substitutions);
             cloned->reason_type_id = map_type_id(fail.reason_type_id, {}, substitutions);
             cloned->variant_id = map_variant_id(fail.variant_id);
             cloned->reason_name = cloned->reason_type_id < output.types.size()
@@ -1837,7 +2178,7 @@ private:
         case ExprKind::Grant: {
             const auto& grant = static_cast<const GrantExpr&>(expr);
             auto cloned = std::make_unique<GrantExpr>(substitute_type(expr.result_type, substitutions));
-            cloned->fails_reason_type_id = map_optional_type_id(expr.fails_reason_type_id);
+            cloned->failure = map_expr_failure(expr.failure, substitutions);
             cloned->grant_function_id = map_function_id(grant.grant_function_id, {}, substitutions);
             cloned->permit_type_id = map_type_id(grant.permit_type_id, {}, substitutions);
             cloned->grant_name = cloned->grant_function_id < output.functions.size()
@@ -1857,7 +2198,7 @@ private:
         case ExprKind::Prove: {
             const auto& prove = static_cast<const ProveExpr&>(expr);
             auto cloned = std::make_unique<ProveExpr>(substitute_type(expr.result_type, substitutions));
-            cloned->fails_reason_type_id = map_optional_type_id(expr.fails_reason_type_id);
+            cloned->failure = map_expr_failure(expr.failure, substitutions);
             cloned->proof_type_id = map_type_id(prove.proof_type_id, {}, substitutions);
             cloned->qualified_name = cloned->proof_type_id < output.types.size()
                 ? output.types[cloned->proof_type_id].qualified_name
@@ -1868,7 +2209,7 @@ private:
         case ExprKind::FieldAccess: {
             const auto& field = static_cast<const FieldAccessExpr&>(expr);
             auto cloned = std::make_unique<FieldAccessExpr>(substitute_type(expr.result_type, substitutions));
-            cloned->fails_reason_type_id = map_optional_type_id(expr.fails_reason_type_id);
+            cloned->failure = map_expr_failure(expr.failure, substitutions);
             cloned->object = clone_expr(*field.object, substitutions);
             cloned->field_name = field.field_name;
             return cloned;
@@ -1889,7 +2230,7 @@ void dump_field_inits(std::ostream& out, const std::vector<FieldInit>& fields, s
     for (const FieldInit& field : fields) {
         indent(out, depth);
         out << "init " << field.name;
-        if (field.shorthand) {
+        if (field.spelling == ast::FieldInitSpelling::ShorthandBinding) {
             out << " [shorthand]";
         }
         out << '\n';
@@ -1945,7 +2286,7 @@ void dump_expr(std::ostream& out, const Expr& expr, std::size_t depth) {
             out << '>';
         }
         out << " -> " << dump_type_ref(expr.result_type);
-        if (expr.fails_reason_type_id.has_value()) {
+        if (expr.failure.effect() == ExprFailureEffect::YieldsReason) {
             out << " fails";
         }
         out << '\n';
@@ -2045,10 +2386,10 @@ void dump_pattern(std::ostream& out, const Pattern& pattern, std::size_t depth) 
     case PatternKind::Succeeded: {
         const auto& succeeded = static_cast<const SucceededPattern&>(pattern);
         out << "pattern succeeded(";
-        if (succeeded.ignore) {
+        if (succeeded.binding == ast::SuccessPatternBinding::DiscardedValue) {
             out << '_';
-        } else if (succeeded.binding_name.has_value()) {
-            out << *succeeded.binding_name;
+        } else {
+            out << succeeded.binding_name;
         }
         out << ")\n";
         break;
@@ -2122,7 +2463,8 @@ std::string dump(const Package& package) {
             }
             out << '>';
         }
-        if (type.concrete_discipline.has_value() && typesys::is_affine(*type.concrete_discipline)) {
+        if (type.discipline.state() == TypeDisciplineResolutionState::ConcreteUseDisciplineKnown
+            && typesys::discipline_movement(type.discipline.discipline()) == typesys::DisciplineMovement::Affine) {
             out << " [affine]";
         }
         out << '\n';
@@ -2140,7 +2482,8 @@ std::string dump(const Package& package) {
     out << "functions:\n";
     for (const FunctionDecl& function : package.functions) {
         out << "  - " << ast::visibility_name(function.visibility) << ' '
-            << (function.is_foreign ? "foreign-fn " : "fn ") << function.qualified_name;
+            << (function.implementation == ast::FunctionImplementation::ForeignImport ? "foreign-fn " : "fn ")
+            << function.qualified_name;
         if (!function.generics.empty()) {
             out << '<';
             for (std::size_t index = 0; index < function.generics.size(); ++index) {
@@ -2159,11 +2502,11 @@ std::string dump(const Package& package) {
             out << function.params[index].name << ": " << dump_type_ref(function.params[index].type);
         }
         out << ") -> " << dump_type_ref(function.return_type);
-        if (function.fails_reason_type_id.has_value()) {
-            out << " fails " << package.types[*function.fails_reason_type_id].qualified_name;
+        if (function.failure.behavior() == FunctionFailureBehavior::YieldsReason) {
+            out << " fails " << package.types[function.failure.reason_type_id()].qualified_name;
         }
-        if (function.grants_permit_type_id.has_value()) {
-            out << " grants " << package.types[*function.grants_permit_type_id].qualified_name;
+        if (function.authority.effect() == FunctionAuthorityEffect::GrantsScopedPermit) {
+            out << " grants " << package.types[function.authority.permit_type_id()].qualified_name;
         }
         for (TypeId proof_id : function.proves_proof_type_ids) {
             out << " proves " << package.types[proof_id].qualified_name;
@@ -2187,16 +2530,16 @@ std::string emit_stub_backend(const Package& package) {
     out << "\n## Functions\n";
     for (const FunctionDecl& function : package.functions) {
         out << "- " << function.qualified_name << " -> " << dump_type_ref(function.return_type);
-        if (function.fails_reason_type_id.has_value()) {
-            out << " fails " << package.types[*function.fails_reason_type_id].qualified_name;
+        if (function.failure.behavior() == FunctionFailureBehavior::YieldsReason) {
+            out << " fails " << package.types[function.failure.reason_type_id()].qualified_name;
         }
-        if (function.grants_permit_type_id.has_value()) {
-            out << " grants " << package.types[*function.grants_permit_type_id].qualified_name;
+        if (function.authority.effect() == FunctionAuthorityEffect::GrantsScopedPermit) {
+            out << " grants " << package.types[function.authority.permit_type_id()].qualified_name;
         }
         for (TypeId proof_id : function.proves_proof_type_ids) {
             out << " proves " << package.types[proof_id].qualified_name;
         }
-        if (function.is_foreign) {
+        if (function.implementation == ast::FunctionImplementation::ForeignImport) {
             out << " [foreign]";
         } else if (function.body) {
             out << " [body]";

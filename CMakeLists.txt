@@ -80,7 +80,7 @@ add_dependencies(package_checksum package)
 
 include(CTest)
 if(BUILD_TESTING)
-    set(EVIDENT_EXPECTED_CTEST_TOTAL 353)
+    set(EVIDENT_EXPECTED_CTEST_TOTAL 357)
 
     add_test(NAME parse_valid_example
         COMMAND evidc --dump-hir ${CMAKE_CURRENT_SOURCE_DIR}/examples/feature_mode.evd)
@@ -182,6 +182,12 @@ if(BUILD_TESTING)
             -DBUILD_DIR=${CMAKE_CURRENT_BINARY_DIR}
             -DWORKFLOW_PATH=${CMAKE_CURRENT_SOURCE_DIR}/.github/workflows/ci.yml
             -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/RunCiWorkflowAndAssert.cmake)
+
+    add_test(NAME validate_cpp_design_escape_hatches
+        COMMAND ${CMAKE_COMMAND}
+            -DBUILD_DIR=${CMAKE_CURRENT_BINARY_DIR}
+            -DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/RunCppDesignEscapeHatchesAndAssert.cmake)
 
     add_test(NAME validate_invalid_corpus_registered
         COMMAND ${CMAKE_COMMAND}
@@ -713,6 +719,10 @@ if(BUILD_TESTING)
     add_emit_exe_test(run_native_state_match native_main_state_match.evd 4 native_main_state_match.exe)
     add_emit_exe_test(run_native_try native_main_try.evd 11 native_main_try.exe)
     add_emit_exe_test(run_native_yield_match native_main_yield_match.evd 3 native_main_yield_match.exe)
+    add_emit_exe_test(run_native_failing_match_discard_success
+        native_main_failing_match_discard_success.evd
+        5
+        native_failing_match_discard_success.exe)
     add_emit_exe_test(run_native_with_permit native_main_with_permit.evd 7 native_main_with_permit.exe)
     add_emit_exe_test(run_native_phase_construct native_main_phase_construct.evd 7 native_main_phase_construct.exe)
     add_emit_exe_test(run_native_phase_copy_fields native_main_phase_copy_fields.evd 2 native_phase_copy_fields.exe)
@@ -1140,6 +1150,9 @@ if(BUILD_TESTING)
     add_diagnostic_compare_test(diag_semantic_generic_contract_type_arguments
         invalid_generic_contract_type_arguments.evd
         expected_invalid_generic_contract_type_arguments.diag.out)
+    add_diagnostic_compare_test(diag_semantic_generic_structural_blindness
+        invalid_generic_structural_blindness.evd
+        expected_invalid_generic_structural_blindness.diag.out)
     add_diagnostic_compare_test(diag_semantic_generic_record_construct_missing_args
         invalid_generic_record_construct_missing_args.evd
         expected_invalid_generic_record_construct_missing_args.diag.out)
@@ -1232,10 +1245,10 @@ if(BUILD_TESTING)
         native_invalid_main_yields.evd
         expected_backend_main_yields.diag.out
         diag_backend_main_yields.exe)
-    add_backend_diagnostic_compare_test(diag_backend_unsupported_builtin_map
-        native_invalid_unsupported_builtin_map.evd
-        expected_backend_unsupported_builtin_map.diag.out
-        diag_backend_unsupported_builtin_map.exe)
+    add_backend_diagnostic_compare_test(diag_backend_materialized_never
+        native_invalid_materialized_never.evd
+        expected_backend_materialized_never.diag.out
+        diag_backend_materialized_never.exe)
     add_backend_target_diagnostic_compare_test(diag_backend_unsupported_target
         native_main_constant.evd
         expected_backend_unsupported_target.diag.out
@@ -1344,6 +1357,7 @@ if(BUILD_TESTING)
     add_reject_test(reject_foreign_proves invalid_foreign_proves.evd)
     add_reject_test(reject_foreign_generics invalid_foreign_generics.evd)
     add_reject_test(reject_generic_contract_type_arguments invalid_generic_contract_type_arguments.evd)
+    add_reject_test(reject_generic_structural_blindness invalid_generic_structural_blindness.evd)
     add_reject_test(reject_module_kind_generics invalid_module_kind_generics.evd)
     add_reject_test(reject_builtin_collection_arity invalid_builtin_collection_arity.evd)
     add_reject_test(reject_field_access_private invalid_field_access_private.evd)
@@ -1388,5 +1402,5 @@ if(BUILD_TESTING)
     add_backend_reject_test(reject_backend_main_params native_invalid_main_params.evd reject_backend_main_params.exe)
     add_backend_reject_test(reject_backend_main_wrong_return native_invalid_main_wrong_return.evd reject_backend_main_wrong_return.exe)
     add_backend_reject_test(reject_backend_main_yields native_invalid_main_yields.evd reject_backend_main_yields.exe)
-    add_backend_reject_test(reject_backend_unsupported_builtin_map native_invalid_unsupported_builtin_map.evd reject_backend_unsupported_builtin_map.exe)
+    add_emit_exe_test(run_native_builtin_cstring_map native_main_builtin_cstring_map.evd 7 native_builtin_cstring_map.exe)
 endif()

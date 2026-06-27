@@ -35,10 +35,13 @@ void DiagnosticSink::note(SourceSpan span, std::string message) {
     push(DiagnosticSeverity::Note, span, std::move(message));
 }
 
-bool DiagnosticSink::has_errors() const noexcept {
-    return std::any_of(items_.begin(), items_.end(), [](const Diagnostic& diagnostic) {
+DiagnosticErrorState DiagnosticSink::error_state() const noexcept {
+    if (std::any_of(items_.begin(), items_.end(), [](const Diagnostic& diagnostic) {
         return diagnostic.severity == DiagnosticSeverity::Error;
-    });
+    })) {
+        return DiagnosticErrorState::ContainsErrors;
+    }
+    return DiagnosticErrorState::NoErrors;
 }
 
 const std::vector<Diagnostic>& DiagnosticSink::items() const noexcept {

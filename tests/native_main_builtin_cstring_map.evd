@@ -1,0 +1,54 @@
+boundary module ffi {
+public foreign fn observe(name: CString) -> CInt
+}
+
+domain module test {
+public record NativeHandles {
+    public label: CString,
+    public counts: Map<Int, Int>,
+    public labels: NonEmptyMap<Text, CString>,
+}
+
+public record CStringBox {
+    public label: CString,
+}
+
+public fn keep_label(label: CString) -> CString {
+    label
+}
+
+public fn literal_label() -> CString {
+    "evident"
+}
+
+public fn literal_label_block() -> CString {
+    {
+        "nested"
+    }
+}
+
+public fn literal_label_arg() -> CString {
+    keep_label("argument")
+}
+
+public fn literal_box_label() -> CString {
+    let boxed = CStringBox { label: "boxed" };
+    boxed.label
+}
+
+public fn literal_bytes() -> Bytes {
+    "bytes"
+}
+
+public fn keep_counts(counts: Map<Int, Int>) -> Map<Int, Int> {
+    counts
+}
+
+public fn keep_labels(labels: NonEmptyMap<Text, CString>) -> NonEmptyMap<Text, CString> {
+    labels
+}
+
+public fn main() -> Int {
+    7
+}
+}

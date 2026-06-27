@@ -1,6 +1,6 @@
 domain module test {
-public record HasMap {
-    public values: Map<Int, Int>,
+public record ImpossibleBox {
+    public value: Never,
 }
 
 public fn main() -> Int {

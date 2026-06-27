@@ -1,0 +1,16 @@
+domain module test {
+public reason ParseFailure {
+    Bad,
+}
+
+public fn parse() -> Int fails ParseFailure {
+    9
+}
+
+public fn main() -> Int {
+    match parse() {
+        succeeded(_) => 5,
+        failed(Bad) => 1,
+    }
+}
+}

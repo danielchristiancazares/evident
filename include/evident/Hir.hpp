@@ -5,7 +5,6 @@
 
 #include <cstddef>
 #include <memory>
-#include <optional>
 #include <string>
 #include <vector>
 
@@ -59,11 +58,30 @@ enum class ConstructKind {
     Unit,
 };
 
+enum class TypeIdentitySource {
+    TypeFlavor,
+    PackageTypeDeclaration,
+};
+
+class TypeIdentity final {
+public:
+    [[nodiscard]] static TypeIdentity from_type_flavor();
+    [[nodiscard]] static TypeIdentity from_package_type(TypeId type_id);
+
+    [[nodiscard]] TypeIdentitySource source() const noexcept { return source_; }
+    [[nodiscard]] TypeId package_type_id() const noexcept { return package_type_id_; }
+
+private:
+    TypeIdentitySource source_;
+    TypeId package_type_id_;
+
+    TypeIdentity(TypeIdentitySource source, TypeId package_type_id);
+};
+
 struct TypeRef {
-    std::string text;
-    std::optional<TypeId> type_id;
-    bool is_builtin = false;
-    bool is_generic = false;
+    std::string text = "<error>";
+    TypeIdentity identity = TypeIdentity::from_type_flavor();
+    typesys::TypeFlavor flavor = typesys::TypeFlavor::Error;
     typesys::UseDiscipline discipline = typesys::UseDiscipline::Copyable;
     std::vector<TypeRef> args;
 };
@@ -81,12 +99,32 @@ struct VariantDecl {
     std::vector<FieldDecl> fields;
 };
 
+enum class TypeDisciplineResolutionState {
+    ConcreteUseDisciplineKnown,
+    RequiresConcreteInstantiation,
+};
+
+class TypeDisciplineResolution final {
+public:
+    [[nodiscard]] static TypeDisciplineResolution requires_concrete_instantiation();
+    [[nodiscard]] static TypeDisciplineResolution concrete_use_discipline(typesys::UseDiscipline discipline);
+
+    [[nodiscard]] TypeDisciplineResolutionState state() const noexcept { return state_; }
+    [[nodiscard]] typesys::UseDiscipline discipline() const noexcept { return discipline_; }
+
+private:
+    TypeDisciplineResolutionState state_;
+    typesys::UseDiscipline discipline_;
+
+    TypeDisciplineResolution(TypeDisciplineResolutionState state, typesys::UseDiscipline discipline);
+};
+
 struct TypeDecl {
     TypeId id = 0;
     TypeKind kind = TypeKind::Record;
     ast::Visibility visibility = ast::Visibility::Private;
     std::string qualified_name;
-    std::optional<typesys::UseDiscipline> concrete_discipline;
+    TypeDisciplineResolution discipline = TypeDisciplineResolution::requires_concrete_instantiation();
     std::vector<std::string> generics;
     std::vector<FieldDecl> fields;
     std::vector<VariantId> variants;
@@ -95,8 +133,67 @@ struct TypeDecl {
 struct Parameter {
     std::string name;
     TypeRef type;
-    bool is_compile_time_only = false;
-    bool is_permit_param = false;
+    ast::ParameterAuthority authority = ast::ParameterAuthority::OrdinaryValue;
+};
+
+enum class FunctionFailureBehavior {
+    ReturnsDeclaredValue,
+    YieldsReason,
+};
+
+enum class FunctionAuthorityEffect {
+    OrdinaryCall,
+    GrantsScopedPermit,
+};
+
+class FunctionFailureContract final {
+public:
+    [[nodiscard]] static FunctionFailureContract returns_declared_value();
+    [[nodiscard]] static FunctionFailureContract yields_reason(TypeId reason_type_id);
+
+    [[nodiscard]] FunctionFailureBehavior behavior() const noexcept { return behavior_; }
+    [[nodiscard]] TypeId reason_type_id() const noexcept { return reason_type_id_; }
+
+private:
+    FunctionFailureBehavior behavior_;
+    TypeId reason_type_id_;
+
+    FunctionFailureContract(FunctionFailureBehavior behavior, TypeId reason_type_id);
+};
+
+class FunctionAuthorityContract final {
+public:
+    [[nodiscard]] static FunctionAuthorityContract ordinary_call();
+    [[nodiscard]] static FunctionAuthorityContract grants_scoped_permit(TypeId permit_type_id);
+
+    [[nodiscard]] FunctionAuthorityEffect effect() const noexcept { return effect_; }
+    [[nodiscard]] TypeId permit_type_id() const noexcept { return permit_type_id_; }
+
+private:
+    FunctionAuthorityEffect effect_;
+    TypeId permit_type_id_;
+
+    FunctionAuthorityContract(FunctionAuthorityEffect effect, TypeId permit_type_id);
+};
+
+enum class ExprFailureEffect {
+    ReturnsValueOnly,
+    YieldsReason,
+};
+
+class ExprFailureContract final {
+public:
+    [[nodiscard]] static ExprFailureContract returns_value_only();
+    [[nodiscard]] static ExprFailureContract yields_reason(TypeId reason_type_id);
+
+    [[nodiscard]] ExprFailureEffect effect() const noexcept { return effect_; }
+    [[nodiscard]] TypeId reason_type_id() const noexcept { return reason_type_id_; }
+
+private:
+    ExprFailureEffect effect_;
+    TypeId reason_type_id_;
+
+    ExprFailureContract(ExprFailureEffect effect, TypeId reason_type_id);
 };
 
 struct Binding {
@@ -109,13 +206,13 @@ struct Expr;
 struct FieldInit {
     std::string name;
     std::unique_ptr<Expr> value;
-    bool shorthand = false;
+    ast::FieldInitSpelling spelling = ast::FieldInitSpelling::ExplicitValue;
 };
 
 struct Expr {
     ExprKind kind = ExprKind::Unit;
     TypeRef result_type;
-    std::optional<TypeId> fails_reason_type_id;
+    ExprFailureContract failure = ExprFailureContract::returns_value_only();
 
     explicit Expr(ExprKind expr_kind, TypeRef type = {})
         : kind(expr_kind), result_type(std::move(type)) {}
@@ -158,10 +255,30 @@ struct CallExpr final : Expr {
         : Expr(ExprKind::Call, std::move(type)) {}
 };
 
+enum class ConstructVariantTargetState {
+    ConstructsNamedType,
+    ConstructsNamedVariant,
+};
+
+class ConstructVariantTarget final {
+public:
+    [[nodiscard]] static ConstructVariantTarget constructs_named_type();
+    [[nodiscard]] static ConstructVariantTarget constructs_named_variant(VariantId variant_id);
+
+    [[nodiscard]] ConstructVariantTargetState state() const noexcept { return state_; }
+    [[nodiscard]] VariantId variant_id() const noexcept { return variant_id_; }
+
+private:
+    ConstructVariantTargetState state_;
+    VariantId variant_id_;
+
+    ConstructVariantTarget(ConstructVariantTargetState state, VariantId variant_id);
+};
+
 struct ConstructExpr final : Expr {
     ConstructKind construct_kind = ConstructKind::Record;
     TypeId owner_type_id = 0;
-    std::optional<VariantId> variant_id;
+    ConstructVariantTarget variant_target = ConstructVariantTarget::constructs_named_type();
     std::string qualified_name;
     std::vector<FieldInit> fields;
 
@@ -203,8 +320,8 @@ struct VariantPattern final : Pattern {
 };
 
 struct SucceededPattern final : Pattern {
-    std::optional<std::string> binding_name;
-    bool ignore = false;
+    ast::SuccessPatternBinding binding = ast::SuccessPatternBinding::DiscardedValue;
+    std::string binding_name;
 
     SucceededPattern()
         : Pattern(PatternKind::Succeeded) {}
@@ -310,10 +427,10 @@ struct FunctionDecl {
     std::vector<std::string> generics;
     std::vector<Parameter> params;
     TypeRef return_type;
-    std::optional<TypeId> fails_reason_type_id;
-    std::optional<TypeId> grants_permit_type_id;
+    FunctionFailureContract failure = FunctionFailureContract::returns_declared_value();
+    FunctionAuthorityContract authority = FunctionAuthorityContract::ordinary_call();
     std::vector<TypeId> proves_proof_type_ids;
-    bool is_foreign = false;
+    ast::FunctionImplementation implementation = ast::FunctionImplementation::EvidentBody;
     std::unique_ptr<BlockExpr> body;
 };
 

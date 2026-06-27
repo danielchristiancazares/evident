@@ -122,14 +122,14 @@ run_release_docs_validation(
 copy_release_docs_fixture("${stale_test_count_fixture_dir}")
 set(stale_test_count_finish_plan "${stale_test_count_fixture_dir}/docs/COMPILER_FINISH_PLAN.md")
 file(READ "${stale_test_count_finish_plan}" finish_plan_text)
-string(REPLACE "353/353" "352/352" finish_plan_text "${finish_plan_text}")
+string(REPLACE "357/357" "356/356" finish_plan_text "${finish_plan_text}")
 file(WRITE "${stale_test_count_finish_plan}" "${finish_plan_text}")
 run_release_docs_validation(
     "stale test count"
     "${stale_test_count_fixture_dir}"
     FALSE
     "release document docs/COMPILER_FINISH_PLAN.md is missing expected text"
-    "passed `353/353` tests."
+    "passed `357/357` tests."
 )
 
 copy_release_docs_fixture("${stale_source_tree_audit_fixture_dir}")

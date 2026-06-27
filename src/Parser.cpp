@@ -6,7 +6,12 @@ namespace evident {
 
 namespace {
 
-bool is_declaration_start(TokenKind kind) {
+enum class DeclarationStartState {
+    DoesNotStartDeclaration,
+    StartsDeclaration,
+};
+
+DeclarationStartState declaration_start_state(TokenKind kind) {
     switch (kind) {
     case TokenKind::KeywordPublic:
     case TokenKind::KeywordDomain:
@@ -21,9 +26,9 @@ bool is_declaration_start(TokenKind kind) {
     case TokenKind::KeywordPhase:
     case TokenKind::KeywordFn:
     case TokenKind::KeywordForeign:
-        return true;
+        return DeclarationStartState::StartsDeclaration;
     default:
-        return false;
+        return DeclarationStartState::DoesNotStartDeclaration;
     }
 }
 
@@ -45,15 +50,13 @@ Parser::Parser(const SourceFile& source, std::vector<Token> tokens, DiagnosticSi
 
 ast::TranslationUnit Parser::parse() {
     ast::TranslationUnit unit;
-    while (!at_end()) {
-        if (check(TokenKind::EndOfFile)) {
+    while (cursor_state() == ParserCursorState::HasMoreTokens) {
+        if (token_check(TokenKind::EndOfFile) == TokenCheckState::Matches) {
             break;
         }
 
-        if (check(TokenKind::KeywordImport)) {
-            if (std::optional<ast::ImportDecl> import_decl = parse_import(); import_decl.has_value()) {
-                unit.imports.push_back(std::move(*import_decl));
-            }
+        if (token_check(TokenKind::KeywordImport) == TokenCheckState::Matches) {
+            parse_import_into(unit);
             continue;
         }
 
@@ -74,49 +77,55 @@ const Token& Parser::peek(std::size_t lookahead) const {
     return tokens_[index];
 }
 
-bool Parser::at_end() const noexcept {
-    return peek().kind == TokenKind::EndOfFile;
+ParserCursorState Parser::cursor_state() const noexcept {
+    if (peek().kind == TokenKind::EndOfFile) {
+        return ParserCursorState::ReachedEnd;
+    }
+    return ParserCursorState::HasMoreTokens;
 }
 
-bool Parser::check(TokenKind kind) const noexcept {
-    return peek().kind == kind;
+TokenCheckState Parser::token_check(TokenKind kind) const noexcept {
+    if (peek().kind == kind) {
+        return TokenCheckState::Matches;
+    }
+    return TokenCheckState::DifferentToken;
 }
 
-bool Parser::check_any(std::initializer_list<TokenKind> kinds) const noexcept {
+TokenCheckState Parser::token_check_any(std::initializer_list<TokenKind> kinds) const noexcept {
     for (TokenKind kind : kinds) {
-        if (check(kind)) {
-            return true;
+        if (token_check(kind) == TokenCheckState::Matches) {
+            return TokenCheckState::Matches;
         }
     }
-    return false;
+    return TokenCheckState::DifferentToken;
 }
 
 const Token& Parser::advance() {
-    if (!at_end()) {
+    if (cursor_state() == ParserCursorState::HasMoreTokens) {
         ++current_;
     }
     return tokens_[current_ - 1];
 }
 
-bool Parser::match(TokenKind kind) {
-    if (!check(kind)) {
-        return false;
+TokenConsumptionState Parser::consume_if(TokenKind kind) {
+    if (token_check(kind) == TokenCheckState::DifferentToken) {
+        return TokenConsumptionState::NotConsumed;
     }
     advance();
-    return true;
+    return TokenConsumptionState::Consumed;
 }
 
-bool Parser::match_any(std::initializer_list<TokenKind> kinds) {
+TokenConsumptionState Parser::consume_any(std::initializer_list<TokenKind> kinds) {
     for (TokenKind kind : kinds) {
-        if (match(kind)) {
-            return true;
+        if (consume_if(kind) == TokenConsumptionState::Consumed) {
+            return TokenConsumptionState::Consumed;
         }
     }
-    return false;
+    return TokenConsumptionState::NotConsumed;
 }
 
 const Token& Parser::expect(TokenKind kind, std::string_view message) {
-    if (check(kind)) {
+    if (token_check(kind) == TokenCheckState::Matches) {
         return advance();
     }
     diagnostics_.error(peek().span, std::string(message));
@@ -124,105 +133,108 @@ const Token& Parser::expect(TokenKind kind, std::string_view message) {
 }
 
 void Parser::synchronize() {
-    while (!at_end()) {
+    while (cursor_state() == ParserCursorState::HasMoreTokens) {
         if (peek().kind == TokenKind::Semicolon || peek().kind == TokenKind::RightBrace) {
             advance();
             return;
         }
-        if (is_declaration_start(peek().kind)) {
+        if (declaration_start_state(peek().kind) == DeclarationStartState::StartsDeclaration) {
             return;
         }
         advance();
     }
 }
 
-bool Parser::is_module_kind_keyword(TokenKind kind) const noexcept {
+ModuleKindTokenRole Parser::module_kind_token_role(TokenKind kind) const noexcept {
     switch (kind) {
     case TokenKind::KeywordDomain:
     case TokenKind::KeywordBoundary:
     case TokenKind::KeywordFoundation:
     case TokenKind::KeywordHazard:
-        return true;
+        return ModuleKindTokenRole::ModuleKindKeyword;
     default:
-        return false;
+        return ModuleKindTokenRole::OrdinaryToken;
     }
 }
 
 ast::Visibility Parser::parse_visibility() {
-    if (match(TokenKind::KeywordPublic)) {
+    if (consume_if(TokenKind::KeywordPublic) == TokenConsumptionState::Consumed) {
         return ast::Visibility::Public;
     }
     return ast::Visibility::Private;
 }
 
-std::optional<ast::ImportDecl> Parser::parse_import() {
+void Parser::parse_import_into(ast::TranslationUnit& unit) {
     const Token start = expect(TokenKind::KeywordImport, "expected 'import'");
     ast::ImportDecl import_decl;
     import_decl.span.begin = start.span.begin;
 
-    if (!check(TokenKind::Identifier)) {
+    if (token_check(TokenKind::Identifier) == TokenCheckState::DifferentToken) {
         diagnostics_.error(peek().span, "expected module path after 'import'");
-        if (match(TokenKind::Semicolon)) {
+        if (consume_if(TokenKind::Semicolon) == TokenConsumptionState::Consumed) {
             import_decl.span.end = tokens_[current_ - 1].span.end;
         } else {
             import_decl.span.end = start.span.end;
         }
-        return std::nullopt;
+        return;
     }
 
     import_decl.path = parse_path();
     const Token end = expect(TokenKind::Semicolon, "expected ';' after import declaration");
     import_decl.span.end = end.span.end;
-    return import_decl;
+    unit.imports.push_back(std::move(import_decl));
 }
 
 std::unique_ptr<ast::Decl> Parser::parse_top_level_decl() {
     const ast::Visibility visibility = parse_visibility();
-    if (is_module_kind_keyword(peek().kind)) {
+    if (module_kind_token_role(peek().kind) == ModuleKindTokenRole::ModuleKindKeyword) {
         return parse_module(visibility);
     }
     diagnostics_.error(peek().span,
                        "only module declarations are allowed at the top level; wrap declarations in "
                        "`domain module Name { ... }` (or boundary, foundation, hazard)");
+    if (cursor_state() == ParserCursorState::HasMoreTokens) {
+        advance();
+    }
     return nullptr;
 }
 
 std::unique_ptr<ast::Decl> Parser::parse_decl() {
     const ast::Visibility visibility = parse_visibility();
 
-    if (is_module_kind_keyword(peek().kind)) {
+    if (module_kind_token_role(peek().kind) == ModuleKindTokenRole::ModuleKindKeyword) {
         return parse_module(visibility);
     }
-    if (match(TokenKind::KeywordRecord)) {
+    if (consume_if(TokenKind::KeywordRecord) == TokenConsumptionState::Consumed) {
         --current_;
         return parse_record(visibility);
     }
-    if (match(TokenKind::KeywordState)) {
+    if (consume_if(TokenKind::KeywordState) == TokenConsumptionState::Consumed) {
         --current_;
         return parse_state(visibility);
     }
-    if (match(TokenKind::KeywordReason)) {
+    if (consume_if(TokenKind::KeywordReason) == TokenConsumptionState::Consumed) {
         --current_;
         return parse_reason(visibility);
     }
-    if (match(TokenKind::KeywordProof)) {
+    if (consume_if(TokenKind::KeywordProof) == TokenConsumptionState::Consumed) {
         --current_;
         return parse_proof(visibility);
     }
-    if (match(TokenKind::KeywordPermit)) {
+    if (consume_if(TokenKind::KeywordPermit) == TokenConsumptionState::Consumed) {
         --current_;
         return parse_permit(visibility);
     }
-    if (match(TokenKind::KeywordPhase)) {
+    if (consume_if(TokenKind::KeywordPhase) == TokenConsumptionState::Consumed) {
         --current_;
         return parse_phase(visibility);
     }
-    if (match(TokenKind::KeywordForeign)) {
-        return parse_function(visibility, true);
+    if (consume_if(TokenKind::KeywordForeign) == TokenConsumptionState::Consumed) {
+        return parse_function(visibility, ast::FunctionImplementation::ForeignImport);
     }
-    if (match(TokenKind::KeywordFn)) {
+    if (consume_if(TokenKind::KeywordFn) == TokenConsumptionState::Consumed) {
         --current_;
-        return parse_function(visibility, false);
+        return parse_function(visibility, ast::FunctionImplementation::EvidentBody);
     }
 
     diagnostics_.error(peek().span, "expected a declaration");
@@ -254,7 +266,8 @@ std::unique_ptr<ast::ModuleDecl> Parser::parse_module(ast::Visibility visibility
     auto module = std::make_unique<ast::ModuleDecl>(visibility, token_text(name), module_kind);
     expect(TokenKind::LeftBrace, "expected '{' after module name");
 
-    while (!check(TokenKind::RightBrace) && !at_end()) {
+    while (token_check(TokenKind::RightBrace) == TokenCheckState::DifferentToken
+           && cursor_state() == ParserCursorState::HasMoreTokens) {
         if (std::unique_ptr<ast::Decl> member = parse_decl()) {
             module->members.push_back(std::move(member));
         } else {
@@ -281,7 +294,7 @@ std::unique_ptr<ast::StateDecl> Parser::parse_state(ast::Visibility visibility) 
     const Token start = expect(TokenKind::KeywordState, "expected 'state'");
     const Token name = expect(TokenKind::Identifier, "expected state name");
     auto decl = std::make_unique<ast::StateDecl>(visibility, token_text(name));
-    if (check(TokenKind::LeftAngle)) {
+    if (token_check(TokenKind::LeftAngle) == TokenCheckState::Matches) {
         diagnostics_.error(peek().span, "state declarations may not be generic");
         parse_generic_params();
     }
@@ -294,7 +307,7 @@ std::unique_ptr<ast::ReasonDecl> Parser::parse_reason(ast::Visibility visibility
     const Token start = expect(TokenKind::KeywordReason, "expected 'reason'");
     const Token name = expect(TokenKind::Identifier, "expected reason name");
     auto decl = std::make_unique<ast::ReasonDecl>(visibility, token_text(name));
-    if (check(TokenKind::LeftAngle)) {
+    if (token_check(TokenKind::LeftAngle) == TokenCheckState::Matches) {
         diagnostics_.error(peek().span, "reason declarations may not be generic");
         parse_generic_params();
     }
@@ -307,11 +320,11 @@ std::unique_ptr<ast::ProofDecl> Parser::parse_proof(ast::Visibility visibility) 
     const Token start = expect(TokenKind::KeywordProof, "expected 'proof'");
     const Token name = expect(TokenKind::Identifier, "expected proof name");
     auto decl = std::make_unique<ast::ProofDecl>(visibility, token_text(name));
-    if (check(TokenKind::LeftAngle)) {
+    if (token_check(TokenKind::LeftAngle) == TokenCheckState::Matches) {
         diagnostics_.error(peek().span, "proof declarations may not be generic");
         parse_generic_params();
     }
-    if (check(TokenKind::LeftBrace)) {
+    if (token_check(TokenKind::LeftBrace) == TokenCheckState::Matches) {
         decl->fields = parse_field_block();
         decl->span = SourceSpan{start.span.begin, tokens_[current_ - 1].span.end};
     } else {
@@ -325,7 +338,7 @@ std::unique_ptr<ast::PermitDecl> Parser::parse_permit(ast::Visibility visibility
     const Token start = expect(TokenKind::KeywordPermit, "expected 'permit'");
     const Token name = expect(TokenKind::Identifier, "expected permit name");
     auto decl = std::make_unique<ast::PermitDecl>(visibility, token_text(name));
-    if (check(TokenKind::LeftAngle)) {
+    if (token_check(TokenKind::LeftAngle) == TokenCheckState::Matches) {
         diagnostics_.error(peek().span, "permit declarations may not be generic");
         parse_generic_params();
     }
@@ -337,7 +350,7 @@ std::unique_ptr<ast::PermitDecl> Parser::parse_permit(ast::Visibility visibility
 std::unique_ptr<ast::PhaseDecl> Parser::parse_phase(ast::Visibility visibility) {
     const Token start = expect(TokenKind::KeywordPhase, "expected 'phase'");
     const Token name = expect(TokenKind::Identifier, "expected phase name");
-    if (check(TokenKind::LeftAngle)) {
+    if (token_check(TokenKind::LeftAngle) == TokenCheckState::Matches) {
         diagnostics_.error(peek().span, "phase declarations may not be generic");
         parse_generic_params();
     }
@@ -348,69 +361,71 @@ std::unique_ptr<ast::PhaseDecl> Parser::parse_phase(ast::Visibility visibility) 
     expect(TokenKind::LeftBrace, "expected '{' after 'positions'");
     std::vector<std::string> positions;
     std::vector<SourceSpan> position_spans;
-    while (!check(TokenKind::RightBrace) && !at_end()) {
+    while (token_check(TokenKind::RightBrace) == TokenCheckState::DifferentToken
+           && cursor_state() == ParserCursorState::HasMoreTokens) {
         const Token pos = expect(TokenKind::Identifier, "expected position name");
         positions.push_back(token_text(pos));
         position_spans.push_back(pos.span);
-        if (match(TokenKind::Comma)) {
-            if (check(TokenKind::RightBrace)) {
+        if (consume_if(TokenKind::Comma) == TokenConsumptionState::Consumed) {
+            if (token_check(TokenKind::RightBrace) == TokenCheckState::Matches) {
                 break;
             }
             continue;
         }
         break;
     }
-    const Token close_positions = expect(TokenKind::RightBrace, "expected '}' after position list");
+    expect(TokenKind::RightBrace, "expected '}' after position list");
     const Token close_phase = expect(TokenKind::RightBrace, "expected '}' after phase declaration");
     auto decl = std::make_unique<ast::PhaseDecl>(visibility, token_text(name));
     decl->fields = std::move(fields);
     decl->positions = std::move(positions);
     decl->position_spans = std::move(position_spans);
     decl->span = SourceSpan{start.span.begin, close_phase.span.end};
-    (void)close_positions;
     return decl;
 }
 
-std::unique_ptr<ast::FunctionDecl> Parser::parse_function(ast::Visibility visibility, bool is_foreign) {
-    const Token start = is_foreign ? tokens_[current_ - 1] : expect(TokenKind::KeywordFn, "expected 'fn'");
-    if (is_foreign) {
+std::unique_ptr<ast::FunctionDecl> Parser::parse_function(ast::Visibility visibility,
+                                                          ast::FunctionImplementation implementation) {
+    const Token start = implementation == ast::FunctionImplementation::ForeignImport
+        ? tokens_[current_ - 1]
+        : expect(TokenKind::KeywordFn, "expected 'fn'");
+    if (implementation == ast::FunctionImplementation::ForeignImport) {
         expect(TokenKind::KeywordFn, "expected 'fn' after 'foreign'");
     }
     const Token name = expect(TokenKind::Identifier, "expected function name");
-    auto decl = std::make_unique<ast::FunctionDecl>(visibility, token_text(name), is_foreign);
-    decl->signature = is_foreign ? parse_foreign_function_signature(token_text(name))
-                                 : parse_function_signature(token_text(name));
+    auto decl = std::make_unique<ast::FunctionDecl>(visibility, token_text(name), implementation);
+    decl->signature = implementation == ast::FunctionImplementation::ForeignImport
+        ? parse_foreign_function_signature(token_text(name))
+        : parse_function_signature(token_text(name));
 
-    if (decl->is_foreign()) {
-        if (check(TokenKind::LeftBrace)) {
+    if (decl->implementation() == ast::FunctionImplementation::ForeignImport) {
+        if (token_check(TokenKind::LeftBrace) == TokenCheckState::Matches) {
             diagnostics_.error(peek().span, "foreign functions may not define a body");
             decl->body = parse_block_expr();
-            decl->body_span = decl->body->span;
         } else {
             consume_optional_declaration_terminator();
         }
-    } else if (check(TokenKind::LeftBrace)) {
+    } else if (token_check(TokenKind::LeftBrace) == TokenCheckState::Matches) {
         decl->body = parse_block_expr();
-        decl->body_span = decl->body->span;
     } else {
         consume_optional_declaration_terminator();
     }
 
-    const std::size_t end = decl->body_span.has_value() ? decl->body_span->end : decl->signature.span.end;
+    const std::size_t end = decl->body != nullptr ? decl->body->span.end : decl->signature.span.end;
     decl->span = SourceSpan{start.span.begin, end};
     return decl;
 }
 
 std::vector<ast::GenericParam> Parser::parse_generic_params() {
     std::vector<ast::GenericParam> params;
-    if (!match(TokenKind::LeftAngle)) {
+    if (consume_if(TokenKind::LeftAngle) == TokenConsumptionState::NotConsumed) {
         return params;
     }
 
     do {
         const Token name = expect(TokenKind::Identifier, "expected generic parameter name");
         params.push_back(ast::GenericParam{token_text(name), name.span});
-    } while (match(TokenKind::Comma));
+    } while (consume_if(TokenKind::Comma) == TokenConsumptionState::Consumed);
 
     expect(TokenKind::RightAngle, "expected '>' after generic parameter list");
     return params;
@@ -419,7 +434,8 @@ std::vector<ast::GenericParam> Parser::parse_generic_params() {
 std::vector<ast::Field> Parser::parse_field_block() {
     std::vector<ast::Field> fields;
     expect(TokenKind::LeftBrace, "expected '{'");
-    while (!check(TokenKind::RightBrace) && !at_end()) {
+    while (token_check(TokenKind::RightBrace) == TokenCheckState::DifferentToken
+           && cursor_state() == ParserCursorState::HasMoreTokens) {
         ast::Visibility field_vis = parse_visibility();
         const Token field_name = expect(TokenKind::Identifier, "expected field name");
         expect(TokenKind::Colon, "expected ':' after field name");
@@ -430,8 +446,8 @@ std::vector<ast::Field> Parser::parse_field_block() {
         field.type = std::move(type);
         field.span = SourceSpan{field_name.span.begin, field.type.span.end};
         fields.push_back(std::move(field));
-        if (match(TokenKind::Comma)) {
-            if (check(TokenKind::RightBrace)) {
+        if (consume_if(TokenKind::Comma) == TokenConsumptionState::Consumed) {
+            if (token_check(TokenKind::RightBrace) == TokenCheckState::Matches) {
                 break;
             }
             continue;
@@ -445,20 +461,21 @@ std::vector<ast::Field> Parser::parse_field_block() {
 std::vector<ast::Variant> Parser::parse_variant_block() {
     std::vector<ast::Variant> variants;
     expect(TokenKind::LeftBrace, "expected '{'");
-    while (!check(TokenKind::RightBrace) && !at_end()) {
+    while (token_check(TokenKind::RightBrace) == TokenCheckState::DifferentToken
+           && cursor_state() == ParserCursorState::HasMoreTokens) {
         const Token variant_name = expect(TokenKind::Identifier, "expected variant name");
         ast::Variant variant;
         variant.name = token_text(variant_name);
         variant.span.begin = variant_name.span.begin;
-        if (check(TokenKind::LeftBrace)) {
+        if (token_check(TokenKind::LeftBrace) == TokenCheckState::Matches) {
             variant.fields = parse_field_block();
             variant.span.end = tokens_[current_ - 1].span.end;
         } else {
             variant.span.end = variant_name.span.end;
         }
         variants.push_back(std::move(variant));
-        if (match(TokenKind::Comma)) {
-            if (check(TokenKind::RightBrace)) {
+        if (consume_if(TokenKind::Comma) == TokenConsumptionState::Consumed) {
+            if (token_check(TokenKind::RightBrace) == TokenCheckState::Matches) {
                 break;
             }
             continue;
@@ -472,10 +489,11 @@ std::vector<ast::Variant> Parser::parse_variant_block() {
 std::vector<ast::Parameter> Parser::parse_parameter_list() {
     std::vector<ast::Parameter> params;
     expect(TokenKind::LeftParen, "expected '(' after function name");
-    while (!check(TokenKind::RightParen) && !at_end()) {
+    while (token_check(TokenKind::RightParen) == TokenCheckState::DifferentToken
+           && cursor_state() == ParserCursorState::HasMoreTokens) {
         ast::Parameter param;
-        if (match(TokenKind::KeywordAs)) {
-            param.is_permit_param = true;
+        if (consume_if(TokenKind::KeywordAs) == TokenConsumptionState::Consumed) {
+            param.authority = ast::ParameterAuthority::PermitBinding;
         }
         const Token param_name = expect(TokenKind::Identifier, "expected parameter name");
         expect(TokenKind::Colon, "expected ':' after parameter name");
@@ -484,8 +502,8 @@ std::vector<ast::Parameter> Parser::parse_parameter_list() {
         param.type = std::move(type);
         param.span = SourceSpan{param_name.span.begin, param.type.span.end};
         params.push_back(std::move(param));
-        if (match(TokenKind::Comma)) {
-            if (check(TokenKind::RightParen)) {
+        if (consume_if(TokenKind::Comma) == TokenConsumptionState::Consumed) {
+            if (token_check(TokenKind::RightParen) == TokenCheckState::Matches) {
                 break;
             }
             continue;
@@ -499,11 +517,13 @@ std::vector<ast::Parameter> Parser::parse_parameter_list() {
 std::vector<ast::Parameter> Parser::parse_foreign_parameter_list() {
     std::vector<ast::Parameter> params;
     expect(TokenKind::LeftParen, "expected '(' after function name");
-    while (!check(TokenKind::RightParen) && !at_end()) {
-        if (check(TokenKind::KeywordAs)) {
+    while (token_check(TokenKind::RightParen) == TokenCheckState::DifferentToken
+           && cursor_state() == ParserCursorState::HasMoreTokens) {
+        if (token_check(TokenKind::KeywordAs) == TokenCheckState::Matches) {
             diagnostics_.error(peek().span,
                                 "foreign functions may not use permit parameters (`as name: Type` is not allowed here)");
-            while (!check(TokenKind::RightParen) && !at_end()) {
+            while (token_check(TokenKind::RightParen) == TokenCheckState::DifferentToken
+                   && cursor_state() == ParserCursorState::HasMoreTokens) {
                 advance();
             }
             break;
@@ -514,11 +534,10 @@ std::vector<ast::Parameter> Parser::parse_foreign_parameter_list() {
         ast::TypeRef type = parse_type();
         param.name = token_text(param_name);
         param.type = std::move(type);
-        param.is_permit_param = false;
         param.span = SourceSpan{param_name.span.begin, param.type.span.end};
         params.push_back(std::move(param));
-        if (match(TokenKind::Comma)) {
-            if (check(TokenKind::RightParen)) {
+        if (consume_if(TokenKind::Comma) == TokenConsumptionState::Consumed) {
+            if (token_check(TokenKind::RightParen) == TokenCheckState::Matches) {
                 break;
             }
             continue;
@@ -533,28 +552,28 @@ ast::FunctionSignature Parser::parse_foreign_function_signature(std::string name
     ast::FunctionSignature signature;
     signature.name = std::move(name);
     // Spec: foreign-fn has no generic parameters (only value parameters and `->` type).
-    if (check(TokenKind::LeftAngle)) {
+    if (token_check(TokenKind::LeftAngle) == TokenCheckState::Matches) {
         diagnostics_.error(peek().span, "foreign functions may not declare generic parameters");
-        (void)parse_generic_params();
+        parse_generic_params();
     }
     const std::size_t begin = peek().span.begin;
     signature.params = parse_foreign_parameter_list();
     expect(TokenKind::Arrow, "expected '->' after parameter list");
     signature.return_type = parse_type();
     for (;;) {
-        if (check(TokenKind::KeywordFails)) {
+        if (token_check(TokenKind::KeywordFails) == TokenCheckState::Matches) {
             const Token fails_tok = advance();
             diagnostics_.error(fails_tok.span, "foreign functions may not declare `fails`");
             parse_type();
             continue;
         }
-        if (check(TokenKind::KeywordGrants)) {
+        if (token_check(TokenKind::KeywordGrants) == TokenCheckState::Matches) {
             const Token grants_tok = advance();
             diagnostics_.error(grants_tok.span, "foreign functions may not declare `grants`");
             parse_type();
             continue;
         }
-        if (check(TokenKind::KeywordProves)) {
+        if (token_check(TokenKind::KeywordProves) == TokenCheckState::Matches) {
             const Token proves_tok = advance();
             diagnostics_.error(proves_tok.span, "foreign functions may not declare `proves`");
             parse_type();
@@ -575,36 +594,36 @@ ast::FunctionSignature Parser::parse_function_signature(std::string name) {
     expect(TokenKind::Arrow, "expected '->' after parameter list");
     signature.return_type = parse_type();
     for (;;) {
-        if (match(TokenKind::KeywordFails)) {
+        if (consume_if(TokenKind::KeywordFails) == TokenConsumptionState::Consumed) {
             ast::TypeRef fails_type = parse_type();
-            if (signature.fails_type.has_value()) {
+            if (signature.failure.behavior() == ast::FunctionFailureBehavior::YieldsReason) {
                 diagnostics_.error(fails_type.span, "function signature repeats `fails`");
             } else {
-                signature.fails_type = std::move(fails_type);
+                signature.failure = ast::FunctionFailureContract::yields_reason(std::move(fails_type));
             }
             continue;
         }
-        if (match(TokenKind::KeywordGrants)) {
+        if (consume_if(TokenKind::KeywordGrants) == TokenConsumptionState::Consumed) {
             ast::TypeRef grants_type = parse_type();
-            if (signature.grants_type.has_value()) {
+            if (signature.authority.effect() == ast::FunctionAuthorityEffect::GrantsScopedPermit) {
                 diagnostics_.error(grants_type.span, "function signature repeats `grants`");
             } else {
-                signature.grants_type = std::move(grants_type);
+                signature.authority = ast::FunctionAuthorityContract::grants_scoped_permit(std::move(grants_type));
             }
             continue;
         }
-        if (match(TokenKind::KeywordProves)) {
+        if (consume_if(TokenKind::KeywordProves) == TokenConsumptionState::Consumed) {
             signature.proves_types.push_back(parse_type());
             continue;
         }
         break;
     }
     std::size_t end = signature.return_type.span.end;
-    if (signature.fails_type.has_value()) {
-        end = signature.fails_type->span.end;
+    if (signature.failure.behavior() == ast::FunctionFailureBehavior::YieldsReason) {
+        end = signature.failure.reason_type().span.end;
     }
-    if (signature.grants_type.has_value()) {
-        end = signature.grants_type->span.end;
+    if (signature.authority.effect() == ast::FunctionAuthorityEffect::GrantsScopedPermit) {
+        end = signature.authority.permit_type().span.end;
     }
     if (!signature.proves_types.empty()) {
         end = signature.proves_types.back().span.end;
@@ -619,16 +638,16 @@ ast::TypeRef Parser::parse_type() {
     type.path.push_back(token_text(first));
     type.span.begin = first.span.begin;
 
-    while (match(TokenKind::DoubleColon)) {
+    while (consume_if(TokenKind::DoubleColon) == TokenConsumptionState::Consumed) {
         const Token segment = expect(TokenKind::Identifier, "expected type name segment after '::'");
         type.path.push_back(token_text(segment));
         type.span.end = segment.span.end;
     }
 
-    if (match(TokenKind::LeftAngle)) {
+    if (consume_if(TokenKind::LeftAngle) == TokenConsumptionState::Consumed) {
         do {
             type.args.push_back(parse_type());
-        } while (match(TokenKind::Comma));
+        } while (consume_if(TokenKind::Comma) == TokenConsumptionState::Consumed);
         const Token end = expect(TokenKind::RightAngle, "expected '>' after type arguments");
         type.span.end = end.span.end;
     } else {
@@ -643,7 +662,7 @@ std::vector<ast::TypeRef> Parser::parse_type_argument_list() {
     expect(TokenKind::LeftAngle, "expected '<' before type argument list");
     do {
         args.push_back(parse_type());
-    } while (match(TokenKind::Comma));
+    } while (consume_if(TokenKind::Comma) == TokenConsumptionState::Consumed);
     expect(TokenKind::RightAngle, "expected '>' after type argument list");
     return args;
 }
@@ -652,7 +671,7 @@ std::vector<std::string> Parser::parse_path() {
     std::vector<std::string> path;
     const Token first = expect(TokenKind::Identifier, "expected identifier");
     path.push_back(token_text(first));
-    while (match(TokenKind::DoubleColon)) {
+    while (consume_if(TokenKind::DoubleColon) == TokenConsumptionState::Consumed) {
         const Token segment = expect(TokenKind::Identifier, "expected identifier after '::'");
         path.push_back(token_text(segment));
     }
@@ -662,23 +681,23 @@ std::vector<std::string> Parser::parse_path() {
 std::vector<ast::RecordFieldInit> Parser::parse_record_field_initializers() {
     std::vector<ast::RecordFieldInit> fields;
     expect(TokenKind::LeftBrace, "expected '{'");
-    while (!check(TokenKind::RightBrace) && !at_end()) {
+    while (token_check(TokenKind::RightBrace) == TokenCheckState::DifferentToken
+           && cursor_state() == ParserCursorState::HasMoreTokens) {
         const Token name = expect(TokenKind::Identifier, "expected field name");
         ast::RecordFieldInit init;
         init.name = token_text(name);
         init.span.begin = name.span.begin;
-        if (match(TokenKind::Colon)) {
+        if (consume_if(TokenKind::Colon) == TokenConsumptionState::Consumed) {
             init.value = parse_expr();
-            init.shorthand = false;
             init.span.end = init.value != nullptr ? init.value->span.end : name.span.end;
         } else {
             init.value = make_shorthand_path_expr(name);
-            init.shorthand = true;
+            init.spelling = ast::FieldInitSpelling::ShorthandBinding;
             init.span.end = name.span.end;
         }
         fields.push_back(std::move(init));
-        if (match(TokenKind::Comma)) {
-            if (check(TokenKind::RightBrace)) {
+        if (consume_if(TokenKind::Comma) == TokenConsumptionState::Consumed) {
+            if (token_check(TokenKind::RightBrace) == TokenCheckState::Matches) {
                 break;
             }
             continue;
@@ -694,19 +713,20 @@ std::unique_ptr<ast::BlockExpr> Parser::parse_block_expr() {
     auto block = std::make_unique<ast::BlockExpr>();
     block->span.begin = open.span.begin;
 
-    while (!check(TokenKind::RightBrace) && !at_end()) {
-        if (check(TokenKind::KeywordLet)) {
+    while (token_check(TokenKind::RightBrace) == TokenCheckState::DifferentToken
+           && cursor_state() == ParserCursorState::HasMoreTokens) {
+        if (token_check(TokenKind::KeywordLet) == TokenCheckState::Matches) {
             std::unique_ptr<ast::Stmt> stmt = parse_statement();
             if (stmt != nullptr) {
                 block->statements.push_back(std::move(stmt));
             }
-            (void)match(TokenKind::Semicolon);
+            consume_optional_statement_terminator();
             continue;
         }
 
-        if (!begins_expr(peek().kind)) {
+        if (expression_start_state(peek().kind) == ExpressionStartState::DoesNotBeginExpression) {
             diagnostics_.error(peek().span, "expected statement or expression inside block");
-            if (!at_end()) {
+            if (cursor_state() == ParserCursorState::HasMoreTokens) {
                 advance();
             }
             continue;
@@ -717,7 +737,7 @@ std::unique_ptr<ast::BlockExpr> Parser::parse_block_expr() {
             break;
         }
 
-        if (match(TokenKind::Semicolon)) {
+        if (consume_if(TokenKind::Semicolon) == TokenConsumptionState::Consumed) {
             auto stmt = std::make_unique<ast::ExprStmt>();
             stmt->span = expr->span;
             stmt->expr = std::move(expr);
@@ -725,12 +745,13 @@ std::unique_ptr<ast::BlockExpr> Parser::parse_block_expr() {
             continue;
         }
 
-        if (check(TokenKind::RightBrace)) {
+        if (token_check(TokenKind::RightBrace) == TokenCheckState::Matches) {
             block->result = std::move(expr);
             break;
         }
 
-        if (check(TokenKind::KeywordLet) || begins_expr(peek().kind)) {
+        if (token_check(TokenKind::KeywordLet) == TokenCheckState::Matches
+            || expression_start_state(peek().kind) == ExpressionStartState::BeginsExpression) {
             auto stmt = std::make_unique<ast::ExprStmt>();
             stmt->span = expr->span;
             stmt->expr = std::move(expr);
@@ -761,10 +782,10 @@ std::unique_ptr<ast::Stmt> Parser::parse_statement() {
 }
 
 std::unique_ptr<ast::Expr> Parser::parse_expr() {
-    if (check(TokenKind::KeywordMatch)) {
+    if (token_check(TokenKind::KeywordMatch) == TokenCheckState::Matches) {
         return parse_match_expr();
     }
-    if (check(TokenKind::KeywordGrant)) {
+    if (token_check(TokenKind::KeywordGrant) == TokenCheckState::Matches) {
         return parse_grant_expr();
     }
     return parse_try_expr();
@@ -776,7 +797,8 @@ std::unique_ptr<ast::Expr> Parser::parse_match_expr() {
     match_expr->scrutinee = parse_expr();
     expect(TokenKind::LeftBrace, "expected '{' after match scrutinee");
 
-    while (!check(TokenKind::RightBrace) && !at_end()) {
+    while (token_check(TokenKind::RightBrace) == TokenCheckState::DifferentToken
+           && cursor_state() == ParserCursorState::HasMoreTokens) {
         ast::MatchArm arm;
         arm.pattern = parse_pattern();
         expect(TokenKind::FatArrow, "expected '=>' after match pattern");
@@ -786,8 +808,8 @@ std::unique_ptr<ast::Expr> Parser::parse_match_expr() {
             arm.body != nullptr ? arm.body->span.end : peek().span.end,
         };
         match_expr->arms.push_back(std::move(arm));
-        if (match(TokenKind::Comma)) {
-            if (check(TokenKind::RightBrace)) {
+        if (consume_if(TokenKind::Comma) == TokenConsumptionState::Consumed) {
+            if (token_check(TokenKind::RightBrace) == TokenCheckState::Matches) {
                 break;
             }
             continue;
@@ -801,7 +823,7 @@ std::unique_ptr<ast::Expr> Parser::parse_match_expr() {
 }
 
 std::unique_ptr<ast::Expr> Parser::parse_try_expr() {
-    if (match(TokenKind::KeywordTry)) {
+    if (consume_if(TokenKind::KeywordTry) == TokenConsumptionState::Consumed) {
         const Token start = tokens_[current_ - 1];
         auto expr = std::make_unique<ast::TryExpr>();
         expr->operand = parse_expr();
@@ -824,13 +846,13 @@ std::unique_ptr<ast::Expr> Parser::parse_grant_expr() {
 }
 
 std::unique_ptr<ast::Expr> Parser::parse_fail_expr() {
-    if (match(TokenKind::KeywordFail)) {
+    if (consume_if(TokenKind::KeywordFail) == TokenConsumptionState::Consumed) {
         const Token start = tokens_[current_ - 1];
         auto expr = std::make_unique<ast::FailExpr>();
         expr->path = parse_path();
         expr->span.begin = start.span.begin;
         expr->span.end = tokens_[current_ - 1].span.end;
-        if (check(TokenKind::LeftBrace)) {
+        if (token_check(TokenKind::LeftBrace) == TokenCheckState::Matches) {
             expr->fields = parse_record_field_initializers();
             expr->span.end = tokens_[current_ - 1].span.end;
         }
@@ -840,13 +862,13 @@ std::unique_ptr<ast::Expr> Parser::parse_fail_expr() {
 }
 
 std::unique_ptr<ast::Expr> Parser::parse_prove_expr() {
-    if (match(TokenKind::KeywordProve)) {
+    if (consume_if(TokenKind::KeywordProve) == TokenConsumptionState::Consumed) {
         const Token start = tokens_[current_ - 1];
         auto expr = std::make_unique<ast::ProveExpr>();
         expr->path = parse_path();
         expr->span.begin = start.span.begin;
         expr->span.end = tokens_[current_ - 1].span.end;
-        if (check(TokenKind::LeftBrace)) {
+        if (token_check(TokenKind::LeftBrace) == TokenCheckState::Matches) {
             expr->fields = parse_record_field_initializers();
             expr->span.end = tokens_[current_ - 1].span.end;
         }
@@ -862,39 +884,41 @@ std::unique_ptr<ast::Expr> Parser::parse_postfix_expr() {
             break;
         }
         std::vector<ast::TypeRef> type_args;
-        if (check(TokenKind::LeftAngle)) {
-            auto* path_expr = dynamic_cast<ast::PathExpr*>(expr.get());
-            if (path_expr == nullptr) {
+        if (token_check(TokenKind::LeftAngle) == TokenCheckState::Matches) {
+            if (expr->kind != ast::ExprKind::Path) {
                 diagnostics_.error(peek().span, "type arguments may only be applied to named calls or record construction");
                 break;
             }
+            auto& path_expr = static_cast<ast::PathExpr&>(*expr);
             type_args = parse_type_argument_list();
-            if (check(TokenKind::LeftBrace) && looks_like_record_initializer()) {
+            if (token_check(TokenKind::LeftBrace) == TokenCheckState::Matches
+                && record_initializer_lookahead() == RecordInitializerLookahead::RecordInitializer) {
                 auto construct = std::make_unique<ast::ConstructExpr>();
-                construct->path = std::move(path_expr->path);
+                construct->path = std::move(path_expr.path);
                 construct->type_args = std::move(type_args);
                 construct->fields = parse_record_field_initializers();
                 construct->span = SourceSpan{expr->span.begin, tokens_[current_ - 1].span.end};
                 expr = std::move(construct);
                 continue;
             }
-            if (!check(TokenKind::LeftParen)) {
+            if (token_check(TokenKind::LeftParen) == TokenCheckState::DifferentToken) {
                 diagnostics_.error(tokens_[current_ - 1].span,
                                    "type arguments must be followed by an argument list or record initializer");
                 break;
             }
         }
-        if (match(TokenKind::LeftParen)) {
+        if (consume_if(TokenKind::LeftParen) == TokenConsumptionState::Consumed) {
             const Token open = tokens_[current_ - 1];
             auto call = std::make_unique<ast::CallExpr>();
             call->callee = std::move(expr);
             call->type_args = std::move(type_args);
-            while (!check(TokenKind::RightParen) && !at_end()) {
-                if (check(TokenKind::KeywordAs)) {
+            while (token_check(TokenKind::RightParen) == TokenCheckState::DifferentToken
+                   && cursor_state() == ParserCursorState::HasMoreTokens) {
+                if (token_check(TokenKind::KeywordAs) == TokenCheckState::Matches) {
                     // permit argument: `as name`
                     advance(); // consume 'as'
                     auto permit_arg = std::make_unique<ast::PathExpr>();
-                    permit_arg->explicit_permit_argument = true;
+                    permit_arg->argument_role = ast::PathArgumentRole::PermitArgument;
                     const Token permit_name = expect(TokenKind::Identifier, "expected permit name after 'as'");
                     permit_arg->path.push_back(token_text(permit_name));
                     permit_arg->span = permit_name.span;
@@ -902,8 +926,8 @@ std::unique_ptr<ast::Expr> Parser::parse_postfix_expr() {
                 } else {
                     call->args.push_back(parse_expr());
                 }
-                if (match(TokenKind::Comma)) {
-                    if (check(TokenKind::RightParen)) {
+                if (consume_if(TokenKind::Comma) == TokenConsumptionState::Consumed) {
+                    if (token_check(TokenKind::RightParen) == TokenCheckState::Matches) {
                         break;
                     }
                     continue;
@@ -915,7 +939,7 @@ std::unique_ptr<ast::Expr> Parser::parse_postfix_expr() {
             expr = std::move(call);
             continue;
         }
-        if (match(TokenKind::Dot)) {
+        if (consume_if(TokenKind::Dot) == TokenConsumptionState::Consumed) {
             const Token field_name = expect(TokenKind::Identifier, "expected field name after '.'");
             auto field_access = std::make_unique<ast::FieldAccessExpr>();
             field_access->object = std::move(expr);
@@ -930,25 +954,26 @@ std::unique_ptr<ast::Expr> Parser::parse_postfix_expr() {
 }
 
 std::unique_ptr<ast::Expr> Parser::parse_primary_expr() {
-    if (match(TokenKind::Number)) {
+    if (consume_if(TokenKind::Number) == TokenConsumptionState::Consumed) {
         const Token token = tokens_[current_ - 1];
         auto expr = std::make_unique<ast::NumberLiteralExpr>(token_text(token));
         expr->span = token.span;
         return expr;
     }
-    if (match(TokenKind::String)) {
+    if (consume_if(TokenKind::String) == TokenConsumptionState::Consumed) {
         const Token token = tokens_[current_ - 1];
         auto expr = std::make_unique<ast::StringLiteralExpr>(token_text(token));
         expr->span = token.span;
         return expr;
     }
-    if (check(TokenKind::LeftBrace)) {
+    if (token_check(TokenKind::LeftBrace) == TokenCheckState::Matches) {
         return parse_block_expr();
     }
-    if (check(TokenKind::Identifier)) {
+    if (token_check(TokenKind::Identifier) == TokenCheckState::Matches) {
         const std::size_t begin = peek().span.begin;
         std::vector<std::string> path = parse_path();
-        if (check(TokenKind::LeftBrace) && looks_like_record_initializer()) {
+        if (token_check(TokenKind::LeftBrace) == TokenCheckState::Matches
+            && record_initializer_lookahead() == RecordInitializerLookahead::RecordInitializer) {
             auto expr = std::make_unique<ast::ConstructExpr>();
             expr->path = std::move(path);
             expr->fields = parse_record_field_initializers();
@@ -967,15 +992,16 @@ std::unique_ptr<ast::Expr> Parser::parse_primary_expr() {
 
 std::unique_ptr<ast::Pattern> Parser::parse_pattern() {
     // Check for succeeded(...) and failed(...) as keywords
-    if (check(TokenKind::KeywordSucceeded)) {
+    if (token_check(TokenKind::KeywordSucceeded) == TokenCheckState::Matches) {
         const Token start = advance();
         auto pattern = std::make_unique<ast::SucceededPattern>();
         expect(TokenKind::LeftParen, "expected '(' after 'succeeded'");
-        if (check(TokenKind::Identifier) && peek().lexeme == "_") {
+        if (token_check(TokenKind::Identifier) == TokenCheckState::Matches && peek().lexeme == "_") {
             advance();
-            pattern->ignore = true;
+            pattern->binding = ast::SuccessPatternBinding::DiscardedValue;
         } else {
             const Token binding = expect(TokenKind::Identifier, "expected binding or '_' inside succeeded pattern");
+            pattern->binding = ast::SuccessPatternBinding::NamedBinding;
             pattern->binding_name = token_text(binding);
         }
         const Token close = expect(TokenKind::RightParen, "expected ')' after succeeded pattern");
@@ -983,7 +1009,7 @@ std::unique_ptr<ast::Pattern> Parser::parse_pattern() {
         return pattern;
     }
 
-    if (check(TokenKind::KeywordFailed)) {
+    if (token_check(TokenKind::KeywordFailed) == TokenCheckState::Matches) {
         const Token start = advance();
         auto pattern = std::make_unique<ast::FailedPattern>();
         expect(TokenKind::LeftParen, "expected '(' after 'failed'");
@@ -1006,8 +1032,9 @@ std::unique_ptr<ast::Pattern> Parser::parse_pattern() {
         expect(TokenKind::LeftParen, "expected '(' after 'succeeded'");
         const Token binding = expect(TokenKind::Identifier, "expected binding or '_' inside succeeded pattern");
         if (binding.lexeme == "_") {
-            pattern->ignore = true;
+            pattern->binding = ast::SuccessPatternBinding::DiscardedValue;
         } else {
+            pattern->binding = ast::SuccessPatternBinding::NamedBinding;
             pattern->binding_name = token_text(binding);
         }
         const Token close = expect(TokenKind::RightParen, "expected ')' after succeeded pattern");
@@ -1036,27 +1063,28 @@ std::unique_ptr<ast::VariantPattern> Parser::parse_variant_pattern_from_path(std
     pattern->path = std::move(path);
     pattern->span = path_span;
 
-    if (!match(TokenKind::LeftBrace)) {
+    if (consume_if(TokenKind::LeftBrace) == TokenConsumptionState::NotConsumed) {
         return pattern;
     }
 
     const Token open = tokens_[current_ - 1];
-    if (match(TokenKind::DotDot)) {
+    if (consume_if(TokenKind::DotDot) == TokenConsumptionState::Consumed) {
         pattern->payload_mode = ast::VariantPattern::PayloadMode::Ignore;
         const Token close = expect(TokenKind::RightBrace, "expected '}' after '..'");
         pattern->span = SourceSpan{path_span.begin, close.span.end};
         return pattern;
     }
 
-    if (!check(TokenKind::RightBrace)) {
+    if (token_check(TokenKind::RightBrace) == TokenCheckState::DifferentToken) {
         pattern->payload_mode = ast::VariantPattern::PayloadMode::Bindings;
-        while (!check(TokenKind::RightBrace) && !at_end()) {
+        while (token_check(TokenKind::RightBrace) == TokenCheckState::DifferentToken
+               && cursor_state() == ParserCursorState::HasMoreTokens) {
             const Token field = expect(TokenKind::Identifier, "expected field name in pattern");
             ast::VariantPattern::Binding binding;
             binding.field_name = token_text(field);
             binding.binding_name = binding.field_name;
             binding.span.begin = field.span.begin;
-            if (match(TokenKind::Colon)) {
+            if (consume_if(TokenKind::Colon) == TokenConsumptionState::Consumed) {
                 const Token value = expect(TokenKind::Identifier, "expected binding name after ':'");
                 binding.binding_name = token_text(value);
                 binding.span.end = value.span.end;
@@ -1064,8 +1092,8 @@ std::unique_ptr<ast::VariantPattern> Parser::parse_variant_pattern_from_path(std
                 binding.span.end = field.span.end;
             }
             pattern->bindings.push_back(std::move(binding));
-            if (match(TokenKind::Comma)) {
-                if (check(TokenKind::RightBrace)) {
+            if (consume_if(TokenKind::Comma) == TokenConsumptionState::Consumed) {
+                if (token_check(TokenKind::RightBrace) == TokenCheckState::Matches) {
                     break;
                 }
                 continue;
@@ -1083,15 +1111,22 @@ std::unique_ptr<ast::VariantPattern> Parser::parse_variant_pattern_from_path(std
 }
 
 void Parser::consume_optional_declaration_terminator() {
-    if (match(TokenKind::Semicolon)) {
+    if (consume_if(TokenKind::Semicolon) == TokenConsumptionState::Consumed) {
         return;
     }
-    if (check_any({TokenKind::RightBrace, TokenKind::EndOfFile}) || is_declaration_start(peek().kind)) {
+    if (token_check_any({TokenKind::RightBrace, TokenKind::EndOfFile}) == TokenCheckState::Matches
+        || declaration_start_state(peek().kind) == DeclarationStartState::StartsDeclaration) {
         return;
     }
 }
 
-bool Parser::begins_expr(TokenKind kind) const noexcept {
+void Parser::consume_optional_statement_terminator() {
+    if (token_check(TokenKind::Semicolon) == TokenCheckState::Matches) {
+        advance();
+    }
+}
+
+ExpressionStartState Parser::expression_start_state(TokenKind kind) const noexcept {
     switch (kind) {
     case TokenKind::Identifier:
     case TokenKind::Number:
@@ -1102,26 +1137,29 @@ bool Parser::begins_expr(TokenKind kind) const noexcept {
     case TokenKind::KeywordTry:
     case TokenKind::KeywordFail:
     case TokenKind::KeywordProve:
-        return true;
+        return ExpressionStartState::BeginsExpression;
     default:
-        return false;
+        return ExpressionStartState::DoesNotBeginExpression;
     }
 }
 
 
-bool Parser::looks_like_record_initializer() const noexcept {
-    if (!check(TokenKind::LeftBrace)) {
-        return false;
+RecordInitializerLookahead Parser::record_initializer_lookahead() const noexcept {
+    if (token_check(TokenKind::LeftBrace) == TokenCheckState::DifferentToken) {
+        return RecordInitializerLookahead::BlockExpression;
     }
     if (peek(1).kind == TokenKind::RightBrace) {
-        return true;
+        return RecordInitializerLookahead::RecordInitializer;
     }
     if (peek(1).kind != TokenKind::Identifier) {
-        return false;
+        return RecordInitializerLookahead::BlockExpression;
     }
-    return peek(2).kind == TokenKind::Colon
+    if (peek(2).kind == TokenKind::Colon
         || peek(2).kind == TokenKind::Comma
-        || peek(2).kind == TokenKind::RightBrace;
+        || peek(2).kind == TokenKind::RightBrace) {
+        return RecordInitializerLookahead::RecordInitializer;
+    }
+    return RecordInitializerLookahead::BlockExpression;
 }
 
 } // namespace evident

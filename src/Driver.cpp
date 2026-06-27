@@ -12,6 +12,7 @@
 #include "evident/Token.hpp"
 
 #include <algorithm>
+#include <expected>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
@@ -28,20 +29,36 @@ void dump_tokens(const std::vector<Token>& tokens) {
     }
 }
 
-bool write_text_file(const std::string& path, const std::string& text) {
+struct TextFileWriteSucceeded final {};
+
+enum class NativeEmitRequestState {
+    NoNativeArtifactRequested,
+    NativeArtifactRequested,
+};
+
+enum class PathTraversalState {
+    StaysInsidePackageRoot,
+    AttemptsParentTraversal,
+};
+
+std::expected<TextFileWriteSucceeded, std::string> write_text_file(const std::string& path,
+                                                                   const std::string& text) {
     std::ofstream out(path, std::ios::binary);
     if (!out) {
-        return false;
+        return std::unexpected("failed to open text output file");
     }
     out << text;
-    return static_cast<bool>(out);
+    if (!out) {
+        return std::unexpected("failed to write text output file");
+    }
+    return TextFileWriteSucceeded{};
 }
 
-bool has_native_emit_request(const DriverOptions& options) {
-    return options.emit_llvm_path.has_value()
-        || options.emit_asm_path.has_value()
-        || options.emit_obj_path.has_value()
-        || options.emit_exe_path.has_value();
+NativeEmitRequestState native_emit_request_state(const DriverOptions& options) {
+    if (options.native_artifact.kind() == NativeArtifactKind::Suppressed) {
+        return NativeEmitRequestState::NoNativeArtifactRequested;
+    }
+    return NativeEmitRequestState::NativeArtifactRequested;
 }
 
 std::string trim_ascii(std::string text) {
@@ -57,13 +74,13 @@ std::string trim_ascii(std::string text) {
     return std::string(first, last);
 }
 
-bool contains_parent_traversal(const std::filesystem::path& path) {
+PathTraversalState path_traversal_state(const std::filesystem::path& path) {
     for (const std::filesystem::path& part : path) {
         if (part == "..") {
-            return true;
+            return PathTraversalState::AttemptsParentTraversal;
         }
     }
-    return false;
+    return PathTraversalState::StaysInsidePackageRoot;
 }
 
 std::expected<std::vector<std::string>, std::string> read_package_manifest(
@@ -92,7 +109,7 @@ std::expected<std::vector<std::string>, std::string> read_package_manifest(
             return std::unexpected(manifest_path.string() + ":" + std::to_string(line_number)
                                    + ": package manifest source path must be relative");
         }
-        if (contains_parent_traversal(entry_path)) {
+        if (path_traversal_state(entry_path) == PathTraversalState::AttemptsParentTraversal) {
             return std::unexpected(manifest_path.string() + ":" + std::to_string(line_number)
                                    + ": package manifest source path may not contain '..'");
         }
@@ -215,20 +232,15 @@ std::expected<std::vector<std::string>, std::string> discover_package_input_path
 
 std::expected<SourceFile, std::string> load_package_source(const DriverOptions& options) {
     std::vector<std::string> input_paths;
-    if (options.package_path.has_value()) {
-        if (!options.input_paths.empty() || !options.input_path.empty()) {
-            return std::unexpected("--package may not be combined with explicit input files");
-        }
-        std::expected<std::vector<std::string>, std::string> discovered = discover_package_input_paths(*options.package_path);
+    if (options.source_request.kind() == SourceRequestKind::PackageDirectory) {
+        std::expected<std::vector<std::string>, std::string> discovered =
+            discover_package_input_paths(options.source_request.package_path());
         if (!discovered.has_value()) {
             return std::unexpected(discovered.error());
         }
         input_paths = std::move(*discovered);
     } else {
-        input_paths = options.input_paths;
-    }
-    if (input_paths.empty() && !options.input_path.empty()) {
-        input_paths.push_back(options.input_path);
+        input_paths = options.source_request.explicit_paths();
     }
     if (input_paths.empty()) {
         return std::unexpected("no source input files were provided");
@@ -259,71 +271,83 @@ int run_driver(const DriverOptions& options) {
     DiagnosticSink diagnostics;
     Lexer lexer(source, diagnostics);
     std::vector<Token> tokens = lexer.lex();
-    if (options.dump_tokens) {
+    if (options.dump_tokens == DumpRequest::Requested) {
         dump_tokens(tokens);
     }
-    if (diagnostics.has_errors()) {
+    if (diagnostics.error_state() == DiagnosticErrorState::ContainsErrors) {
         diagnostics.print(source, std::cerr);
         return 1;
     }
 
     Parser parser(source, tokens, diagnostics);
     ast::TranslationUnit unit = parser.parse();
-    if (diagnostics.has_errors()) {
+    if (diagnostics.error_state() == DiagnosticErrorState::ContainsErrors) {
         diagnostics.print(source, std::cerr);
         return 1;
     }
-    if (options.dump_ast) {
+    if (options.dump_ast == DumpRequest::Requested) {
         std::cout << ast::dump(unit, source.text());
     }
 
     SemanticAnalyzer semantic(diagnostics);
     semantic.analyze(unit, source);
-    if (diagnostics.has_errors()) {
+    if (diagnostics.error_state() == DiagnosticErrorState::ContainsErrors) {
         diagnostics.print(source, std::cerr);
         return 1;
     }
 
     hir::Package package = hir::lower(unit);
-    if (options.dump_hir) {
+    if (options.dump_hir == DumpRequest::Requested) {
         std::cout << hir::dump(package);
     }
 
-    std::optional<hir::Package> backend_hir_package;
-    std::optional<mir::Package> mir_package;
-    if (options.dump_mir || has_native_emit_request(options)) {
-        backend_hir_package = hir::monomorphize_for_backend(package);
-        mir_package = mir::lower(*backend_hir_package);
-    }
+    const NativeEmitRequestState native_emit_request = native_emit_request_state(options);
+    if (options.dump_mir == DumpRequest::Requested
+        || native_emit_request == NativeEmitRequestState::NativeArtifactRequested) {
+        hir::Package backend_hir_package = hir::monomorphize_for_backend(package);
+        mir::Package mir_package = mir::lower(backend_hir_package);
 
-    if (options.dump_mir) {
-        std::cout << mir::dump(*mir_package);
-    }
+        if (options.dump_mir == DumpRequest::Requested) {
+            std::cout << mir::dump(mir_package);
+        }
 
-    if (options.emit_stub_path.has_value()) {
-        if (!write_text_file(*options.emit_stub_path, hir::emit_stub_backend(package))) {
-            std::cerr << "failed to write stub output to " << *options.emit_stub_path << '\n';
-            return 1;
+        if (native_emit_request == NativeEmitRequestState::NativeArtifactRequested) {
+            backend::EmitKind emit_kind = backend::EmitKind::Llvm;
+            switch (options.native_artifact.kind()) {
+            case NativeArtifactKind::Suppressed:
+                break;
+            case NativeArtifactKind::LlvmIr:
+                emit_kind = backend::EmitKind::Llvm;
+                break;
+            case NativeArtifactKind::Assembly:
+                emit_kind = backend::EmitKind::Assembly;
+                break;
+            case NativeArtifactKind::Object:
+                emit_kind = backend::EmitKind::Object;
+                break;
+            case NativeArtifactKind::Executable:
+                emit_kind = backend::EmitKind::Executable;
+                break;
+            }
+            const backend::EmitOptions emit_options{
+                emit_kind,
+                options.native_artifact.output_path(),
+                options.target_triple,
+            };
+            const std::expected<backend::ArtifactEmissionSucceeded, std::string> emitted =
+                backend::emit_artifact(backend_hir_package, mir_package, emit_options);
+            if (!emitted.has_value()) {
+                std::cerr << emitted.error() << '\n';
+                return 1;
+            }
         }
     }
 
-    std::optional<backend::EmitOptions> emit_options;
-    if (options.emit_llvm_path.has_value()) {
-        emit_options = backend::EmitOptions{backend::EmitKind::Llvm, *options.emit_llvm_path, options.target_triple};
-    } else if (options.emit_asm_path.has_value()) {
-        emit_options = backend::EmitOptions{backend::EmitKind::Assembly, *options.emit_asm_path, options.target_triple};
-    } else if (options.emit_obj_path.has_value()) {
-        emit_options = backend::EmitOptions{backend::EmitKind::Object, *options.emit_obj_path, options.target_triple};
-    } else if (options.emit_exe_path.has_value()) {
-        emit_options = backend::EmitOptions{backend::EmitKind::Executable, *options.emit_exe_path, options.target_triple};
-    }
-
-    if (emit_options.has_value()) {
-        const std::expected<void, std::string> emitted = backend::emit_artifact(*backend_hir_package,
-                                                                                *mir_package,
-                                                                                *emit_options);
-        if (!emitted.has_value()) {
-            std::cerr << emitted.error() << '\n';
+    if (options.stub_emission.kind() == StubEmissionKind::WriteStub) {
+        const std::expected<TextFileWriteSucceeded, std::string> stub_written =
+            write_text_file(options.stub_emission.output_path(), hir::emit_stub_backend(package));
+        if (!stub_written.has_value()) {
+            std::cerr << "failed to write stub output to " << options.stub_emission.output_path() << '\n';
             return 1;
         }
     }

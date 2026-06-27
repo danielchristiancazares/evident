@@ -8,16 +8,26 @@
 
 namespace evident {
 
+enum class SourceCursorState {
+    HasMoreSource,
+    ReachedEnd,
+};
+
+enum class CharacterMatchState {
+    ExpectedCharacterAbsent,
+    ConsumedExpectedCharacter,
+};
+
 class Lexer {
 public:
     Lexer(const SourceFile& source, DiagnosticSink& diagnostics);
     [[nodiscard]] std::vector<Token> lex();
 
 private:
-    [[nodiscard]] bool at_end() const noexcept;
+    [[nodiscard]] SourceCursorState source_cursor_state() const noexcept;
     char peek(std::size_t lookahead = 0) const noexcept;
     char advance() noexcept;
-    [[nodiscard]] bool match(char expected) noexcept;
+    [[nodiscard]] CharacterMatchState match_next(char expected) noexcept;
 
     void skip_whitespace_and_comments();
     Token lex_identifier_or_keyword();

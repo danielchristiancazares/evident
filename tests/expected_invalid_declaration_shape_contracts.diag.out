@@ -28,3 +28,9 @@
 <input>:53:41: error: duplicate parameter 'value'
     foreign fn duplicate_params(value: Int, value: Int) -> Int
                                             ^^^^^^^^^^
+<input>:55:39: error: duplicate parameter 'value'
+    fn duplicate_value_params(value: Int, value: Int) -> Int {
+                                          ^^^^^^^^^^
+<input>:61:5: error: duplicate local binding 'value'
+        let value = 2;
+        ^^^^^^^^^^^^^

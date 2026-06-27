@@ -23,6 +23,31 @@ enum class UseDiscipline {
     ScopedAuthority,
 };
 
+enum class TypeErrorState {
+    CarriesTypeFacts,
+    SuppressesFollowupDiagnostics,
+};
+
+enum class NeverTypeState {
+    ProducesValue,
+    DivergesBeforeFollowingCode,
+};
+
+enum class TypeEquivalence {
+    Different,
+    Equivalent,
+};
+
+enum class DisciplineMovement {
+    Copyable,
+    Affine,
+};
+
+enum class DisciplineMaterialization {
+    RuntimeMaterialized,
+    CompileTimeOnly,
+};
+
 struct Type {
     TypeFlavor flavor = TypeFlavor::Error;
     std::string name;
@@ -39,13 +64,13 @@ using ResolveTypeRefFn = std::function<Type(const ast::Decl* owner_decl,
 [[nodiscard]] Type generic_type(std::string name);
 [[nodiscard]] Type named_type(std::string name, const ast::Decl* decl, std::vector<Type> args = {});
 
-[[nodiscard]] bool is_error(const Type& type);
-[[nodiscard]] bool is_never(const Type& type);
-[[nodiscard]] bool types_equal(const Type& lhs, const Type& rhs);
+[[nodiscard]] TypeErrorState type_error_state(const Type& type);
+[[nodiscard]] NeverTypeState never_type_state(const Type& type);
+[[nodiscard]] TypeEquivalence type_equivalence(const Type& lhs, const Type& rhs);
 [[nodiscard]] std::string type_name(const Type& type);
 
-[[nodiscard]] bool is_affine(UseDiscipline discipline);
-[[nodiscard]] bool is_compile_time_only(UseDiscipline discipline);
+[[nodiscard]] DisciplineMovement discipline_movement(UseDiscipline discipline);
+[[nodiscard]] DisciplineMaterialization discipline_materialization(UseDiscipline discipline);
 [[nodiscard]] UseDiscipline merge_discipline(UseDiscipline lhs, UseDiscipline rhs);
 
 class DisciplineClassifier {

@@ -1,6 +1,5 @@
 #include "evident/ResolvedType.hpp"
 
-#include <cstdint>
 #include <sstream>
 #include <utility>
 
@@ -22,30 +21,37 @@ Type named_type(std::string name, const ast::Decl* decl, std::vector<Type> args)
     return Type{TypeFlavor::Named, std::move(name), decl, std::move(args)};
 }
 
-bool is_error(const Type& type) {
-    return type.flavor == TypeFlavor::Error;
+TypeErrorState type_error_state(const Type& type) {
+    if (type.flavor == TypeFlavor::Error) {
+        return TypeErrorState::SuppressesFollowupDiagnostics;
+    }
+    return TypeErrorState::CarriesTypeFacts;
 }
 
-bool is_never(const Type& type) {
-    return type.flavor == TypeFlavor::Builtin && type.name == "Never" && type.args.empty();
+NeverTypeState never_type_state(const Type& type) {
+    if (type.flavor == TypeFlavor::Builtin && type.name == "Never" && type.args.empty()) {
+        return NeverTypeState::DivergesBeforeFollowingCode;
+    }
+    return NeverTypeState::ProducesValue;
 }
 
-bool types_equal(const Type& lhs, const Type& rhs) {
-    if (is_error(lhs) || is_error(rhs)) {
-        return true;
+TypeEquivalence type_equivalence(const Type& lhs, const Type& rhs) {
+    if (type_error_state(lhs) == TypeErrorState::SuppressesFollowupDiagnostics
+        || type_error_state(rhs) == TypeErrorState::SuppressesFollowupDiagnostics) {
+        return TypeEquivalence::Equivalent;
     }
     if (lhs.flavor != rhs.flavor) {
-        return false;
+        return TypeEquivalence::Different;
     }
     if (lhs.name != rhs.name || lhs.decl != rhs.decl || lhs.args.size() != rhs.args.size()) {
-        return false;
+        return TypeEquivalence::Different;
     }
     for (std::size_t index = 0; index < lhs.args.size(); ++index) {
-        if (!types_equal(lhs.args[index], rhs.args[index])) {
-            return false;
+        if (type_equivalence(lhs.args[index], rhs.args[index]) == TypeEquivalence::Different) {
+            return TypeEquivalence::Different;
         }
     }
-    return true;
+    return TypeEquivalence::Equivalent;
 }
 
 std::string type_name(const Type& type) {
@@ -67,12 +73,18 @@ std::string type_name(const Type& type) {
     return out.str();
 }
 
-bool is_affine(UseDiscipline discipline) {
-    return discipline == UseDiscipline::Affine;
+DisciplineMovement discipline_movement(UseDiscipline discipline) {
+    if (discipline == UseDiscipline::Affine) {
+        return DisciplineMovement::Affine;
+    }
+    return DisciplineMovement::Copyable;
 }
 
-bool is_compile_time_only(UseDiscipline discipline) {
-    return discipline == UseDiscipline::ScopedAuthority;
+DisciplineMaterialization discipline_materialization(UseDiscipline discipline) {
+    if (discipline == UseDiscipline::ScopedAuthority) {
+        return DisciplineMaterialization::CompileTimeOnly;
+    }
+    return DisciplineMaterialization::RuntimeMaterialized;
 }
 
 UseDiscipline merge_discipline(UseDiscipline lhs, UseDiscipline rhs) {
@@ -89,7 +101,7 @@ DisciplineClassifier::DisciplineClassifier(ResolveTypeRefFn resolve_type_ref)
     : resolve_type_ref_(std::move(resolve_type_ref)) {}
 
 UseDiscipline DisciplineClassifier::classify(const Type& type) const {
-    if (is_error(type)) {
+    if (type_error_state(type) == TypeErrorState::SuppressesFollowupDiagnostics) {
         return UseDiscipline::Copyable;
     }
 
@@ -108,7 +120,7 @@ UseDiscipline DisciplineClassifier::classify(const Type& type) const {
 }
 
 UseDiscipline DisciplineClassifier::classify_impl(const Type& type) const {
-    if (is_error(type)) {
+    if (type_error_state(type) == TypeErrorState::SuppressesFollowupDiagnostics) {
         return UseDiscipline::Copyable;
     }
 
@@ -177,7 +189,7 @@ std::string DisciplineClassifier::cache_key(const Type& type) const {
         out << "G:" << type.name;
         break;
     case TypeFlavor::Named:
-        out << "N:" << static_cast<std::uintptr_t>(reinterpret_cast<std::uintptr_t>(type.decl));
+        out << "N:" << type.name;
         break;
     }
     out << '[';

@@ -340,6 +340,9 @@ A conforming implementation MUST also recognize these compiler-owned collection 
 These collection families MUST be used with exactly the type-argument arity shown above. Non-collection built-in
 types MUST NOT be used with type arguments.
 
+String literal expressions have type `Text` by default. In an expected-type position, a string literal may instead
+type as `Text`, `Bytes`, or `CString`. This rule does not create implicit conversions for non-literal values.
+
 `Unit` is the empty success type.
 
 `Never` is the diverging type of expressions that do not continue, such as `fail`.

@@ -14,6 +14,11 @@ enum class DiagnosticSeverity {
     Note,
 };
 
+enum class DiagnosticErrorState {
+    NoErrors,
+    ContainsErrors,
+};
+
 struct Diagnostic {
     DiagnosticSeverity severity = DiagnosticSeverity::Error;
     SourceSpan span{};
@@ -26,7 +31,7 @@ public:
     void warning(SourceSpan span, std::string message);
     void note(SourceSpan span, std::string message);
 
-    [[nodiscard]] bool has_errors() const noexcept;
+    [[nodiscard]] DiagnosticErrorState error_state() const noexcept;
     [[nodiscard]] const std::vector<Diagnostic>& items() const noexcept;
     void print(const SourceFile& source, std::ostream& out) const;
 

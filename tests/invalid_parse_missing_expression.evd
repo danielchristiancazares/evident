@@ -4,3 +4,7 @@ public fn main() -> Int {
     0
 }
 }
+
+record LooseTopLevel {
+    value: Int,
+}

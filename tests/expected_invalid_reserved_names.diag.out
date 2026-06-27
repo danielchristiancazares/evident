@@ -1,3 +1,21 @@
 <input>:3:5: error: public name 'AllowAll' is reserved or too generic
         AllowAll,
         ^^^^^^^^
+<input>:8:12: error: public name 'Missing' is reserved or too generic
+        public Missing: Int,
+               ^^^^^^^^^^^^
+<input>:12:14: error: public name 'Present' is reserved or too generic
+        Loaded { Present: Int },
+                 ^^^^^^^^^^^^
+<input>:16:14: error: public name 'Unknown' is reserved or too generic
+        Denied { Unknown: Text },
+                 ^^^^^^^^^^^^^
+<input>:20:12: error: public name 'Any' is reserved or too generic
+        public Any: Int,
+               ^^^^^^^^
+<input>:28:9: error: public name 'Ready' is reserved or too generic
+            Ready,
+            ^^^^^
+<input>:25:16: error: public name 'All' is reserved or too generic
+            public All: Int,
+                   ^^^^^^^^

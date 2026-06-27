@@ -16,20 +16,27 @@ enum class EmitKind {
     Executable,
 };
 
+enum class EntryPointEmission {
+    UserFunctionsOnly,
+    IncludeExecutableEntryPoint,
+};
+
 struct EmitOptions {
     EmitKind kind = EmitKind::Llvm;
     std::string output_path;
     std::string target_triple = "x86_64-pc-windows-msvc";
 };
 
+struct ArtifactEmissionSucceeded final {};
+
 [[nodiscard]] std::expected<std::string, std::string> emit_llvm_ir(const hir::Package& hir_package,
                                                                    const mir::Package& mir_package,
                                                                    const std::string& target_triple,
-                                                                   bool include_entry_wrapper);
+                                                                   EntryPointEmission entry_point_emission);
 
-[[nodiscard]] std::expected<void, std::string> emit_artifact(const hir::Package& hir_package,
-                                                             const mir::Package& mir_package,
-                                                             const EmitOptions& options);
+[[nodiscard]] std::expected<ArtifactEmissionSucceeded, std::string> emit_artifact(const hir::Package& hir_package,
+                                                                                  const mir::Package& mir_package,
+                                                                                  const EmitOptions& options);
 
 [[nodiscard]] const char* emit_kind_name(EmitKind kind);
 [[nodiscard]] std::string selected_toolchain_driver();

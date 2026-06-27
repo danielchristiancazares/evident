@@ -57,8 +57,8 @@ The repository now lowers validated AST into typed HIR, then into explicit MIR w
 
 The first native ABI/layout pass currently implements:
 
-- builtins such as `Int`, `Nat`, `Float`, `Char`, `Byte`, `CInt`, `CSize`
-- `Text` / `Bytes` and `List<T>` / `NonEmptyList<T>` as `{ ptr, len }`
+- builtins such as `Int`, `Nat`, `Float`, `Char`, `Byte`, `CInt`, `CSize`, and `CString`
+- `Text` / `Bytes`, `List<T>` / `NonEmptyList<T>`, and `Map<K, V>` / `NonEmptyMap<K, V>` as `{ ptr, len }`
 - field-order `record` / `proof`
 - tagged-union `state` / `reason`
 - failing-call boundaries via synthetic yield-result wrappers in LLVM

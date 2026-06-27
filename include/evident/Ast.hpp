@@ -3,7 +3,6 @@
 #include "evident/Source.hpp"
 
 #include <memory>
-#include <optional>
 #include <string>
 #include <string_view>
 #include <vector>
@@ -33,6 +32,18 @@ enum class DeclKind {
     Function,
     ForeignFunction,
 };
+
+enum class FunctionImplementation {
+    EvidentBody,
+    ForeignImport,
+};
+
+[[nodiscard]] inline DeclKind function_decl_kind(FunctionImplementation implementation) noexcept {
+    if (implementation == FunctionImplementation::ForeignImport) {
+        return DeclKind::ForeignFunction;
+    }
+    return DeclKind::Function;
+}
 
 enum class ExprKind {
     NumberLiteral,
@@ -71,6 +82,46 @@ struct TypeRef {
     SourceSpan span{};
 };
 
+enum class FunctionFailureBehavior {
+    ReturnsDeclaredValue,
+    YieldsReason,
+};
+
+enum class FunctionAuthorityEffect {
+    OrdinaryCall,
+    GrantsScopedPermit,
+};
+
+class FunctionFailureContract final {
+public:
+    [[nodiscard]] static FunctionFailureContract returns_declared_value();
+    [[nodiscard]] static FunctionFailureContract yields_reason(TypeRef reason_type);
+
+    [[nodiscard]] FunctionFailureBehavior behavior() const noexcept { return behavior_; }
+    [[nodiscard]] const TypeRef& reason_type() const noexcept { return reason_type_; }
+
+private:
+    FunctionFailureBehavior behavior_;
+    TypeRef reason_type_;
+
+    FunctionFailureContract(FunctionFailureBehavior behavior, TypeRef reason_type);
+};
+
+class FunctionAuthorityContract final {
+public:
+    [[nodiscard]] static FunctionAuthorityContract ordinary_call();
+    [[nodiscard]] static FunctionAuthorityContract grants_scoped_permit(TypeRef permit_type);
+
+    [[nodiscard]] FunctionAuthorityEffect effect() const noexcept { return effect_; }
+    [[nodiscard]] const TypeRef& permit_type() const noexcept { return permit_type_; }
+
+private:
+    FunctionAuthorityEffect effect_;
+    TypeRef permit_type_;
+
+    FunctionAuthorityContract(FunctionAuthorityEffect effect, TypeRef permit_type);
+};
+
 struct GenericParam {
     std::string name;
     SourceSpan span{};
@@ -89,10 +140,30 @@ struct Variant {
     SourceSpan span{};
 };
 
+enum class ParameterAuthority {
+    OrdinaryValue,
+    PermitBinding,
+};
+
+enum class PathArgumentRole {
+    ValueReference,
+    PermitArgument,
+};
+
+enum class FieldInitSpelling {
+    ExplicitValue,
+    ShorthandBinding,
+};
+
+enum class SuccessPatternBinding {
+    NamedBinding,
+    DiscardedValue,
+};
+
 struct Parameter {
     std::string name;
     TypeRef type;
-    bool is_permit_param = false;
+    ParameterAuthority authority = ParameterAuthority::OrdinaryValue;
     SourceSpan span{};
 };
 
@@ -101,8 +172,8 @@ struct FunctionSignature {
     std::vector<GenericParam> generic_params;
     std::vector<Parameter> params;
     TypeRef return_type;
-    std::optional<TypeRef> fails_type;
-    std::optional<TypeRef> grants_type;
+    FunctionFailureContract failure = FunctionFailureContract::returns_declared_value();
+    FunctionAuthorityContract authority = FunctionAuthorityContract::ordinary_call();
     std::vector<TypeRef> proves_types;
     SourceSpan span{};
 };
@@ -114,7 +185,7 @@ struct Stmt;
 struct RecordFieldInit {
     std::string name;
     std::unique_ptr<Expr> value;
-    bool shorthand = false;
+    FieldInitSpelling spelling = FieldInitSpelling::ExplicitValue;
     SourceSpan span{};
 };
 
@@ -142,7 +213,7 @@ struct StringLiteralExpr final : Expr {
 
 struct PathExpr final : Expr {
     std::vector<std::string> path;
-    bool explicit_permit_argument = false;
+    PathArgumentRole argument_role = PathArgumentRole::ValueReference;
 
     PathExpr()
         : Expr(ExprKind::Path) {}
@@ -211,8 +282,8 @@ struct VariantPattern final : Pattern {
 };
 
 struct SucceededPattern final : Pattern {
-    std::optional<std::string> binding_name;
-    bool ignore = false;
+    SuccessPatternBinding binding = SuccessPatternBinding::DiscardedValue;
+    std::string binding_name;
 
     SucceededPattern()
         : Pattern(PatternKind::Succeeded) {}
@@ -358,14 +429,18 @@ struct PhaseDecl final : Decl {
 struct FunctionDecl final : Decl {
     FunctionSignature signature;
     std::unique_ptr<BlockExpr> body;
-    std::optional<SourceSpan> body_span;
 
-    explicit FunctionDecl(Visibility visibility, std::string name, bool is_foreign)
-        : Decl(is_foreign ? DeclKind::ForeignFunction : DeclKind::Function,
+    explicit FunctionDecl(Visibility visibility, std::string name, FunctionImplementation implementation)
+        : Decl(function_decl_kind(implementation),
                visibility,
                std::move(name)) {}
 
-    [[nodiscard]] bool is_foreign() const noexcept { return kind == DeclKind::ForeignFunction; }
+    [[nodiscard]] FunctionImplementation implementation() const noexcept {
+        if (kind == DeclKind::ForeignFunction) {
+            return FunctionImplementation::ForeignImport;
+        }
+        return FunctionImplementation::EvidentBody;
+    }
 };
 
 struct ImportDecl {

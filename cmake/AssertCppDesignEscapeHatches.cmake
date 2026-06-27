@@ -1,0 +1,79 @@
+if(NOT DEFINED SOURCE_DIR)
+    message(FATAL_ERROR "SOURCE_DIR is required")
+endif()
+
+set(scan_roots)
+foreach(candidate IN ITEMS "${SOURCE_DIR}/src" "${SOURCE_DIR}/include")
+    if(EXISTS "${candidate}")
+        list(APPEND scan_roots "${candidate}")
+    endif()
+endforeach()
+
+if(NOT scan_roots)
+    set(scan_roots "${SOURCE_DIR}")
+endif()
+
+set(source_files)
+foreach(scan_root IN LISTS scan_roots)
+    foreach(extension IN ITEMS cpp cxx cc c h hpp hxx)
+        file(GLOB_RECURSE matched_files
+            LIST_DIRECTORIES FALSE
+            "${scan_root}/*.${extension}"
+        )
+        list(APPEND source_files ${matched_files})
+    endforeach()
+endforeach()
+
+list(REMOVE_DUPLICATES source_files)
+list(SORT source_files)
+
+set(violations)
+
+function(check_forbidden_pattern pattern label)
+    foreach(source_file IN LISTS source_files)
+        file(READ "${source_file}" source_text)
+        string(REGEX MATCH "${pattern}" forbidden_match "${source_text}")
+        if(NOT forbidden_match STREQUAL "")
+            list(APPEND violations
+                "${source_file}: forbidden ${label}: ${forbidden_match}"
+            )
+        endif()
+    endforeach()
+    set(violations "${violations}" PARENT_SCOPE)
+endfunction()
+
+check_forbidden_pattern("dynamic_cast[ \t\r\n]*<" "dynamic_cast")
+check_forbidden_pattern("const_cast[ \t\r\n]*<" "const_cast")
+check_forbidden_pattern("reinterpret_cast[ \t\r\n]*<" "reinterpret_cast")
+check_forbidden_pattern("(^|[^A-Za-z0-9_])typeid[ \t\r\n]*\\(" "typeid")
+check_forbidden_pattern("std::variant[ \t\r\n]*<" "std::variant")
+check_forbidden_pattern("std::any([^A-Za-z0-9_]|$)" "std::any")
+check_forbidden_pattern("std::weak_ptr[ \t\r\n]*<" "std::weak_ptr")
+check_forbidden_pattern("std::nullptr_t([^A-Za-z0-9_]|$)" "std::nullptr_t")
+check_forbidden_pattern("std::expected[ \t\r\n]*<[ \t\r\n]*void[ \t\r\n]*," "std::expected<void, E>")
+check_forbidden_pattern("std::vector[ \t\r\n]*<[ \t\r\n]*bool[ \t\r\n]*>" "std::vector<bool>")
+check_forbidden_pattern("std::monostate([^A-Za-z0-9_]|$)" "std::monostate")
+check_forbidden_pattern("std::shared_mutex([^A-Za-z0-9_]|$)" "std::shared_mutex")
+check_forbidden_pattern("std::condition_variable([^A-Za-z0-9_]|$)" "std::condition_variable")
+check_forbidden_pattern("std::shared_ptr[ \t\r\n]*<[ \t\r\n]*std::mutex[ \t\r\n]*>" "std::shared_ptr<std::mutex>")
+check_forbidden_pattern("(^|[^A-Za-z0-9_])friend[ \t\r\n]+class[ \t\r\n]+" "friend class")
+check_forbidden_pattern("(^|[^A-Za-z0-9_])operator[ \t\r\n]+bool[ \t\r\n]*\\(" "operator bool")
+check_forbidden_pattern("(^|[^A-Za-z0-9_])void[ \t\r\n]*\\*" "void*")
+check_forbidden_pattern("\\([ \t\r\n]*void[ \t\r\n]*\\)" "C-style void cast")
+check_forbidden_pattern("\\([ \t\r\n]*[A-Za-z_][A-Za-z0-9_:]*[ \t\r\n]*\\*[ \t\r\n]*\\)" "C-style pointer cast")
+check_forbidden_pattern("\\([ \t\r\n]*(bool|char|double|float|int|long|short|signed|size_t|std::size_t|unsigned|u?int[0-9]+_t|std::u?int[0-9]+_t)[ \t\r\n]*\\)[ \t\r\n]*[-+~!*&A-Za-z_0-9(]" "C-style scalar cast")
+check_forbidden_pattern("std::terminate[ \t\r\n]*\\(" "std::terminate")
+check_forbidden_pattern("(^|[^A-Za-z0-9_])memset[ \t\r\n]*\\(" "memset")
+check_forbidden_pattern("std::memset[ \t\r\n]*\\(" "std::memset")
+check_forbidden_pattern("(^|[^A-Za-z0-9_])calloc[ \t\r\n]*\\(" "calloc")
+check_forbidden_pattern("std::calloc[ \t\r\n]*\\(" "std::calloc")
+check_forbidden_pattern("\\.value[ \t\r\n]*\\(" ".value()")
+check_forbidden_pattern("\\.value_or[ \t\r\n]*\\(" ".value_or()")
+check_forbidden_pattern("(^|[^A-Za-z0-9_])assert[ \t\r\n]*\\(" "assert()")
+
+if(violations)
+    string(REPLACE ";" "\n  " formatted_violations "${violations}")
+    message(FATAL_ERROR
+        "C++ design escape hatches are forbidden by docs/CPP_DESIGN.md:\n  ${formatted_violations}"
+    )
+endif()

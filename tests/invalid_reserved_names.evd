@@ -3,4 +3,30 @@ public state AccessMode {
     AllowAll,
     Restricted,
 }
+
+public record PublicRecord {
+    public Missing: Int,
+}
+
+public state PublicStatePayload {
+    Loaded { Present: Int },
+}
+
+public reason PublicReasonPayload {
+    Denied { Unknown: Text },
+}
+
+public proof PublicProof {
+    public Any: Int,
+}
+
+public phase Lifecycle {
+    fields {
+        public All: Int,
+    }
+    positions {
+        Ready,
+        Draft,
+    }
+}
 }

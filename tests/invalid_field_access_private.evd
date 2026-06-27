@@ -1,12 +1,44 @@
 domain module outer {
     public record Resource {
-        public x: Int,
-        y: Int,
+        public value: Int,
+        detail: Int,
+    }
+
+    public proof Receipt {
+        public value: Int,
+        count: Int,
+    }
+
+    public fn mint() -> Receipt proves Receipt {
+        prove Receipt { value: 1, count: 7 }
+    }
+
+    public phase Config {
+        fields {
+            public value: Int,
+            secret: Int,
+        }
+
+        positions {
+            Draft,
+        }
+    }
+
+    public fn make_draft() -> Config::Draft {
+        Config::Draft { value: 1, secret: 7 }
     }
 }
 
 domain module client {
-    public fn read_y(r: outer::Resource) -> Int {
-        r.y
+    public fn read_detail(r: outer::Resource) -> Int {
+        r.detail
+    }
+
+    public fn read_count(r: outer::Receipt) -> Int {
+        r.count
+    }
+
+    public fn read_secret(c: outer::Config::Draft) -> Int {
+        c.secret
     }
 }

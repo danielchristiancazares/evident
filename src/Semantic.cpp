@@ -4,7 +4,6 @@
 
 #include <algorithm>
 #include <memory>
-#include <optional>
 #include <sstream>
 #include <string>
 #include <string_view>
@@ -43,31 +42,155 @@ const std::unordered_set<std::string_view> kPseudoOptionalNames = {
     "Present", "Absent", "Missing", "Some", "None", "Known", "Unknown",
 };
 
+const std::unordered_set<std::string_view> kSemanticGenericNames = {
+    "Validated",  "Authorized",  "Settled",  "Draft",
+    "validated",  "authorized",  "settled",  "draft",
+};
+
 const std::unordered_set<std::string_view> kBuiltins = {
     "Int",   "Nat",   "Float",  "Char",  "Text",    "Bytes",
     "Never", "List",  "NonEmptyList",  "Map",   "NonEmptyMap",    "CString",
     "CInt",  "CSize", "Byte",   "Unit",
 };
 
-bool is_reserved_public_name(std::string_view name) {
-    return name.size() == 1 || kReservedPublicNames.contains(name);
+std::string final_path_segment_or_malformed_path(const std::vector<std::string>& path) {
+    if (path.empty()) {
+        return "<malformed path>";
+    }
+    return path.back();
 }
 
-bool is_builtin(std::string_view name) {
-    return kBuiltins.contains(name);
+enum class VariantNamingRole {
+    DomainAlternativeName,
+    PseudoOptionalCarrierName,
+};
+
+enum class ParameterTypeAuthority {
+    OrdinaryOrUnresolvedType,
+    PermitType,
+};
+
+enum class TypeArgumentPreparation {
+    ReadyForInstantiation,
+    RejectedByDiagnostics,
+};
+
+enum class PublicNamePolicy {
+    InternalName,
+    ExportedName,
+};
+
+enum class GenericStructuralRole {
+    StructurallyBlind,
+    SemanticWrapper,
+};
+
+enum class TypeReferencePathRole {
+    EmptyPath,
+    GenericParameter,
+    BuiltinTypeName,
+    NamedTypePath,
+};
+
+enum class PublicNameReservation {
+    AvailableForPublicUse,
+    ReservedForPublicSurface,
+};
+
+enum class BuiltinNameState {
+    UserDeclaredName,
+    CompilerBuiltinName,
+};
+
+enum class TypeDeclarationRole {
+    DoesNotIntroduceType,
+    IntroducesType,
+};
+
+enum class ScopeContainment {
+    SeparateScopeBranch,
+    AncestorOrSameScope,
+};
+
+enum class ImportPathCoverage {
+    OutsideFileImports,
+    CoveredByFileImport,
+};
+
+enum class CrossModuleReferenceAccess {
+    ReferenceMayProceed,
+    MatchingImportRequired,
+};
+
+enum class PermitTypeState {
+    RuntimeValueType,
+    PermitValueType,
+};
+
+enum class AssignmentCompatibility {
+    TypeMismatch,
+    AssignmentAllowed,
+};
+
+enum class StringLiteralTypingState {
+    RequiresTextDefault,
+    AcceptsStringLiteral,
+};
+
+enum class BuiltinTypeArgumentArity {
+    UserDeclaredTypeName,
+    NoTypeArguments,
+    OneTypeArgument,
+    TwoTypeArguments,
+};
+
+PublicNameReservation public_name_reservation(std::string_view name) {
+    return name.size() == 1 || kReservedPublicNames.contains(name)
+        ? PublicNameReservation::ReservedForPublicSurface
+        : PublicNameReservation::AvailableForPublicUse;
 }
 
-std::optional<std::size_t> expected_builtin_type_arg_count(std::string_view name) {
+BuiltinNameState builtin_name_state(std::string_view name) {
+    return kBuiltins.contains(name) ? BuiltinNameState::CompilerBuiltinName
+                                    : BuiltinNameState::UserDeclaredName;
+}
+
+GenericStructuralRole generic_structural_role(std::string_view name) {
+    return kSemanticGenericNames.contains(name)
+        ? GenericStructuralRole::SemanticWrapper
+        : GenericStructuralRole::StructurallyBlind;
+}
+
+VariantNamingRole variant_naming_role(std::string_view name) {
+    return kPseudoOptionalNames.contains(name)
+        ? VariantNamingRole::PseudoOptionalCarrierName
+        : VariantNamingRole::DomainAlternativeName;
+}
+
+BuiltinTypeArgumentArity builtin_type_argument_arity(std::string_view name) {
     if (name == "List" || name == "NonEmptyList") {
-        return 1;
+        return BuiltinTypeArgumentArity::OneTypeArgument;
     }
     if (name == "Map" || name == "NonEmptyMap") {
+        return BuiltinTypeArgumentArity::TwoTypeArguments;
+    }
+    if (builtin_name_state(name) == BuiltinNameState::CompilerBuiltinName) {
+        return BuiltinTypeArgumentArity::NoTypeArguments;
+    }
+    return BuiltinTypeArgumentArity::UserDeclaredTypeName;
+}
+
+std::size_t expected_builtin_type_arg_count(BuiltinTypeArgumentArity arity) {
+    switch (arity) {
+    case BuiltinTypeArgumentArity::NoTypeArguments:
+    case BuiltinTypeArgumentArity::UserDeclaredTypeName:
+        return 0;
+    case BuiltinTypeArgumentArity::OneTypeArgument:
+        return 1;
+    case BuiltinTypeArgumentArity::TwoTypeArguments:
         return 2;
     }
-    if (is_builtin(name)) {
-        return 0;
-    }
-    return std::nullopt;
+    return 0;
 }
 
 std::string format_path(const std::vector<std::string>& path) {
@@ -87,12 +210,80 @@ const ast::StateDecl* as_state(const ast::Decl* decl) {
         : nullptr;
 }
 
+enum class TypePrivacyPolicy {
+    PrivateReferencesAllowed,
+    PublicApiRequiresPublicTypes,
+};
+
+enum class ReasonTypePolicy {
+    RejectReasonTypes,
+    AllowReasonTypes,
+};
+
+enum class PermitTypePolicy {
+    RejectPermitTypes,
+    AllowPermitTypes,
+};
+
+ParameterTypeAuthority parameter_type_authority(const Symbol* symbol) {
+    return symbol != nullptr && symbol->kind == ast::DeclKind::Permit
+        ? ParameterTypeAuthority::PermitType
+        : ParameterTypeAuthority::OrdinaryOrUnresolvedType;
+}
+
+PermitTypePolicy permit_type_policy_for_parameter(ast::ParameterAuthority parameter_authority,
+                                                  ParameterTypeAuthority type_authority) {
+    return parameter_authority == ast::ParameterAuthority::PermitBinding
+            || type_authority == ParameterTypeAuthority::PermitType
+        ? PermitTypePolicy::AllowPermitTypes
+        : PermitTypePolicy::RejectPermitTypes;
+}
+
+PublicNamePolicy public_name_policy(ast::Visibility visibility) {
+    return visibility == ast::Visibility::Public
+        ? PublicNamePolicy::ExportedName
+        : PublicNamePolicy::InternalName;
+}
+
+PublicNamePolicy field_name_policy(ast::Visibility owner_visibility, ast::Visibility field_visibility) {
+    return owner_visibility == ast::Visibility::Public && field_visibility == ast::Visibility::Public
+        ? PublicNamePolicy::ExportedName
+        : PublicNamePolicy::InternalName;
+}
+
+TypeReferencePathRole type_reference_path_role(const std::vector<std::string>& path,
+                                               const std::vector<std::string>& generics) {
+    if (path.empty()) {
+        return TypeReferencePathRole::EmptyPath;
+    }
+    if (path.size() == 1
+        && std::find(generics.begin(), generics.end(), path.front()) != generics.end()) {
+        return TypeReferencePathRole::GenericParameter;
+    }
+    if (builtin_name_state(path.front()) == BuiltinNameState::CompilerBuiltinName) {
+        return TypeReferencePathRole::BuiltinTypeName;
+    }
+    return TypeReferencePathRole::NamedTypePath;
+}
+
 struct TypeUseRules {
-    bool require_public = false;
-    bool allow_reason = false;
-    bool allow_permit = false;
+    TypePrivacyPolicy privacy = TypePrivacyPolicy::PrivateReferencesAllowed;
+    ReasonTypePolicy reason = ReasonTypePolicy::RejectReasonTypes;
+    PermitTypePolicy permit = PermitTypePolicy::RejectPermitTypes;
     std::string_view context;
 };
+
+TypePrivacyPolicy type_privacy_policy(ast::Visibility visibility) {
+    return visibility == ast::Visibility::Public
+        ? TypePrivacyPolicy::PublicApiRequiresPublicTypes
+        : TypePrivacyPolicy::PrivateReferencesAllowed;
+}
+
+TypePrivacyPolicy field_type_privacy_policy(ast::Visibility owner_visibility, ast::Visibility field_visibility) {
+    return owner_visibility == ast::Visibility::Public && field_visibility == ast::Visibility::Public
+        ? TypePrivacyPolicy::PublicApiRequiresPublicTypes
+        : TypePrivacyPolicy::PrivateReferencesAllowed;
+}
 
 class Analyzer {
 public:
@@ -108,27 +299,71 @@ public:
     void analyze(const ast::TranslationUnit& unit) {
         build_scope(unit.decls, root_, "");
         validate_imports(unit.imports);
-        analyze_scope(unit.decls, root_, true, std::nullopt);
+        analyze_scope(unit.decls,
+                      root_,
+                      PublicReachability::ReachableThroughPublicParents,
+                      PackageRootDeclarationContext{});
     }
 
 private:
     using Type = typesys::Type;
     using UseDiscipline = typesys::UseDiscipline;
 
+    enum class ControlFlowReachability {
+        ContinuesToFollowingCode,
+        DivergesBeforeFollowingCode,
+    };
+
+    enum class CrossModuleReferencePolicy {
+        PackageWideReferencesAllowed,
+        FileLocalImportsRequired,
+    };
+
+    enum class PublicReachability {
+        ReachableThroughPublicParents,
+        HiddenByPrivateParent,
+    };
+
+    enum class DeclarationAdmission {
+        AnalyzeDeclaration,
+        SkipDeclaration,
+    };
+
+    struct PackageRootDeclarationContext {};
+
+    struct ModuleBodyDeclarationContext {
+        ast::ModuleKind module_kind = ast::ModuleKind::Domain;
+    };
+
     struct ExprType {
         Type value;
         const ast::ReasonDecl* yielded_reason = nullptr;
-        bool reachable = true;
+        ControlFlowReachability reachability = ControlFlowReachability::ContinuesToFollowingCode;
     };
 
     using BindingId = std::size_t;
+
+    enum class BindingMoveState {
+        AvailableForUse,
+        MovedFrom,
+    };
+
+    enum class BindingMoveOriginEvidence {
+        NoMoveRecorded,
+        PreviousMoveRecorded,
+    };
+
+    struct BindingMoveOrigin {
+        BindingMoveOriginEvidence evidence = BindingMoveOriginEvidence::NoMoveRecorded;
+        SourceSpan span;
+    };
 
     struct BindingState {
         BindingId id = 0;
         Type type;
         UseDiscipline discipline = UseDiscipline::Copyable;
-        bool moved = false;
-        std::optional<SourceSpan> moved_at;
+        BindingMoveState move_state = BindingMoveState::AvailableForUse;
+        BindingMoveOrigin move_origin;
     };
 
     struct ValueEnv {
@@ -137,7 +372,27 @@ private:
 
     struct BranchState {
         ValueEnv env;
-        bool reachable = true;
+        ControlFlowReachability reachability = ControlFlowReachability::ContinuesToFollowingCode;
+    };
+
+    enum class FieldInitializationCheck {
+        Accepted,
+        Rejected,
+    };
+
+    enum class ProofMintingAuthorization {
+        AuthorizedByFunctionContract,
+        ProofNotListedInFunctionContract,
+    };
+
+    enum class MatchArmResultCoverage {
+        NoArmResultAvailable,
+        ArmResultAvailable,
+    };
+
+    enum class FailingMatchSuccessCoverage {
+        SucceededArmMissing,
+        SucceededArmObserved,
     };
 
     struct FunctionContext {
@@ -150,16 +405,37 @@ private:
         std::vector<const ast::ProofDecl*> proves_proofs;
     };
 
+    enum class VariantOwnerKind {
+        StateDeclaration,
+        ReasonDeclaration,
+    };
+
+    enum class VariantResolutionState {
+        NoMatchingVariant,
+        UniqueVariant,
+        AmbiguousVariant,
+    };
+
     struct VariantResolution {
         const ast::Decl* owner_decl = nullptr;
         const ast::Variant* variant = nullptr;
-        bool ambiguous = false;
+        VariantResolutionState state = VariantResolutionState::NoMatchingVariant;
     };
 
     struct PhasePositionType {
         const ast::Decl* decl = nullptr;
         ast::Visibility visibility = ast::Visibility::Private;
         std::string qualified_name;
+    };
+
+    enum class PhasePositionResolutionState {
+        PathNamesOtherType,
+        PathNamesPhasePosition,
+    };
+
+    struct PhasePositionResolution {
+        PhasePositionResolutionState state = PhasePositionResolutionState::PathNamesOtherType;
+        PhasePositionType position;
     };
 
     DiagnosticSink& diagnostics_;
@@ -170,7 +446,8 @@ private:
     std::unordered_map<std::string, std::vector<std::vector<std::string>>> imported_module_paths_by_file_;
     std::unordered_set<std::string> checked_generic_function_instantiations_;
     std::unordered_set<std::string> active_generic_function_instantiations_;
-    bool import_gate_enabled_ = false;
+    CrossModuleReferencePolicy cross_module_reference_policy_ =
+        CrossModuleReferencePolicy::PackageWideReferencesAllowed;
     typesys::DisciplineClassifier discipline_classifier_;
     BindingId next_binding_id_ = 1;
 
@@ -222,7 +499,8 @@ private:
 
         if (path.size() == 1) {
             const std::string& name = path.front();
-            if (std::find(local_generics.begin(), local_generics.end(), name) != local_generics.end() || is_builtin(name)) {
+            if (std::find(local_generics.begin(), local_generics.end(), name) != local_generics.end()
+                || builtin_name_state(name) == BuiltinNameState::CompilerBuiltinName) {
                 return nullptr;
             }
             for (const Scope* scope = &current_scope; scope != nullptr; scope = scope->parent) {
@@ -258,19 +536,27 @@ private:
 
     VariantResolution resolve_variant(const Scope& current_scope,
                                       const std::vector<std::string>& path,
-                                      bool allow_state,
-                                      bool allow_reason) const {
+                                      VariantOwnerKind owner_kind) const {
         VariantResolution result;
         if (path.empty()) {
             return result;
         }
 
+        auto owner_kind_matches = [owner_kind](ast::DeclKind candidate) {
+            switch (owner_kind) {
+            case VariantOwnerKind::StateDeclaration:
+                return candidate == ast::DeclKind::State;
+            case VariantOwnerKind::ReasonDeclaration:
+                return candidate == ast::DeclKind::Reason;
+            }
+            return false;
+        };
+
         auto try_owner = [&](const ast::Decl* owner, std::string_view variant_name) {
             if (owner == nullptr) {
                 return;
             }
-            if ((owner->kind == ast::DeclKind::State && !allow_state)
-                || (owner->kind == ast::DeclKind::Reason && !allow_reason)) {
+            if (!owner_kind_matches(owner->kind)) {
                 return;
             }
 
@@ -280,11 +566,12 @@ private:
             for (const ast::Variant& variant : *variants) {
                 if (variant.name == variant_name) {
                     if (result.variant != nullptr && result.owner_decl != owner) {
-                        result.ambiguous = true;
+                        result.state = VariantResolutionState::AmbiguousVariant;
                         return;
                     }
                     result.owner_decl = owner;
                     result.variant = &variant;
+                    result.state = VariantResolutionState::UniqueVariant;
                     return;
                 }
             }
@@ -300,10 +587,9 @@ private:
 
         for (const Scope* scope = &current_scope; scope != nullptr; scope = scope->parent) {
             for (const auto& [_, symbol] : scope->symbols) {
-                if ((symbol.kind == ast::DeclKind::State && allow_state)
-                    || (symbol.kind == ast::DeclKind::Reason && allow_reason)) {
+                if (owner_kind_matches(symbol.kind)) {
                     try_owner(symbol.decl, path.front());
-                    if (result.ambiguous) {
+                    if (result.state == VariantResolutionState::AmbiguousVariant) {
                         return result;
                     }
                 }
@@ -312,7 +598,7 @@ private:
         return result;
     }
 
-    static bool is_type_decl_kind(ast::DeclKind kind) {
+    static TypeDeclarationRole declaration_type_role(ast::DeclKind kind) {
         switch (kind) {
         case ast::DeclKind::Record:
         case ast::DeclKind::State:
@@ -320,9 +606,9 @@ private:
         case ast::DeclKind::Proof:
         case ast::DeclKind::Permit:
         case ast::DeclKind::Phase:
-            return true;
+            return TypeDeclarationRole::IntroducesType;
         default:
-            return false;
+            return TypeDeclarationRole::DoesNotIntroduceType;
         }
     }
 
@@ -344,14 +630,13 @@ private:
         return typesys::named_type(name, decl, std::move(args));
     }
 
-    // True if `ancestor` is `descendant` or an ancestor along `parent` links (nested modules).
-    static bool scope_encloses(const Scope* ancestor, const Scope* descendant) {
+    static ScopeContainment scope_containment(const Scope* ancestor, const Scope* descendant) {
         for (const Scope* p = descendant; p != nullptr; p = p->parent) {
             if (p == ancestor) {
-                return true;
+                return ScopeContainment::AncestorOrSameScope;
             }
         }
-        return false;
+        return ScopeContainment::SeparateScopeBranch;
     }
 
     const Scope* declaring_scope(const ast::Decl* decl) const {
@@ -364,18 +649,19 @@ private:
             if (symbol.kind != ast::DeclKind::Module || symbol.child_scope == nullptr) {
                 continue;
             }
-            if (scope_encloses(symbol.child_scope.get(), &scope)) {
+            if (scope_containment(symbol.child_scope.get(), &scope)
+                == ScopeContainment::AncestorOrSameScope) {
                 return &symbol;
             }
         }
         return nullptr;
     }
 
-    bool path_is_under_import(const std::vector<std::string>& path, SourceSpan span) const {
+    ImportPathCoverage path_import_coverage(const std::vector<std::string>& path, SourceSpan span) const {
         const std::string source_path(source_.path_at(span.begin));
         const auto imports_it = imported_module_paths_by_file_.find(source_path);
         if (imports_it == imported_module_paths_by_file_.end()) {
-            return false;
+            return ImportPathCoverage::OutsideFileImports;
         }
 
         for (const std::vector<std::string>& imported_path : imports_it->second) {
@@ -383,74 +669,83 @@ private:
                 continue;
             }
             if (std::equal(imported_path.begin(), imported_path.end(), path.begin())) {
-                return true;
+                return ImportPathCoverage::CoveredByFileImport;
             }
         }
-        return false;
+        return ImportPathCoverage::OutsideFileImports;
     }
 
-    bool check_import_access(const Scope& scope, const std::vector<std::string>& path, SourceSpan span) {
-        if (!import_gate_enabled_ || path.size() < 2) {
-            return true;
+    CrossModuleReferenceAccess check_import_access(const Scope& scope,
+                                                   const std::vector<std::string>& path,
+                                                   SourceSpan span) {
+        if (cross_module_reference_policy_ == CrossModuleReferencePolicy::PackageWideReferencesAllowed
+            || path.size() < 2) {
+            return CrossModuleReferenceAccess::ReferenceMayProceed;
         }
 
         const auto root_it = root_.symbols.find(path.front());
         if (root_it == root_.symbols.end() || root_it->second.kind != ast::DeclKind::Module) {
-            return true;
+            return CrossModuleReferenceAccess::ReferenceMayProceed;
         }
 
         if (const Symbol* current_top_level = containing_top_level_module(scope);
             current_top_level != nullptr && current_top_level->decl != nullptr
             && current_top_level->decl->name == path.front()) {
-            return true;
+            return CrossModuleReferenceAccess::ReferenceMayProceed;
         }
 
-        if (path_is_under_import(path, span)) {
-            return true;
+        if (path_import_coverage(path, span) == ImportPathCoverage::CoveredByFileImport) {
+            return CrossModuleReferenceAccess::ReferenceMayProceed;
         }
 
         diagnostics_.error(span,
                            "cross-module reference '" + format_path(path) + "' requires a matching import");
-        return false;
+        return CrossModuleReferenceAccess::MatchingImportRequired;
     }
 
-    std::optional<PhasePositionType> resolve_phase_position_type(const Scope& scope,
-                                                                 const std::vector<std::string>& generics,
-                                                                 const std::vector<std::string>& path) const {
+    PhasePositionResolution resolve_phase_position_type(const Scope& scope,
+                                                        const std::vector<std::string>& generics,
+                                                        const std::vector<std::string>& path) const {
         if (path.size() < 2) {
-            return std::nullopt;
+            return {};
         }
 
         std::vector<std::string> family_path(path.begin(), path.end() - 1);
         const std::string& position_name = path.back();
         const Symbol* symbol = resolve_symbol(scope, generics, family_path);
         if (symbol == nullptr || symbol->kind != ast::DeclKind::Phase) {
-            return std::nullopt;
+            return {};
         }
 
         const auto& phase_decl = static_cast<const ast::PhaseDecl&>(*symbol->decl);
         if (std::find(phase_decl.positions.begin(), phase_decl.positions.end(), position_name)
             == phase_decl.positions.end()) {
-            return std::nullopt;
+            return {};
         }
 
-        return PhasePositionType{
-            symbol->decl,
-            symbol->visibility,
-            qualified_names_.at(symbol->decl) + "::" + position_name,
+        return PhasePositionResolution{
+            PhasePositionResolutionState::PathNamesPhasePosition,
+            PhasePositionType{
+                symbol->decl,
+                symbol->visibility,
+                qualified_names_.at(symbol->decl) + "::" + position_name,
+            },
         };
     }
 
-    bool is_error(const Type& type) const {
-        return typesys::is_error(type);
+    typesys::TypeErrorState type_error_state(const Type& type) const {
+        return typesys::type_error_state(type);
     }
 
-    bool is_never(const Type& type) const {
-        return typesys::is_never(type);
+    typesys::NeverTypeState never_type_state(const Type& type) const {
+        return typesys::never_type_state(type);
     }
 
-    bool is_permit_type(const Type& type) const {
-        return typesys::is_compile_time_only(discipline(type));
+    PermitTypeState permit_type_state(const Type& type) const {
+        return typesys::discipline_materialization(discipline(type))
+                == typesys::DisciplineMaterialization::CompileTimeOnly
+            ? PermitTypeState::PermitValueType
+            : PermitTypeState::RuntimeValueType;
     }
 
     UseDiscipline discipline(const Type& type) const {
@@ -461,20 +756,70 @@ private:
         return typesys::type_name(type);
     }
 
-    bool types_equal(const Type& lhs, const Type& rhs) const {
-        return typesys::types_equal(lhs, rhs);
+    typesys::TypeEquivalence type_equivalence(const Type& lhs, const Type& rhs) const {
+        return typesys::type_equivalence(lhs, rhs);
+    }
+
+    static PublicReachability declaration_public_reachability(PublicReachability enclosing,
+                                                              ast::Visibility declaration_visibility) {
+        switch (enclosing) {
+        case PublicReachability::ReachableThroughPublicParents:
+            return declaration_visibility == ast::Visibility::Public
+                ? PublicReachability::ReachableThroughPublicParents
+                : PublicReachability::HiddenByPrivateParent;
+        case PublicReachability::HiddenByPrivateParent:
+            return PublicReachability::HiddenByPrivateParent;
+        }
+        return PublicReachability::HiddenByPrivateParent;
+    }
+
+    static void mark_binding_moved(BindingState& binding, SourceSpan origin_span) {
+        binding.move_state = BindingMoveState::MovedFrom;
+        binding.move_origin = BindingMoveOrigin{
+            BindingMoveOriginEvidence::PreviousMoveRecorded,
+            origin_span,
+        };
+    }
+
+    static void copy_binding_move_state(BindingState& target, const BindingState& source) {
+        target.move_state = source.move_state;
+        target.move_origin = source.move_origin;
     }
 
     ExprType make_expr(Type value, const ast::ReasonDecl* yielded_reason = nullptr) const {
-        const bool reachable = !is_never(value);
-        return ExprType{std::move(value), yielded_reason, reachable};
+        const ControlFlowReachability reachability =
+            never_type_state(value) == typesys::NeverTypeState::DivergesBeforeFollowingCode
+            ? ControlFlowReachability::DivergesBeforeFollowingCode
+            : ControlFlowReachability::ContinuesToFollowingCode;
+        return ExprType{std::move(value), yielded_reason, reachability};
     }
 
-    bool assignable_to(const Type& target, const Type& actual) const {
-        if (is_error(target) || is_error(actual) || is_never(actual)) {
-            return true;
+    AssignmentCompatibility assignment_compatibility(const Type& target, const Type& actual) const {
+        if (type_error_state(target) == typesys::TypeErrorState::SuppressesFollowupDiagnostics
+            || type_error_state(actual) == typesys::TypeErrorState::SuppressesFollowupDiagnostics
+            || never_type_state(actual) == typesys::NeverTypeState::DivergesBeforeFollowingCode) {
+            return AssignmentCompatibility::AssignmentAllowed;
         }
-        return types_equal(target, actual);
+        return type_equivalence(target, actual) == typesys::TypeEquivalence::Equivalent
+            ? AssignmentCompatibility::AssignmentAllowed
+            : AssignmentCompatibility::TypeMismatch;
+    }
+
+    StringLiteralTypingState string_literal_typing_state(const Type& type) const {
+        if (type.flavor == typesys::TypeFlavor::Builtin
+            && type.args.empty()
+            && (type.name == "Text" || type.name == "Bytes" || type.name == "CString")) {
+            return StringLiteralTypingState::AcceptsStringLiteral;
+        }
+        return StringLiteralTypingState::RequiresTextDefault;
+    }
+
+    const ast::PathExpr* path_expr(const ast::Expr& expr) const {
+        return expr.kind == ast::ExprKind::Path ? &static_cast<const ast::PathExpr&>(expr) : nullptr;
+    }
+
+    const ast::CallExpr* call_expr(const ast::Expr& expr) const {
+        return expr.kind == ast::ExprKind::Call ? &static_cast<const ast::CallExpr&>(expr) : nullptr;
     }
 
     const std::vector<ast::GenericParam>* generic_params_for(const ast::Decl* decl) const {
@@ -522,21 +867,23 @@ private:
             if (std::find(generics.begin(), generics.end(), name) != generics.end()) {
                 return generic_type(name);
             }
-            if (is_builtin(name)) {
+            if (builtin_name_state(name) == BuiltinNameState::CompilerBuiltinName) {
                 return builtin_type(name, std::move(args));
             }
         }
 
-        if (const auto phase_position = resolve_phase_position_type(scope, generics, type_ref.path);
-            phase_position.has_value()) {
-            return typesys::named_type(phase_position->qualified_name, phase_position->decl, std::move(args));
+        if (const PhasePositionResolution phase_position = resolve_phase_position_type(scope, generics, type_ref.path);
+            phase_position.state == PhasePositionResolutionState::PathNamesPhasePosition) {
+            return typesys::named_type(phase_position.position.qualified_name,
+                                       phase_position.position.decl,
+                                       std::move(args));
         }
 
         if (const Symbol* symbol = resolve_symbol(scope, generics, type_ref.path); symbol != nullptr) {
             if (symbol->kind == ast::DeclKind::Phase) {
                 return error_type();
             }
-            if (is_type_decl_kind(symbol->kind)) {
+            if (declaration_type_role(symbol->kind) == TypeDeclarationRole::IntroducesType) {
                 return named_type(symbol->decl, std::move(args));
             }
         }
@@ -580,7 +927,8 @@ private:
         const ast::FunctionDecl& function,
         const std::vector<std::pair<std::string, Type>>& substitutions) const {
         std::ostringstream out;
-        out << static_cast<const void*>(&function) << '<';
+        const auto qualified_it = qualified_names_.find(&function);
+        out << "F:" << (qualified_it != qualified_names_.end() ? qualified_it->second : function.name) << '<';
         for (std::size_t index = 0; index < substitutions.size(); ++index) {
             if (index > 0) {
                 out << ',';
@@ -591,30 +939,31 @@ private:
         return out.str();
     }
 
-    bool prepare_call_type_substitutions(const ast::FunctionDecl& function,
-                                         const ast::CallExpr& call,
-                                         const FunctionContext& context,
-                                         std::vector<std::pair<std::string, Type>>& substitutions) {
+    TypeArgumentPreparation prepare_call_type_substitutions(
+        const ast::FunctionDecl& function,
+        const ast::CallExpr& call,
+        const FunctionContext& context,
+        std::vector<std::pair<std::string, Type>>& substitutions) {
         const std::size_t expected = function.signature.generic_params.size();
         const std::size_t actual = call.type_args.size();
         if (expected == 0) {
             if (actual != 0) {
                 diagnostics_.error(call.span,
                                    "function '" + function.name + "' is not generic but was called with type arguments");
-                return false;
+                return TypeArgumentPreparation::RejectedByDiagnostics;
             }
-            return true;
+            return TypeArgumentPreparation::ReadyForInstantiation;
         }
         if (actual == 0) {
             diagnostics_.error(call.span,
                                "generic function '" + function.name + "' requires explicit type arguments");
-            return false;
+            return TypeArgumentPreparation::RejectedByDiagnostics;
         }
         if (expected != actual) {
             diagnostics_.error(call.span,
                                "generic function '" + function.name + "' expects " + std::to_string(expected)
                                    + " type argument(s), got " + std::to_string(actual));
-            return false;
+            return TypeArgumentPreparation::RejectedByDiagnostics;
         }
 
         substitutions.reserve(expected);
@@ -623,17 +972,21 @@ private:
             check_type_ref_usage(context.scope,
                                  context.generics,
                                  type_arg,
-                                 TypeUseRules{false, false, false, "generic function type argument"});
+                                 TypeUseRules{
+                                     TypePrivacyPolicy::PrivateReferencesAllowed,
+                                     ReasonTypePolicy::RejectReasonTypes,
+                                     PermitTypePolicy::RejectPermitTypes,
+                                     "generic function type argument"});
             substitutions.emplace_back(function.signature.generic_params[index].name,
                                        resolve_type(context.scope, context.generics, context.substitutions, type_arg));
         }
-        return true;
+        return TypeArgumentPreparation::ReadyForInstantiation;
     }
 
-    bool prepare_record_constructor_type_args(const ast::RecordDecl& record,
-                                              const ast::ConstructExpr& construct,
-                                              const FunctionContext& context,
-                                              std::vector<Type>& type_args) {
+    TypeArgumentPreparation prepare_record_constructor_type_args(const ast::RecordDecl& record,
+                                                                const ast::ConstructExpr& construct,
+                                                                const FunctionContext& context,
+                                                                std::vector<Type>& type_args) {
         const std::size_t expected = record.generic_params.size();
         const std::size_t actual = construct.type_args.size();
         if (expected == 0) {
@@ -641,20 +994,20 @@ private:
                 diagnostics_.error(construct.span,
                                    "record '" + record.name
                                        + "' is not generic but was constructed with type arguments");
-                return false;
+                return TypeArgumentPreparation::RejectedByDiagnostics;
             }
-            return true;
+            return TypeArgumentPreparation::ReadyForInstantiation;
         }
         if (actual == 0) {
             diagnostics_.error(construct.span,
                                "generic record '" + record.name + "' requires explicit type arguments");
-            return false;
+            return TypeArgumentPreparation::RejectedByDiagnostics;
         }
         if (expected != actual) {
             diagnostics_.error(construct.span,
                                "generic record '" + record.name + "' expects " + std::to_string(expected)
                                    + " type argument(s), got " + std::to_string(actual));
-            return false;
+            return TypeArgumentPreparation::RejectedByDiagnostics;
         }
 
         type_args.reserve(expected);
@@ -662,10 +1015,14 @@ private:
             check_type_ref_usage(context.scope,
                                  context.generics,
                                  type_arg,
-                                 TypeUseRules{false, false, false, "generic record constructor type argument"});
+                                 TypeUseRules{
+                                     TypePrivacyPolicy::PrivateReferencesAllowed,
+                                     ReasonTypePolicy::RejectReasonTypes,
+                                     PermitTypePolicy::RejectPermitTypes,
+                                     "generic record constructor type argument"});
             type_args.push_back(resolve_type(context.scope, context.generics, context.substitutions, type_arg));
         }
-        return true;
+        return TypeArgumentPreparation::ReadyForInstantiation;
     }
 
     ValueEnv make_root_env() const {
@@ -712,13 +1069,12 @@ private:
     void merge_sequential_env(ValueEnv& target, const ValueEnv& child) const {
         for (auto& scope : target.scopes) {
             for (auto& [_, binding] : scope) {
-                if (binding.moved) {
+                if (binding.move_state == BindingMoveState::MovedFrom) {
                     continue;
                 }
                 const BindingState* child_binding = lookup_binding_by_id(child, binding.id);
-                if (child_binding != nullptr && child_binding->moved) {
-                    binding.moved = true;
-                    binding.moved_at = child_binding->moved_at;
+                if (child_binding != nullptr && child_binding->move_state == BindingMoveState::MovedFrom) {
+                    copy_binding_move_state(binding, *child_binding);
                 }
             }
         }
@@ -727,17 +1083,16 @@ private:
     void merge_branch_envs(ValueEnv& target, const std::vector<BranchState>& branches) const {
         for (auto& scope : target.scopes) {
             for (auto& [_, binding] : scope) {
-                if (binding.moved) {
+                if (binding.move_state == BindingMoveState::MovedFrom) {
                     continue;
                 }
                 for (const BranchState& branch : branches) {
-                    if (!branch.reachable) {
+                    if (branch.reachability != ControlFlowReachability::ContinuesToFollowingCode) {
                         continue;
                     }
                     const BindingState* branch_binding = lookup_binding_by_id(branch.env, binding.id);
-                    if (branch_binding != nullptr && branch_binding->moved) {
-                        binding.moved = true;
-                        binding.moved_at = branch_binding->moved_at;
+                    if (branch_binding != nullptr && branch_binding->move_state == BindingMoveState::MovedFrom) {
+                        copy_binding_move_state(binding, *branch_binding);
                         break;
                     }
                 }
@@ -750,16 +1105,15 @@ private:
         if (binding == nullptr) {
             return error_type();
         }
-        if (binding->moved) {
+        if (binding->move_state == BindingMoveState::MovedFrom) {
             diagnostics_.error(span, "affine value '" + name + "' was already moved");
-            if (binding->moved_at.has_value()) {
-                diagnostics_.note(*binding->moved_at, "'" + name + "' was previously moved here");
+            if (binding->move_origin.evidence == BindingMoveOriginEvidence::PreviousMoveRecorded) {
+                diagnostics_.note(binding->move_origin.span, "'" + name + "' was previously moved here");
             }
             return error_type();
         }
-        if (typesys::is_affine(binding->discipline)) {
-            binding->moved = true;
-            binding->moved_at = span;
+        if (typesys::discipline_movement(binding->discipline) == typesys::DisciplineMovement::Affine) {
+            mark_binding_moved(*binding, span);
         }
         return binding->type;
     }
@@ -769,10 +1123,10 @@ private:
         if (binding == nullptr) {
             return error_type();
         }
-        if (binding->moved) {
+        if (binding->move_state == BindingMoveState::MovedFrom) {
             diagnostics_.error(span, "affine value '" + name + "' was already moved");
-            if (binding->moved_at.has_value()) {
-                diagnostics_.note(*binding->moved_at, "'" + name + "' was previously moved here");
+            if (binding->move_origin.evidence == BindingMoveOriginEvidence::PreviousMoveRecorded) {
+                diagnostics_.note(binding->move_origin.span, "'" + name + "' was previously moved here");
             }
             return error_type();
         }
@@ -780,14 +1134,34 @@ private:
     }
 
     void check_public_name(const std::string& name, SourceSpan span) {
-        if (is_reserved_public_name(name)) {
+        if (public_name_reservation(name) == PublicNameReservation::ReservedForPublicSurface) {
             diagnostics_.error(span, "public name '" + name + "' is reserved or too generic");
         }
     }
 
-    void check_duplicate_generic_params(const std::vector<ast::GenericParam>& generics, std::string_view context) {
+    void check_name_under_public_policy(const std::string& name, SourceSpan span, PublicNamePolicy policy) {
+        switch (policy) {
+        case PublicNamePolicy::ExportedName:
+            check_public_name(name, span);
+            break;
+        case PublicNamePolicy::InternalName:
+            break;
+        }
+    }
+
+    void check_generic_structural_name(std::string_view context, const std::string& name, SourceSpan span) {
+        if (generic_structural_role(name) == GenericStructuralRole::SemanticWrapper) {
+            diagnostics_.error(span,
+                               std::string(context) + " '" + name
+                                   + "' is not structurally blind; lifecycle, authority, proof, or domain facts "
+                                     "must use first-class language constructs");
+        }
+    }
+
+    void check_generic_parameters(const std::vector<ast::GenericParam>& generics, std::string_view context) {
         std::unordered_set<std::string> seen;
         for (const ast::GenericParam& generic : generics) {
+            check_generic_structural_name("generic parameter", generic.name, generic.span);
             if (!seen.insert(generic.name).second) {
                 diagnostics_.error(generic.span, "duplicate generic parameter '" + generic.name + "' in " + std::string(context));
             }
@@ -814,7 +1188,7 @@ private:
 
     void validate_imports(const std::vector<ast::ImportDecl>& imports) {
         imported_module_paths_by_file_.clear();
-        import_gate_enabled_ = false;
+        cross_module_reference_policy_ = CrossModuleReferencePolicy::PackageWideReferencesAllowed;
         std::unordered_map<std::string, std::unordered_set<std::string>> seen_by_file;
         for (const ast::ImportDecl& import_decl : imports) {
             if (import_decl.path.empty()) {
@@ -841,50 +1215,52 @@ private:
             }
             imported_module_paths_by_file_[source_path].push_back(import_decl.path);
         }
-        import_gate_enabled_ = !imported_module_paths_by_file_.empty();
+        cross_module_reference_policy_ = imported_module_paths_by_file_.empty()
+            ? CrossModuleReferencePolicy::PackageWideReferencesAllowed
+            : CrossModuleReferencePolicy::FileLocalImportsRequired;
     }
 
     void check_type_ref_usage(const Scope& scope,
                               const std::vector<std::string>& generics,
                               const ast::TypeRef& type,
                               const TypeUseRules& rules) {
-        const bool is_single_generic = type.path.size() == 1
-            && std::find(generics.begin(), generics.end(), type.path.front()) != generics.end();
+        const TypeReferencePathRole path_role = type_reference_path_role(type.path, generics);
 
-        if (!type.path.empty() && is_builtin(type.path.front()) && type.path.size() != 1) {
+        if (path_role == TypeReferencePathRole::BuiltinTypeName && type.path.size() != 1) {
             diagnostics_.error(type.span,
                               "builtin type '" + type.path.front() + "' may not be used as a qualified type");
         }
 
-        if (is_single_generic && !type.args.empty()) {
+        if (path_role == TypeReferencePathRole::GenericParameter && !type.args.empty()) {
             diagnostics_.error(type.span,
                               "generic parameter '" + type.path.front() + "' may not have type arguments");
         } else if (type.path.size() == 1) {
-            const std::optional<std::size_t> expected_builtin_args =
-                expected_builtin_type_arg_count(type.path.front());
-            if (expected_builtin_args.has_value()) {
+            const BuiltinTypeArgumentArity builtin_arity = builtin_type_argument_arity(type.path.front());
+            if (builtin_arity != BuiltinTypeArgumentArity::UserDeclaredTypeName) {
+                const std::size_t expected_builtin_args = expected_builtin_type_arg_count(builtin_arity);
                 const std::size_t actual = type.args.size();
-                if (*expected_builtin_args == 0 && actual != 0) {
+                if (expected_builtin_args == 0 && actual != 0) {
                     diagnostics_.error(type.span,
                                       "builtin type '" + type.path.front() + "' may not have type arguments");
-                } else if (*expected_builtin_args != 0 && actual == 0) {
+                } else if (expected_builtin_args != 0 && actual == 0) {
                     diagnostics_.error(type.span,
                                       "builtin type '" + type.path.front() + "' requires "
-                                          + std::to_string(*expected_builtin_args) + " type argument(s)");
-                } else if (*expected_builtin_args != actual) {
+                                          + std::to_string(expected_builtin_args) + " type argument(s)");
+                } else if (expected_builtin_args != actual) {
                     diagnostics_.error(type.span,
                                       "builtin type '" + type.path.front() + "' expects "
-                                          + std::to_string(*expected_builtin_args) + " type argument(s), got "
+                                          + std::to_string(expected_builtin_args) + " type argument(s), got "
                                           + std::to_string(actual));
                 }
             }
         }
 
-        if (!type.path.empty() && !is_builtin(type.path.front()) && !is_single_generic) {
-            const auto phase_position = resolve_phase_position_type(scope, generics, type.path);
-            if (phase_position.has_value()) {
-                (void)check_import_access(scope, type.path, type.span);
-                if (rules.require_public && phase_position->visibility != ast::Visibility::Public) {
+        if (path_role == TypeReferencePathRole::NamedTypePath) {
+            const PhasePositionResolution phase_position = resolve_phase_position_type(scope, generics, type.path);
+            if (phase_position.state == PhasePositionResolutionState::PathNamesPhasePosition) {
+                check_import_access(scope, type.path, type.span);
+                if (rules.privacy == TypePrivacyPolicy::PublicApiRequiresPublicTypes
+                    && phase_position.position.visibility != ast::Visibility::Public) {
                     diagnostics_.error(type.span,
                                       "public API cannot reference private type '" + ast::format_type(type) + "'");
                 }
@@ -896,22 +1272,25 @@ private:
                 diagnostics_.error(type.span,
                                   "unknown type '" + ast::format_type(type) + "' in " + std::string(rules.context));
             } else {
-                (void)check_import_access(scope, type.path, type.span);
-                if (!is_type_decl_kind(symbol->kind)) {
+                check_import_access(scope, type.path, type.span);
+                if (declaration_type_role(symbol->kind) == TypeDeclarationRole::DoesNotIntroduceType) {
                     diagnostics_.error(type.span,
                                       "expected a type in " + std::string(rules.context) + ", found '"
                                           + std::string(ast::decl_kind_name(symbol->kind)) + "'");
                 } else {
-                    if (rules.require_public && symbol->visibility != ast::Visibility::Public) {
+                    if (rules.privacy == TypePrivacyPolicy::PublicApiRequiresPublicTypes
+                        && symbol->visibility != ast::Visibility::Public) {
                         diagnostics_.error(type.span,
                                           "public API cannot reference private type '" + ast::format_type(type) + "'");
                     }
-                    if (!rules.allow_reason && symbol->kind == ast::DeclKind::Reason) {
+                    if (rules.reason == ReasonTypePolicy::RejectReasonTypes
+                        && symbol->kind == ast::DeclKind::Reason) {
                         diagnostics_.error(type.span,
                                           "reason type '" + ast::format_type(type) + "' may not appear in "
                                               + std::string(rules.context));
                     }
-                    if (!rules.allow_permit && symbol->kind == ast::DeclKind::Permit) {
+                    if (rules.permit == PermitTypePolicy::RejectPermitTypes
+                        && symbol->kind == ast::DeclKind::Permit) {
                         diagnostics_.error(type.span,
                                           "permit type '" + ast::format_type(type) + "' may not appear in "
                                               + std::string(rules.context));
@@ -963,11 +1342,11 @@ private:
 
     void check_function_signature(const Scope& scope,
                                   const ast::FunctionSignature& signature,
-                                  bool require_public,
-                                  bool is_foreign,
+                                  TypePrivacyPolicy type_privacy,
+                                  ast::FunctionImplementation implementation,
                                   const std::vector<std::string>& outer_generics) {
         std::vector<std::string> generics = outer_generics;
-        check_duplicate_generic_params(signature.generic_params, "function signature");
+        check_generic_parameters(signature.generic_params, "function signature");
         for (const ast::GenericParam& generic : signature.generic_params) {
             generics.push_back(generic.name);
         }
@@ -978,17 +1357,21 @@ private:
                 diagnostics_.error(param.span, "duplicate parameter '" + param.name + "'");
             }
             const Symbol* param_symbol = resolve_symbol(scope, generics, param.type.path);
-            const bool top_level_permit = param_symbol != nullptr && param_symbol->kind == ast::DeclKind::Permit;
+            const ParameterTypeAuthority parameter_type = parameter_type_authority(param_symbol);
             check_type_ref_usage(scope,
                                  generics,
                                  param.type,
-                                 TypeUseRules{require_public, false, param.is_permit_param || top_level_permit, "function parameter"});
-            if (param.is_permit_param) {
-                if (param_symbol == nullptr || param_symbol->kind != ast::DeclKind::Permit) {
+                                 TypeUseRules{
+                                     type_privacy,
+                                     ReasonTypePolicy::RejectReasonTypes,
+                                     permit_type_policy_for_parameter(param.authority, parameter_type),
+                                     "function parameter"});
+            if (param.authority == ast::ParameterAuthority::PermitBinding) {
+                if (parameter_type != ParameterTypeAuthority::PermitType) {
                     diagnostics_.error(param.type.span,
                                       "permit parameter '" + param.name + "' must reference a permit type");
                 }
-            } else if (param_symbol != nullptr && param_symbol->kind == ast::DeclKind::Permit) {
+            } else if (parameter_type == ParameterTypeAuthority::PermitType) {
                 diagnostics_.error(param.span,
                                   "permit parameter '" + param.name + "' must be written as 'as "
                                       + param.name + ": " + ast::format_type(param.type) + "'");
@@ -998,46 +1381,58 @@ private:
         check_type_ref_usage(scope,
                              generics,
                              signature.return_type,
-                             TypeUseRules{require_public, false, false, "function return type"});
+                             TypeUseRules{
+                                 type_privacy,
+                                 ReasonTypePolicy::RejectReasonTypes,
+                                 PermitTypePolicy::RejectPermitTypes,
+                                 "function return type"});
 
-        if (signature.fails_type.has_value()) {
+        if (signature.failure.behavior() == ast::FunctionFailureBehavior::YieldsReason) {
             check_type_ref_usage(scope,
                                  generics,
-                                 *signature.fails_type,
-                                 TypeUseRules{require_public, true, false, "fails clause"});
-            if (const Symbol* symbol = resolve_symbol(scope, generics, signature.fails_type->path); symbol != nullptr) {
+                                 signature.failure.reason_type(),
+                                 TypeUseRules{
+                                     type_privacy,
+                                     ReasonTypePolicy::AllowReasonTypes,
+                                     PermitTypePolicy::RejectPermitTypes,
+                                     "fails clause"});
+            if (const Symbol* symbol = resolve_symbol(scope, generics, signature.failure.reason_type().path); symbol != nullptr) {
                 if (symbol->kind != ast::DeclKind::Reason) {
-                    diagnostics_.error(signature.fails_type->span,
+                    diagnostics_.error(signature.failure.reason_type().span,
                                       "'fails' must reference a reason type, not '"
                                           + std::string(ast::decl_kind_name(symbol->kind)) + "'");
                 }
             }
-            if (is_foreign) {
-                diagnostics_.error(signature.fails_type->span, "foreign functions may not use 'fails'");
+            if (implementation == ast::FunctionImplementation::ForeignImport) {
+                diagnostics_.error(signature.failure.reason_type().span, "foreign functions may not use 'fails'");
             }
         }
 
-        if (signature.grants_type.has_value()) {
+        if (signature.authority.effect() == ast::FunctionAuthorityEffect::GrantsScopedPermit) {
             check_type_ref_usage(scope,
                                  generics,
-                                 *signature.grants_type,
-                                 TypeUseRules{require_public, false, true, "grant permit"});
-            if (const Symbol* symbol = resolve_symbol(scope, generics, signature.grants_type->path); symbol != nullptr) {
+                                 signature.authority.permit_type(),
+                                 TypeUseRules{
+                                     type_privacy,
+                                     ReasonTypePolicy::RejectReasonTypes,
+                                     PermitTypePolicy::AllowPermitTypes,
+                                     "grant permit"});
+            if (const Symbol* symbol = resolve_symbol(scope, generics, signature.authority.permit_type().path); symbol != nullptr) {
                 if (symbol->kind != ast::DeclKind::Permit) {
-                    diagnostics_.error(signature.grants_type->span,
+                    diagnostics_.error(signature.authority.permit_type().span,
                                       "'grants' must reference a permit type, not '"
                                           + std::string(ast::decl_kind_name(symbol->kind)) + "'");
                 } else if (declaring_scope(symbol->decl) != &scope) {
-                    diagnostics_.error(signature.grants_type->span,
+                    diagnostics_.error(signature.authority.permit_type().span,
                                       "functions may only declare 'grants' for permits from the same module");
                 }
             }
             const Type return_type = resolve_type(scope, generics, signature.return_type);
-            if (!types_equal(return_type, builtin_type("Unit"))) {
+            if (type_equivalence(return_type, builtin_type("Unit")) == typesys::TypeEquivalence::Different) {
                 diagnostics_.error(signature.return_type.span, "granting functions must return 'Unit'");
             }
-            if (is_foreign) {
-                diagnostics_.error(signature.grants_type->span, "foreign functions may not use 'grants'");
+            if (implementation == ast::FunctionImplementation::ForeignImport) {
+                diagnostics_.error(signature.authority.permit_type().span, "foreign functions may not use 'grants'");
             }
         }
 
@@ -1046,7 +1441,11 @@ private:
             check_type_ref_usage(scope,
                                  generics,
                                  proves_type,
-                                 TypeUseRules{require_public, false, false, "proof authorization"});
+                                 TypeUseRules{
+                                     type_privacy,
+                                     ReasonTypePolicy::RejectReasonTypes,
+                                     PermitTypePolicy::RejectPermitTypes,
+                                     "proof authorization"});
             if (const Symbol* symbol = resolve_symbol(scope, generics, proves_type.path); symbol != nullptr) {
                 if (symbol->kind != ast::DeclKind::Proof) {
                     diagnostics_.error(proves_type.span,
@@ -1061,7 +1460,7 @@ private:
                                           + ast::format_type(proves_type) + "'");
                 }
             }
-            if (is_foreign) {
+            if (implementation == ast::FunctionImplementation::ForeignImport) {
                 diagnostics_.error(proves_type.span, "foreign functions may not use 'proves'");
             }
         }
@@ -1126,117 +1525,149 @@ private:
         }
     }
 
+    DeclarationAdmission declaration_admission(const PackageRootDeclarationContext&, const ast::Decl& decl) {
+        if (decl.kind != ast::DeclKind::Module) {
+            diagnostics_.error(decl.span, "declarations must appear inside a module");
+            return DeclarationAdmission::SkipDeclaration;
+        }
+        return DeclarationAdmission::AnalyzeDeclaration;
+    }
+
+    DeclarationAdmission declaration_admission(const ModuleBodyDeclarationContext& context, const ast::Decl& decl) {
+        enforce_module_kind(context.module_kind, decl);
+        return DeclarationAdmission::AnalyzeDeclaration;
+    }
+
+    template <typename DeclarationContext>
     void analyze_scope(const std::vector<std::unique_ptr<ast::Decl>>& decls,
                        const Scope& scope,
-                       bool enclosing_public,
-                       std::optional<ast::ModuleKind> module_kind) {
+                       PublicReachability parent_reachability,
+                       const DeclarationContext& context) {
         for (const auto& decl_ptr : decls) {
             const ast::Decl& decl = *decl_ptr;
-            if (!module_kind.has_value() && decl.kind != ast::DeclKind::Module) {
-                diagnostics_.error(decl.span, "declarations must appear inside a module");
+            if (declaration_admission(context, decl) == DeclarationAdmission::SkipDeclaration) {
                 continue;
             }
-            if (module_kind.has_value()) {
-                enforce_module_kind(*module_kind, decl);
-            }
-            const bool public_decl = decl.visibility == ast::Visibility::Public;
-            const bool effectively_public = enclosing_public && public_decl;
+            const PublicNamePolicy declaration_name_policy = public_name_policy(decl.visibility);
+            const PublicReachability declaration_reachability =
+                declaration_public_reachability(parent_reachability, decl.visibility);
 
-            if (public_decl) {
-                check_public_name(decl.name, decl.span);
-            }
+            check_name_under_public_policy(decl.name, decl.span, declaration_name_policy);
 
             switch (decl.kind) {
             case ast::DeclKind::Module: {
                 const auto& module_decl = static_cast<const ast::ModuleDecl&>(decl);
                 const auto it = scope.symbols.find(module_decl.name);
                 if (it != scope.symbols.end() && it->second.child_scope != nullptr) {
-                    analyze_scope(module_decl.members, *it->second.child_scope, effectively_public, module_decl.module_kind);
+                    analyze_scope(module_decl.members,
+                                  *it->second.child_scope,
+                                  declaration_reachability,
+                                  ModuleBodyDeclarationContext{module_decl.module_kind});
                 }
                 break;
             }
             case ast::DeclKind::Record: {
                 const auto& record_decl = static_cast<const ast::RecordDecl&>(decl);
-                const bool public_type_decl = record_decl.visibility == ast::Visibility::Public;
-                check_duplicate_generic_params(record_decl.generic_params, "record");
+                if (!record_decl.generic_params.empty()) {
+                    check_generic_structural_name("generic record", record_decl.name, record_decl.span);
+                }
+                check_generic_parameters(record_decl.generic_params, "record");
                 check_duplicate_fields(record_decl.fields, "record");
                 std::vector<std::string> generics;
                 for (const ast::GenericParam& generic : record_decl.generic_params) {
                     generics.push_back(generic.name);
                 }
                 for (const ast::Field& field : record_decl.fields) {
+                    check_name_under_public_policy(field.name,
+                                                   field.span,
+                                                   field_name_policy(record_decl.visibility, field.visibility));
                     check_type_ref_usage(scope,
                                          generics,
                                          field.type,
-                                         TypeUseRules{public_type_decl && field.visibility == ast::Visibility::Public,
-                                                      false,
-                                                      false,
-                                                      "record field"});
+                                         TypeUseRules{
+                                             field_type_privacy_policy(record_decl.visibility, field.visibility),
+                                             ReasonTypePolicy::RejectReasonTypes,
+                                             PermitTypePolicy::RejectPermitTypes,
+                                             "record field"});
                 }
                 break;
             }
             case ast::DeclKind::State: {
                 const auto& state_decl = static_cast<const ast::StateDecl&>(decl);
-                const bool public_type_decl = state_decl.visibility == ast::Visibility::Public;
+                const PublicNamePolicy variant_name_policy = public_name_policy(state_decl.visibility);
                 if (state_decl.variants.empty()) {
                     diagnostics_.error(state_decl.span, "state declarations must define at least one variant");
                 }
                 if (state_decl.variants.size() == 2) {
-                    const bool first_pseudo = kPseudoOptionalNames.contains(state_decl.variants[0].name);
-                    const bool second_pseudo = kPseudoOptionalNames.contains(state_decl.variants[1].name);
-                    if (first_pseudo || second_pseudo) {
+                    const VariantNamingRole first_variant_role = variant_naming_role(state_decl.variants[0].name);
+                    const VariantNamingRole second_variant_role = variant_naming_role(state_decl.variants[1].name);
+                    if (first_variant_role == VariantNamingRole::PseudoOptionalCarrierName
+                        || second_variant_role == VariantNamingRole::PseudoOptionalCarrierName) {
                         diagnostics_.error(state_decl.span,
                                           "pseudo-optional state detected; model inhabited domain alternatives instead");
                     }
                 }
                 check_duplicate_variants(state_decl.variants, "state");
                 for (const ast::Variant& variant : state_decl.variants) {
-                    if (public_type_decl) {
-                        check_public_name(variant.name, variant.span);
-                    }
+                    check_name_under_public_policy(variant.name, variant.span, variant_name_policy);
                     check_duplicate_fields(variant.fields, "state variant");
                     for (const ast::Field& field : variant.fields) {
+                        check_name_under_public_policy(field.name,
+                                                       field.span,
+                                                       public_name_policy(state_decl.visibility));
                         check_type_ref_usage(scope,
                                              {},
                                              field.type,
-                                             TypeUseRules{public_type_decl, false, false, "state variant payload"});
+                                             TypeUseRules{
+                                                 type_privacy_policy(state_decl.visibility),
+                                                 ReasonTypePolicy::RejectReasonTypes,
+                                                 PermitTypePolicy::RejectPermitTypes,
+                                                 "state variant payload"});
                     }
                 }
                 break;
             }
             case ast::DeclKind::Reason: {
                 const auto& reason_decl = static_cast<const ast::ReasonDecl&>(decl);
-                const bool public_type_decl = reason_decl.visibility == ast::Visibility::Public;
+                const PublicNamePolicy variant_name_policy = public_name_policy(reason_decl.visibility);
                 if (reason_decl.variants.empty()) {
                     diagnostics_.error(reason_decl.span, "reason declarations must define at least one variant");
                 }
                 check_duplicate_variants(reason_decl.variants, "reason");
                 for (const ast::Variant& variant : reason_decl.variants) {
-                    if (public_type_decl) {
-                        check_public_name(variant.name, variant.span);
-                    }
+                    check_name_under_public_policy(variant.name, variant.span, variant_name_policy);
                     check_duplicate_fields(variant.fields, "reason variant");
                     for (const ast::Field& field : variant.fields) {
+                        check_name_under_public_policy(field.name,
+                                                       field.span,
+                                                       public_name_policy(reason_decl.visibility));
                         check_type_ref_usage(scope,
                                              {},
                                              field.type,
-                                             TypeUseRules{public_type_decl, false, false, "reason payload"});
+                                             TypeUseRules{
+                                                 type_privacy_policy(reason_decl.visibility),
+                                                 ReasonTypePolicy::RejectReasonTypes,
+                                                 PermitTypePolicy::RejectPermitTypes,
+                                                 "reason payload"});
                     }
                 }
                 break;
             }
             case ast::DeclKind::Proof: {
                 const auto& proof_decl = static_cast<const ast::ProofDecl&>(decl);
-                const bool public_type_decl = proof_decl.visibility == ast::Visibility::Public;
                 check_duplicate_fields(proof_decl.fields, "proof");
                 for (const ast::Field& field : proof_decl.fields) {
+                    check_name_under_public_policy(field.name,
+                                                   field.span,
+                                                   field_name_policy(proof_decl.visibility, field.visibility));
                     check_type_ref_usage(scope,
                                          {},
                                          field.type,
-                                         TypeUseRules{public_type_decl && field.visibility == ast::Visibility::Public,
-                                                      false,
-                                                      false,
-                                                      "proof field"});
+                                         TypeUseRules{
+                                             field_type_privacy_policy(proof_decl.visibility, field.visibility),
+                                             ReasonTypePolicy::RejectReasonTypes,
+                                             PermitTypePolicy::RejectPermitTypes,
+                                             "proof field"});
                 }
                 break;
             }
@@ -1244,7 +1675,7 @@ private:
                 break;
             case ast::DeclKind::Phase: {
                 const auto& phase_decl = static_cast<const ast::PhaseDecl&>(decl);
-                const bool public_type_decl = phase_decl.visibility == ast::Visibility::Public;
+                const PublicNamePolicy position_name_policy = public_name_policy(phase_decl.visibility);
                 if (phase_decl.positions.empty()) {
                     diagnostics_.error(phase_decl.span, "phase declarations must define at least one position");
                 }
@@ -1252,21 +1683,26 @@ private:
                 std::unordered_set<std::string> seen_positions;
                 for (std::size_t index = 0; index < phase_decl.positions.size(); ++index) {
                     const std::string& pos = phase_decl.positions[index];
+                    const SourceSpan position_span = index < phase_decl.position_spans.size()
+                        ? phase_decl.position_spans[index]
+                        : phase_decl.span;
+                    check_name_under_public_policy(pos, position_span, position_name_policy);
                     if (!seen_positions.insert(pos).second) {
-                        const SourceSpan span = index < phase_decl.position_spans.size()
-                            ? phase_decl.position_spans[index]
-                            : phase_decl.span;
-                        diagnostics_.error(span, "duplicate phase position '" + pos + "'");
+                        diagnostics_.error(position_span, "duplicate phase position '" + pos + "'");
                     }
                 }
                 for (const ast::Field& field : phase_decl.fields) {
+                    check_name_under_public_policy(field.name,
+                                                   field.span,
+                                                   field_name_policy(phase_decl.visibility, field.visibility));
                     check_type_ref_usage(scope,
                                          {},
                                          field.type,
-                                         TypeUseRules{public_type_decl && field.visibility == ast::Visibility::Public,
-                                                      false,
-                                                      false,
-                                                      "phase field"});
+                                         TypeUseRules{
+                                             field_type_privacy_policy(phase_decl.visibility, field.visibility),
+                                             ReasonTypePolicy::RejectReasonTypes,
+                                             PermitTypePolicy::RejectPermitTypes,
+                                             "phase field"});
                 }
                 break;
             }
@@ -1275,16 +1711,19 @@ private:
                 const auto& function_decl = static_cast<const ast::FunctionDecl&>(decl);
                 // Public functions must not expose private types in their signature even when the
                 // enclosing module is private (visibility is per-declaration).
-                const bool signature_is_public_api = function_decl.visibility == ast::Visibility::Public;
+                const ast::FunctionImplementation implementation = function_decl.implementation();
+                if (!function_decl.signature.generic_params.empty()) {
+                    check_generic_structural_name("generic function", function_decl.name, function_decl.span);
+                }
                 check_function_signature(scope,
                                          function_decl.signature,
-                                         signature_is_public_api,
-                                         function_decl.is_foreign(),
+                                         type_privacy_policy(function_decl.visibility),
+                                         implementation,
                                          {});
-                if (function_decl.is_foreign() && function_decl.body != nullptr) {
+                if (implementation == ast::FunctionImplementation::ForeignImport && function_decl.body != nullptr) {
                     diagnostics_.error(function_decl.body->span, "foreign functions may not define a body");
                 }
-                if (function_decl.body != nullptr && !function_decl.is_foreign()) {
+                if (function_decl.body != nullptr && implementation == ast::FunctionImplementation::EvidentBody) {
                     analyze_function_body(function_decl, scope);
                 }
                 break;
@@ -1299,8 +1738,8 @@ private:
                 next_binding_id_++,
                 std::move(type),
                 binding_discipline,
-                false,
-                std::nullopt,
+                BindingMoveState::AvailableForUse,
+                BindingMoveOrigin{},
             }).second) {
             diagnostics_.error(span, "duplicate local binding '" + name + "'");
         }
@@ -1336,21 +1775,25 @@ private:
                                                  callee_generics,
                                                  substitutions,
                                                  function.signature.params[index].type);
-            if (is_permit_type(param_type)) {
-                const auto* path_arg = dynamic_cast<const ast::PathExpr*>(args[index].get());
-                if (path_arg == nullptr || path_arg->path.size() != 1 || !path_arg->explicit_permit_argument) {
+            if (permit_type_state(param_type) == PermitTypeState::PermitValueType) {
+                const ast::PathExpr* path_arg = path_expr(*args[index]);
+                if (path_arg == nullptr
+                    || path_arg->path.size() != 1
+                    || path_arg->argument_role != ast::PathArgumentRole::PermitArgument) {
                     diagnostics_.error(args[index]->span,
                                       "permit argument must be written as 'as name'");
                     continue;
                 }
                 const BindingState* binding = lookup_binding(env, path_arg->path.front());
-                if (binding == nullptr || !is_permit_type(binding->type)) {
+                if (binding == nullptr
+                    || permit_type_state(binding->type) != PermitTypeState::PermitValueType) {
                     diagnostics_.error(args[index]->span,
                                       "argument " + std::to_string(index + 1) + " to '" + function.name
                                           + "' must be permit '" + type_name(param_type) + "'");
                     continue;
                 }
-                if (!assignable_to(param_type, binding->type)) {
+                if (assignment_compatibility(param_type, binding->type)
+                    == AssignmentCompatibility::TypeMismatch) {
                     diagnostics_.error(args[index]->span,
                                       "argument " + std::to_string(index + 1) + " to '" + function.name
                                           + "' has type '" + type_name(binding->type) + "', expected '"
@@ -1359,12 +1802,13 @@ private:
                 continue;
             }
 
-            ExprType arg_type = type_expr(*args[index], context, env);
+            ExprType arg_type = type_expr(*args[index], context, env, &param_type);
             if (arg_type.yielded_reason != nullptr) {
                 diagnostics_.error(args[index]->span,
                                     "failing expression must be handled with `try` or `match`");
             }
-            if (!assignable_to(param_type, arg_type.value)) {
+            if (assignment_compatibility(param_type, arg_type.value)
+                == AssignmentCompatibility::TypeMismatch) {
                 diagnostics_.error(args[index]->span,
                                   "argument " + std::to_string(index + 1) + " to '" + function.name
                                       + "' has type '" + type_name(arg_type.value) + "', expected '"
@@ -1373,29 +1817,30 @@ private:
         }
     }
 
-    bool check_initializer_fields(const ast::Decl* owner_decl,
-                                  const std::vector<ast::Field>& expected_fields,
-                                  const std::vector<ast::RecordFieldInit>& actual_fields,
-                                  const FunctionContext& context,
-                                  ValueEnv& env,
-                                  SourceSpan construct_span,
-                                  const std::vector<Type>& owner_args = {}) {
+    FieldInitializationCheck check_initializer_fields(const ast::Decl* owner_decl,
+                                                      const std::vector<ast::Field>& expected_fields,
+                                                      const std::vector<ast::RecordFieldInit>& actual_fields,
+                                                      const FunctionContext& context,
+                                                      ValueEnv& env,
+                                                      SourceSpan construct_span,
+                                                      const std::vector<Type>& owner_args = {}) {
         if (owner_decl != nullptr) {
             const auto owner_it = decl_scopes_.find(owner_decl);
             if (owner_it != decl_scopes_.end()) {
                 const Scope* const owner_scope = owner_it->second;
                 for (const ast::Field& field : expected_fields) {
                     if (field.visibility != ast::Visibility::Public
-                        && !scope_encloses(owner_scope, &context.scope)) {
+                        && scope_containment(owner_scope, &context.scope)
+                            == ScopeContainment::SeparateScopeBranch) {
                         diagnostics_.error(construct_span,
                                             "cannot construct here: field '" + field.name + "' is private");
-                        return false;
+                        return FieldInitializationCheck::Rejected;
                     }
                 }
             }
         }
 
-        bool ok = true;
+        FieldInitializationCheck check = FieldInitializationCheck::Accepted;
         std::unordered_map<std::string, const ast::Field*> expected;
         for (const ast::Field& field : expected_fields) {
             expected.emplace(field.name, &field);
@@ -1405,44 +1850,45 @@ private:
         for (const ast::RecordFieldInit& init : actual_fields) {
             if (!seen.insert(init.name).second) {
                 diagnostics_.error(init.span, "duplicate initializer for field '" + init.name + "'");
-                ok = false;
+                check = FieldInitializationCheck::Rejected;
                 continue;
             }
             const auto it = expected.find(init.name);
             if (it == expected.end()) {
                 diagnostics_.error(init.span, "unknown field '" + init.name + "' in initializer");
-                ok = false;
+                check = FieldInitializationCheck::Rejected;
                 continue;
-            }
-            ExprType init_type = type_expr(*init.value, context, env);
-            if (init_type.yielded_reason != nullptr) {
-                diagnostics_.error(init.span, "failing expression must be handled with `try` or `match`");
-                ok = false;
             }
             const Type expected_type = owner_decl != nullptr
                 ? resolve_member_type(owner_decl, owner_args, it->second->type)
                 : resolve_type(context.scope, context.generics, context.substitutions, it->second->type);
-            if (!assignable_to(expected_type, init_type.value)) {
+            ExprType init_type = type_expr(*init.value, context, env, &expected_type);
+            if (init_type.yielded_reason != nullptr) {
+                diagnostics_.error(init.span, "failing expression must be handled with `try` or `match`");
+                check = FieldInitializationCheck::Rejected;
+            }
+            if (assignment_compatibility(expected_type, init_type.value)
+                == AssignmentCompatibility::TypeMismatch) {
                 diagnostics_.error(init.span,
                                   "initializer for field '" + init.name + "' has type '" + type_name(init_type.value)
                                       + "', expected '" + type_name(expected_type) + "'");
-                ok = false;
+                check = FieldInitializationCheck::Rejected;
             }
         }
 
         for (const ast::Field& field : expected_fields) {
             if (!seen.contains(field.name)) {
                 diagnostics_.error(construct_span, "missing initializer for field '" + field.name + "'");
-                ok = false;
+                check = FieldInitializationCheck::Rejected;
             }
         }
-        return ok;
+        return check;
     }
 
     ExprType type_path_expr(const ast::PathExpr& expr, const FunctionContext& context, ValueEnv& env) {
         if (expr.path.size() == 1) {
             if (const BindingState* binding = lookup_binding(env, expr.path.front()); binding != nullptr) {
-                if (is_permit_type(binding->type)) {
+                if (permit_type_state(binding->type) == PermitTypeState::PermitValueType) {
                     diagnostics_.error(expr.span, "permit value may only be used as a direct function argument");
                     return make_expr(error_type());
                 }
@@ -1463,7 +1909,8 @@ private:
                 sym != nullptr && sym->decl->kind == ast::DeclKind::Phase) {
                 const auto& pd = static_cast<const ast::PhaseDecl&>(*sym->decl);
                 if (std::find(pd.positions.begin(), pd.positions.end(), position_name) != pd.positions.end()) {
-                    if (!check_import_access(context.scope, expr.path, expr.span)) {
+                    if (check_import_access(context.scope, expr.path, expr.span)
+                        == CrossModuleReferenceAccess::MatchingImportRequired) {
                         return make_expr(error_type());
                     }
                     const std::string qn = qualified_names_.at(sym->decl) + "::" + position_name;
@@ -1475,13 +1922,17 @@ private:
             }
         }
 
-        VariantResolution state_variant = resolve_variant(context.scope, expr.path, true, false);
-        if (state_variant.ambiguous) {
+        VariantResolution state_variant = resolve_variant(
+            context.scope,
+            expr.path,
+            VariantOwnerKind::StateDeclaration);
+        if (state_variant.state == VariantResolutionState::AmbiguousVariant) {
             diagnostics_.error(expr.span, "ambiguous variant reference '" + expr.path.back() + "'");
             return make_expr(error_type());
         }
         if (state_variant.variant != nullptr) {
-            if (!check_import_access(context.scope, expr.path, expr.span)) {
+            if (check_import_access(context.scope, expr.path, expr.span)
+                == CrossModuleReferenceAccess::MatchingImportRequired) {
                 return make_expr(error_type());
             }
             if (!state_variant.variant->fields.empty()) {
@@ -1492,8 +1943,11 @@ private:
             return make_expr(named_type(state_variant.owner_decl));
         }
 
-        VariantResolution reason_variant = resolve_variant(context.scope, expr.path, false, true);
-        if (reason_variant.ambiguous) {
+        VariantResolution reason_variant = resolve_variant(
+            context.scope,
+            expr.path,
+            VariantOwnerKind::ReasonDeclaration);
+        if (reason_variant.state == VariantResolutionState::AmbiguousVariant) {
             diagnostics_.error(expr.span, "ambiguous reason variant reference '" + expr.path.back() + "'");
             return make_expr(error_type());
         }
@@ -1503,7 +1957,8 @@ private:
         }
 
         if (const ast::FunctionDecl* function = resolve_function(context.scope, expr.path); function != nullptr) {
-            if (!check_import_access(context.scope, expr.path, expr.span)) {
+            if (check_import_access(context.scope, expr.path, expr.span)
+                == CrossModuleReferenceAccess::MatchingImportRequired) {
                 return make_expr(error_type());
             }
             diagnostics_.error(expr.span, "function values are not first-class; call '" + function->name + "' with '(...)'");
@@ -1511,7 +1966,8 @@ private:
         }
 
         if (const Symbol* symbol = resolve_symbol(context.scope, context.generics, expr.path); symbol != nullptr) {
-            if (!check_import_access(context.scope, expr.path, expr.span)) {
+            if (check_import_access(context.scope, expr.path, expr.span)
+                == CrossModuleReferenceAccess::MatchingImportRequired) {
                 return make_expr(error_type());
             }
             if (symbol->kind == ast::DeclKind::Proof) {
@@ -1535,7 +1991,7 @@ private:
     }
 
     ExprType type_call_expr(const ast::CallExpr& expr, const FunctionContext& context, ValueEnv& env) {
-        const auto* callee_path = dynamic_cast<const ast::PathExpr*>(expr.callee.get());
+        const ast::PathExpr* callee_path = path_expr(*expr.callee);
         if (callee_path == nullptr) {
             diagnostics_.error(expr.span, "callee must be a named function");
             return make_expr(error_type());
@@ -1543,18 +1999,21 @@ private:
 
         const ast::FunctionDecl* function = resolve_function(context.scope, callee_path->path);
         if (function == nullptr) {
-            diagnostics_.error(expr.span, "unknown function '" + (callee_path->path.empty() ? std::string{} : callee_path->path.back()) + "'");
+            diagnostics_.error(expr.span, "unknown function '"
+                                              + final_path_segment_or_malformed_path(callee_path->path) + "'");
             return make_expr(error_type());
         }
-        if (!check_import_access(context.scope, callee_path->path, callee_path->span)) {
+        if (check_import_access(context.scope, callee_path->path, callee_path->span)
+            == CrossModuleReferenceAccess::MatchingImportRequired) {
             return make_expr(error_type());
         }
-        if (function->signature.grants_type.has_value()) {
+        if (function->signature.authority.effect() == ast::FunctionAuthorityEffect::GrantsScopedPermit) {
             diagnostics_.error(expr.span, "function '" + function->name + "' grants a permit and must be used with 'grant'");
             return make_expr(error_type());
         }
         std::vector<std::pair<std::string, Type>> substitutions;
-        if (!prepare_call_type_substitutions(*function, expr, context, substitutions)) {
+        if (prepare_call_type_substitutions(*function, expr, context, substitutions)
+            == TypeArgumentPreparation::RejectedByDiagnostics) {
             return make_expr(error_type());
         }
         const Scope* callee_scope = declaring_scope(function);
@@ -1569,11 +2028,11 @@ private:
                                                  callee_generics,
                                                  substitutions,
                                                  function->signature.return_type));
-        if (function->signature.fails_type.has_value()) {
+        if (function->signature.failure.behavior() == ast::FunctionFailureBehavior::YieldsReason) {
             const Type fails_type = resolve_type(*callee_scope,
                                                  callee_generics,
                                                  substitutions,
-                                                 *function->signature.fails_type);
+                                                 function->signature.failure.reason_type());
             result.yielded_reason = fails_type.decl != nullptr ? static_cast<const ast::ReasonDecl*>(fails_type.decl) : nullptr;
         }
         return result;
@@ -1596,17 +2055,21 @@ private:
                     diagnostics_.error(expr.span, "unknown phase position '" + position_name + "'");
                     return make_expr(error_type());
                 }
-                if (!check_import_access(context.scope, expr.path, expr.span)) {
+                if (check_import_access(context.scope, expr.path, expr.span)
+                    == CrossModuleReferenceAccess::MatchingImportRequired) {
                     return make_expr(error_type());
                 }
                 const Scope* const phase_scope = declaring_scope(sym->decl);
-                if (phase_scope != nullptr && !scope_encloses(phase_scope, &context.scope)) {
+                if (phase_scope != nullptr
+                    && scope_containment(phase_scope, &context.scope)
+                        == ScopeContainment::SeparateScopeBranch) {
                     diagnostics_.error(expr.span,
                                       "cannot construct phase position '" + qualified_names_.at(sym->decl) + "::"
                                           + position_name + "' outside its declaring module");
                     return make_expr(error_type());
                 }
-                if (!check_initializer_fields(sym->decl, pd.fields, expr.fields, context, env, expr.span)) {
+                if (check_initializer_fields(sym->decl, pd.fields, expr.fields, context, env, expr.span)
+                    != FieldInitializationCheck::Accepted) {
                     return make_expr(error_type());
                 }
                 const std::string qn = qualified_names_.at(sym->decl) + "::" + position_name;
@@ -1615,23 +2078,26 @@ private:
         }
 
         if (const Symbol* symbol = resolve_symbol(context.scope, context.generics, expr.path); symbol != nullptr) {
-            if (!check_import_access(context.scope, expr.path, expr.span)) {
+            if (check_import_access(context.scope, expr.path, expr.span)
+                == CrossModuleReferenceAccess::MatchingImportRequired) {
                 return make_expr(error_type());
             }
             switch (symbol->kind) {
             case ast::DeclKind::Record: {
                 const auto* record_decl = static_cast<const ast::RecordDecl*>(symbol->decl);
                 std::vector<Type> type_args;
-                if (!prepare_record_constructor_type_args(*record_decl, expr, context, type_args)) {
+                if (prepare_record_constructor_type_args(*record_decl, expr, context, type_args)
+                    == TypeArgumentPreparation::RejectedByDiagnostics) {
                     return make_expr(error_type());
                 }
-                if (!check_initializer_fields(symbol->decl,
-                                              record_decl->fields,
-                                              expr.fields,
-                                              context,
-                                              env,
-                                              expr.span,
-                                              type_args)) {
+                if (check_initializer_fields(symbol->decl,
+                                             record_decl->fields,
+                                             expr.fields,
+                                             context,
+                                             env,
+                                             expr.span,
+                                             type_args)
+                    != FieldInitializationCheck::Accepted) {
                     return make_expr(error_type());
                 }
                 return make_expr(typesys::named_type(qualified_names_.at(symbol->decl),
@@ -1653,8 +2119,11 @@ private:
             }
         }
 
-        VariantResolution state_variant = resolve_variant(context.scope, expr.path, true, false);
-        if (state_variant.ambiguous) {
+        VariantResolution state_variant = resolve_variant(
+            context.scope,
+            expr.path,
+            VariantOwnerKind::StateDeclaration);
+        if (state_variant.state == VariantResolutionState::AmbiguousVariant) {
             diagnostics_.error(expr.span, "ambiguous variant constructor '" + expr.path.back() + "'");
             return make_expr(error_type());
         }
@@ -1664,17 +2133,26 @@ private:
                                   "variant constructor '" + expr.path.back() + "' may not have generic arguments");
                 return make_expr(error_type());
             }
-            if (!check_import_access(context.scope, expr.path, expr.span)) {
+            if (check_import_access(context.scope, expr.path, expr.span)
+                == CrossModuleReferenceAccess::MatchingImportRequired) {
                 return make_expr(error_type());
             }
-            if (!check_initializer_fields(state_variant.owner_decl, state_variant.variant->fields, expr.fields, context,
-                                           env, expr.span)) {
+            if (check_initializer_fields(state_variant.owner_decl,
+                                         state_variant.variant->fields,
+                                         expr.fields,
+                                         context,
+                                         env,
+                                         expr.span)
+                != FieldInitializationCheck::Accepted) {
                 return make_expr(error_type());
             }
             return make_expr(named_type(state_variant.owner_decl));
         }
 
-        VariantResolution reason_variant = resolve_variant(context.scope, expr.path, false, true);
+        VariantResolution reason_variant = resolve_variant(
+            context.scope,
+            expr.path,
+            VariantOwnerKind::ReasonDeclaration);
         if (reason_variant.variant != nullptr) {
             diagnostics_.error(expr.span, "reason values may not be constructed directly; use 'fail'");
             return make_expr(error_type());
@@ -1684,13 +2162,16 @@ private:
         return make_expr(error_type());
     }
 
-    ExprType type_grant_expr(const ast::GrantExpr& expr, const FunctionContext& context, ValueEnv& env) {
-        const auto* grant_call = dynamic_cast<const ast::CallExpr*>(expr.grant_call.get());
+    ExprType type_grant_expr(const ast::GrantExpr& expr,
+                             const FunctionContext& context,
+                             ValueEnv& env,
+                             const Type* expected_type = nullptr) {
+        const ast::CallExpr* grant_call = call_expr(*expr.grant_call);
         if (grant_call == nullptr) {
             diagnostics_.error(expr.span, "'grant' requires a direct grantor call");
             return make_expr(error_type());
         }
-        const auto* callee_path = dynamic_cast<const ast::PathExpr*>(grant_call->callee.get());
+        const ast::PathExpr* callee_path = path_expr(*grant_call->callee);
         if (callee_path == nullptr) {
             diagnostics_.error(expr.span, "'grant' requires a named grantor function");
             return make_expr(error_type());
@@ -1699,17 +2180,19 @@ private:
         const ast::FunctionDecl* function = resolve_function(context.scope, callee_path->path);
         if (function == nullptr) {
             diagnostics_.error(expr.span,
-                              "unknown function '" + (callee_path->path.empty() ? std::string{} : callee_path->path.back()) + "'");
+                              "unknown function '"
+                                  + final_path_segment_or_malformed_path(callee_path->path) + "'");
             return make_expr(error_type());
         }
-        if (!check_import_access(context.scope, callee_path->path, callee_path->span)) {
+        if (check_import_access(context.scope, callee_path->path, callee_path->span)
+            == CrossModuleReferenceAccess::MatchingImportRequired) {
             return make_expr(error_type());
         }
         if (!function->signature.generic_params.empty()) {
             diagnostics_.error(expr.span, "'grant' may not call a generic grantor function");
             return make_expr(error_type());
         }
-        if (!function->signature.grants_type.has_value()) {
+        if (function->signature.authority.effect() != ast::FunctionAuthorityEffect::GrantsScopedPermit) {
             diagnostics_.error(expr.span, "'grant' requires a function annotated with 'grants'");
             return make_expr(error_type());
         }
@@ -1721,7 +2204,7 @@ private:
 
         // Spec allows fails + grants together.
         const Type return_type = resolve_type(*callee_scope, {}, function->signature.return_type);
-        if (!types_equal(return_type, builtin_type("Unit"))) {
+        if (type_equivalence(return_type, builtin_type("Unit")) == typesys::TypeEquivalence::Different) {
             diagnostics_.error(expr.span, "'grant' requires a grantor function that returns 'Unit'");
             return make_expr(error_type());
         }
@@ -1736,18 +2219,18 @@ private:
                              grant_call->span);
 
         const ast::ReasonDecl* grantor_reason = nullptr;
-        if (function->signature.fails_type.has_value()) {
-            const Type fails_type = resolve_type(*callee_scope, {}, *function->signature.fails_type);
+        if (function->signature.failure.behavior() == ast::FunctionFailureBehavior::YieldsReason) {
+            const Type fails_type = resolve_type(*callee_scope, {}, function->signature.failure.reason_type());
             if (fails_type.decl != nullptr && fails_type.decl->kind == ast::DeclKind::Reason) {
                 grantor_reason = static_cast<const ast::ReasonDecl*>(fails_type.decl);
             }
         }
 
         ValueEnv scoped_env = push_scope(env);
-        const Type permit_type = resolve_type(*callee_scope, {}, *function->signature.grants_type);
+        const Type permit_type = resolve_type(*callee_scope, {}, function->signature.authority.permit_type());
         bind_value(scoped_env, expr.binder_name, permit_type, expr.span);
-        ExprType result = type_block(*expr.body, context, scoped_env);
-        if (result.reachable) {
+        ExprType result = type_block(*expr.body, context, scoped_env, expected_type);
+        if (result.reachability == ControlFlowReachability::ContinuesToFollowingCode) {
             merge_sequential_env(env, scoped_env);
         }
 
@@ -1767,7 +2250,8 @@ private:
     ExprType type_prove_expr(const ast::ProveExpr& expr, const FunctionContext& context, ValueEnv& env) {
         const Symbol* symbol = resolve_symbol(context.scope, context.generics, expr.path);
         if (symbol == nullptr) {
-            diagnostics_.error(expr.span, "unknown proof type '" + (expr.path.empty() ? std::string{} : expr.path.back()) + "'");
+            diagnostics_.error(expr.span, "unknown proof type '"
+                                              + final_path_segment_or_malformed_path(expr.path) + "'");
             return make_expr(error_type());
         }
         if (symbol->kind != ast::DeclKind::Proof) {
@@ -1776,7 +2260,8 @@ private:
                                    + std::string(ast::decl_kind_name(symbol->kind)) + "'");
             return make_expr(error_type());
         }
-        if (!check_import_access(context.scope, expr.path, expr.span)) {
+        if (check_import_access(context.scope, expr.path, expr.span)
+            == CrossModuleReferenceAccess::MatchingImportRequired) {
             return make_expr(error_type());
         }
 
@@ -1785,18 +2270,20 @@ private:
             diagnostics_.error(expr.span, "'prove' is only valid inside a function with 'proves'");
             return make_expr(named_type(symbol->decl));
         }
-        bool proves_ok = false;
+        ProofMintingAuthorization authorization =
+            ProofMintingAuthorization::ProofNotListedInFunctionContract;
         for (const ast::ProofDecl* allowed : context.proves_proofs) {
             if (allowed == proof_decl) {
-                proves_ok = true;
+                authorization = ProofMintingAuthorization::AuthorizedByFunctionContract;
                 break;
             }
         }
-        if (!proves_ok) {
+        if (authorization != ProofMintingAuthorization::AuthorizedByFunctionContract) {
             diagnostics_.error(expr.span,
                               "'prove' must name one of the proof types listed in the function's `proves` clauses");
         }
-        if (!check_initializer_fields(proof_decl, proof_decl->fields, expr.fields, context, env, expr.span)) {
+        if (check_initializer_fields(proof_decl, proof_decl->fields, expr.fields, context, env, expr.span)
+            != FieldInitializationCheck::Accepted) {
             return make_expr(error_type());
         }
         return make_expr(named_type(symbol->decl));
@@ -1827,8 +2314,11 @@ private:
             return make_expr(error_type());
         }
 
-        VariantResolution variant = resolve_variant(context.scope, expr.path, false, true);
-        if (variant.ambiguous) {
+        VariantResolution variant = resolve_variant(
+            context.scope,
+            expr.path,
+            VariantOwnerKind::ReasonDeclaration);
+        if (variant.state == VariantResolutionState::AmbiguousVariant) {
             diagnostics_.error(expr.span, "ambiguous reason variant '" + expr.path.back() + "'");
             return make_expr(error_type());
         }
@@ -1836,30 +2326,33 @@ private:
             diagnostics_.error(expr.span, "unknown reason variant '" + expr.path.back() + "'");
             return make_expr(error_type());
         }
-        if (!check_import_access(context.scope, expr.path, expr.span)) {
+        if (check_import_access(context.scope, expr.path, expr.span)
+            == CrossModuleReferenceAccess::MatchingImportRequired) {
             return make_expr(error_type());
         }
         if (variant.owner_decl != context.fails_reason) {
             diagnostics_.error(expr.span,
                               "'fail' must use a variant of failure reason '" + context.fails_reason->name + "'");
         }
-        if (!check_initializer_fields(variant.owner_decl, variant.variant->fields, expr.fields, context, env, expr.span)) {
+        if (check_initializer_fields(variant.owner_decl, variant.variant->fields, expr.fields, context, env, expr.span)
+            != FieldInitializationCheck::Accepted) {
             return make_expr(error_type());
         }
         return make_expr(builtin_type("Never"));
     }
 
     Type unify_match_result(const Type& current, const Type& next, SourceSpan span) {
-        if (is_error(current) || is_error(next)) {
+        if (type_error_state(current) == typesys::TypeErrorState::SuppressesFollowupDiagnostics
+            || type_error_state(next) == typesys::TypeErrorState::SuppressesFollowupDiagnostics) {
             return error_type();
         }
-        if (is_never(current)) {
+        if (never_type_state(current) == typesys::NeverTypeState::DivergesBeforeFollowingCode) {
             return next;
         }
-        if (is_never(next)) {
+        if (never_type_state(next) == typesys::NeverTypeState::DivergesBeforeFollowingCode) {
             return current;
         }
-        if (!types_equal(current, next)) {
+        if (type_equivalence(current, next) == typesys::TypeEquivalence::Different) {
             diagnostics_.error(span,
                               "match arms have incompatible types '" + type_name(current) + "' and '"
                                   + type_name(next) + "'");
@@ -1923,26 +2416,29 @@ private:
         }
     }
 
-    ExprType type_match_expr(const ast::MatchExpr& expr, const FunctionContext& context, ValueEnv& env) {
+    ExprType type_match_expr(const ast::MatchExpr& expr,
+                             const FunctionContext& context,
+                             ValueEnv& env,
+                             const Type* expected_type = nullptr) {
         ExprType scrutinee = type_expr(*expr.scrutinee, context, env);
         Type result_type = builtin_type("Never");
-        bool has_arm = false;
+        MatchArmResultCoverage arm_result_coverage = MatchArmResultCoverage::NoArmResultAvailable;
         std::vector<BranchState> arm_states;
 
         if (scrutinee.yielded_reason != nullptr) {
-            bool seen_success = false;
+            FailingMatchSuccessCoverage success_coverage = FailingMatchSuccessCoverage::SucceededArmMissing;
             std::unordered_set<std::string> seen_failed;
             for (const ast::MatchArm& arm : expr.arms) {
                 ValueEnv arm_env = push_scope(env);
                 switch (arm.pattern->kind) {
                 case ast::PatternKind::Succeeded: {
                     const auto& pattern = static_cast<const ast::SucceededPattern&>(*arm.pattern);
-                    if (seen_success) {
+                    if (success_coverage == FailingMatchSuccessCoverage::SucceededArmObserved) {
                         diagnostics_.error(arm.pattern->span, "duplicate succeeded(...) arm");
                     }
-                    seen_success = true;
-                    if (!pattern.ignore && pattern.binding_name.has_value()) {
-                        bind_value(arm_env, *pattern.binding_name, scrutinee.value, arm.pattern->span);
+                    success_coverage = FailingMatchSuccessCoverage::SucceededArmObserved;
+                    if (pattern.binding == ast::SuccessPatternBinding::NamedBinding) {
+                        bind_value(arm_env, pattern.binding_name, scrutinee.value, arm.pattern->span);
                     }
                     break;
                 }
@@ -1952,14 +2448,18 @@ private:
                         diagnostics_.error(pattern.span, "wildcard patterns are not allowed");
                         break;
                     }
-                    VariantResolution failure = resolve_variant(context.scope, pattern.variant->path, false, true);
-                    if (failure.ambiguous) {
+                    VariantResolution failure = resolve_variant(
+                        context.scope,
+                        pattern.variant->path,
+                        VariantOwnerKind::ReasonDeclaration);
+                    if (failure.state == VariantResolutionState::AmbiguousVariant) {
                         diagnostics_.error(pattern.span, "ambiguous failed(...) pattern");
                     } else if (failure.variant == nullptr || failure.owner_decl != scrutinee.yielded_reason) {
                         diagnostics_.error(pattern.span,
                                           "failed(...) arm must match a variant of reason '"
                                               + scrutinee.yielded_reason->name + "'");
-                    } else if (!check_import_access(context.scope, pattern.variant->path, pattern.span)) {
+                    } else if (check_import_access(context.scope, pattern.variant->path, pattern.span)
+                               == CrossModuleReferenceAccess::MatchingImportRequired) {
                         continue;
                     } else {
                         if (!seen_failed.insert(failure.variant->name).second) {
@@ -1976,17 +2476,17 @@ private:
                     break;
                 }
 
-                ExprType arm_type = type_expr(*arm.body, context, arm_env);
+                ExprType arm_type = type_expr(*arm.body, context, arm_env, expected_type);
                 if (arm_type.yielded_reason != nullptr) {
                     diagnostics_.error(arm.body->span,
                                         "failing expression must be handled with `try` or `match`");
                 }
                 result_type = unify_match_result(result_type, arm_type.value, arm.span);
-                has_arm = true;
-                arm_states.push_back(BranchState{std::move(arm_env), arm_type.reachable});
+                arm_result_coverage = MatchArmResultCoverage::ArmResultAvailable;
+                arm_states.push_back(BranchState{std::move(arm_env), arm_type.reachability});
             }
 
-            if (!seen_success) {
+            if (success_coverage == FailingMatchSuccessCoverage::SucceededArmMissing) {
                 diagnostics_.error(expr.span, "match over a `fails` call must include a succeeded(...) arm");
             }
             for (const ast::Variant& variant : scrutinee.yielded_reason->variants) {
@@ -1996,7 +2496,9 @@ private:
                 }
             }
             merge_branch_envs(env, arm_states);
-            return make_expr(has_arm ? result_type : builtin_type("Unit"));
+            return make_expr(arm_result_coverage == MatchArmResultCoverage::ArmResultAvailable
+                ? result_type
+                : builtin_type("Unit"));
         }
 
         if (scrutinee.value.decl != nullptr && scrutinee.value.decl->kind == ast::DeclKind::Phase) {
@@ -2025,8 +2527,11 @@ private:
                 diagnostics_.error(pattern.span, "wildcard patterns are not allowed");
                 continue;
             }
-            VariantResolution resolution = resolve_variant(context.scope, pattern.path, true, false);
-            if (resolution.ambiguous) {
+            VariantResolution resolution = resolve_variant(
+                context.scope,
+                pattern.path,
+                VariantOwnerKind::StateDeclaration);
+            if (resolution.state == VariantResolutionState::AmbiguousVariant) {
                 diagnostics_.error(pattern.span, "ambiguous variant pattern '" + pattern.path.back() + "'");
                 continue;
             }
@@ -2035,7 +2540,8 @@ private:
                                   "pattern must match a variant of state '" + state_decl->name + "'");
                 continue;
             }
-            if (!check_import_access(context.scope, pattern.path, pattern.span)) {
+            if (check_import_access(context.scope, pattern.path, pattern.span)
+                == CrossModuleReferenceAccess::MatchingImportRequired) {
                 continue;
             }
             if (!seen_variants.insert(resolution.variant->name).second) {
@@ -2045,14 +2551,14 @@ private:
 
             ValueEnv arm_env = push_scope(env);
             bind_variant_pattern(pattern, *resolution.variant, context, arm_env);
-            ExprType arm_type = type_expr(*arm.body, context, arm_env);
+            ExprType arm_type = type_expr(*arm.body, context, arm_env, expected_type);
             if (arm_type.yielded_reason != nullptr) {
                 diagnostics_.error(arm.body->span,
                                     "failing expression must be handled with `try` or `match`");
             }
             result_type = unify_match_result(result_type, arm_type.value, arm.span);
-            has_arm = true;
-            arm_states.push_back(BranchState{std::move(arm_env), arm_type.reachable});
+            arm_result_coverage = MatchArmResultCoverage::ArmResultAvailable;
+            arm_states.push_back(BranchState{std::move(arm_env), arm_type.reachability});
         }
 
         for (const ast::Variant& variant : state_decl->variants) {
@@ -2063,10 +2569,15 @@ private:
             }
         }
         merge_branch_envs(env, arm_states);
-        return make_expr(has_arm ? result_type : builtin_type("Unit"));
+        return make_expr(arm_result_coverage == MatchArmResultCoverage::ArmResultAvailable
+            ? result_type
+            : builtin_type("Unit"));
     }
 
-    ExprType type_block(const ast::BlockExpr& block, const FunctionContext& context, ValueEnv& parent_env) {
+    ExprType type_block(const ast::BlockExpr& block,
+                        const FunctionContext& context,
+                        ValueEnv& parent_env,
+                        const Type* expected_type = nullptr) {
         ValueEnv local = push_scope(parent_env);
         for (const auto& stmt_ptr : block.statements) {
             const ast::Stmt& stmt = *stmt_ptr;
@@ -2078,7 +2589,7 @@ private:
                     diagnostics_.error(let_stmt.initializer->span,
                                         "failing expression must be handled with `try` or `match`");
                 }
-                if (!init_type.reachable) {
+                if (init_type.reachability != ControlFlowReachability::ContinuesToFollowingCode) {
                     return init_type;
                 }
                 bind_value(local, let_stmt.name, init_type.value, let_stmt.span);
@@ -2091,7 +2602,7 @@ private:
                     diagnostics_.error(expr_stmt.expr->span,
                                         "failing expression must be handled with `try` or `match`");
                 }
-                if (!expr_type.reachable) {
+                if (expr_type.reachability != ControlFlowReachability::ContinuesToFollowingCode) {
                     return expr_type;
                 }
                 break;
@@ -2100,8 +2611,8 @@ private:
         }
 
         if (block.result != nullptr) {
-            ExprType result = type_expr(*block.result, context, local);
-            if (result.reachable) {
+            ExprType result = type_expr(*block.result, context, local, expected_type);
+            if (result.reachability == ControlFlowReachability::ContinuesToFollowingCode) {
                 merge_sequential_env(parent_env, local);
             }
             return result;
@@ -2115,7 +2626,7 @@ private:
             const auto& path = static_cast<const ast::PathExpr&>(expr);
             if (path.path.size() == 1) {
                 if (const BindingState* binding = lookup_binding(env, path.path.front()); binding != nullptr) {
-                    if (is_permit_type(binding->type)) {
+                    if (permit_type_state(binding->type) == PermitTypeState::PermitValueType) {
                         diagnostics_.error(path.span, "permit value may only be used as a direct function argument");
                         return make_expr(error_type());
                     }
@@ -2128,7 +2639,7 @@ private:
 
     ExprType type_field_access_expr(const ast::FieldAccessExpr& expr, const FunctionContext& context, ValueEnv& env) {
         ExprType recv = type_field_receiver_expr(*expr.object, context, env);
-        if (is_error(recv.value)) {
+        if (type_error_state(recv.value) == typesys::TypeErrorState::SuppressesFollowupDiagnostics) {
             return recv;
         }
         const ast::Decl* decl = recv.value.decl;
@@ -2152,12 +2663,13 @@ private:
             for (const ast::Field& f : rd->fields) {
                 if (f.name == expr.field_name) {
                     if (f.visibility != ast::Visibility::Public
-                        && !scope_encloses(owner_scope, &context.scope)) {
+                        && scope_containment(owner_scope, &context.scope)
+                            == ScopeContainment::SeparateScopeBranch) {
                         diagnostics_.error(expr.span, "field '" + expr.field_name + "' is private");
                         return make_expr(error_type());
                     }
                     const Type field_ty = resolve_member_type(decl, recv.value.args, f.type);
-                    if (typesys::is_affine(discipline(recv.value))
+                    if (typesys::discipline_movement(discipline(recv.value)) == typesys::DisciplineMovement::Affine
                         && discipline(field_ty) != typesys::UseDiscipline::Copyable) {
                         diagnostics_.error(expr.span,
                                             "field access on affine value requires a copyable field type");
@@ -2172,12 +2684,13 @@ private:
             for (const ast::Field& f : pd->fields) {
                 if (f.name == expr.field_name) {
                     if (f.visibility != ast::Visibility::Public
-                        && !scope_encloses(owner_scope, &context.scope)) {
+                        && scope_containment(owner_scope, &context.scope)
+                            == ScopeContainment::SeparateScopeBranch) {
                         diagnostics_.error(expr.span, "field '" + expr.field_name + "' is private");
                         return make_expr(error_type());
                     }
                     const Type field_ty = resolve_member_type(decl, recv.value.args, f.type);
-                    if (typesys::is_affine(discipline(recv.value))
+                    if (typesys::discipline_movement(discipline(recv.value)) == typesys::DisciplineMovement::Affine
                         && discipline(field_ty) != typesys::UseDiscipline::Copyable) {
                         diagnostics_.error(expr.span,
                                             "field access on affine value requires a copyable field type");
@@ -2192,12 +2705,13 @@ private:
             for (const ast::Field& f : pd->fields) {
                 if (f.name == expr.field_name) {
                     if (f.visibility != ast::Visibility::Public
-                        && !scope_encloses(owner_scope, &context.scope)) {
+                        && scope_containment(owner_scope, &context.scope)
+                            == ScopeContainment::SeparateScopeBranch) {
                         diagnostics_.error(expr.span, "field '" + expr.field_name + "' is private");
                         return make_expr(error_type());
                     }
                     const Type field_ty = resolve_member_type(decl, recv.value.args, f.type);
-                    if (typesys::is_affine(discipline(recv.value))
+                    if (typesys::discipline_movement(discipline(recv.value)) == typesys::DisciplineMovement::Affine
                         && discipline(field_ty) != typesys::UseDiscipline::Copyable) {
                         diagnostics_.error(expr.span,
                                             "field access on affine value requires a copyable field type");
@@ -2212,11 +2726,18 @@ private:
         return make_expr(error_type());
     }
 
-    ExprType type_expr(const ast::Expr& expr, const FunctionContext& context, ValueEnv& env) {
+    ExprType type_expr(const ast::Expr& expr,
+                       const FunctionContext& context,
+                       ValueEnv& env,
+                       const Type* expected_type = nullptr) {
         switch (expr.kind) {
         case ast::ExprKind::NumberLiteral:
             return make_expr(builtin_type("Int"));
         case ast::ExprKind::StringLiteral:
+            if (expected_type != nullptr
+                && string_literal_typing_state(*expected_type) == StringLiteralTypingState::AcceptsStringLiteral) {
+                return make_expr(*expected_type);
+            }
             return make_expr(builtin_type("Text"));
         case ast::ExprKind::Path:
             return type_path_expr(static_cast<const ast::PathExpr&>(expr), context, env);
@@ -2227,13 +2748,13 @@ private:
         case ast::ExprKind::Try:
             return type_try_expr(static_cast<const ast::TryExpr&>(expr), context, env);
         case ast::ExprKind::Match:
-            return type_match_expr(static_cast<const ast::MatchExpr&>(expr), context, env);
+            return type_match_expr(static_cast<const ast::MatchExpr&>(expr), context, env, expected_type);
         case ast::ExprKind::Block:
-            return type_block(static_cast<const ast::BlockExpr&>(expr), context, env);
+            return type_block(static_cast<const ast::BlockExpr&>(expr), context, env, expected_type);
         case ast::ExprKind::Fail:
             return type_fail_expr(static_cast<const ast::FailExpr&>(expr), context, env);
         case ast::ExprKind::Grant:
-            return type_grant_expr(static_cast<const ast::GrantExpr&>(expr), context, env);
+            return type_grant_expr(static_cast<const ast::GrantExpr&>(expr), context, env, expected_type);
         case ast::ExprKind::Prove:
             return type_prove_expr(static_cast<const ast::ProveExpr&>(expr), context, env);
         case ast::ExprKind::FieldAccess:
@@ -2274,11 +2795,11 @@ private:
                                            context.generics,
                                            context.substitutions,
                                            function_decl.signature.return_type);
-        if (function_decl.signature.fails_type.has_value()) {
+        if (function_decl.signature.failure.behavior() == ast::FunctionFailureBehavior::YieldsReason) {
             const Type fails_type = resolve_type(scope,
                                                  context.generics,
                                                  context.substitutions,
-                                                 *function_decl.signature.fails_type);
+                                                 function_decl.signature.failure.reason_type());
             context.fails_reason = fails_type.decl != nullptr ? static_cast<const ast::ReasonDecl*>(fails_type.decl) : nullptr;
         }
         for (const ast::TypeRef& proves_ast : function_decl.signature.proves_types) {
@@ -2289,19 +2810,24 @@ private:
         }
 
         ValueEnv env = make_root_env();
+        std::unordered_set<std::string> bound_params;
         for (const ast::Parameter& param : function_decl.signature.params) {
+            if (!bound_params.insert(param.name).second) {
+                continue;
+            }
             bind_value(env,
                        param.name,
                        resolve_type(scope, context.generics, context.substitutions, param.type),
                        param.span);
         }
 
-        ExprType body_type = type_block(*function_decl.body, context, env);
+        ExprType body_type = type_block(*function_decl.body, context, env, &context.return_type);
         if (body_type.yielded_reason != nullptr) {
             diagnostics_.error(function_decl.body->span,
                                 "failing expression must be handled with `try` or `match`");
         }
-        if (!assignable_to(context.return_type, body_type.value)) {
+        if (assignment_compatibility(context.return_type, body_type.value)
+            == AssignmentCompatibility::TypeMismatch) {
             diagnostics_.error(function_decl.body->span,
                               "function '" + function_decl.name + "' returns '" + type_name(body_type.value)
                                   + "' but signature requires '" + type_name(context.return_type) + "'");

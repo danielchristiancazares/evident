@@ -1,0 +1,12 @@
+<input>:2:8: error: generic record 'Validated' is not structurally blind; lifecycle, authority, proof, or domain facts must use first-class language constructs
+    public record Validated<T> {
+           ^^^^^^^^^^^^^^^^^^^^^
+<input>:6:19: error: generic parameter 'Authorized' is not structurally blind; lifecycle, authority, proof, or domain facts must use first-class language constructs
+    public record Box<Authorized> {
+                      ^^^^^^^^^^
+<input>:10:8: error: generic function 'settled' is not structurally blind; lifecycle, authority, proof, or domain facts must use first-class language constructs
+    public fn settled<T>(value: T) -> T {
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<input>:14:17: error: generic parameter 'draft' is not structurally blind; lifecycle, authority, proof, or domain facts must use first-class language constructs
+    public fn relay<draft>(value: draft) -> draft {
+                    ^^^^^

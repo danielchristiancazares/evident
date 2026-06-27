@@ -1,7 +1,7 @@
 domain module test {
 public record Point {
-    public x: Int,
-    public y: Int,
+    x: Int,
+    y: Int,
 }
 
 public state Packet {
@@ -16,7 +16,7 @@ public phase Config {
     }
     positions {
         Draft,
-        Ready,
+        Validated,
     }
 }
 
