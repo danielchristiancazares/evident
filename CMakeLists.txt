@@ -28,8 +28,20 @@ target_compile_options(evident_frontend PRIVATE
     $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-Wall -Wextra -Wpedantic>
 )
 
+add_library(evident_bootstrap_runtime STATIC
+    src/bootstrap_runtime.cpp
+)
+
+target_compile_options(evident_bootstrap_runtime PRIVATE
+    $<$<CXX_COMPILER_ID:GNU,Clang,AppleClang>:-Wall -Wextra -Wpedantic>
+)
+
+target_compile_definitions(evident_frontend PRIVATE
+    EVIDENT_NATIVE_RUNTIME_LIBRARY="$<TARGET_FILE:evident_bootstrap_runtime>"
+)
+
 add_executable(evidc src/main.cpp)
-target_link_libraries(evidc PRIVATE evident_frontend)
+target_link_libraries(evidc PRIVATE evident_frontend evident_bootstrap_runtime)
 target_compile_definitions(evidc PRIVATE EVIDENT_VERSION="${PROJECT_VERSION}")
 
 install(TARGETS evidc
@@ -865,6 +877,15 @@ if(BUILD_TESTING)
             "-DINPUT_PATHS=${EVIDENT_BOOTSTRAP_PACKAGE_INPUTS}"
             -DOUTPUT_PATH=${CMAKE_CURRENT_BINARY_DIR}/bootstrap_compiler_scaffold.exe
             -DEXPECTED_EXIT=13
+            -DTARGET_TRIPLE=x86_64-pc-windows-msvc
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/RunEmitAndCheckExit.cmake)
+
+    add_test(NAME run_bootstrap_environment_probe
+        COMMAND ${CMAKE_COMMAND}
+            -DCOMMAND_PATH=$<TARGET_FILE:evidc>
+            "-DINPUT_PATHS=${CMAKE_CURRENT_SOURCE_DIR}/bootstrap/compiler/src/host.evd;${CMAKE_CURRENT_SOURCE_DIR}/bootstrap/compiler/src/environment.evd;${CMAKE_CURRENT_SOURCE_DIR}/tests/bootstrap_environment_probe.evd"
+            -DOUTPUT_PATH=${CMAKE_CURRENT_BINARY_DIR}/bootstrap_environment_probe.exe
+            -DEXPECTED_EXIT=0
             -DTARGET_TRIPLE=x86_64-pc-windows-msvc
             -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/RunEmitAndCheckExit.cmake)
 

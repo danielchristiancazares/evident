@@ -1,0 +1,8 @@
+import bootstrap_environment;
+
+domain module bootstrap_environment_probe {
+public fn main() -> Int {
+    let environment = bootstrap_environment::current_environment();
+    0
+}
+}

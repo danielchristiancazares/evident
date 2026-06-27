@@ -31,6 +31,10 @@
 extern char** environ;
 #endif
 
+#ifndef EVIDENT_NATIVE_RUNTIME_LIBRARY
+#define EVIDENT_NATIVE_RUNTIME_LIBRARY ""
+#endif
+
 namespace evident::backend {
 
 namespace {
@@ -6650,6 +6654,12 @@ std::expected<ArtifactEmissionSucceeded, std::string> emit_artifact(const hir::P
         break;
     }
     command.push_back(temp_ir_path.string());
+    if (options.kind() == EmitKind::Executable) {
+        const std::string runtime_library = EVIDENT_NATIVE_RUNTIME_LIBRARY;
+        if (!runtime_library.empty()) {
+            command.push_back(runtime_library);
+        }
+    }
     command.push_back("-o");
     command.push_back(output_path.string());
 
