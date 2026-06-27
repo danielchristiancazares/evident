@@ -323,6 +323,12 @@ enum class CompilerOwnedFunctionLowering {
     EmptyCollection,
     WidenCollection,
     CountCollection,
+    RequireNonEmptyCollection,
+};
+
+enum class RequireNonEmptyCollectionFamily {
+    List,
+    Map,
 };
 
 CompilerOwnedFunctionLowering compiler_owned_function_lowering(std::string_view qualified_name) {
@@ -336,6 +342,9 @@ CompilerOwnedFunctionLowering compiler_owned_function_lowering(std::string_view 
     if (base_name == "list_count_copy" || base_name == "nonempty_list_count_copy"
         || base_name == "map_count_copy" || base_name == "nonempty_map_count_copy") {
         return CompilerOwnedFunctionLowering::CountCollection;
+    }
+    if (base_name == "list_require_nonempty" || base_name == "map_require_nonempty") {
+        return CompilerOwnedFunctionLowering::RequireNonEmptyCollection;
     }
     return CompilerOwnedFunctionLowering::Unsupported;
 }
@@ -2242,6 +2251,144 @@ std::expected<std::string, std::string> FunctionEmitter::emit_compiler_owned_fun
         out << "  ret " << return_type.llvm_type() << " %count0\n";
         out << "}\n";
         return out.str();
+
+    case CompilerOwnedFunctionLowering::RequireNonEmptyCollection: {
+        if (param_types.size() != 1) {
+            return std::unexpected("internal backend error: collection require-nonempty function '"
+                                   + hir_function_.qualified_name + "' expected one parameter");
+        }
+        if (hir_function_.failure.behavior() != hir::FunctionFailureBehavior::YieldsReason) {
+            return std::unexpected("internal backend error: collection require-nonempty function '"
+                                   + hir_function_.qualified_name + "' does not declare fails");
+        }
+
+        const std::string_view base_name = function_base_name(hir_function_.qualified_name);
+        const RequireNonEmptyCollectionFamily collection_family = base_name == "list_require_nonempty"
+            ? RequireNonEmptyCollectionFamily::List
+            : RequireNonEmptyCollectionFamily::Map;
+        const BuiltinKind expected_param_kind = collection_family == RequireNonEmptyCollectionFamily::List
+            ? BuiltinKind::List
+            : BuiltinKind::Map;
+        const BuiltinKind expected_success_kind = collection_family == RequireNonEmptyCollectionFamily::List
+            ? BuiltinKind::NonEmptyList
+            : BuiltinKind::NonEmptyMap;
+        const std::string expected_reason_name = collection_family == RequireNonEmptyCollectionFamily::List
+            ? "ListCardinalityFailure"
+            : "MapCardinalityFailure";
+        const std::string expected_failure_variant_name = collection_family == RequireNonEmptyCollectionFamily::List
+            ? "ListHadNoElements"
+            : "MapHadNoEntries";
+
+        if (!has_builtin_kind(param_types[0], expected_param_kind)) {
+            return std::unexpected("internal backend error: collection require-nonempty function '"
+                                   + hir_function_.qualified_name + "' has unsupported parameter type '"
+                                   + param_types[0].source_name() + "'");
+        }
+
+        const std::expected<ResolvedType, std::string> success_type =
+            model_.resolve_type_name(hir_function_.return_type.text);
+        if (!success_type.has_value()) {
+            return std::unexpected(success_type.error());
+        }
+        if (!has_builtin_kind(*success_type, expected_success_kind)) {
+            return std::unexpected("internal backend error: collection require-nonempty function '"
+                                   + hir_function_.qualified_name + "' returns '"
+                                   + success_type->source_name() + "'");
+        }
+
+        const std::expected<const YieldLayout*, std::string> yield_layout_result =
+            model_.ensure_yield_layout(hir_function_.id);
+        if (!yield_layout_result.has_value()) {
+            return std::unexpected(yield_layout_result.error());
+        }
+        const YieldLayout& yield_layout = **yield_layout_result;
+        if (return_type.llvm_type() != yield_layout.llvm_type) {
+            return std::unexpected("internal backend error: collection require-nonempty function '"
+                                   + hir_function_.qualified_name + "' has mismatched yield return type");
+        }
+
+        const hir::TypeDecl& reason_decl = model_.type(hir_function_.failure.reason_type_id());
+        if (reason_decl.qualified_name != expected_reason_name) {
+            return std::unexpected("internal backend error: collection require-nonempty function '"
+                                   + hir_function_.qualified_name + "' fails with '"
+                                   + reason_decl.qualified_name + "'");
+        }
+        const std::expected<ResolvedType, std::string> failure_type =
+            model_.resolve_type_name(reason_decl.qualified_name);
+        if (!failure_type.has_value()) {
+            return std::unexpected(failure_type.error());
+        }
+        const std::expected<const TypeLayout*, std::string> failure_layout_result =
+            model_.ensure_type_layout(reason_decl.id);
+        if (!failure_layout_result.has_value()) {
+            return std::unexpected(failure_layout_result.error());
+        }
+        const TypeLayout& failure_layout = **failure_layout_result;
+
+        const std::expected<std::uint32_t, std::string> failure_variant_tag_result =
+            [&]() -> std::expected<std::uint32_t, std::string> {
+            for (const hir::VariantId variant_id : reason_decl.variants) {
+                const hir::VariantDecl& variant_decl = model_.variant(variant_id);
+                if (variant_decl.name != expected_failure_variant_name) {
+                    continue;
+                }
+                const auto layout_it = failure_layout.variants.find(variant_id);
+                if (layout_it == failure_layout.variants.end()) {
+                    return std::unexpected("internal backend error: missing layout for failure variant '"
+                                           + variant_decl.qualified_name + "'");
+                }
+                return layout_it->second.tag_value;
+            }
+            return std::unexpected("internal backend error: collection require-nonempty function '"
+                                   + hir_function_.qualified_name + "' could not find failure variant '"
+                                   + expected_failure_variant_name + "'");
+        }();
+        if (!failure_variant_tag_result.has_value()) {
+            return std::unexpected(failure_variant_tag_result.error());
+        }
+        const std::uint32_t failure_variant_tag = *failure_variant_tag_result;
+
+        const auto emit_yield_return =
+            [&](std::string_view prefix,
+                std::string_view wrapper_tag,
+                const ResolvedType& payload_type,
+                const std::string& payload_value) {
+            out << "  %" << prefix << ".tag = insertvalue " << yield_layout.llvm_type
+                << " zeroinitializer, i8 " << wrapper_tag << ", 0\n";
+            if (yield_layout.payload_size == 0) {
+                out << "  ret " << yield_layout.llvm_type << " %" << prefix << ".tag\n";
+                return;
+            }
+            out << "  %" << prefix << ".pack.slot = alloca " << yield_layout.payload_storage_type << "\n";
+            out << "  store " << yield_layout.payload_storage_type << " zeroinitializer, ptr %"
+                << prefix << ".pack.slot\n";
+            out << "  store " << payload_type.llvm_type() << " " << payload_value << ", ptr %"
+                << prefix << ".pack.slot\n";
+            out << "  %" << prefix << ".pack = load " << yield_layout.payload_storage_type
+                << ", ptr %" << prefix << ".pack.slot\n";
+            out << "  %" << prefix << ".value = insertvalue " << yield_layout.llvm_type
+                << " %" << prefix << ".tag, " << yield_layout.payload_storage_type << " %"
+                << prefix << ".pack, " << yield_layout.payload_field_index << "\n";
+            out << "  ret " << yield_layout.llvm_type << " %" << prefix << ".value\n";
+        };
+
+        out << "define " << linkage << yield_layout.llvm_type << " @"
+            << model_.function_symbol(hir_function_.id) << "(" << param_types[0].llvm_type() << " %arg0) {\n";
+        out << "entry:\n";
+        out << "  %count0 = extractvalue " << param_types[0].llvm_type() << " %arg0, 1\n";
+        out << "  %is_empty0 = icmp eq i64 %count0, 0\n";
+        out << "  br i1 %is_empty0, label %empty, label %nonempty\n";
+        out << "\n";
+        out << "nonempty:\n";
+        emit_yield_return("ok", "0", *success_type, "%arg0");
+        out << "\n";
+        out << "empty:\n";
+        out << "  %reason0 = insertvalue " << failure_type->llvm_type()
+            << " zeroinitializer, i32 " << failure_variant_tag << ", 0\n";
+        emit_yield_return("fail", "1", *failure_type, "%reason0");
+        out << "}\n";
+        return out.str();
+    }
 
     case CompilerOwnedFunctionLowering::Unsupported:
         break;

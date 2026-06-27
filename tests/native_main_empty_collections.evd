@@ -31,11 +31,31 @@ public fn nonempty_map_count(entries: NonEmptyMap<Text, Int>) -> Nat {
     nonempty_map_count_copy<Text, Int>(entries)
 }
 
-public fn main() -> Int {
+public fn require_empty_map(entries: Map<Text, Int>) -> Int {
+    match map_require_nonempty<Text, Int>(entries) {
+        succeeded(actual) => {
+            let widened = nonempty_map_widen<Text, Int>(actual)
+            5
+        },
+        failed(MapHadNoEntries) => 7,
+    }
+}
+
+public fn require_empty_collections() -> Int {
     let values = empty_list()
     let entries = empty_map()
     let value_count = list_count(values)
     let entry_count = map_count(entries)
-    7
+    match list_require_nonempty<Int>(values) {
+        succeeded(actual) => {
+            let widened = nonempty_list_widen<Int>(actual)
+            3
+        },
+        failed(ListHadNoElements) => require_empty_map(entries),
+    }
+}
+
+public fn main() -> Int {
+    require_empty_collections()
 }
 }
