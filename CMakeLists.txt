@@ -80,7 +80,7 @@ add_dependencies(package_checksum package)
 
 include(CTest)
 if(BUILD_TESTING)
-    set(EVIDENT_EXPECTED_CTEST_TOTAL 393)
+    set(EVIDENT_EXPECTED_CTEST_TOTAL 394)
 
     add_test(NAME parse_valid_example
         COMMAND evidc --dump-hir ${CMAKE_CURRENT_SOURCE_DIR}/examples/feature_mode.evd)
@@ -1528,6 +1528,7 @@ if(BUILD_TESTING)
     add_backend_reject_test(reject_backend_main_params native_invalid_main_params.evd reject_backend_main_params.exe)
     add_backend_reject_test(reject_backend_main_wrong_return native_invalid_main_wrong_return.evd reject_backend_main_wrong_return.exe)
     add_backend_reject_test(reject_backend_main_yields native_invalid_main_yields.evd reject_backend_main_yields.exe)
+    add_backend_reject_test(reject_backend_materialized_never native_invalid_materialized_never.evd reject_backend_materialized_never.exe)
     add_emit_exe_test(run_native_empty_collections native_main_empty_collections.evd 7 native_empty_collections.exe)
     add_emit_exe_test(run_native_builtin_cstring_map native_main_builtin_cstring_map.evd 7 native_builtin_cstring_map.exe)
 endif()
