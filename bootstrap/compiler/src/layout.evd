@@ -1,0 +1,159 @@
+import bootstrap_source;
+
+domain module bootstrap_layout {
+public record BootstrapPackageModule {
+    public name: Text,
+    public source: bootstrap_source::SourcePath,
+    public imports: List<Text>,
+}
+
+public record BootstrapPackageLayout {
+    public package: bootstrap_source::PackageSource,
+    public modules: NonEmptyList<BootstrapPackageModule>,
+}
+
+public fn bootstrap_package_module(name: Text, source: Text, imports: List<Text>) -> BootstrapPackageModule {
+    BootstrapPackageModule {
+        name,
+        source: bootstrap_source::SourcePath { text: source },
+        imports,
+    }
+}
+
+fn append_text_import(imports: List<Text>, item: Text) -> List<Text> {
+    let widened = nonempty_list_widen<Text>(list_append<Text>(imports, item));
+    widened
+}
+
+fn append_bootstrap_package_module(modules: NonEmptyList<BootstrapPackageModule>, item: BootstrapPackageModule) -> NonEmptyList<BootstrapPackageModule> {
+    let widened = nonempty_list_widen<BootstrapPackageModule>(modules);
+    list_append<BootstrapPackageModule>(widened, item)
+}
+
+public fn bootstrap_package_layout(package: bootstrap_source::PackageSource) -> BootstrapPackageLayout {
+    let host = list_single<BootstrapPackageModule>(bootstrap_package_module(
+        "bootstrap_host",
+        "src/host.evd",
+        list_empty<Text>(),
+    ));
+    let environment_imports = append_text_import(list_empty<Text>(), "bootstrap_host");
+    let environment = append_bootstrap_package_module(
+        host,
+        bootstrap_package_module(
+            "bootstrap_environment",
+            "src/environment.evd",
+            environment_imports,
+        ),
+    );
+    let source_imports = append_text_import(list_empty<Text>(), "bootstrap_environment");
+    let source = append_bootstrap_package_module(
+        environment,
+        bootstrap_package_module(
+            "bootstrap_source",
+            "src/source.evd",
+            source_imports,
+        ),
+    );
+    let lexing_imports = append_text_import(list_empty<Text>(), "bootstrap_source");
+    let lexing = append_bootstrap_package_module(
+        source,
+        bootstrap_package_module(
+            "bootstrap_lexing",
+            "src/lexing.evd",
+            lexing_imports,
+        ),
+    );
+    let parsing_imports = append_text_import(list_empty<Text>(), "bootstrap_source");
+    let parsing_imports_final = append_text_import(parsing_imports, "bootstrap_lexing");
+    let parsing = append_bootstrap_package_module(
+        lexing,
+        bootstrap_package_module(
+            "bootstrap_parsing",
+            "src/parsing.evd",
+            parsing_imports_final,
+        ),
+    );
+    let semantics_imports = append_text_import(list_empty<Text>(), "bootstrap_source");
+    let semantics_imports_more = append_text_import(semantics_imports, "bootstrap_lexing");
+    let semantics_imports_final = append_text_import(semantics_imports_more, "bootstrap_parsing");
+    let semantics = append_bootstrap_package_module(
+        parsing,
+        bootstrap_package_module(
+            "bootstrap_semantics",
+            "src/semantics.evd",
+            semantics_imports_final,
+        ),
+    );
+    let diagnostics_imports = append_text_import(list_empty<Text>(), "bootstrap_source");
+    let diagnostics = append_bootstrap_package_module(
+        semantics,
+        bootstrap_package_module(
+            "bootstrap_diagnostics",
+            "src/diagnostics.evd",
+            diagnostics_imports,
+        ),
+    );
+    let discovery_imports = append_text_import(list_empty<Text>(), "bootstrap_environment");
+    let discovery_imports_more = append_text_import(discovery_imports, "bootstrap_diagnostics");
+    let discovery_imports_final = append_text_import(discovery_imports_more, "bootstrap_source");
+    let discovery = append_bootstrap_package_module(
+        diagnostics,
+        bootstrap_package_module(
+            "bootstrap_discovery",
+            "src/discovery.evd",
+            discovery_imports_final,
+        ),
+    );
+    let pipeline_imports = append_text_import(list_empty<Text>(), "bootstrap_source");
+    let pipeline_imports_more = append_text_import(pipeline_imports, "bootstrap_lexing");
+    let pipeline_imports_more2 = append_text_import(pipeline_imports_more, "bootstrap_parsing");
+    let pipeline_imports_final = append_text_import(pipeline_imports_more2, "bootstrap_semantics");
+    let pipeline = append_bootstrap_package_module(
+        discovery,
+        bootstrap_package_module(
+            "bootstrap_pipeline",
+            "src/pipeline.evd",
+            pipeline_imports_final,
+        ),
+    );
+    let layout_imports = append_text_import(list_empty<Text>(), "bootstrap_source");
+    let layout = append_bootstrap_package_module(
+        pipeline,
+        bootstrap_package_module(
+            "bootstrap_layout",
+            "src/layout.evd",
+            layout_imports,
+        ),
+    );
+    let release_imports = append_text_import(list_empty<Text>(), "bootstrap_environment");
+    let release_imports_final = append_text_import(release_imports, "bootstrap_pipeline");
+    let release = append_bootstrap_package_module(
+        layout,
+        bootstrap_package_module(
+            "bootstrap_release",
+            "src/release.evd",
+            release_imports_final,
+        ),
+    );
+    let main_imports = append_text_import(list_empty<Text>(), "bootstrap_host");
+    let main_imports_more = append_text_import(main_imports, "bootstrap_environment");
+    let main_imports_more2 = append_text_import(main_imports_more, "bootstrap_discovery");
+    let main_imports_more3 = append_text_import(main_imports_more2, "bootstrap_layout");
+    let main_imports_more4 = append_text_import(main_imports_more3, "bootstrap_release");
+    let main_imports_more5 = append_text_import(main_imports_more4, "bootstrap_source");
+    let main_imports_final = append_text_import(main_imports_more5, "bootstrap_pipeline");
+    let main = append_bootstrap_package_module(
+        release,
+        bootstrap_package_module(
+            "bootstrap_compiler",
+            "src/main.evd",
+            main_imports_final,
+        ),
+    );
+
+    BootstrapPackageLayout {
+        package,
+        modules: main,
+    }
+}
+}

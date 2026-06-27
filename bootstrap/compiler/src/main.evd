@@ -1,6 +1,7 @@
 import bootstrap_host;
 import bootstrap_environment;
 import bootstrap_discovery;
+import bootstrap_layout;
 import bootstrap_release;
 import bootstrap_source;
 import bootstrap_pipeline;
@@ -10,6 +11,7 @@ public record BootstrapStatus {
     public host: bootstrap_host::CompilerHostSurface,
     public environment: bootstrap_environment::CompilerEnvironment,
     public discovery: bootstrap_discovery::SourceDiscovery,
+    public layout: bootstrap_layout::BootstrapPackageLayout,
     public release: bootstrap_release::BootstrapReleaseEvidence,
     public package: bootstrap_source::PackageSource,
     public exit_status: bootstrap_host::ExitStatus,
@@ -24,6 +26,7 @@ public fn build_status() -> BootstrapStatus {
     let discovery = bootstrap_discovery::compiler_source_discovery(environment);
     let exit_status = bootstrap_host::success_status();
     let source = bootstrap_source::compiler_package(environment, discovery.graph);
+    let layout = bootstrap_layout::bootstrap_package_layout(source);
     let outlined = bootstrap_pipeline::outline(source);
     let seed = bootstrap_pipeline::compile_with_seed(outlined);
     let stage_one = bootstrap_pipeline::compile_stage_one(seed);
@@ -45,6 +48,7 @@ public fn build_status() -> BootstrapStatus {
         host,
         environment,
         discovery,
+        layout,
         release,
         package: source,
         exit_status,
