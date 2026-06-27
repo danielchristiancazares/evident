@@ -1,0 +1,6 @@
+domain module test {
+public state Outcome {
+    Success
+    Failure,
+}
+}

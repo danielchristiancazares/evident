@@ -123,21 +123,21 @@ run_release_docs_validation(
 copy_release_docs_fixture("${stale_test_count_fixture_dir}")
 set(stale_test_count_finish_plan "${stale_test_count_fixture_dir}/docs/COMPILER_FINISH_PLAN.md")
 file(READ "${stale_test_count_finish_plan}" finish_plan_text)
-string(REPLACE "374/374" "360/360" finish_plan_text "${finish_plan_text}")
+string(REPLACE "375/375" "360/360" finish_plan_text "${finish_plan_text}")
 file(WRITE "${stale_test_count_finish_plan}" "${finish_plan_text}")
 run_release_docs_validation(
     "stale test count"
     "${stale_test_count_fixture_dir}"
     FALSE
     "release document docs/COMPILER_FINISH_PLAN.md is missing expected text"
-    "passed `374/374` tests."
+    "passed `375/375` tests."
 )
 
 copy_release_docs_fixture("${stale_readme_test_count_fixture_dir}")
 set(stale_readme_test_count_path "${stale_readme_test_count_fixture_dir}/README.md")
 file(READ "${stale_readme_test_count_path}" readme_text)
 string(REPLACE
-    "current `374/374` CTest pass summary inside `[ctest output]`"
+    "current `375/375` CTest pass summary inside `[ctest output]`"
     "current `361/361` CTest pass summary inside `[ctest output]`"
     readme_text
     "${readme_text}"
@@ -148,7 +148,7 @@ run_release_docs_validation(
     "${stale_readme_test_count_fixture_dir}"
     FALSE
     "release document README.md is missing expected text"
-    "374/374"
+    "375/375"
     "CTest pass summary"
 )
 

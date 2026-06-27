@@ -21,6 +21,11 @@ enum class ParameterSeparatorRecovery {
     ContinueWithNextParameter,
 };
 
+enum class VariantSeparatorRecovery {
+    StopVariantBlock,
+    ContinueWithNextVariant,
+};
+
 DeclarationStartState declaration_start_state(TokenKind kind) {
     switch (kind) {
     case TokenKind::KeywordPublic:
@@ -71,6 +76,20 @@ ParameterSeparatorRecovery parameter_after_missing_separator(TokenKind first, To
         return ParameterSeparatorRecovery::ContinueWithNextParameter;
     }
     return ParameterSeparatorRecovery::StopParameterList;
+}
+
+VariantSeparatorRecovery variant_after_missing_separator(TokenKind first, TokenKind second) {
+    if (first != TokenKind::Identifier) {
+        return VariantSeparatorRecovery::StopVariantBlock;
+    }
+    switch (second) {
+    case TokenKind::Comma:
+    case TokenKind::LeftBrace:
+    case TokenKind::RightBrace:
+        return VariantSeparatorRecovery::ContinueWithNextVariant;
+    default:
+        return VariantSeparatorRecovery::StopVariantBlock;
+    }
 }
 
 } // namespace
@@ -550,6 +569,11 @@ std::vector<ast::Variant> Parser::parse_variant_block() {
             if (token_check(TokenKind::RightBrace) == TokenCheckState::Matches) {
                 break;
             }
+            continue;
+        }
+        if (variant_after_missing_separator(peek().kind(), peek(1).kind())
+            == VariantSeparatorRecovery::ContinueWithNextVariant) {
+            diagnostics_.error(peek().span(), "expected ',' between variants");
             continue;
         }
         break;
