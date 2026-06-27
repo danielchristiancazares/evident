@@ -11,6 +11,10 @@ domain module missing_return_arrow {
     }
 }
 
+boundary module missing_foreign_return_arrow {
+    public foreign fn read()
+}
+
 record LooseTopLevel {
     value: Int,
 }

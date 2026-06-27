@@ -4,6 +4,9 @@
 <input>:9:24: error: expected '->' after parameter list
         public fn broken() {
                            ^
-<input>:14:1: error: only module declarations are allowed at the top level; wrap declarations in `domain module Name { ... }` (or boundary, foundation, hazard)
+<input>:16:1: error: expected '->' after parameter list
+    }
+    ^
+<input>:18:1: error: only module declarations are allowed at the top level; wrap declarations in `domain module Name { ... }` (or boundary, foundation, hazard)
     record LooseTopLevel {
     ^^^^^^
