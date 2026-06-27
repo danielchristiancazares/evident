@@ -59,6 +59,7 @@ set(missing_matrix_fixture_dir "${work_dir}/missing-matrix")
 set(stale_gitignore_fixture_dir "${work_dir}/stale-gitignore")
 set(stale_presets_fixture_dir "${work_dir}/stale-presets")
 set(stale_test_count_fixture_dir "${work_dir}/stale-test-count")
+set(stale_readme_test_count_fixture_dir "${work_dir}/stale-readme-test-count")
 set(stale_roadmap_fixture_dir "${work_dir}/stale-roadmap")
 set(stale_source_tree_audit_fixture_dir "${work_dir}/stale-source-tree-audit")
 set(stale_ci_source_tree_audit_fixture_dir "${work_dir}/stale-ci-source-tree-audit")
@@ -130,6 +131,25 @@ run_release_docs_validation(
     FALSE
     "release document docs/COMPILER_FINISH_PLAN.md is missing expected text"
     "passed `365/365` tests."
+)
+
+copy_release_docs_fixture("${stale_readme_test_count_fixture_dir}")
+set(stale_readme_test_count_path "${stale_readme_test_count_fixture_dir}/README.md")
+file(READ "${stale_readme_test_count_path}" readme_text)
+string(REPLACE
+    "current `365/365` CTest pass summary inside `[ctest output]`"
+    "current `361/361` CTest pass summary inside `[ctest output]`"
+    readme_text
+    "${readme_text}"
+)
+file(WRITE "${stale_readme_test_count_path}" "${readme_text}")
+run_release_docs_validation(
+    "stale README test count"
+    "${stale_readme_test_count_fixture_dir}"
+    FALSE
+    "release document README.md is missing expected text"
+    "365/365"
+    "CTest pass summary"
 )
 
 copy_release_docs_fixture("${stale_source_tree_audit_fixture_dir}")

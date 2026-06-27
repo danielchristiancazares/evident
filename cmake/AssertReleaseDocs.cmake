@@ -59,6 +59,7 @@ assert_doc_contains(README.md
     "checked-toolchain version probes identifying clang and LLD"
     "full source commit SHA"
     "validates that evidence file against the workflow `GITHUB_SHA` before upload"
+    "current `365/365` CTest pass summary inside `[ctest output]`"
     "shared package checksum validator"
     "sidecar path, canonical text, filename, and ZIP bytes match"
     "revalidates the downloaded release evidence against the downloaded ZIP filename, byte size, SHA256, and workflow `GITHUB_SHA`"
