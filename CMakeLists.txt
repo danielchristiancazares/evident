@@ -80,7 +80,7 @@ add_dependencies(package_checksum package)
 
 include(CTest)
 if(BUILD_TESTING)
-    set(EVIDENT_EXPECTED_CTEST_TOTAL 395)
+    set(EVIDENT_EXPECTED_CTEST_TOTAL 396)
 
     add_test(NAME parse_valid_example
         COMMAND evidc --dump-hir ${CMAKE_CURRENT_SOURCE_DIR}/examples/feature_mode.evd)
@@ -502,6 +502,14 @@ if(BUILD_TESTING)
     function(add_backend_target_reject_test name file emit_mode output_name target_triple)
         add_test(NAME ${name}
             COMMAND evidc --target ${target_triple} ${emit_mode} ${CMAKE_CURRENT_BINARY_DIR}/${output_name}
+                ${CMAKE_CURRENT_SOURCE_DIR}/tests/${file})
+        set_tests_properties(${name} PROPERTIES WILL_FAIL TRUE)
+    endfunction()
+
+    function(add_toolchain_reject_test name file emit_mode output_name clang_driver)
+        add_test(NAME ${name}
+            COMMAND ${CMAKE_COMMAND} -E env "EVIDENT_CLANG=${clang_driver}"
+                $<TARGET_FILE:evidc> --target x86_64-pc-windows-msvc ${emit_mode} ${CMAKE_CURRENT_BINARY_DIR}/${output_name}
                 ${CMAKE_CURRENT_SOURCE_DIR}/tests/${file})
         set_tests_properties(${name} PROPERTIES WILL_FAIL TRUE)
     endfunction()
@@ -1541,6 +1549,11 @@ if(BUILD_TESTING)
         --emit-llvm
         reject_backend_unsupported_target.ll
         x86_64-unknown-linux-gnu)
+    add_toolchain_reject_test(reject_toolchain_missing_clang
+        native_main_constant.evd
+        --emit-obj
+        reject_toolchain_missing_clang.obj
+        ${CMAKE_CURRENT_BINARY_DIR}/evident-missing-clang-for-reject-smoke-test.exe)
     add_emit_exe_test(run_native_empty_collections native_main_empty_collections.evd 7 native_empty_collections.exe)
     add_emit_exe_test(run_native_builtin_cstring_map native_main_builtin_cstring_map.evd 7 native_builtin_cstring_map.exe)
 endif()
