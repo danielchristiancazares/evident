@@ -1,4 +1,56 @@
 domain module test {
+record Missing {
+    Default: Int,
+}
+
+state Unknown {
+    Ready,
+    Connected { Missing: Int },
+}
+
+reason Other {
+    Invalid,
+}
+
+proof Any {
+    All: Int,
+}
+
+permit X
+
+phase Disconnected {
+    fields {
+        Unrestricted: Int,
+    }
+
+    positions {
+        Ready,
+    }
+}
+
+fn No() -> Int {
+    0
+}
+
+public record PublicReservedPrivateFields {
+    Missing: Int,
+    Any: Int,
+}
+
+public proof PublicReservedPrivateProofFields {
+    All: Int,
+}
+
+public phase PublicReservedPrivatePhaseFields {
+    fields {
+        Missing: Int,
+    }
+
+    positions {
+        Settled,
+    }
+}
+
 public phase AppConfig {
     fields {
         public id: Int,
