@@ -80,7 +80,7 @@ add_dependencies(package_checksum package)
 
 include(CTest)
 if(BUILD_TESTING)
-    set(EVIDENT_EXPECTED_CTEST_TOTAL 357)
+    set(EVIDENT_EXPECTED_CTEST_TOTAL 358)
 
     add_test(NAME parse_valid_example
         COMMAND evidc --dump-hir ${CMAKE_CURRENT_SOURCE_DIR}/examples/feature_mode.evd)
@@ -803,6 +803,13 @@ if(BUILD_TESTING)
         multiple.ll
         --emit-obj
         multiple.obj
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/native_main_constant.evd)
+    add_cli_failure_compare_test(cli_duplicate_native_emit_mode
+        expected_cli_multiple_native_emit_modes.stderr.out
+        --emit-llvm
+        first.ll
+        --emit-llvm
+        second.ll
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/native_main_constant.evd)
     add_cli_failure_compare_test(cli_emit_stub_native_conflict
         expected_cli_emit_stub_native_conflict.stderr.out

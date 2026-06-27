@@ -106,15 +106,12 @@ int main(int argc, char** argv) {
     NativeEmitSelectionState native_emit_selection = NativeEmitSelectionState::NotSelected;
 
     auto request_native_artifact = [&](evident::NativeArtifactRequest request) {
-        if (options.native_artifact().kind() == evident::NativeArtifactKind::Suppressed) {
+        if (native_emit_selection == NativeEmitSelectionState::NotSelected) {
             options.use_native_artifact(std::move(request));
             native_emit_selection = NativeEmitSelectionState::SingleMode;
             return;
         }
-        if (options.native_artifact().kind() != request.kind()) {
-            native_emit_selection = NativeEmitSelectionState::ConflictingModes;
-        }
-        options.use_native_artifact(std::move(request));
+        native_emit_selection = NativeEmitSelectionState::ConflictingModes;
     };
 
     for (int index = 1; index < argc; ++index) {
