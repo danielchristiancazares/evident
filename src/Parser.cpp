@@ -31,6 +31,11 @@ enum class ArgumentSeparatorRecovery {
     ContinueWithNextArgument,
 };
 
+enum class PatternBindingSeparatorRecovery {
+    StopPatternBindingList,
+    ContinueWithNextBinding,
+};
+
 enum class VariantSeparatorRecovery {
     StopVariantBlock,
     ContinueWithNextVariant,
@@ -138,6 +143,22 @@ ArgumentSeparatorRecovery argument_after_missing_separator(TokenKind first) {
         return ArgumentSeparatorRecovery::ContinueWithNextArgument;
     default:
         return ArgumentSeparatorRecovery::StopArgumentList;
+    }
+}
+
+PatternBindingSeparatorRecovery pattern_binding_after_missing_separator(TokenKind first,
+                                                                        TokenKind second) {
+    if (first != TokenKind::Identifier) {
+        return PatternBindingSeparatorRecovery::StopPatternBindingList;
+    }
+    switch (second) {
+    case TokenKind::Comma:
+    case TokenKind::Colon:
+    case TokenKind::Identifier:
+    case TokenKind::RightBrace:
+        return PatternBindingSeparatorRecovery::ContinueWithNextBinding;
+    default:
+        return PatternBindingSeparatorRecovery::StopPatternBindingList;
     }
 }
 
@@ -1381,6 +1402,11 @@ std::unique_ptr<ast::VariantPattern> Parser::parse_variant_pattern_from_path(std
                 if (token_check(TokenKind::RightBrace) == TokenCheckState::Matches) {
                     break;
                 }
+                continue;
+            }
+            if (pattern_binding_after_missing_separator(peek().kind(), peek(1).kind())
+                == PatternBindingSeparatorRecovery::ContinueWithNextBinding) {
+                diagnostics_.error(peek().span(), "expected ',' between pattern bindings");
                 continue;
             }
             break;

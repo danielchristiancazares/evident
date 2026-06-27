@@ -1,0 +1,13 @@
+domain module test {
+public state Mode {
+    Empty,
+    Pair { left: Int, right: Int },
+}
+
+public fn main(mode: Mode) -> Int {
+    match mode {
+        Empty => 0,
+        Pair { left right } => left,
+    }
+}
+}

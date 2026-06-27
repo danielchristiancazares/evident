@@ -1,0 +1,18 @@
+domain module test {
+public reason ParseFailure {
+    BadSyntax,
+    MissingKey { key: Text, fallback: Text },
+}
+
+public fn parse() -> Text fails ParseFailure {
+    fail MissingKey { key: "name", fallback: "guest" }
+}
+
+public fn main() -> Text {
+    match parse() {
+        succeeded(value) => value,
+        failed(MissingKey { key fallback }) => fallback,
+        failed(BadSyntax) => "syntax",
+    }
+}
+}

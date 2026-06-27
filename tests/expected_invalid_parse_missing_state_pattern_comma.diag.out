@@ -1,0 +1,3 @@
+<input>:10:21: error: expected ',' between pattern bindings
+            Pair { left right } => left,
+                        ^^^^^
