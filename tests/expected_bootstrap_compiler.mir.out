@@ -605,22 +605,25 @@ functions:
         return %4[$return]
   - public fn bootstrap_pipeline::seed_receipt -> bootstrap_pipeline::StageReceipt
       locals:
-        %0[$return] : bootstrap_pipeline::StageReceipt
+        %0[source_commit] : Text
+        %1[$return] : bootstrap_pipeline::StageReceipt
       block %0
-        %0[$return] = call bootstrap_pipeline::stage_receipt("seed", "cxx-seed-evidc", "source commit recorded in release evidence", "builds the bootstrap scaffold from the C++ seed compiler")
-        return %0[$return]
+        %1[$return] = call bootstrap_pipeline::stage_receipt("seed", "cxx-seed-evidc", %0[source_commit], "builds the bootstrap scaffold from the C++ seed compiler")
+        return %1[$return]
   - public fn bootstrap_pipeline::stage_one_receipt -> bootstrap_pipeline::StageReceipt
       locals:
-        %0[$return] : bootstrap_pipeline::StageReceipt
+        %0[source_commit] : Text
+        %1[$return] : bootstrap_pipeline::StageReceipt
       block %0
-        %0[$return] = call bootstrap_pipeline::stage_receipt("stage-1", "stage-1 evidc", "source commit recorded in release evidence", "rebuilds the same Evident compiler package")
-        return %0[$return]
+        %1[$return] = call bootstrap_pipeline::stage_receipt("stage-1", "stage-1 evidc", %0[source_commit], "rebuilds the same Evident compiler package")
+        return %1[$return]
   - public fn bootstrap_pipeline::stage_two_receipt -> bootstrap_pipeline::StageReceipt
       locals:
-        %0[$return] : bootstrap_pipeline::StageReceipt
+        %0[source_commit] : Text
+        %1[$return] : bootstrap_pipeline::StageReceipt
       block %0
-        %0[$return] = call bootstrap_pipeline::stage_receipt("stage-2", "stage-2 evidc", "source commit recorded in release evidence", "passes conformance, diagnostics, native emission, package, and release-contract checks")
-        return %0[$return]
+        %1[$return] = call bootstrap_pipeline::stage_receipt("stage-2", "stage-2 evidc", %0[source_commit], "passes conformance, diagnostics, native emission, package, and release-contract checks")
+        return %1[$return]
   - public fn bootstrap_layout::bootstrap_package_module -> bootstrap_layout::BootstrapPackageModule
       locals:
         %0[name] : Text
@@ -1236,12 +1239,15 @@ functions:
         %13[stage_one] : bootstrap_pipeline::CompilerPipeline::StageOneCompiled [affine]
         %14[stage_two] : bootstrap_pipeline::CompilerPipeline::StageTwoValidated [affine]
         %15[seed_receipt] : bootstrap_pipeline::StageReceipt
-        %16[stage_one_receipt] : bootstrap_pipeline::StageReceipt
-        %17[stage_two_receipt] : bootstrap_pipeline::StageReceipt
-        %18[equivalence] : bootstrap_pipeline::BootstrapEquivalence
-        %19[evidence] : bootstrap_pipeline::BootstrapEvidence
-        %20[release] : bootstrap_release::BootstrapReleaseEvidence
-        %21[outline] : bootstrap_pipeline::BootstrapOutlineRecorded [affine]
+        %16[tmp] : Text
+        %17[stage_one_receipt] : bootstrap_pipeline::StageReceipt
+        %18[tmp] : Text
+        %19[stage_two_receipt] : bootstrap_pipeline::StageReceipt
+        %20[tmp] : Text
+        %21[equivalence] : bootstrap_pipeline::BootstrapEquivalence
+        %22[evidence] : bootstrap_pipeline::BootstrapEvidence
+        %23[release] : bootstrap_release::BootstrapReleaseEvidence
+        %24[outline] : bootstrap_pipeline::BootstrapOutlineRecorded [affine]
       block %0
         %1[host] = call bootstrap_host::bootstrap_host_surface()
         %2[environment] = call bootstrap_environment::bootstrap_environment_surface()
@@ -1257,14 +1263,17 @@ functions:
         %12[seed] = call bootstrap_pipeline::compile_with_seed(%11[outlined])
         %13[stage_one] = call bootstrap_pipeline::compile_stage_one(%12[seed])
         %14[stage_two] = call bootstrap_pipeline::validate_stage_two(%13[stage_one])
-        %15[seed_receipt] = call bootstrap_pipeline::seed_receipt()
-        %16[stage_one_receipt] = call bootstrap_pipeline::stage_one_receipt()
-        %17[stage_two_receipt] = call bootstrap_pipeline::stage_two_receipt()
-        %18[equivalence] = call bootstrap_pipeline::bootstrap_equivalence()
-        %19[evidence] = call bootstrap_pipeline::bootstrap_evidence(%15[seed_receipt], %16[stage_one_receipt], %17[stage_two_receipt], %18[equivalence])
-        %20[release] = call bootstrap_release::bootstrap_release_evidence(%2[environment], %8[manifest], %9[package_validation], %19[evidence])
-        %21[outline] = call bootstrap_pipeline::record_outline("evident.compiler")
-        %0[$return] = construct bootstrap_compiler::BootstrapStatus {host: %1[host], environment: %2[environment], discovery: %3[discovery], layout: %7[layout], manifest: %8[manifest], package_validation: %9[package_validation], release: %20[release], package: %5[source], exit_status: %4[exit_status], pipeline: %14[stage_two], evidence: %19[evidence], outline: %21[outline]}
+        %16[tmp] = %2[environment].source_commit
+        %15[seed_receipt] = call bootstrap_pipeline::seed_receipt(%16[tmp])
+        %18[tmp] = %2[environment].source_commit
+        %17[stage_one_receipt] = call bootstrap_pipeline::stage_one_receipt(%18[tmp])
+        %20[tmp] = %2[environment].source_commit
+        %19[stage_two_receipt] = call bootstrap_pipeline::stage_two_receipt(%20[tmp])
+        %21[equivalence] = call bootstrap_pipeline::bootstrap_equivalence()
+        %22[evidence] = call bootstrap_pipeline::bootstrap_evidence(%15[seed_receipt], %17[stage_one_receipt], %19[stage_two_receipt], %21[equivalence])
+        %23[release] = call bootstrap_release::bootstrap_release_evidence(%2[environment], %8[manifest], %9[package_validation], %22[evidence])
+        %24[outline] = call bootstrap_pipeline::record_outline("evident.compiler")
+        %0[$return] = construct bootstrap_compiler::BootstrapStatus {host: %1[host], environment: %2[environment], discovery: %3[discovery], layout: %7[layout], manifest: %8[manifest], package_validation: %9[package_validation], release: %23[release], package: %5[source], exit_status: %4[exit_status], pipeline: %14[stage_two], evidence: %22[evidence], outline: %24[outline]}
         return %0[$return]
       block %2
         fail %10[failure]

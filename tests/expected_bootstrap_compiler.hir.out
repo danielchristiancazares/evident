@@ -945,29 +945,29 @@ functions:
               local stage_two : bootstrap_pipeline::StageReceipt
             init equivalence [shorthand]
               local equivalence : bootstrap_pipeline::BootstrapEquivalence
-  - public fn bootstrap_pipeline::seed_receipt() -> bootstrap_pipeline::StageReceipt
+  - public fn bootstrap_pipeline::seed_receipt(source_commit: Text) -> bootstrap_pipeline::StageReceipt
       block -> bootstrap_pipeline::StageReceipt
         result
           call bootstrap_pipeline::stage_receipt -> bootstrap_pipeline::StageReceipt
             string "seed" : Text
             string "cxx-seed-evidc" : Text
-            string "source commit recorded in release evidence" : Text
+            local source_commit : Text
             string "builds the bootstrap scaffold from the C++ seed compiler" : Text
-  - public fn bootstrap_pipeline::stage_one_receipt() -> bootstrap_pipeline::StageReceipt
+  - public fn bootstrap_pipeline::stage_one_receipt(source_commit: Text) -> bootstrap_pipeline::StageReceipt
       block -> bootstrap_pipeline::StageReceipt
         result
           call bootstrap_pipeline::stage_receipt -> bootstrap_pipeline::StageReceipt
             string "stage-1" : Text
             string "stage-1 evidc" : Text
-            string "source commit recorded in release evidence" : Text
+            local source_commit : Text
             string "rebuilds the same Evident compiler package" : Text
-  - public fn bootstrap_pipeline::stage_two_receipt() -> bootstrap_pipeline::StageReceipt
+  - public fn bootstrap_pipeline::stage_two_receipt(source_commit: Text) -> bootstrap_pipeline::StageReceipt
       block -> bootstrap_pipeline::StageReceipt
         result
           call bootstrap_pipeline::stage_receipt -> bootstrap_pipeline::StageReceipt
             string "stage-2" : Text
             string "stage-2 evidc" : Text
-            string "source commit recorded in release evidence" : Text
+            local source_commit : Text
             string "passes conformance, diagnostics, native emission, package, and release-contract checks" : Text
   - public fn bootstrap_layout::bootstrap_package_module(name: Text, source: Text, imports: List<Text>) -> bootstrap_layout::BootstrapPackageModule
       block -> bootstrap_layout::BootstrapPackageModule
@@ -1882,10 +1882,16 @@ functions:
             local stage_one : bootstrap_pipeline::CompilerPipeline::StageOneCompiled [affine]
         let seed_receipt: bootstrap_pipeline::StageReceipt
           call bootstrap_pipeline::seed_receipt -> bootstrap_pipeline::StageReceipt
+            field-access .source_commit : Text
+              local environment : bootstrap_environment::CompilerEnvironment
         let stage_one_receipt: bootstrap_pipeline::StageReceipt
           call bootstrap_pipeline::stage_one_receipt -> bootstrap_pipeline::StageReceipt
+            field-access .source_commit : Text
+              local environment : bootstrap_environment::CompilerEnvironment
         let stage_two_receipt: bootstrap_pipeline::StageReceipt
           call bootstrap_pipeline::stage_two_receipt -> bootstrap_pipeline::StageReceipt
+            field-access .source_commit : Text
+              local environment : bootstrap_environment::CompilerEnvironment
         let equivalence: bootstrap_pipeline::BootstrapEquivalence
           call bootstrap_pipeline::bootstrap_equivalence -> bootstrap_pipeline::BootstrapEquivalence
         let evidence: bootstrap_pipeline::BootstrapEvidence

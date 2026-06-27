@@ -36,9 +36,9 @@ public fn build_status() -> BootstrapStatus fails MapBindingFailure {
     let seed = bootstrap_pipeline::compile_with_seed(outlined);
     let stage_one = bootstrap_pipeline::compile_stage_one(seed);
     let stage_two = bootstrap_pipeline::validate_stage_two(stage_one);
-    let seed_receipt = bootstrap_pipeline::seed_receipt();
-    let stage_one_receipt = bootstrap_pipeline::stage_one_receipt();
-    let stage_two_receipt = bootstrap_pipeline::stage_two_receipt();
+    let seed_receipt = bootstrap_pipeline::seed_receipt(environment.source_commit);
+    let stage_one_receipt = bootstrap_pipeline::stage_one_receipt(environment.source_commit);
+    let stage_two_receipt = bootstrap_pipeline::stage_two_receipt(environment.source_commit);
     let equivalence = bootstrap_pipeline::bootstrap_equivalence();
     let evidence = bootstrap_pipeline::bootstrap_evidence(
         seed_receipt,

@@ -123,29 +123,29 @@ public fn bootstrap_evidence(seed: StageReceipt, stage_one: StageReceipt, stage_
     }
 }
 
-public fn seed_receipt() -> StageReceipt {
+public fn seed_receipt(source_commit: Text) -> StageReceipt {
     stage_receipt(
         "seed",
         "cxx-seed-evidc",
-        "source commit recorded in release evidence",
+        source_commit,
         "builds the bootstrap scaffold from the C++ seed compiler",
     )
 }
 
-public fn stage_one_receipt() -> StageReceipt {
+public fn stage_one_receipt(source_commit: Text) -> StageReceipt {
     stage_receipt(
         "stage-1",
         "stage-1 evidc",
-        "source commit recorded in release evidence",
+        source_commit,
         "rebuilds the same Evident compiler package",
     )
 }
 
-public fn stage_two_receipt() -> StageReceipt {
+public fn stage_two_receipt(source_commit: Text) -> StageReceipt {
     stage_receipt(
         "stage-2",
         "stage-2 evidc",
-        "source commit recorded in release evidence",
+        source_commit,
         "passes conformance, diagnostics, native emission, package, and release-contract checks",
     )
 }
