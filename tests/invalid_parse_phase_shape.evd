@@ -1,0 +1,13 @@
+domain module phase_shape {
+    public phase MissingFields {
+        positions {
+            Draft,
+        }
+    }
+
+    public phase MissingPositions {
+        fields {
+            public id: Int,
+        }
+    }
+}

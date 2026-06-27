@@ -1,0 +1,6 @@
+<input>:3:9: error: expected 'fields' in phase declaration
+            positions {
+            ^^^^^^^^^
+<input>:12:5: error: expected 'positions' after fields
+        }
+        ^

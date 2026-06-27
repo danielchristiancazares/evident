@@ -368,9 +368,26 @@ std::unique_ptr<ast::PhaseDecl> Parser::parse_phase(ast::Visibility visibility) 
         parse_generic_params();
     }
     expect(TokenKind::LeftBrace, "expected '{' after phase name");
-    expect(TokenKind::KeywordFields, "expected 'fields' in phase declaration");
-    std::vector<ast::Field> fields = parse_field_block();
-    expect(TokenKind::KeywordPositions, "expected 'positions' after fields");
+
+    std::vector<ast::Field> fields;
+    if (consume_if(TokenKind::KeywordFields) == TokenConsumptionState::Consumed) {
+        fields = parse_field_block();
+    } else {
+        diagnostics_.error(peek().span(), "expected 'fields' in phase declaration");
+        if (token_check(TokenKind::LeftBrace) == TokenCheckState::Matches) {
+            fields = parse_field_block();
+        }
+    }
+
+    if (consume_if(TokenKind::KeywordPositions) == TokenConsumptionState::NotConsumed) {
+        diagnostics_.error(peek().span(), "expected 'positions' after fields");
+        const Token close_phase = expect(TokenKind::RightBrace, "expected '}' after phase declaration");
+        auto decl = std::make_unique<ast::PhaseDecl>(visibility, token_text(name));
+        decl->fields = std::move(fields);
+        decl->span = SourceSpan{start.span().begin, close_phase.span().end};
+        return decl;
+    }
+
     expect(TokenKind::LeftBrace, "expected '{' after 'positions'");
     std::vector<std::string> positions;
     std::vector<SourceSpan> position_spans;
