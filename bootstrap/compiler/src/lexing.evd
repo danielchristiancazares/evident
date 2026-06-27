@@ -59,7 +59,7 @@ fn append_token(tokens: NonEmptyList<Token>, token: Token) -> NonEmptyList<Token
     list_append<Token>(widened, token)
 }
 
-fn seed_module_token(path_text: Text, lexeme: Text) -> Token {
+fn seed_module_token(path_text: CString, lexeme: Text) -> Token {
     let source_path = bootstrap_source::SourcePath { text: path_text };
     let span = source_span(source_path, 0, 30);
     token(IdentifierNamedReference, lexeme, span)

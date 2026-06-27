@@ -118,7 +118,7 @@ if(BUILD_TESTING)
 
     add_dependencies(evidc bootstrap_compiler_generated_environment)
 
-    set(EVIDENT_EXPECTED_CTEST_TOTAL 403)
+set(EVIDENT_EXPECTED_CTEST_TOTAL 404)
 
     add_test(NAME parse_valid_example
         COMMAND evidc --dump-hir ${CMAKE_CURRENT_SOURCE_DIR}/examples/feature_mode.evd)
@@ -885,6 +885,15 @@ if(BUILD_TESTING)
             -DCOMMAND_PATH=$<TARGET_FILE:evidc>
             "-DINPUT_PATHS=${CMAKE_CURRENT_SOURCE_DIR}/bootstrap/compiler/src/host.evd;${CMAKE_CURRENT_SOURCE_DIR}/bootstrap/compiler/src/environment.evd;${CMAKE_CURRENT_SOURCE_DIR}/tests/bootstrap_environment_probe.evd"
             -DOUTPUT_PATH=${CMAKE_CURRENT_BINARY_DIR}/bootstrap_environment_probe.exe
+            -DEXPECTED_EXIT=0
+            -DTARGET_TRIPLE=x86_64-pc-windows-msvc
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/RunEmitAndCheckExit.cmake)
+
+    add_test(NAME run_bootstrap_host_runtime_probe
+        COMMAND ${CMAKE_COMMAND}
+            -DCOMMAND_PATH=$<TARGET_FILE:evidc>
+            "-DINPUT_PATHS=${CMAKE_CURRENT_SOURCE_DIR}/bootstrap/compiler/src/host.evd;${CMAKE_CURRENT_SOURCE_DIR}/tests/bootstrap_host_runtime_probe.evd"
+            -DOUTPUT_PATH=${CMAKE_CURRENT_BINARY_DIR}/bootstrap_host_runtime_probe.exe
             -DEXPECTED_EXIT=0
             -DTARGET_TRIPLE=x86_64-pc-windows-msvc
             -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/RunEmitAndCheckExit.cmake)

@@ -15,7 +15,7 @@ public record BootstrapPackageManifest {
     public entries_by_module: NonEmptyMap<Text, BootstrapPackageManifestEntry>,
 }
 
-public fn bootstrap_package_manifest_entry(module_name: Text, source: Text, imports: List<Text>) -> BootstrapPackageManifestEntry {
+public fn bootstrap_package_manifest_entry(module_name: Text, source: CString, imports: List<Text>) -> BootstrapPackageManifestEntry {
     BootstrapPackageManifestEntry {
         module_name,
         source: bootstrap_source::SourcePath { text: source },

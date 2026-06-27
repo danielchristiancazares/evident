@@ -3,7 +3,7 @@ types:
       variant RequestedKeyHadNoBinding
       variant RequestedKeyAlreadyHadBinding
   - public record bootstrap_source::SourcePath
-      field text: Text
+      field text: CString
   - public record bootstrap_source::SourceFile
       field path: bootstrap_source::SourcePath
       field contents: Text
@@ -107,7 +107,7 @@ types:
       variant StageOutputsDiverged
         field message: Text
   - public record bootstrap_host::HostPath
-      field text: Text
+      field text: CString
   - public record bootstrap_host::HostFileContents
       field text: Text
   - public record bootstrap_host::HostReadRequest
@@ -265,14 +265,14 @@ functions:
   - public fn nonempty_map_count_copy<K, V>(entries: NonEmptyMap<K, V>) -> Nat
   - public fn list_empty<T>() -> List<T>
   - public fn nonempty_map_lookup_copy<K, V>(entries: NonEmptyMap<K, V>, key: K) -> V fails MapBindingFailure
-  - public fn bootstrap_source::source_file(path: Text, contents: Text) -> bootstrap_source::SourceFile
+  - public fn bootstrap_source::source_file(path: CString, contents: Text) -> bootstrap_source::SourceFile
       block -> bootstrap_source::SourceFile
         result
           construct bootstrap_source::SourceFile : bootstrap_source::SourceFile
             init path
               construct bootstrap_source::SourcePath : bootstrap_source::SourcePath
                 init text
-                  local path : Text
+                  local path : CString
             init contents [shorthand]
               local contents : Text
   - public fn bootstrap_source::compiler_package_identity(environment: bootstrap_environment::CompilerEnvironment) -> bootstrap_source::PackageIdentity
@@ -284,13 +284,13 @@ functions:
             init root
               construct bootstrap_source::SourcePath : bootstrap_source::SourcePath
                 init text
-                  field-access .text : Text
+                  field-access .text : CString
                     field-access .package_root : bootstrap_host::HostPath
                       local environment : bootstrap_environment::CompilerEnvironment
             init manifest
               construct bootstrap_source::SourcePath : bootstrap_source::SourcePath
                 init text
-                  field-access .text : Text
+                  field-access .text : CString
                     field-access .manifest : bootstrap_host::HostPath
                       local environment : bootstrap_environment::CompilerEnvironment
   - public fn bootstrap_source::compiler_package(environment: bootstrap_environment::CompilerEnvironment, graph: bootstrap_source::SourceGraph) -> bootstrap_source::PackageSource
@@ -346,12 +346,12 @@ functions:
           call list_append<bootstrap_lexing::Token> -> NonEmptyList<bootstrap_lexing::Token>
             local widened : List<bootstrap_lexing::Token>
             local token : bootstrap_lexing::Token
-  - private fn bootstrap_lexing::seed_module_token(path_text: Text, lexeme: Text) -> bootstrap_lexing::Token
+  - private fn bootstrap_lexing::seed_module_token(path_text: CString, lexeme: Text) -> bootstrap_lexing::Token
       block -> bootstrap_lexing::Token
         let source_path: bootstrap_source::SourcePath
           construct bootstrap_source::SourcePath : bootstrap_source::SourcePath
             init text
-              local path_text : Text
+              local path_text : CString
         let span: bootstrap_lexing::SourceSpan
           call bootstrap_lexing::source_span -> bootstrap_lexing::SourceSpan
             local source_path : bootstrap_source::SourcePath
@@ -366,14 +366,14 @@ functions:
       block -> bootstrap_lexing::TokenStream
         let host_token: bootstrap_lexing::Token
           call bootstrap_lexing::seed_module_token -> bootstrap_lexing::Token
-            string "bootstrap/compiler/src/host.evd" : Text
+            string "bootstrap/compiler/src/host.evd" : CString
             string "bootstrap_host" : Text
         let host: NonEmptyList<bootstrap_lexing::Token>
           call list_single<bootstrap_lexing::Token> -> NonEmptyList<bootstrap_lexing::Token>
             local host_token : bootstrap_lexing::Token
         let environment_token: bootstrap_lexing::Token
           call bootstrap_lexing::seed_module_token -> bootstrap_lexing::Token
-            string "bootstrap/compiler/src/environment.evd" : Text
+            string "bootstrap/compiler/src/environment.evd" : CString
             string "bootstrap_environment" : Text
         let environment: NonEmptyList<bootstrap_lexing::Token>
           call bootstrap_lexing::append_token -> NonEmptyList<bootstrap_lexing::Token>
@@ -381,7 +381,7 @@ functions:
             local environment_token : bootstrap_lexing::Token
         let source_token: bootstrap_lexing::Token
           call bootstrap_lexing::seed_module_token -> bootstrap_lexing::Token
-            string "bootstrap/compiler/src/source.evd" : Text
+            string "bootstrap/compiler/src/source.evd" : CString
             string "bootstrap_source" : Text
         let source: NonEmptyList<bootstrap_lexing::Token>
           call bootstrap_lexing::append_token -> NonEmptyList<bootstrap_lexing::Token>
@@ -389,7 +389,7 @@ functions:
             local source_token : bootstrap_lexing::Token
         let lexing_token: bootstrap_lexing::Token
           call bootstrap_lexing::seed_module_token -> bootstrap_lexing::Token
-            string "bootstrap/compiler/src/lexing.evd" : Text
+            string "bootstrap/compiler/src/lexing.evd" : CString
             string "bootstrap_lexing" : Text
         let lexing: NonEmptyList<bootstrap_lexing::Token>
           call bootstrap_lexing::append_token -> NonEmptyList<bootstrap_lexing::Token>
@@ -397,7 +397,7 @@ functions:
             local lexing_token : bootstrap_lexing::Token
         let parsing_token: bootstrap_lexing::Token
           call bootstrap_lexing::seed_module_token -> bootstrap_lexing::Token
-            string "bootstrap/compiler/src/parsing.evd" : Text
+            string "bootstrap/compiler/src/parsing.evd" : CString
             string "bootstrap_parsing" : Text
         let parsing: NonEmptyList<bootstrap_lexing::Token>
           call bootstrap_lexing::append_token -> NonEmptyList<bootstrap_lexing::Token>
@@ -405,7 +405,7 @@ functions:
             local parsing_token : bootstrap_lexing::Token
         let semantics_token: bootstrap_lexing::Token
           call bootstrap_lexing::seed_module_token -> bootstrap_lexing::Token
-            string "bootstrap/compiler/src/semantics.evd" : Text
+            string "bootstrap/compiler/src/semantics.evd" : CString
             string "bootstrap_semantics" : Text
         let semantics: NonEmptyList<bootstrap_lexing::Token>
           call bootstrap_lexing::append_token -> NonEmptyList<bootstrap_lexing::Token>
@@ -413,7 +413,7 @@ functions:
             local semantics_token : bootstrap_lexing::Token
         let diagnostics_token: bootstrap_lexing::Token
           call bootstrap_lexing::seed_module_token -> bootstrap_lexing::Token
-            string "bootstrap/compiler/src/diagnostics.evd" : Text
+            string "bootstrap/compiler/src/diagnostics.evd" : CString
             string "bootstrap_diagnostics" : Text
         let diagnostics: NonEmptyList<bootstrap_lexing::Token>
           call bootstrap_lexing::append_token -> NonEmptyList<bootstrap_lexing::Token>
@@ -421,7 +421,7 @@ functions:
             local diagnostics_token : bootstrap_lexing::Token
         let discovery_token: bootstrap_lexing::Token
           call bootstrap_lexing::seed_module_token -> bootstrap_lexing::Token
-            string "bootstrap/compiler/src/discovery.evd" : Text
+            string "bootstrap/compiler/src/discovery.evd" : CString
             string "bootstrap_discovery" : Text
         let discovery: NonEmptyList<bootstrap_lexing::Token>
           call bootstrap_lexing::append_token -> NonEmptyList<bootstrap_lexing::Token>
@@ -429,7 +429,7 @@ functions:
             local discovery_token : bootstrap_lexing::Token
         let pipeline_token: bootstrap_lexing::Token
           call bootstrap_lexing::seed_module_token -> bootstrap_lexing::Token
-            string "bootstrap/compiler/src/pipeline.evd" : Text
+            string "bootstrap/compiler/src/pipeline.evd" : CString
             string "bootstrap_pipeline" : Text
         let pipeline: NonEmptyList<bootstrap_lexing::Token>
           call bootstrap_lexing::append_token -> NonEmptyList<bootstrap_lexing::Token>
@@ -437,7 +437,7 @@ functions:
             local pipeline_token : bootstrap_lexing::Token
         let layout_token: bootstrap_lexing::Token
           call bootstrap_lexing::seed_module_token -> bootstrap_lexing::Token
-            string "bootstrap/compiler/src/layout.evd" : Text
+            string "bootstrap/compiler/src/layout.evd" : CString
             string "bootstrap_layout" : Text
         let layout: NonEmptyList<bootstrap_lexing::Token>
           call bootstrap_lexing::append_token -> NonEmptyList<bootstrap_lexing::Token>
@@ -445,7 +445,7 @@ functions:
             local layout_token : bootstrap_lexing::Token
         let manifest_token: bootstrap_lexing::Token
           call bootstrap_lexing::seed_module_token -> bootstrap_lexing::Token
-            string "bootstrap/compiler/src/manifest.evd" : Text
+            string "bootstrap/compiler/src/manifest.evd" : CString
             string "bootstrap_manifest" : Text
         let manifest: NonEmptyList<bootstrap_lexing::Token>
           call bootstrap_lexing::append_token -> NonEmptyList<bootstrap_lexing::Token>
@@ -453,7 +453,7 @@ functions:
             local manifest_token : bootstrap_lexing::Token
         let release_token: bootstrap_lexing::Token
           call bootstrap_lexing::seed_module_token -> bootstrap_lexing::Token
-            string "bootstrap/compiler/src/release.evd" : Text
+            string "bootstrap/compiler/src/release.evd" : CString
             string "bootstrap_release" : Text
         let release: NonEmptyList<bootstrap_lexing::Token>
           call bootstrap_lexing::append_token -> NonEmptyList<bootstrap_lexing::Token>
@@ -461,7 +461,7 @@ functions:
             local release_token : bootstrap_lexing::Token
         let compiler_token: bootstrap_lexing::Token
           call bootstrap_lexing::seed_module_token -> bootstrap_lexing::Token
-            string "bootstrap/compiler/src/main.evd" : Text
+            string "bootstrap/compiler/src/main.evd" : CString
             string "bootstrap_compiler" : Text
         let compiler: NonEmptyList<bootstrap_lexing::Token>
           call bootstrap_lexing::append_token -> NonEmptyList<bootstrap_lexing::Token>
@@ -512,12 +512,12 @@ functions:
           call list_append<bootstrap_parsing::SyntaxModule> -> NonEmptyList<bootstrap_parsing::SyntaxModule>
             local widened : List<bootstrap_parsing::SyntaxModule>
             local item : bootstrap_parsing::SyntaxModule
-  - private fn bootstrap_parsing::seed_module_declaration(path_text: Text, module_name: Text) -> bootstrap_parsing::SyntaxDeclaration
+  - private fn bootstrap_parsing::seed_module_declaration(path_text: CString, module_name: Text) -> bootstrap_parsing::SyntaxDeclaration
       block -> bootstrap_parsing::SyntaxDeclaration
         let source_path: bootstrap_source::SourcePath
           construct bootstrap_source::SourcePath : bootstrap_source::SourcePath
             init text
-              local path_text : Text
+              local path_text : CString
         let module_span: bootstrap_lexing::SourceSpan
           call bootstrap_lexing::source_span -> bootstrap_lexing::SourceSpan
             local source_path : bootstrap_source::SourcePath
@@ -528,11 +528,11 @@ functions:
             construct bootstrap_parsing::SyntaxDeclarationCategory::ModuleScopeIntroduced : bootstrap_parsing::SyntaxDeclarationCategory
             local module_name : Text
             local module_span : bootstrap_lexing::SourceSpan
-  - private fn bootstrap_parsing::seed_syntax_module(kind: bootstrap_parsing::ModuleKind, path_text: Text, module_name: Text) -> bootstrap_parsing::SyntaxModule
+  - private fn bootstrap_parsing::seed_syntax_module(kind: bootstrap_parsing::ModuleKind, path_text: CString, module_name: Text) -> bootstrap_parsing::SyntaxModule
       block -> bootstrap_parsing::SyntaxModule
         let declaration: bootstrap_parsing::SyntaxDeclaration
           call bootstrap_parsing::seed_module_declaration -> bootstrap_parsing::SyntaxDeclaration
-            local path_text : Text
+            local path_text : CString
             local module_name : Text
         result
           call bootstrap_parsing::syntax_module -> bootstrap_parsing::SyntaxModule
@@ -546,7 +546,7 @@ functions:
         let host_module: bootstrap_parsing::SyntaxModule
           call bootstrap_parsing::seed_syntax_module -> bootstrap_parsing::SyntaxModule
             construct bootstrap_parsing::ModuleKind::HazardInteractionIsolated : bootstrap_parsing::ModuleKind
-            string "bootstrap/compiler/src/host.evd" : Text
+            string "bootstrap/compiler/src/host.evd" : CString
             string "bootstrap_host" : Text
         let host: NonEmptyList<bootstrap_parsing::SyntaxModule>
           call list_single<bootstrap_parsing::SyntaxModule> -> NonEmptyList<bootstrap_parsing::SyntaxModule>
@@ -554,7 +554,7 @@ functions:
         let environment_module: bootstrap_parsing::SyntaxModule
           call bootstrap_parsing::seed_syntax_module -> bootstrap_parsing::SyntaxModule
             construct bootstrap_parsing::ModuleKind::HazardInteractionIsolated : bootstrap_parsing::ModuleKind
-            string "bootstrap/compiler/src/environment.evd" : Text
+            string "bootstrap/compiler/src/environment.evd" : CString
             string "bootstrap_environment" : Text
         let environment: NonEmptyList<bootstrap_parsing::SyntaxModule>
           call bootstrap_parsing::append_syntax_module -> NonEmptyList<bootstrap_parsing::SyntaxModule>
@@ -563,7 +563,7 @@ functions:
         let source_module: bootstrap_parsing::SyntaxModule
           call bootstrap_parsing::seed_syntax_module -> bootstrap_parsing::SyntaxModule
             construct bootstrap_parsing::ModuleKind::DomainTruthCarried : bootstrap_parsing::ModuleKind
-            string "bootstrap/compiler/src/source.evd" : Text
+            string "bootstrap/compiler/src/source.evd" : CString
             string "bootstrap_source" : Text
         let source: NonEmptyList<bootstrap_parsing::SyntaxModule>
           call bootstrap_parsing::append_syntax_module -> NonEmptyList<bootstrap_parsing::SyntaxModule>
@@ -572,7 +572,7 @@ functions:
         let lexing_module: bootstrap_parsing::SyntaxModule
           call bootstrap_parsing::seed_syntax_module -> bootstrap_parsing::SyntaxModule
             construct bootstrap_parsing::ModuleKind::DomainTruthCarried : bootstrap_parsing::ModuleKind
-            string "bootstrap/compiler/src/lexing.evd" : Text
+            string "bootstrap/compiler/src/lexing.evd" : CString
             string "bootstrap_lexing" : Text
         let lexing: NonEmptyList<bootstrap_parsing::SyntaxModule>
           call bootstrap_parsing::append_syntax_module -> NonEmptyList<bootstrap_parsing::SyntaxModule>
@@ -581,7 +581,7 @@ functions:
         let parsing_module: bootstrap_parsing::SyntaxModule
           call bootstrap_parsing::seed_syntax_module -> bootstrap_parsing::SyntaxModule
             construct bootstrap_parsing::ModuleKind::DomainTruthCarried : bootstrap_parsing::ModuleKind
-            string "bootstrap/compiler/src/parsing.evd" : Text
+            string "bootstrap/compiler/src/parsing.evd" : CString
             string "bootstrap_parsing" : Text
         let parsing: NonEmptyList<bootstrap_parsing::SyntaxModule>
           call bootstrap_parsing::append_syntax_module -> NonEmptyList<bootstrap_parsing::SyntaxModule>
@@ -590,7 +590,7 @@ functions:
         let semantics_module: bootstrap_parsing::SyntaxModule
           call bootstrap_parsing::seed_syntax_module -> bootstrap_parsing::SyntaxModule
             construct bootstrap_parsing::ModuleKind::DomainTruthCarried : bootstrap_parsing::ModuleKind
-            string "bootstrap/compiler/src/semantics.evd" : Text
+            string "bootstrap/compiler/src/semantics.evd" : CString
             string "bootstrap_semantics" : Text
         let semantics: NonEmptyList<bootstrap_parsing::SyntaxModule>
           call bootstrap_parsing::append_syntax_module -> NonEmptyList<bootstrap_parsing::SyntaxModule>
@@ -599,7 +599,7 @@ functions:
         let diagnostics_module: bootstrap_parsing::SyntaxModule
           call bootstrap_parsing::seed_syntax_module -> bootstrap_parsing::SyntaxModule
             construct bootstrap_parsing::ModuleKind::DomainTruthCarried : bootstrap_parsing::ModuleKind
-            string "bootstrap/compiler/src/diagnostics.evd" : Text
+            string "bootstrap/compiler/src/diagnostics.evd" : CString
             string "bootstrap_diagnostics" : Text
         let diagnostics: NonEmptyList<bootstrap_parsing::SyntaxModule>
           call bootstrap_parsing::append_syntax_module -> NonEmptyList<bootstrap_parsing::SyntaxModule>
@@ -608,7 +608,7 @@ functions:
         let discovery_module: bootstrap_parsing::SyntaxModule
           call bootstrap_parsing::seed_syntax_module -> bootstrap_parsing::SyntaxModule
             construct bootstrap_parsing::ModuleKind::DomainTruthCarried : bootstrap_parsing::ModuleKind
-            string "bootstrap/compiler/src/discovery.evd" : Text
+            string "bootstrap/compiler/src/discovery.evd" : CString
             string "bootstrap_discovery" : Text
         let discovery: NonEmptyList<bootstrap_parsing::SyntaxModule>
           call bootstrap_parsing::append_syntax_module -> NonEmptyList<bootstrap_parsing::SyntaxModule>
@@ -617,7 +617,7 @@ functions:
         let pipeline_module: bootstrap_parsing::SyntaxModule
           call bootstrap_parsing::seed_syntax_module -> bootstrap_parsing::SyntaxModule
             construct bootstrap_parsing::ModuleKind::DomainTruthCarried : bootstrap_parsing::ModuleKind
-            string "bootstrap/compiler/src/pipeline.evd" : Text
+            string "bootstrap/compiler/src/pipeline.evd" : CString
             string "bootstrap_pipeline" : Text
         let pipeline: NonEmptyList<bootstrap_parsing::SyntaxModule>
           call bootstrap_parsing::append_syntax_module -> NonEmptyList<bootstrap_parsing::SyntaxModule>
@@ -626,7 +626,7 @@ functions:
         let layout_module: bootstrap_parsing::SyntaxModule
           call bootstrap_parsing::seed_syntax_module -> bootstrap_parsing::SyntaxModule
             construct bootstrap_parsing::ModuleKind::DomainTruthCarried : bootstrap_parsing::ModuleKind
-            string "bootstrap/compiler/src/layout.evd" : Text
+            string "bootstrap/compiler/src/layout.evd" : CString
             string "bootstrap_layout" : Text
         let layout: NonEmptyList<bootstrap_parsing::SyntaxModule>
           call bootstrap_parsing::append_syntax_module -> NonEmptyList<bootstrap_parsing::SyntaxModule>
@@ -635,7 +635,7 @@ functions:
         let manifest_module: bootstrap_parsing::SyntaxModule
           call bootstrap_parsing::seed_syntax_module -> bootstrap_parsing::SyntaxModule
             construct bootstrap_parsing::ModuleKind::DomainTruthCarried : bootstrap_parsing::ModuleKind
-            string "bootstrap/compiler/src/manifest.evd" : Text
+            string "bootstrap/compiler/src/manifest.evd" : CString
             string "bootstrap_manifest" : Text
         let manifest: NonEmptyList<bootstrap_parsing::SyntaxModule>
           call bootstrap_parsing::append_syntax_module -> NonEmptyList<bootstrap_parsing::SyntaxModule>
@@ -644,7 +644,7 @@ functions:
         let release_module: bootstrap_parsing::SyntaxModule
           call bootstrap_parsing::seed_syntax_module -> bootstrap_parsing::SyntaxModule
             construct bootstrap_parsing::ModuleKind::DomainTruthCarried : bootstrap_parsing::ModuleKind
-            string "bootstrap/compiler/src/release.evd" : Text
+            string "bootstrap/compiler/src/release.evd" : CString
             string "bootstrap_release" : Text
         let release: NonEmptyList<bootstrap_parsing::SyntaxModule>
           call bootstrap_parsing::append_syntax_module -> NonEmptyList<bootstrap_parsing::SyntaxModule>
@@ -653,7 +653,7 @@ functions:
         let compiler_module: bootstrap_parsing::SyntaxModule
           call bootstrap_parsing::seed_syntax_module -> bootstrap_parsing::SyntaxModule
             construct bootstrap_parsing::ModuleKind::DomainTruthCarried : bootstrap_parsing::ModuleKind
-            string "bootstrap/compiler/src/main.evd" : Text
+            string "bootstrap/compiler/src/main.evd" : CString
             string "bootstrap_compiler" : Text
         let compiler: NonEmptyList<bootstrap_parsing::SyntaxModule>
           call bootstrap_parsing::append_syntax_module -> NonEmptyList<bootstrap_parsing::SyntaxModule>
@@ -695,12 +695,12 @@ functions:
               field-access .name : bootstrap_semantics::SymbolName
                 local symbol : bootstrap_semantics::Symbol
             local symbol : bootstrap_semantics::Symbol
-  - private fn bootstrap_semantics::seed_symbol(path_text: Text, module_name: Text) -> bootstrap_semantics::Symbol
+  - private fn bootstrap_semantics::seed_symbol(path_text: CString, module_name: Text) -> bootstrap_semantics::Symbol
       block -> bootstrap_semantics::Symbol
         let source_path: bootstrap_source::SourcePath
           construct bootstrap_source::SourcePath : bootstrap_source::SourcePath
             init text
-              local path_text : Text
+              local path_text : CString
         let declared_at: bootstrap_lexing::SourceSpan
           call bootstrap_lexing::source_span -> bootstrap_lexing::SourceSpan
             local source_path : bootstrap_source::SourcePath
@@ -718,7 +718,7 @@ functions:
       block -> bootstrap_semantics::SymbolCatalog
         let host_symbol: bootstrap_semantics::Symbol
           call bootstrap_semantics::seed_symbol -> bootstrap_semantics::Symbol
-            string "bootstrap/compiler/src/host.evd" : Text
+            string "bootstrap/compiler/src/host.evd" : CString
             string "bootstrap_host" : Text
         let host: NonEmptyMap<Text, bootstrap_semantics::Symbol>
           call map_single<Text, bootstrap_semantics::Symbol> -> NonEmptyMap<Text, bootstrap_semantics::Symbol>
@@ -728,7 +728,7 @@ functions:
             local host_symbol : bootstrap_semantics::Symbol
         let environment_symbol: bootstrap_semantics::Symbol
           call bootstrap_semantics::seed_symbol -> bootstrap_semantics::Symbol
-            string "bootstrap/compiler/src/environment.evd" : Text
+            string "bootstrap/compiler/src/environment.evd" : CString
             string "bootstrap_environment" : Text
         let environment: NonEmptyMap<Text, bootstrap_semantics::Symbol>
           call bootstrap_semantics::append_symbol -> NonEmptyMap<Text, bootstrap_semantics::Symbol>
@@ -736,7 +736,7 @@ functions:
             local environment_symbol : bootstrap_semantics::Symbol
         let source_symbol: bootstrap_semantics::Symbol
           call bootstrap_semantics::seed_symbol -> bootstrap_semantics::Symbol
-            string "bootstrap/compiler/src/source.evd" : Text
+            string "bootstrap/compiler/src/source.evd" : CString
             string "bootstrap_source" : Text
         let source: NonEmptyMap<Text, bootstrap_semantics::Symbol>
           call bootstrap_semantics::append_symbol -> NonEmptyMap<Text, bootstrap_semantics::Symbol>
@@ -744,7 +744,7 @@ functions:
             local source_symbol : bootstrap_semantics::Symbol
         let lexing_symbol: bootstrap_semantics::Symbol
           call bootstrap_semantics::seed_symbol -> bootstrap_semantics::Symbol
-            string "bootstrap/compiler/src/lexing.evd" : Text
+            string "bootstrap/compiler/src/lexing.evd" : CString
             string "bootstrap_lexing" : Text
         let lexing: NonEmptyMap<Text, bootstrap_semantics::Symbol>
           call bootstrap_semantics::append_symbol -> NonEmptyMap<Text, bootstrap_semantics::Symbol>
@@ -752,7 +752,7 @@ functions:
             local lexing_symbol : bootstrap_semantics::Symbol
         let parsing_symbol: bootstrap_semantics::Symbol
           call bootstrap_semantics::seed_symbol -> bootstrap_semantics::Symbol
-            string "bootstrap/compiler/src/parsing.evd" : Text
+            string "bootstrap/compiler/src/parsing.evd" : CString
             string "bootstrap_parsing" : Text
         let parsing: NonEmptyMap<Text, bootstrap_semantics::Symbol>
           call bootstrap_semantics::append_symbol -> NonEmptyMap<Text, bootstrap_semantics::Symbol>
@@ -760,7 +760,7 @@ functions:
             local parsing_symbol : bootstrap_semantics::Symbol
         let semantics_symbol: bootstrap_semantics::Symbol
           call bootstrap_semantics::seed_symbol -> bootstrap_semantics::Symbol
-            string "bootstrap/compiler/src/semantics.evd" : Text
+            string "bootstrap/compiler/src/semantics.evd" : CString
             string "bootstrap_semantics" : Text
         let semantics: NonEmptyMap<Text, bootstrap_semantics::Symbol>
           call bootstrap_semantics::append_symbol -> NonEmptyMap<Text, bootstrap_semantics::Symbol>
@@ -768,7 +768,7 @@ functions:
             local semantics_symbol : bootstrap_semantics::Symbol
         let diagnostics_symbol: bootstrap_semantics::Symbol
           call bootstrap_semantics::seed_symbol -> bootstrap_semantics::Symbol
-            string "bootstrap/compiler/src/diagnostics.evd" : Text
+            string "bootstrap/compiler/src/diagnostics.evd" : CString
             string "bootstrap_diagnostics" : Text
         let diagnostics: NonEmptyMap<Text, bootstrap_semantics::Symbol>
           call bootstrap_semantics::append_symbol -> NonEmptyMap<Text, bootstrap_semantics::Symbol>
@@ -776,7 +776,7 @@ functions:
             local diagnostics_symbol : bootstrap_semantics::Symbol
         let discovery_symbol: bootstrap_semantics::Symbol
           call bootstrap_semantics::seed_symbol -> bootstrap_semantics::Symbol
-            string "bootstrap/compiler/src/discovery.evd" : Text
+            string "bootstrap/compiler/src/discovery.evd" : CString
             string "bootstrap_discovery" : Text
         let discovery: NonEmptyMap<Text, bootstrap_semantics::Symbol>
           call bootstrap_semantics::append_symbol -> NonEmptyMap<Text, bootstrap_semantics::Symbol>
@@ -784,7 +784,7 @@ functions:
             local discovery_symbol : bootstrap_semantics::Symbol
         let pipeline_symbol: bootstrap_semantics::Symbol
           call bootstrap_semantics::seed_symbol -> bootstrap_semantics::Symbol
-            string "bootstrap/compiler/src/pipeline.evd" : Text
+            string "bootstrap/compiler/src/pipeline.evd" : CString
             string "bootstrap_pipeline" : Text
         let pipeline: NonEmptyMap<Text, bootstrap_semantics::Symbol>
           call bootstrap_semantics::append_symbol -> NonEmptyMap<Text, bootstrap_semantics::Symbol>
@@ -792,7 +792,7 @@ functions:
             local pipeline_symbol : bootstrap_semantics::Symbol
         let layout_symbol: bootstrap_semantics::Symbol
           call bootstrap_semantics::seed_symbol -> bootstrap_semantics::Symbol
-            string "bootstrap/compiler/src/layout.evd" : Text
+            string "bootstrap/compiler/src/layout.evd" : CString
             string "bootstrap_layout" : Text
         let layout: NonEmptyMap<Text, bootstrap_semantics::Symbol>
           call bootstrap_semantics::append_symbol -> NonEmptyMap<Text, bootstrap_semantics::Symbol>
@@ -800,7 +800,7 @@ functions:
             local layout_symbol : bootstrap_semantics::Symbol
         let manifest_symbol: bootstrap_semantics::Symbol
           call bootstrap_semantics::seed_symbol -> bootstrap_semantics::Symbol
-            string "bootstrap/compiler/src/manifest.evd" : Text
+            string "bootstrap/compiler/src/manifest.evd" : CString
             string "bootstrap_manifest" : Text
         let manifest: NonEmptyMap<Text, bootstrap_semantics::Symbol>
           call bootstrap_semantics::append_symbol -> NonEmptyMap<Text, bootstrap_semantics::Symbol>
@@ -808,7 +808,7 @@ functions:
             local manifest_symbol : bootstrap_semantics::Symbol
         let release_symbol: bootstrap_semantics::Symbol
           call bootstrap_semantics::seed_symbol -> bootstrap_semantics::Symbol
-            string "bootstrap/compiler/src/release.evd" : Text
+            string "bootstrap/compiler/src/release.evd" : CString
             string "bootstrap_release" : Text
         let release: NonEmptyMap<Text, bootstrap_semantics::Symbol>
           call bootstrap_semantics::append_symbol -> NonEmptyMap<Text, bootstrap_semantics::Symbol>
@@ -816,7 +816,7 @@ functions:
             local release_symbol : bootstrap_semantics::Symbol
         let compiler_symbol: bootstrap_semantics::Symbol
           call bootstrap_semantics::seed_symbol -> bootstrap_semantics::Symbol
-            string "bootstrap/compiler/src/main.evd" : Text
+            string "bootstrap/compiler/src/main.evd" : CString
             string "bootstrap_compiler" : Text
         let compiler: NonEmptyMap<Text, bootstrap_semantics::Symbol>
           call bootstrap_semantics::append_symbol -> NonEmptyMap<Text, bootstrap_semantics::Symbol>
@@ -862,17 +862,56 @@ functions:
               local path : bootstrap_source::SourcePath
             init message [shorthand]
               local message : Text
-  - public foreign-fn bootstrap_host::read_text_file(request: bootstrap_host::HostReadRequest) -> bootstrap_host::HostFileContents
-  - public foreign-fn bootstrap_host::write_text_file(request: bootstrap_host::HostWriteRequest) -> CInt
-  - public foreign-fn bootstrap_host::resolve_path(base: bootstrap_host::HostPath, relative: bootstrap_host::HostPath) -> bootstrap_host::HostPath
-  - public foreign-fn bootstrap_host::spawn_tool(invocation: bootstrap_host::HostToolInvocation) -> CInt
+  - public foreign-fn bootstrap_host::read_text_file_text(path: CString) -> Text
+  - public foreign-fn bootstrap_host::write_text_file_text(path: CString, contents: Text) -> CInt
+  - public foreign-fn bootstrap_host::resolve_path_text(base: CString, relative: CString) -> CString
+  - public foreign-fn bootstrap_host::spawn_tool_text(working_directory: CString, executable: CString, arguments: List<Text>) -> CInt
   - public foreign-fn bootstrap_host::process_exit(code: CInt) -> CInt
-  - public fn bootstrap_host::host_path(text: Text) -> bootstrap_host::HostPath
+  - public fn bootstrap_host::read_text_file(request: bootstrap_host::HostReadRequest) -> bootstrap_host::HostFileContents
+      block -> bootstrap_host::HostFileContents
+        result
+          call bootstrap_host::host_file_contents -> bootstrap_host::HostFileContents
+            call bootstrap_host::read_text_file_text -> Text
+              field-access .text : CString
+                field-access .path : bootstrap_host::HostPath
+                  local request : bootstrap_host::HostReadRequest
+  - public fn bootstrap_host::write_text_file(request: bootstrap_host::HostWriteRequest) -> CInt
+      block -> CInt
+        result
+          call bootstrap_host::write_text_file_text -> CInt
+            field-access .text : CString
+              field-access .path : bootstrap_host::HostPath
+                local request : bootstrap_host::HostWriteRequest
+            field-access .text : Text
+              field-access .contents : bootstrap_host::HostFileContents
+                local request : bootstrap_host::HostWriteRequest
+  - public fn bootstrap_host::resolve_path(base: bootstrap_host::HostPath, relative: bootstrap_host::HostPath) -> bootstrap_host::HostPath
+      block -> bootstrap_host::HostPath
+        result
+          call bootstrap_host::host_path -> bootstrap_host::HostPath
+            call bootstrap_host::resolve_path_text -> CString
+              field-access .text : CString
+                local base : bootstrap_host::HostPath
+              field-access .text : CString
+                local relative : bootstrap_host::HostPath
+  - public fn bootstrap_host::spawn_tool(invocation: bootstrap_host::HostToolInvocation) -> CInt
+      block -> CInt
+        result
+          call bootstrap_host::spawn_tool_text -> CInt
+            field-access .text : CString
+              field-access .working_directory : bootstrap_host::HostPath
+                local invocation : bootstrap_host::HostToolInvocation
+            field-access .text : CString
+              field-access .executable : bootstrap_host::HostPath
+                local invocation : bootstrap_host::HostToolInvocation
+            field-access .arguments : List<Text>
+              local invocation : bootstrap_host::HostToolInvocation
+  - public fn bootstrap_host::host_path(text: CString) -> bootstrap_host::HostPath
       block -> bootstrap_host::HostPath
         result
           construct bootstrap_host::HostPath : bootstrap_host::HostPath
             init text [shorthand]
-              local text : Text
+              local text : CString
   - public fn bootstrap_host::host_file_contents(text: Text) -> bootstrap_host::HostFileContents
       block -> bootstrap_host::HostFileContents
         result
@@ -907,24 +946,24 @@ functions:
       block -> bootstrap_host::CompilerHostSurface
         let package_root: bootstrap_host::HostPath
           call bootstrap_host::host_path -> bootstrap_host::HostPath
-            string "bootstrap/compiler" : Text
+            string "bootstrap/compiler" : CString
         let manifest: bootstrap_host::HostPath
           call bootstrap_host::host_path -> bootstrap_host::HostPath
-            string "bootstrap/compiler/evident.pkg" : Text
+            string "bootstrap/compiler/evident.pkg" : CString
         let source_root: bootstrap_host::HostPath
           call bootstrap_host::host_path -> bootstrap_host::HostPath
-            string "bootstrap/compiler/src" : Text
+            string "bootstrap/compiler/src" : CString
         let diagnostics_output: bootstrap_host::HostPath
           call bootstrap_host::host_path -> bootstrap_host::HostPath
-            string "bootstrap/compiler/bootstrap-diagnostics.log" : Text
+            string "bootstrap/compiler/bootstrap-diagnostics.log" : CString
         let stage_output: bootstrap_host::HostPath
           call bootstrap_host::host_path -> bootstrap_host::HostPath
-            string "bootstrap/compiler/bootstrap-stage-output" : Text
+            string "bootstrap/compiler/bootstrap-stage-output" : CString
         let tool: bootstrap_host::HostToolInvocation
           call bootstrap_host::host_tool_invocation -> bootstrap_host::HostToolInvocation
             local package_root : bootstrap_host::HostPath
             call bootstrap_host::host_path -> bootstrap_host::HostPath
-              string "bootstrap/compiler/evidc" : Text
+              string "bootstrap/compiler/evidc" : CString
             call list_empty<Text> -> List<Text>
         result
           construct bootstrap_host::CompilerHostSurface : bootstrap_host::CompilerHostSurface
@@ -953,19 +992,19 @@ functions:
           construct bootstrap_environment::CompilerEnvironment : bootstrap_environment::CompilerEnvironment
             init workspace_root
               call bootstrap_host::host_path -> bootstrap_host::HostPath
-                string "." : Text
+                string "." : CString
             init package_root
               call bootstrap_host::host_path -> bootstrap_host::HostPath
-                string "bootstrap/compiler" : Text
+                string "bootstrap/compiler" : CString
             init manifest
               call bootstrap_host::host_path -> bootstrap_host::HostPath
-                string "bootstrap/compiler/evident.pkg" : Text
+                string "bootstrap/compiler/evident.pkg" : CString
             init source_root
               call bootstrap_host::host_path -> bootstrap_host::HostPath
-                string "bootstrap/compiler/src" : Text
+                string "bootstrap/compiler/src" : CString
             init build_root
               call bootstrap_host::host_path -> bootstrap_host::HostPath
-                string "build/windows-x64-ninja" : Text
+                string "build/windows-x64-ninja" : CString
             init target_triple
               string "x86_64-pc-windows-msvc" : Text
             init clang_driver
@@ -974,14 +1013,14 @@ functions:
               string "lld-link" : Text
             init source_commit
               string "source commit recorded in release evidence" : Text
-  - public fn bootstrap_discovery::source_manifest_entry(path: Text, summary: Text) -> bootstrap_discovery::SourceManifestEntry
+  - public fn bootstrap_discovery::source_manifest_entry(path: CString, summary: Text) -> bootstrap_discovery::SourceManifestEntry
       block -> bootstrap_discovery::SourceManifestEntry
         result
           construct bootstrap_discovery::SourceManifestEntry : bootstrap_discovery::SourceManifestEntry
             init path
               construct bootstrap_source::SourcePath : bootstrap_source::SourcePath
                 init text
-                  local path : Text
+                  local path : CString
             init summary [shorthand]
               local summary : Text
   - private fn bootstrap_discovery::append_manifest_entry(entries: NonEmptyList<bootstrap_discovery::SourceManifestEntry>, entry: bootstrap_discovery::SourceManifestEntry) -> NonEmptyList<bootstrap_discovery::SourceManifestEntry>
@@ -1007,96 +1046,96 @@ functions:
         let source: NonEmptyList<bootstrap_discovery::SourceManifestEntry>
           call list_single<bootstrap_discovery::SourceManifestEntry> -> NonEmptyList<bootstrap_discovery::SourceManifestEntry>
             call bootstrap_discovery::source_manifest_entry -> bootstrap_discovery::SourceManifestEntry
-              string "src/source.evd" : Text
+              string "src/source.evd" : CString
               string "package assembly helpers" : Text
         let lexing: NonEmptyList<bootstrap_discovery::SourceManifestEntry>
           call bootstrap_discovery::append_manifest_entry -> NonEmptyList<bootstrap_discovery::SourceManifestEntry>
             local source : NonEmptyList<bootstrap_discovery::SourceManifestEntry>
             call bootstrap_discovery::source_manifest_entry -> bootstrap_discovery::SourceManifestEntry
-              string "src/lexing.evd" : Text
+              string "src/lexing.evd" : CString
               string "lexical token stream model" : Text
         let parsing: NonEmptyList<bootstrap_discovery::SourceManifestEntry>
           call bootstrap_discovery::append_manifest_entry -> NonEmptyList<bootstrap_discovery::SourceManifestEntry>
             local lexing : NonEmptyList<bootstrap_discovery::SourceManifestEntry>
             call bootstrap_discovery::source_manifest_entry -> bootstrap_discovery::SourceManifestEntry
-              string "src/parsing.evd" : Text
+              string "src/parsing.evd" : CString
               string "parsed package syntax model" : Text
         let semantics: NonEmptyList<bootstrap_discovery::SourceManifestEntry>
           call bootstrap_discovery::append_manifest_entry -> NonEmptyList<bootstrap_discovery::SourceManifestEntry>
             local parsing : NonEmptyList<bootstrap_discovery::SourceManifestEntry>
             call bootstrap_discovery::source_manifest_entry -> bootstrap_discovery::SourceManifestEntry
-              string "src/semantics.evd" : Text
+              string "src/semantics.evd" : CString
               string "semantic symbol catalog model" : Text
         let diagnostics: NonEmptyList<bootstrap_discovery::SourceManifestEntry>
           call bootstrap_discovery::append_manifest_entry -> NonEmptyList<bootstrap_discovery::SourceManifestEntry>
             local semantics : NonEmptyList<bootstrap_discovery::SourceManifestEntry>
             call bootstrap_discovery::source_manifest_entry -> bootstrap_discovery::SourceManifestEntry
-              string "src/diagnostics.evd" : Text
+              string "src/diagnostics.evd" : CString
               string "diagnostics and bootstrap failure reasons" : Text
         let host: NonEmptyList<bootstrap_discovery::SourceManifestEntry>
           call bootstrap_discovery::append_manifest_entry -> NonEmptyList<bootstrap_discovery::SourceManifestEntry>
             local diagnostics : NonEmptyList<bootstrap_discovery::SourceManifestEntry>
             call bootstrap_discovery::source_manifest_entry -> bootstrap_discovery::SourceManifestEntry
-              string "src/host.evd" : Text
+              string "src/host.evd" : CString
               string "host file, path, and tool boundary handles" : Text
         let environment_entry: NonEmptyList<bootstrap_discovery::SourceManifestEntry>
           call bootstrap_discovery::append_manifest_entry -> NonEmptyList<bootstrap_discovery::SourceManifestEntry>
             local host : NonEmptyList<bootstrap_discovery::SourceManifestEntry>
             call bootstrap_discovery::source_manifest_entry -> bootstrap_discovery::SourceManifestEntry
-              string "src/environment.evd" : Text
+              string "src/environment.evd" : CString
               string "environment boundary handles" : Text
         let discovery: NonEmptyList<bootstrap_discovery::SourceManifestEntry>
           call bootstrap_discovery::append_manifest_entry -> NonEmptyList<bootstrap_discovery::SourceManifestEntry>
             local environment_entry : NonEmptyList<bootstrap_discovery::SourceManifestEntry>
             call bootstrap_discovery::source_manifest_entry -> bootstrap_discovery::SourceManifestEntry
-              string "src/discovery.evd" : Text
+              string "src/discovery.evd" : CString
               string "deterministic source discovery and original-file diagnostics" : Text
         let pipeline: NonEmptyList<bootstrap_discovery::SourceManifestEntry>
           call bootstrap_discovery::append_manifest_entry -> NonEmptyList<bootstrap_discovery::SourceManifestEntry>
             local discovery : NonEmptyList<bootstrap_discovery::SourceManifestEntry>
             call bootstrap_discovery::source_manifest_entry -> bootstrap_discovery::SourceManifestEntry
-              string "src/pipeline.evd" : Text
+              string "src/pipeline.evd" : CString
               string "bootstrap pipeline phases and stage evidence" : Text
         let layout: NonEmptyList<bootstrap_discovery::SourceManifestEntry>
           call bootstrap_discovery::append_manifest_entry -> NonEmptyList<bootstrap_discovery::SourceManifestEntry>
             local pipeline : NonEmptyList<bootstrap_discovery::SourceManifestEntry>
             call bootstrap_discovery::source_manifest_entry -> bootstrap_discovery::SourceManifestEntry
-              string "src/layout.evd" : Text
+              string "src/layout.evd" : CString
               string "bootstrap package layout and internal dependency graph" : Text
         let manifest_entries: NonEmptyList<bootstrap_discovery::SourceManifestEntry>
           call bootstrap_discovery::append_manifest_entry -> NonEmptyList<bootstrap_discovery::SourceManifestEntry>
             local layout : NonEmptyList<bootstrap_discovery::SourceManifestEntry>
             call bootstrap_discovery::source_manifest_entry -> bootstrap_discovery::SourceManifestEntry
-              string "src/manifest.evd" : Text
+              string "src/manifest.evd" : CString
               string "bootstrap package manifest and package metadata" : Text
         let release: NonEmptyList<bootstrap_discovery::SourceManifestEntry>
           call bootstrap_discovery::append_manifest_entry -> NonEmptyList<bootstrap_discovery::SourceManifestEntry>
             local manifest_entries : NonEmptyList<bootstrap_discovery::SourceManifestEntry>
             call bootstrap_discovery::source_manifest_entry -> bootstrap_discovery::SourceManifestEntry
-              string "src/release.evd" : Text
+              string "src/release.evd" : CString
               string "bootstrap stage harness and release evidence record" : Text
         let main: NonEmptyList<bootstrap_discovery::SourceManifestEntry>
           call bootstrap_discovery::append_manifest_entry -> NonEmptyList<bootstrap_discovery::SourceManifestEntry>
             local release : NonEmptyList<bootstrap_discovery::SourceManifestEntry>
             call bootstrap_discovery::source_manifest_entry -> bootstrap_discovery::SourceManifestEntry
-              string "src/main.evd" : Text
+              string "src/main.evd" : CString
               string "bootstrap package entrypoint and aggregate status" : Text
         let package_root: bootstrap_source::SourcePath
           construct bootstrap_source::SourcePath : bootstrap_source::SourcePath
             init text
-              field-access .text : Text
+              field-access .text : CString
                 field-access .package_root : bootstrap_host::HostPath
                   local environment : bootstrap_environment::CompilerEnvironment
         let manifest_path: bootstrap_source::SourcePath
           construct bootstrap_source::SourcePath : bootstrap_source::SourcePath
             init text
-              field-access .text : Text
+              field-access .text : CString
                 field-access .manifest : bootstrap_host::HostPath
                   local environment : bootstrap_environment::CompilerEnvironment
         let source_root: bootstrap_source::SourcePath
           construct bootstrap_source::SourcePath : bootstrap_source::SourcePath
             init text
-              field-access .text : Text
+              field-access .text : CString
                 field-access .source_root : bootstrap_host::HostPath
                   local environment : bootstrap_environment::CompilerEnvironment
         result
@@ -1117,79 +1156,79 @@ functions:
         let source: NonEmptyList<bootstrap_source::SourceFile>
           call list_single<bootstrap_source::SourceFile> -> NonEmptyList<bootstrap_source::SourceFile>
             call bootstrap_source::source_file -> bootstrap_source::SourceFile
-              string "src/source.evd" : Text
+              string "src/source.evd" : CString
               string "package assembly helpers" : Text
         let lexing: NonEmptyList<bootstrap_source::SourceFile>
           call bootstrap_discovery::append_source_file -> NonEmptyList<bootstrap_source::SourceFile>
             local source : NonEmptyList<bootstrap_source::SourceFile>
             call bootstrap_source::source_file -> bootstrap_source::SourceFile
-              string "src/lexing.evd" : Text
+              string "src/lexing.evd" : CString
               string "lexical token stream model" : Text
         let parsing: NonEmptyList<bootstrap_source::SourceFile>
           call bootstrap_discovery::append_source_file -> NonEmptyList<bootstrap_source::SourceFile>
             local lexing : NonEmptyList<bootstrap_source::SourceFile>
             call bootstrap_source::source_file -> bootstrap_source::SourceFile
-              string "src/parsing.evd" : Text
+              string "src/parsing.evd" : CString
               string "parsed package syntax model" : Text
         let semantics: NonEmptyList<bootstrap_source::SourceFile>
           call bootstrap_discovery::append_source_file -> NonEmptyList<bootstrap_source::SourceFile>
             local parsing : NonEmptyList<bootstrap_source::SourceFile>
             call bootstrap_source::source_file -> bootstrap_source::SourceFile
-              string "src/semantics.evd" : Text
+              string "src/semantics.evd" : CString
               string "semantic symbol catalog model" : Text
         let diagnostics: NonEmptyList<bootstrap_source::SourceFile>
           call bootstrap_discovery::append_source_file -> NonEmptyList<bootstrap_source::SourceFile>
             local semantics : NonEmptyList<bootstrap_source::SourceFile>
             call bootstrap_source::source_file -> bootstrap_source::SourceFile
-              string "src/diagnostics.evd" : Text
+              string "src/diagnostics.evd" : CString
               string "diagnostics and bootstrap failure reasons" : Text
         let host: NonEmptyList<bootstrap_source::SourceFile>
           call bootstrap_discovery::append_source_file -> NonEmptyList<bootstrap_source::SourceFile>
             local diagnostics : NonEmptyList<bootstrap_source::SourceFile>
             call bootstrap_source::source_file -> bootstrap_source::SourceFile
-              string "src/host.evd" : Text
+              string "src/host.evd" : CString
               string "host file, path, and tool boundary handles" : Text
         let environment_files: NonEmptyList<bootstrap_source::SourceFile>
           call bootstrap_discovery::append_source_file -> NonEmptyList<bootstrap_source::SourceFile>
             local host : NonEmptyList<bootstrap_source::SourceFile>
             call bootstrap_source::source_file -> bootstrap_source::SourceFile
-              string "src/environment.evd" : Text
+              string "src/environment.evd" : CString
               string "environment boundary handles" : Text
         let discovery: NonEmptyList<bootstrap_source::SourceFile>
           call bootstrap_discovery::append_source_file -> NonEmptyList<bootstrap_source::SourceFile>
             local environment_files : NonEmptyList<bootstrap_source::SourceFile>
             call bootstrap_source::source_file -> bootstrap_source::SourceFile
-              string "src/discovery.evd" : Text
+              string "src/discovery.evd" : CString
               string "deterministic source discovery and original-file diagnostics" : Text
         let pipeline: NonEmptyList<bootstrap_source::SourceFile>
           call bootstrap_discovery::append_source_file -> NonEmptyList<bootstrap_source::SourceFile>
             local discovery : NonEmptyList<bootstrap_source::SourceFile>
             call bootstrap_source::source_file -> bootstrap_source::SourceFile
-              string "src/pipeline.evd" : Text
+              string "src/pipeline.evd" : CString
               string "bootstrap pipeline phases and stage evidence" : Text
         let layout: NonEmptyList<bootstrap_source::SourceFile>
           call bootstrap_discovery::append_source_file -> NonEmptyList<bootstrap_source::SourceFile>
             local pipeline : NonEmptyList<bootstrap_source::SourceFile>
             call bootstrap_source::source_file -> bootstrap_source::SourceFile
-              string "src/layout.evd" : Text
+              string "src/layout.evd" : CString
               string "bootstrap package layout and internal dependency graph" : Text
         let manifest: NonEmptyList<bootstrap_source::SourceFile>
           call bootstrap_discovery::append_source_file -> NonEmptyList<bootstrap_source::SourceFile>
             local layout : NonEmptyList<bootstrap_source::SourceFile>
             call bootstrap_source::source_file -> bootstrap_source::SourceFile
-              string "src/manifest.evd" : Text
+              string "src/manifest.evd" : CString
               string "bootstrap package manifest and package metadata" : Text
         let release: NonEmptyList<bootstrap_source::SourceFile>
           call bootstrap_discovery::append_source_file -> NonEmptyList<bootstrap_source::SourceFile>
             local manifest : NonEmptyList<bootstrap_source::SourceFile>
             call bootstrap_source::source_file -> bootstrap_source::SourceFile
-              string "src/release.evd" : Text
+              string "src/release.evd" : CString
               string "bootstrap stage harness and release evidence record" : Text
         let main: NonEmptyList<bootstrap_source::SourceFile>
           call bootstrap_discovery::append_source_file -> NonEmptyList<bootstrap_source::SourceFile>
             local release : NonEmptyList<bootstrap_source::SourceFile>
             call bootstrap_source::source_file -> bootstrap_source::SourceFile
-              string "src/main.evd" : Text
+              string "src/main.evd" : CString
               string "bootstrap package entrypoint and aggregate status" : Text
         let original_file_diagnostic: bootstrap_diagnostics::OriginalFileDiagnostic
           call bootstrap_diagnostics::original_file_diagnostic -> bootstrap_diagnostics::OriginalFileDiagnostic
@@ -1332,7 +1371,7 @@ functions:
             string "stage-2 evidc" : Text
             local source_commit : Text
             string "passes conformance, diagnostics, native emission, package, and release-contract checks" : Text
-  - public fn bootstrap_layout::bootstrap_package_module(name: Text, source: Text, imports: List<Text>) -> bootstrap_layout::BootstrapPackageModule
+  - public fn bootstrap_layout::bootstrap_package_module(name: Text, source: CString, imports: List<Text>) -> bootstrap_layout::BootstrapPackageModule
       block -> bootstrap_layout::BootstrapPackageModule
         result
           construct bootstrap_layout::BootstrapPackageModule : bootstrap_layout::BootstrapPackageModule
@@ -1341,7 +1380,7 @@ functions:
             init source
               construct bootstrap_source::SourcePath : bootstrap_source::SourcePath
                 init text
-                  local source : Text
+                  local source : CString
             init imports [shorthand]
               local imports : List<Text>
   - private fn bootstrap_layout::append_text_import(imports: List<Text>, item: Text) -> List<Text>
@@ -1375,7 +1414,7 @@ functions:
         let host_module: bootstrap_layout::BootstrapPackageModule
           call bootstrap_layout::bootstrap_package_module -> bootstrap_layout::BootstrapPackageModule
             string "bootstrap_host" : Text
-            string "src/host.evd" : Text
+            string "src/host.evd" : CString
             call list_empty<Text> -> List<Text>
         let host: NonEmptyList<bootstrap_layout::BootstrapPackageModule>
           call list_single<bootstrap_layout::BootstrapPackageModule> -> NonEmptyList<bootstrap_layout::BootstrapPackageModule>
@@ -1392,7 +1431,7 @@ functions:
         let environment_module: bootstrap_layout::BootstrapPackageModule
           call bootstrap_layout::bootstrap_package_module -> bootstrap_layout::BootstrapPackageModule
             string "bootstrap_environment" : Text
-            string "src/environment.evd" : Text
+            string "src/environment.evd" : CString
             local environment_imports : List<Text>
         let environment: NonEmptyList<bootstrap_layout::BootstrapPackageModule>
           call bootstrap_layout::append_bootstrap_package_module -> NonEmptyList<bootstrap_layout::BootstrapPackageModule>
@@ -1409,7 +1448,7 @@ functions:
         let source_module: bootstrap_layout::BootstrapPackageModule
           call bootstrap_layout::bootstrap_package_module -> bootstrap_layout::BootstrapPackageModule
             string "bootstrap_source" : Text
-            string "src/source.evd" : Text
+            string "src/source.evd" : CString
             local source_imports : List<Text>
         let source: NonEmptyList<bootstrap_layout::BootstrapPackageModule>
           call bootstrap_layout::append_bootstrap_package_module -> NonEmptyList<bootstrap_layout::BootstrapPackageModule>
@@ -1426,7 +1465,7 @@ functions:
         let lexing_module: bootstrap_layout::BootstrapPackageModule
           call bootstrap_layout::bootstrap_package_module -> bootstrap_layout::BootstrapPackageModule
             string "bootstrap_lexing" : Text
-            string "src/lexing.evd" : Text
+            string "src/lexing.evd" : CString
             local lexing_imports : List<Text>
         let lexing: NonEmptyList<bootstrap_layout::BootstrapPackageModule>
           call bootstrap_layout::append_bootstrap_package_module -> NonEmptyList<bootstrap_layout::BootstrapPackageModule>
@@ -1447,7 +1486,7 @@ functions:
         let parsing_module: bootstrap_layout::BootstrapPackageModule
           call bootstrap_layout::bootstrap_package_module -> bootstrap_layout::BootstrapPackageModule
             string "bootstrap_parsing" : Text
-            string "src/parsing.evd" : Text
+            string "src/parsing.evd" : CString
             local parsing_imports_final : List<Text>
         let parsing: NonEmptyList<bootstrap_layout::BootstrapPackageModule>
           call bootstrap_layout::append_bootstrap_package_module -> NonEmptyList<bootstrap_layout::BootstrapPackageModule>
@@ -1472,7 +1511,7 @@ functions:
         let semantics_module: bootstrap_layout::BootstrapPackageModule
           call bootstrap_layout::bootstrap_package_module -> bootstrap_layout::BootstrapPackageModule
             string "bootstrap_semantics" : Text
-            string "src/semantics.evd" : Text
+            string "src/semantics.evd" : CString
             local semantics_imports_final : List<Text>
         let semantics: NonEmptyList<bootstrap_layout::BootstrapPackageModule>
           call bootstrap_layout::append_bootstrap_package_module -> NonEmptyList<bootstrap_layout::BootstrapPackageModule>
@@ -1489,7 +1528,7 @@ functions:
         let diagnostics_module: bootstrap_layout::BootstrapPackageModule
           call bootstrap_layout::bootstrap_package_module -> bootstrap_layout::BootstrapPackageModule
             string "bootstrap_diagnostics" : Text
-            string "src/diagnostics.evd" : Text
+            string "src/diagnostics.evd" : CString
             local diagnostics_imports : List<Text>
         let diagnostics: NonEmptyList<bootstrap_layout::BootstrapPackageModule>
           call bootstrap_layout::append_bootstrap_package_module -> NonEmptyList<bootstrap_layout::BootstrapPackageModule>
@@ -1514,7 +1553,7 @@ functions:
         let discovery_module: bootstrap_layout::BootstrapPackageModule
           call bootstrap_layout::bootstrap_package_module -> bootstrap_layout::BootstrapPackageModule
             string "bootstrap_discovery" : Text
-            string "src/discovery.evd" : Text
+            string "src/discovery.evd" : CString
             local discovery_imports_final : List<Text>
         let discovery: NonEmptyList<bootstrap_layout::BootstrapPackageModule>
           call bootstrap_layout::append_bootstrap_package_module -> NonEmptyList<bootstrap_layout::BootstrapPackageModule>
@@ -1543,7 +1582,7 @@ functions:
         let pipeline_module: bootstrap_layout::BootstrapPackageModule
           call bootstrap_layout::bootstrap_package_module -> bootstrap_layout::BootstrapPackageModule
             string "bootstrap_pipeline" : Text
-            string "src/pipeline.evd" : Text
+            string "src/pipeline.evd" : CString
             local pipeline_imports_final : List<Text>
         let pipeline: NonEmptyList<bootstrap_layout::BootstrapPackageModule>
           call bootstrap_layout::append_bootstrap_package_module -> NonEmptyList<bootstrap_layout::BootstrapPackageModule>
@@ -1560,7 +1599,7 @@ functions:
         let layout_module: bootstrap_layout::BootstrapPackageModule
           call bootstrap_layout::bootstrap_package_module -> bootstrap_layout::BootstrapPackageModule
             string "bootstrap_layout" : Text
-            string "src/layout.evd" : Text
+            string "src/layout.evd" : CString
             local layout_imports : List<Text>
         let layout: NonEmptyList<bootstrap_layout::BootstrapPackageModule>
           call bootstrap_layout::append_bootstrap_package_module -> NonEmptyList<bootstrap_layout::BootstrapPackageModule>
@@ -1581,7 +1620,7 @@ functions:
         let release_module: bootstrap_layout::BootstrapPackageModule
           call bootstrap_layout::bootstrap_package_module -> bootstrap_layout::BootstrapPackageModule
             string "bootstrap_release" : Text
-            string "src/release.evd" : Text
+            string "src/release.evd" : CString
             local release_imports_final : List<Text>
         let release: NonEmptyList<bootstrap_layout::BootstrapPackageModule>
           call bootstrap_layout::append_bootstrap_package_module -> NonEmptyList<bootstrap_layout::BootstrapPackageModule>
@@ -1622,7 +1661,7 @@ functions:
         let main_module: bootstrap_layout::BootstrapPackageModule
           call bootstrap_layout::bootstrap_package_module -> bootstrap_layout::BootstrapPackageModule
             string "bootstrap_compiler" : Text
-            string "src/main.evd" : Text
+            string "src/main.evd" : CString
             local main_imports_final : List<Text>
         let main: NonEmptyList<bootstrap_layout::BootstrapPackageModule>
           call bootstrap_layout::append_bootstrap_package_module -> NonEmptyList<bootstrap_layout::BootstrapPackageModule>
@@ -1656,7 +1695,7 @@ functions:
               local module_name : Text
         result
           local found_module : bootstrap_layout::BootstrapPackageModule
-  - public fn bootstrap_manifest::bootstrap_package_manifest_entry(module_name: Text, source: Text, imports: List<Text>) -> bootstrap_manifest::BootstrapPackageManifestEntry
+  - public fn bootstrap_manifest::bootstrap_package_manifest_entry(module_name: Text, source: CString, imports: List<Text>) -> bootstrap_manifest::BootstrapPackageManifestEntry
       block -> bootstrap_manifest::BootstrapPackageManifestEntry
         result
           construct bootstrap_manifest::BootstrapPackageManifestEntry : bootstrap_manifest::BootstrapPackageManifestEntry
@@ -1665,7 +1704,7 @@ functions:
             init source
               construct bootstrap_source::SourcePath : bootstrap_source::SourcePath
                 init text
-                  local source : Text
+                  local source : CString
             init imports [shorthand]
               local imports : List<Text>
   - private fn bootstrap_manifest::append_bootstrap_package_manifest_import(imports: List<Text>, item: Text) -> List<Text>
@@ -1699,7 +1738,7 @@ functions:
         let host_entry: bootstrap_manifest::BootstrapPackageManifestEntry
           call bootstrap_manifest::bootstrap_package_manifest_entry -> bootstrap_manifest::BootstrapPackageManifestEntry
             string "bootstrap_host" : Text
-            string "src/host.evd" : Text
+            string "src/host.evd" : CString
             call list_empty<Text> -> List<Text>
         let host: NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
           call list_single<bootstrap_manifest::BootstrapPackageManifestEntry> -> NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
@@ -1716,7 +1755,7 @@ functions:
         let environment_entry: bootstrap_manifest::BootstrapPackageManifestEntry
           call bootstrap_manifest::bootstrap_package_manifest_entry -> bootstrap_manifest::BootstrapPackageManifestEntry
             string "bootstrap_environment" : Text
-            string "src/environment.evd" : Text
+            string "src/environment.evd" : CString
             local environment_imports : List<Text>
         let environment: NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
           call bootstrap_manifest::append_bootstrap_package_manifest_entry -> NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
@@ -1733,7 +1772,7 @@ functions:
         let source_entry: bootstrap_manifest::BootstrapPackageManifestEntry
           call bootstrap_manifest::bootstrap_package_manifest_entry -> bootstrap_manifest::BootstrapPackageManifestEntry
             string "bootstrap_source" : Text
-            string "src/source.evd" : Text
+            string "src/source.evd" : CString
             local source_imports : List<Text>
         let source: NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
           call bootstrap_manifest::append_bootstrap_package_manifest_entry -> NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
@@ -1750,7 +1789,7 @@ functions:
         let lexing_entry: bootstrap_manifest::BootstrapPackageManifestEntry
           call bootstrap_manifest::bootstrap_package_manifest_entry -> bootstrap_manifest::BootstrapPackageManifestEntry
             string "bootstrap_lexing" : Text
-            string "src/lexing.evd" : Text
+            string "src/lexing.evd" : CString
             local lexing_imports : List<Text>
         let lexing: NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
           call bootstrap_manifest::append_bootstrap_package_manifest_entry -> NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
@@ -1771,7 +1810,7 @@ functions:
         let parsing_entry: bootstrap_manifest::BootstrapPackageManifestEntry
           call bootstrap_manifest::bootstrap_package_manifest_entry -> bootstrap_manifest::BootstrapPackageManifestEntry
             string "bootstrap_parsing" : Text
-            string "src/parsing.evd" : Text
+            string "src/parsing.evd" : CString
             local parsing_imports_final : List<Text>
         let parsing: NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
           call bootstrap_manifest::append_bootstrap_package_manifest_entry -> NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
@@ -1796,7 +1835,7 @@ functions:
         let semantics_entry: bootstrap_manifest::BootstrapPackageManifestEntry
           call bootstrap_manifest::bootstrap_package_manifest_entry -> bootstrap_manifest::BootstrapPackageManifestEntry
             string "bootstrap_semantics" : Text
-            string "src/semantics.evd" : Text
+            string "src/semantics.evd" : CString
             local semantics_imports_final : List<Text>
         let semantics: NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
           call bootstrap_manifest::append_bootstrap_package_manifest_entry -> NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
@@ -1813,7 +1852,7 @@ functions:
         let diagnostics_entry: bootstrap_manifest::BootstrapPackageManifestEntry
           call bootstrap_manifest::bootstrap_package_manifest_entry -> bootstrap_manifest::BootstrapPackageManifestEntry
             string "bootstrap_diagnostics" : Text
-            string "src/diagnostics.evd" : Text
+            string "src/diagnostics.evd" : CString
             local diagnostics_imports : List<Text>
         let diagnostics: NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
           call bootstrap_manifest::append_bootstrap_package_manifest_entry -> NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
@@ -1838,7 +1877,7 @@ functions:
         let discovery_entry: bootstrap_manifest::BootstrapPackageManifestEntry
           call bootstrap_manifest::bootstrap_package_manifest_entry -> bootstrap_manifest::BootstrapPackageManifestEntry
             string "bootstrap_discovery" : Text
-            string "src/discovery.evd" : Text
+            string "src/discovery.evd" : CString
             local discovery_imports_final : List<Text>
         let discovery: NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
           call bootstrap_manifest::append_bootstrap_package_manifest_entry -> NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
@@ -1867,7 +1906,7 @@ functions:
         let pipeline_entry: bootstrap_manifest::BootstrapPackageManifestEntry
           call bootstrap_manifest::bootstrap_package_manifest_entry -> bootstrap_manifest::BootstrapPackageManifestEntry
             string "bootstrap_pipeline" : Text
-            string "src/pipeline.evd" : Text
+            string "src/pipeline.evd" : CString
             local pipeline_imports_final : List<Text>
         let pipeline: NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
           call bootstrap_manifest::append_bootstrap_package_manifest_entry -> NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
@@ -1884,7 +1923,7 @@ functions:
         let layout_entry: bootstrap_manifest::BootstrapPackageManifestEntry
           call bootstrap_manifest::bootstrap_package_manifest_entry -> bootstrap_manifest::BootstrapPackageManifestEntry
             string "bootstrap_layout" : Text
-            string "src/layout.evd" : Text
+            string "src/layout.evd" : CString
             local layout_imports : List<Text>
         let layout_entries: NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
           call bootstrap_manifest::append_bootstrap_package_manifest_entry -> NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
@@ -1905,7 +1944,7 @@ functions:
         let manifest_entry: bootstrap_manifest::BootstrapPackageManifestEntry
           call bootstrap_manifest::bootstrap_package_manifest_entry -> bootstrap_manifest::BootstrapPackageManifestEntry
             string "bootstrap_manifest" : Text
-            string "src/manifest.evd" : Text
+            string "src/manifest.evd" : CString
             local manifest_imports_final : List<Text>
         let manifest: NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
           call bootstrap_manifest::append_bootstrap_package_manifest_entry -> NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
@@ -1930,7 +1969,7 @@ functions:
         let release_entry: bootstrap_manifest::BootstrapPackageManifestEntry
           call bootstrap_manifest::bootstrap_package_manifest_entry -> bootstrap_manifest::BootstrapPackageManifestEntry
             string "bootstrap_release" : Text
-            string "src/release.evd" : Text
+            string "src/release.evd" : CString
             local release_imports_final : List<Text>
         let release: NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
           call bootstrap_manifest::append_bootstrap_package_manifest_entry -> NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
@@ -1975,7 +2014,7 @@ functions:
         let main_entry: bootstrap_manifest::BootstrapPackageManifestEntry
           call bootstrap_manifest::bootstrap_package_manifest_entry -> bootstrap_manifest::BootstrapPackageManifestEntry
             string "bootstrap_compiler" : Text
-            string "src/main.evd" : Text
+            string "src/main.evd" : CString
             local main_imports_final : List<Text>
         let main: NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
           call bootstrap_manifest::append_bootstrap_package_manifest_entry -> NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
@@ -2103,16 +2142,16 @@ functions:
       block -> bootstrap_release::BootstrapStageHarness
         let package_root: bootstrap_host::HostPath
           call bootstrap_host::host_path -> bootstrap_host::HostPath
-            string "bootstrap/compiler" : Text
+            string "bootstrap/compiler" : CString
         let seed_output: bootstrap_host::HostPath
           call bootstrap_host::host_path -> bootstrap_host::HostPath
-            string "bootstrap/compiler/bootstrap-stage-output/seed-evidc.exe" : Text
+            string "bootstrap/compiler/bootstrap-stage-output/seed-evidc.exe" : CString
         let stage_one_output: bootstrap_host::HostPath
           call bootstrap_host::host_path -> bootstrap_host::HostPath
-            string "bootstrap/compiler/bootstrap-stage-output/stage-1-evidc.exe" : Text
+            string "bootstrap/compiler/bootstrap-stage-output/stage-1-evidc.exe" : CString
         let stage_two_output: bootstrap_host::HostPath
           call bootstrap_host::host_path -> bootstrap_host::HostPath
-            string "bootstrap/compiler/bootstrap-stage-output/stage-2-evidc.exe" : Text
+            string "bootstrap/compiler/bootstrap-stage-output/stage-2-evidc.exe" : CString
         let seed_arguments: List<Text>
           call bootstrap_release::append_bootstrap_stage_argument -> List<Text>
             call list_empty<Text> -> List<Text>
@@ -2133,7 +2172,7 @@ functions:
           call bootstrap_release::bootstrap_stage_tool -> bootstrap_host::HostToolInvocation
             local package_root : bootstrap_host::HostPath
             call bootstrap_host::host_path -> bootstrap_host::HostPath
-              string "ctest" : Text
+              string "ctest" : CString
             local seed_arguments_final : List<Text>
         let seed: bootstrap_release::BootstrapStageInvocation
           call bootstrap_release::bootstrap_stage_invocation -> bootstrap_release::BootstrapStageInvocation

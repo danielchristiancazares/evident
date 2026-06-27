@@ -13,7 +13,7 @@ public record BootstrapPackageLayout {
     public modules_by_name: NonEmptyMap<Text, BootstrapPackageModule>,
 }
 
-public fn bootstrap_package_module(name: Text, source: Text, imports: List<Text>) -> BootstrapPackageModule {
+public fn bootstrap_package_module(name: Text, source: CString, imports: List<Text>) -> BootstrapPackageModule {
     BootstrapPackageModule {
         name,
         source: bootstrap_source::SourcePath { text: source },

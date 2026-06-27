@@ -1,7 +1,7 @@
 functions:
   - public fn bootstrap_source::source_file -> bootstrap_source::SourceFile
       locals:
-        %0[path] : Text
+        %0[path] : CString
         %1[contents] : Text
         %2[$return] : bootstrap_source::SourceFile
         %3[tmp] : bootstrap_source::SourcePath
@@ -14,10 +14,10 @@ functions:
         %0[environment] : bootstrap_environment::CompilerEnvironment
         %1[$return] : bootstrap_source::PackageIdentity
         %2[tmp] : bootstrap_source::SourcePath
-        %3[tmp] : Text
+        %3[tmp] : CString
         %4[tmp] : bootstrap_host::HostPath
         %5[tmp] : bootstrap_source::SourcePath
-        %6[tmp] : Text
+        %6[tmp] : CString
         %7[tmp] : bootstrap_host::HostPath
       block %0
         %4[tmp] = %0[environment].package_root
@@ -90,7 +90,7 @@ functions:
         return %2[$return]
   - private fn bootstrap_lexing::seed_module_token -> bootstrap_lexing::Token
       locals:
-        %0[path_text] : Text
+        %0[path_text] : CString
         %1[lexeme] : Text
         %2[$return] : bootstrap_lexing::Token
         %3[source_path] : bootstrap_source::SourcePath
@@ -205,7 +205,7 @@ functions:
         return %2[$return]
   - private fn bootstrap_parsing::seed_module_declaration -> bootstrap_parsing::SyntaxDeclaration
       locals:
-        %0[path_text] : Text
+        %0[path_text] : CString
         %1[module_name] : Text
         %2[$return] : bootstrap_parsing::SyntaxDeclaration
         %3[source_path] : bootstrap_source::SourcePath
@@ -220,7 +220,7 @@ functions:
   - private fn bootstrap_parsing::seed_syntax_module -> bootstrap_parsing::SyntaxModule
       locals:
         %0[kind] : bootstrap_parsing::ModuleKind
-        %1[path_text] : Text
+        %1[path_text] : CString
         %2[module_name] : Text
         %3[$return] : bootstrap_parsing::SyntaxModule
         %4[declaration] : bootstrap_parsing::SyntaxDeclaration
@@ -357,7 +357,7 @@ functions:
         return %2[$return]
   - private fn bootstrap_semantics::seed_symbol -> bootstrap_semantics::Symbol
       locals:
-        %0[path_text] : Text
+        %0[path_text] : CString
         %1[module_name] : Text
         %2[$return] : bootstrap_semantics::Symbol
         %3[source_path] : bootstrap_source::SourcePath
@@ -474,30 +474,92 @@ functions:
       block %0
         %2[$return] = construct bootstrap_diagnostics::OriginalFileDiagnostic {path: %0[path], message: %1[message]}
         return %2[$return]
-  - public foreign-fn bootstrap_host::read_text_file -> bootstrap_host::HostFileContents
+  - public foreign-fn bootstrap_host::read_text_file_text -> Text
       locals:
-        %0[request] : bootstrap_host::HostReadRequest
+        %0[path] : CString
       blocks: <none>
-  - public foreign-fn bootstrap_host::write_text_file -> CInt
+  - public foreign-fn bootstrap_host::write_text_file_text -> CInt
       locals:
-        %0[request] : bootstrap_host::HostWriteRequest
+        %0[path] : CString
+        %1[contents] : Text
       blocks: <none>
-  - public foreign-fn bootstrap_host::resolve_path -> bootstrap_host::HostPath
+  - public foreign-fn bootstrap_host::resolve_path_text -> CString
       locals:
-        %0[base] : bootstrap_host::HostPath
-        %1[relative] : bootstrap_host::HostPath
+        %0[base] : CString
+        %1[relative] : CString
       blocks: <none>
-  - public foreign-fn bootstrap_host::spawn_tool -> CInt
+  - public foreign-fn bootstrap_host::spawn_tool_text -> CInt
       locals:
-        %0[invocation] : bootstrap_host::HostToolInvocation
+        %0[working_directory] : CString
+        %1[executable] : CString
+        %2[arguments] : List<Text>
       blocks: <none>
   - public foreign-fn bootstrap_host::process_exit -> CInt
       locals:
         %0[code] : CInt
       blocks: <none>
+  - public fn bootstrap_host::read_text_file -> bootstrap_host::HostFileContents
+      locals:
+        %0[request] : bootstrap_host::HostReadRequest
+        %1[$return] : bootstrap_host::HostFileContents
+        %2[tmp] : Text
+        %3[tmp] : CString
+        %4[tmp] : bootstrap_host::HostPath
+      block %0
+        %4[tmp] = %0[request].path
+        %3[tmp] = %4[tmp].text
+        %2[tmp] = call bootstrap_host::read_text_file_text(%3[tmp])
+        %1[$return] = call bootstrap_host::host_file_contents(%2[tmp])
+        return %1[$return]
+  - public fn bootstrap_host::write_text_file -> CInt
+      locals:
+        %0[request] : bootstrap_host::HostWriteRequest
+        %1[$return] : CInt
+        %2[tmp] : CString
+        %3[tmp] : bootstrap_host::HostPath
+        %4[tmp] : Text
+        %5[tmp] : bootstrap_host::HostFileContents
+      block %0
+        %3[tmp] = %0[request].path
+        %2[tmp] = %3[tmp].text
+        %5[tmp] = %0[request].contents
+        %4[tmp] = %5[tmp].text
+        %1[$return] = call bootstrap_host::write_text_file_text(%2[tmp], %4[tmp])
+        return %1[$return]
+  - public fn bootstrap_host::resolve_path -> bootstrap_host::HostPath
+      locals:
+        %0[base] : bootstrap_host::HostPath
+        %1[relative] : bootstrap_host::HostPath
+        %2[$return] : bootstrap_host::HostPath
+        %3[tmp] : CString
+        %4[tmp] : CString
+        %5[tmp] : CString
+      block %0
+        %4[tmp] = %0[base].text
+        %5[tmp] = %1[relative].text
+        %3[tmp] = call bootstrap_host::resolve_path_text(%4[tmp], %5[tmp])
+        %2[$return] = call bootstrap_host::host_path(%3[tmp])
+        return %2[$return]
+  - public fn bootstrap_host::spawn_tool -> CInt
+      locals:
+        %0[invocation] : bootstrap_host::HostToolInvocation
+        %1[$return] : CInt
+        %2[tmp] : CString
+        %3[tmp] : bootstrap_host::HostPath
+        %4[tmp] : CString
+        %5[tmp] : bootstrap_host::HostPath
+        %6[tmp] : List<Text>
+      block %0
+        %3[tmp] = %0[invocation].working_directory
+        %2[tmp] = %3[tmp].text
+        %5[tmp] = %0[invocation].executable
+        %4[tmp] = %5[tmp].text
+        %6[tmp] = %0[invocation].arguments
+        %1[$return] = call bootstrap_host::spawn_tool_text(%2[tmp], %4[tmp], %6[tmp])
+        return %1[$return]
   - public fn bootstrap_host::host_path -> bootstrap_host::HostPath
       locals:
-        %0[text] : Text
+        %0[text] : CString
         %1[$return] : bootstrap_host::HostPath
       block %0
         %1[$return] = construct bootstrap_host::HostPath {text: %0[text]}
@@ -581,7 +643,7 @@ functions:
         return %0[$return]
   - public fn bootstrap_discovery::source_manifest_entry -> bootstrap_discovery::SourceManifestEntry
       locals:
-        %0[path] : Text
+        %0[path] : CString
         %1[summary] : Text
         %2[$return] : bootstrap_discovery::SourceManifestEntry
         %3[tmp] : bootstrap_source::SourcePath
@@ -640,13 +702,13 @@ functions:
         %26[main] : NonEmptyList<bootstrap_discovery::SourceManifestEntry>
         %27[tmp] : bootstrap_discovery::SourceManifestEntry
         %28[package_root] : bootstrap_source::SourcePath
-        %29[tmp] : Text
+        %29[tmp] : CString
         %30[tmp] : bootstrap_host::HostPath
         %31[manifest_path] : bootstrap_source::SourcePath
-        %32[tmp] : Text
+        %32[tmp] : CString
         %33[tmp] : bootstrap_host::HostPath
         %34[source_root] : bootstrap_source::SourcePath
-        %35[tmp] : Text
+        %35[tmp] : CString
         %36[tmp] : bootstrap_host::HostPath
       block %0
         %3[tmp] = call bootstrap_discovery::source_manifest_entry("src/source.evd", "package assembly helpers")
@@ -862,7 +924,7 @@ functions:
   - public fn bootstrap_layout::bootstrap_package_module -> bootstrap_layout::BootstrapPackageModule
       locals:
         %0[name] : Text
-        %1[source] : Text
+        %1[source] : CString
         %2[imports] : List<Text>
         %3[$return] : bootstrap_layout::BootstrapPackageModule
         %4[tmp] : bootstrap_source::SourcePath
@@ -1087,7 +1149,7 @@ functions:
   - public fn bootstrap_manifest::bootstrap_package_manifest_entry -> bootstrap_manifest::BootstrapPackageManifestEntry
       locals:
         %0[module_name] : Text
-        %1[source] : Text
+        %1[source] : CString
         %2[imports] : List<Text>
         %3[$return] : bootstrap_manifest::BootstrapPackageManifestEntry
         %4[tmp] : bootstrap_source::SourcePath

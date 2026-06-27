@@ -1,6 +1,6 @@
 hazard module bootstrap_host {
 public record HostPath {
-    public text: Text,
+    public text: CString,
 }
 
 public record HostFileContents {
@@ -35,17 +35,33 @@ public record ExitStatus {
     public code: Int,
 }
 
-public foreign fn read_text_file(request: HostReadRequest) -> HostFileContents
+public foreign fn read_text_file_text(path: CString) -> Text
 
-public foreign fn write_text_file(request: HostWriteRequest) -> CInt
+public foreign fn write_text_file_text(path: CString, contents: Text) -> CInt
 
-public foreign fn resolve_path(base: HostPath, relative: HostPath) -> HostPath
+public foreign fn resolve_path_text(base: CString, relative: CString) -> CString
 
-public foreign fn spawn_tool(invocation: HostToolInvocation) -> CInt
+public foreign fn spawn_tool_text(working_directory: CString, executable: CString, arguments: List<Text>) -> CInt
 
 public foreign fn process_exit(code: CInt) -> CInt
 
-public fn host_path(text: Text) -> HostPath {
+public fn read_text_file(request: HostReadRequest) -> HostFileContents {
+    host_file_contents(read_text_file_text(request.path.text))
+}
+
+public fn write_text_file(request: HostWriteRequest) -> CInt {
+    write_text_file_text(request.path.text, request.contents.text)
+}
+
+public fn resolve_path(base: HostPath, relative: HostPath) -> HostPath {
+    host_path(resolve_path_text(base.text, relative.text))
+}
+
+public fn spawn_tool(invocation: HostToolInvocation) -> CInt {
+    spawn_tool_text(invocation.working_directory.text, invocation.executable.text, invocation.arguments)
+}
+
+public fn host_path(text: CString) -> HostPath {
     HostPath { text }
 }
 

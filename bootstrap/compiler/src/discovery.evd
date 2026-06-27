@@ -27,7 +27,7 @@ public reason SourceDiscoveryFailure {
     SourceEntryRejected { path: bootstrap_source::SourcePath },
 }
 
-public fn source_manifest_entry(path: Text, summary: Text) -> SourceManifestEntry {
+public fn source_manifest_entry(path: CString, summary: Text) -> SourceManifestEntry {
     SourceManifestEntry {
         path: bootstrap_source::SourcePath { text: path },
         summary,

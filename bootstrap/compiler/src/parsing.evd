@@ -69,13 +69,13 @@ fn append_syntax_module(modules: NonEmptyList<SyntaxModule>, item: SyntaxModule)
     list_append<SyntaxModule>(widened, item)
 }
 
-fn seed_module_declaration(path_text: Text, module_name: Text) -> SyntaxDeclaration {
+fn seed_module_declaration(path_text: CString, module_name: Text) -> SyntaxDeclaration {
     let source_path = bootstrap_source::SourcePath { text: path_text };
     let module_span = bootstrap_lexing::source_span(source_path, 0, 30);
     syntax_declaration(ModuleScopeIntroduced, module_name, module_span)
 }
 
-fn seed_syntax_module(kind: ModuleKind, path_text: Text, module_name: Text) -> SyntaxModule {
+fn seed_syntax_module(kind: ModuleKind, path_text: CString, module_name: Text) -> SyntaxModule {
     let declaration = seed_module_declaration(path_text, module_name);
     syntax_module(
         kind,

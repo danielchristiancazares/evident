@@ -1,0 +1,9 @@
+import bootstrap_host;
+
+domain module bootstrap_host_runtime_probe {
+public fn main() -> Int {
+    let working_directory = bootstrap_host::host_path(".");
+    let probe_directory = bootstrap_host::resolve_path(working_directory, bootstrap_host::host_path("bootstrap-host-runtime-probe"));
+    0
+}
+}

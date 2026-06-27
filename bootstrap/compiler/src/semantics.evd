@@ -49,7 +49,7 @@ fn append_symbol(symbols: NonEmptyMap<Text, Symbol>, symbol: Symbol) -> NonEmpty
     nonempty_map_bind_or_replace<Text, Symbol>(symbols, symbol.name.text, symbol)
 }
 
-fn seed_symbol(path_text: Text, module_name: Text) -> Symbol {
+fn seed_symbol(path_text: CString, module_name: Text) -> Symbol {
     let source_path = bootstrap_source::SourcePath { text: path_text };
     let declared_at = bootstrap_lexing::source_span(source_path, 0, 30);
     let name = symbol_name(module_name);

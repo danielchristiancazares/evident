@@ -2,7 +2,7 @@ import bootstrap_environment;
 
 domain module bootstrap_source {
 public record SourcePath {
-    public text: Text,
+    public text: CString,
 }
 
 public record SourceFile {
@@ -25,7 +25,7 @@ public record PackageSource {
     public graph: SourceGraph,
 }
 
-public fn source_file(path: Text, contents: Text) -> SourceFile {
+public fn source_file(path: CString, contents: Text) -> SourceFile {
     SourceFile {
         path: SourcePath { text: path },
         contents,
