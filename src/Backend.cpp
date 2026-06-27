@@ -403,6 +403,7 @@ enum class CompilerOwnedFunctionLowering {
     ListSingle,
     MapSingle,
     ListFirstCopy,
+    MapFirstEntryCopy,
     ListConsumeFirst,
     ListPrepend,
     ListAppend,
@@ -437,6 +438,9 @@ CompilerOwnedFunctionLowering compiler_owned_function_lowering(std::string_view 
     }
     if (base_name == "nonempty_list_first_copy") {
         return CompilerOwnedFunctionLowering::ListFirstCopy;
+    }
+    if (base_name == "nonempty_map_first_entry_copy") {
+        return CompilerOwnedFunctionLowering::MapFirstEntryCopy;
     }
     if (base_name == "nonempty_list_consume_first") {
         return CompilerOwnedFunctionLowering::ListConsumeFirst;
@@ -2661,6 +2665,31 @@ std::expected<std::string, std::string> FunctionEmitter::emit_compiler_owned_fun
         out << "  %data0 = extractvalue " << param_types[0].llvm_type() << " %arg0, 0\n";
         out << "  %first0 = load " << return_type.llvm_type() << ", ptr %data0\n";
         out << "  ret " << return_type.llvm_type() << " %first0\n";
+        out << "}\n";
+        return out.str();
+
+    case CompilerOwnedFunctionLowering::MapFirstEntryCopy:
+        if (param_types.size() != 1) {
+            return std::unexpected("internal backend error: map first-entry-copy function '"
+                                   + hir_function_.qualified_name + "' expected one parameter");
+        }
+        if (!has_builtin_kind(param_types[0], BuiltinKind::NonEmptyMap)) {
+            return std::unexpected("internal backend error: map first-entry-copy function '"
+                                   + hir_function_.qualified_name + "' has unsupported parameter type '"
+                                   + param_types[0].source_name() + "'");
+        }
+        if (return_type.identity().category() != ResolvedTypeCategory::BackendAggregateStorage
+            || type_base_name(return_type.source_name()) != "MapEntry") {
+            return std::unexpected("internal backend error: map first-entry-copy function '"
+                                   + hir_function_.qualified_name + "' returns '"
+                                   + return_type.source_name() + "'");
+        }
+        out << "define " << linkage << return_type.llvm_type() << " @"
+            << model_.function_symbol(hir_function_.id) << "(" << param_types[0].llvm_type() << " %arg0) {\n";
+        out << "entry:\n";
+        out << "  %data0 = extractvalue " << param_types[0].llvm_type() << " %arg0, 0\n";
+        out << "  %entry0 = load " << return_type.llvm_type() << ", ptr %data0\n";
+        out << "  ret " << return_type.llvm_type() << " %entry0\n";
         out << "}\n";
         return out.str();
 
