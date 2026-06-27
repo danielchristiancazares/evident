@@ -25,7 +25,7 @@ namespace {
 
 void dump_tokens(const std::vector<Token>& tokens) {
     for (const Token& token : tokens) {
-        std::cout << token_kind_name(token.kind) << "\t" << token.lexeme << '\n';
+        std::cout << token_kind_name(token.kind()) << "\t" << token.lexeme() << '\n';
     }
 }
 

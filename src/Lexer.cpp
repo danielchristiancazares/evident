@@ -159,7 +159,8 @@ std::vector<Token> Lexer::lex() {
         }
     }
 
-    tokens.push_back(Token{TokenKind::EndOfFile, {}, SourceSpan{source_.text().size(), source_.text().size()}});
+    tokens.push_back(
+        Token::classified(TokenKind::EndOfFile, {}, SourceSpan{source_.text().size(), source_.text().size()}));
     return tokens;
 }
 
@@ -217,11 +218,11 @@ Token Lexer::lex_identifier_or_keyword() {
         advance();
     }
     const Token token = make_token(TokenKind::Identifier, begin, offset_);
-    const auto it = kKeywords.find(token.lexeme);
+    const auto it = kKeywords.find(token.lexeme());
     if (it == kKeywords.end()) {
         return token;
     }
-    return Token{it->second, token.lexeme, token.span};
+    return Token::classified(it->second, token.lexeme(), token.span());
 }
 
 Token Lexer::lex_number() {
@@ -250,7 +251,7 @@ Token Lexer::lex_string() {
 }
 
 Token Lexer::make_token(TokenKind kind, std::size_t begin, std::size_t end) const {
-    return Token{kind, source_.slice(SourceSpan{begin, end}), SourceSpan{begin, end}};
+    return Token::classified(kind, source_.slice(SourceSpan{begin, end}), SourceSpan{begin, end});
 }
 
 void Lexer::report_unknown(std::size_t position, char ch) {

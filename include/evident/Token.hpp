@@ -63,13 +63,25 @@ enum class TokenKind {
     RejectedLexeme,
 };
 
-struct Token {
-    Token(TokenKind kind, std::string_view lexeme, SourceSpan span)
-        : kind(kind), lexeme(lexeme), span(span) {}
+class Token final {
+public:
+    [[nodiscard]] static Token classified(TokenKind kind, std::string_view lexeme, SourceSpan span) {
+        return Token(kind, lexeme, span);
+    }
 
-    TokenKind kind;
-    std::string_view lexeme;
-    SourceSpan span;
+    [[nodiscard]] TokenKind kind() const noexcept { return kind_; }
+    [[nodiscard]] std::string_view lexeme() const noexcept { return lexeme_; }
+    [[nodiscard]] SourceSpan span() const noexcept { return span_; }
+
+private:
+    TokenKind kind_;
+    std::string_view lexeme_;
+    SourceSpan span_;
+
+    Token(TokenKind kind, std::string_view lexeme, SourceSpan span)
+        : kind_(kind),
+          lexeme_(lexeme),
+          span_(span) {}
 };
 
 [[nodiscard]] std::string_view token_kind_name(TokenKind kind);
