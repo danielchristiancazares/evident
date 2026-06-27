@@ -1,0 +1,6 @@
+<input>:1:7: error: expected module path after 'import'
+    import;
+          ^
+<input>:3:1: error: expected ';' after import declaration
+    domain module after_imports {
+    ^^^^^^

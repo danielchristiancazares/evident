@@ -1,0 +1,7 @@
+import;
+import missing_semicolon
+domain module after_imports {
+    public fn main() -> Int {
+        0
+    }
+}
