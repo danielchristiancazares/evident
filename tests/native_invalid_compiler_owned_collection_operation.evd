@@ -1,7 +1,10 @@
 domain module test {
 public fn main() -> Int {
     let empty = map_empty<Text, Int>()
-    let entries = map_bind_or_replace<Text, Int>(empty, "one", 1)
-    0
+    match map_remove_bound<Text, Int>(empty, "one") {
+        succeeded(entries) => 0,
+        failed(RequestedKeyHadNoBinding) => 1,
+        failed(RequestedKeyAlreadyHadBinding) => 2,
+    }
 }
 }
