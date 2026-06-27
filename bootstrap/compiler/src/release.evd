@@ -1,8 +1,21 @@
-import bootstrap_manifest;
 import bootstrap_environment;
+import bootstrap_layout;
 import bootstrap_pipeline;
+import bootstrap_manifest;
+import bootstrap_source;
 
 domain module bootstrap_release {
+public record BootstrapPackageValidation {
+    public package: bootstrap_source::PackageSource,
+    public layout: bootstrap_layout::BootstrapPackageLayout,
+    public manifest: bootstrap_manifest::BootstrapPackageManifest,
+    public compiler_layout_module: bootstrap_layout::BootstrapPackageModule,
+    public compiler_manifest_entry: bootstrap_manifest::BootstrapPackageManifestEntry,
+    public source_file_count: Nat,
+    public module_count: Nat,
+    public manifest_entry_count: Nat,
+}
+
 public record BootstrapStageInvocation {
     public stage_name: Text,
     public compiler_name: Text,
@@ -22,8 +35,28 @@ public record BootstrapReleaseEvidence {
     public clang_driver: Text,
     public linker_driver: Text,
     public package_manifest: bootstrap_manifest::BootstrapPackageManifest,
+    public package_validation: BootstrapPackageValidation,
     public stage_harness: BootstrapStageHarness,
     public pipeline_evidence: bootstrap_pipeline::BootstrapEvidence,
+}
+
+public fn bootstrap_package_validation(package: bootstrap_source::PackageSource, layout: bootstrap_layout::BootstrapPackageLayout, manifest: bootstrap_manifest::BootstrapPackageManifest) -> BootstrapPackageValidation fails MapBindingFailure {
+    let compiler_layout_module = try bootstrap_layout::bootstrap_package_module_by_name(layout, "bootstrap_compiler");
+    let compiler_manifest_entry = try bootstrap_manifest::bootstrap_package_manifest_entry_by_name(manifest, "bootstrap_compiler");
+    let source_file_count = bootstrap_source::compiler_package_file_count(package);
+    let module_count = bootstrap_layout::bootstrap_package_module_count(layout);
+    let manifest_entry_count = bootstrap_manifest::bootstrap_package_manifest_entry_count(manifest);
+
+    BootstrapPackageValidation {
+        package,
+        layout,
+        manifest,
+        compiler_layout_module,
+        compiler_manifest_entry,
+        source_file_count,
+        module_count,
+        manifest_entry_count,
+    }
 }
 
 public fn bootstrap_stage_invocation(stage_name: Text, compiler_name: Text, command_line: Text, validation_summary: Text) -> BootstrapStageInvocation {
@@ -62,7 +95,7 @@ public fn bootstrap_stage_harness() -> BootstrapStageHarness {
     }
 }
 
-public fn bootstrap_release_evidence(environment: bootstrap_environment::CompilerEnvironment, package_manifest: bootstrap_manifest::BootstrapPackageManifest, pipeline_evidence: bootstrap_pipeline::BootstrapEvidence) -> BootstrapReleaseEvidence {
+public fn bootstrap_release_evidence(environment: bootstrap_environment::CompilerEnvironment, package_manifest: bootstrap_manifest::BootstrapPackageManifest, package_validation: BootstrapPackageValidation, pipeline_evidence: bootstrap_pipeline::BootstrapEvidence) -> BootstrapReleaseEvidence {
     let stage_harness = bootstrap_stage_harness();
 
     BootstrapReleaseEvidence {
@@ -71,6 +104,7 @@ public fn bootstrap_release_evidence(environment: bootstrap_environment::Compile
         clang_driver: environment.clang_driver,
         linker_driver: environment.linker_driver,
         package_manifest,
+        package_validation,
         stage_harness,
         pipeline_evidence,
     }

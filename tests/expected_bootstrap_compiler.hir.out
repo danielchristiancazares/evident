@@ -209,6 +209,15 @@ types:
       field layout: bootstrap_layout::BootstrapPackageLayout
       field entries: NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
       field entries_by_module: NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+  - public record bootstrap_release::BootstrapPackageValidation
+      field package: bootstrap_source::PackageSource
+      field layout: bootstrap_layout::BootstrapPackageLayout
+      field manifest: bootstrap_manifest::BootstrapPackageManifest
+      field compiler_layout_module: bootstrap_layout::BootstrapPackageModule
+      field compiler_manifest_entry: bootstrap_manifest::BootstrapPackageManifestEntry
+      field source_file_count: Nat
+      field module_count: Nat
+      field manifest_entry_count: Nat
   - public record bootstrap_release::BootstrapStageInvocation
       field stage_name: Text
       field compiler_name: Text
@@ -224,6 +233,7 @@ types:
       field clang_driver: Text
       field linker_driver: Text
       field package_manifest: bootstrap_manifest::BootstrapPackageManifest
+      field package_validation: bootstrap_release::BootstrapPackageValidation
       field stage_harness: bootstrap_release::BootstrapStageHarness
       field pipeline_evidence: bootstrap_pipeline::BootstrapEvidence
   - public record bootstrap_compiler::BootstrapStatus [affine]
@@ -232,13 +242,9 @@ types:
       field discovery: bootstrap_discovery::SourceDiscovery
       field layout: bootstrap_layout::BootstrapPackageLayout
       field manifest: bootstrap_manifest::BootstrapPackageManifest
+      field package_validation: bootstrap_release::BootstrapPackageValidation
       field release: bootstrap_release::BootstrapReleaseEvidence
       field package: bootstrap_source::PackageSource
-      field source_file_count: Nat
-      field module_count: Nat
-      field manifest_entry_count: Nat
-      field compiler_layout_module: bootstrap_layout::BootstrapPackageModule
-      field compiler_manifest_entry: bootstrap_manifest::BootstrapPackageManifestEntry
       field exit_status: bootstrap_host::ExitStatus
       field pipeline: bootstrap_pipeline::CompilerPipeline::StageTwoValidated [affine]
       field evidence: bootstrap_pipeline::BootstrapEvidence
@@ -1640,6 +1646,45 @@ functions:
               local module_name : Text
         result
           local entry : bootstrap_manifest::BootstrapPackageManifestEntry
+  - public fn bootstrap_release::bootstrap_package_validation(package: bootstrap_source::PackageSource, layout: bootstrap_layout::BootstrapPackageLayout, manifest: bootstrap_manifest::BootstrapPackageManifest) -> bootstrap_release::BootstrapPackageValidation fails MapBindingFailure
+      block -> bootstrap_release::BootstrapPackageValidation
+        let compiler_layout_module: bootstrap_layout::BootstrapPackageModule
+          try
+            call bootstrap_layout::bootstrap_package_module_by_name -> bootstrap_layout::BootstrapPackageModule fails
+              local layout : bootstrap_layout::BootstrapPackageLayout
+              string "bootstrap_compiler" : Text
+        let compiler_manifest_entry: bootstrap_manifest::BootstrapPackageManifestEntry
+          try
+            call bootstrap_manifest::bootstrap_package_manifest_entry_by_name -> bootstrap_manifest::BootstrapPackageManifestEntry fails
+              local manifest : bootstrap_manifest::BootstrapPackageManifest
+              string "bootstrap_compiler" : Text
+        let source_file_count: Nat
+          call bootstrap_source::compiler_package_file_count -> Nat
+            local package : bootstrap_source::PackageSource
+        let module_count: Nat
+          call bootstrap_layout::bootstrap_package_module_count -> Nat
+            local layout : bootstrap_layout::BootstrapPackageLayout
+        let manifest_entry_count: Nat
+          call bootstrap_manifest::bootstrap_package_manifest_entry_count -> Nat
+            local manifest : bootstrap_manifest::BootstrapPackageManifest
+        result
+          construct bootstrap_release::BootstrapPackageValidation : bootstrap_release::BootstrapPackageValidation
+            init package [shorthand]
+              local package : bootstrap_source::PackageSource
+            init layout [shorthand]
+              local layout : bootstrap_layout::BootstrapPackageLayout
+            init manifest [shorthand]
+              local manifest : bootstrap_manifest::BootstrapPackageManifest
+            init compiler_layout_module [shorthand]
+              local compiler_layout_module : bootstrap_layout::BootstrapPackageModule
+            init compiler_manifest_entry [shorthand]
+              local compiler_manifest_entry : bootstrap_manifest::BootstrapPackageManifestEntry
+            init source_file_count [shorthand]
+              local source_file_count : Nat
+            init module_count [shorthand]
+              local module_count : Nat
+            init manifest_entry_count [shorthand]
+              local manifest_entry_count : Nat
   - public fn bootstrap_release::bootstrap_stage_invocation(stage_name: Text, compiler_name: Text, command_line: Text, validation_summary: Text) -> bootstrap_release::BootstrapStageInvocation
       block -> bootstrap_release::BootstrapStageInvocation
         result
@@ -1680,7 +1725,7 @@ functions:
               local stage_one : bootstrap_release::BootstrapStageInvocation
             init stage_two [shorthand]
               local stage_two : bootstrap_release::BootstrapStageInvocation
-  - public fn bootstrap_release::bootstrap_release_evidence(environment: bootstrap_environment::CompilerEnvironment, package_manifest: bootstrap_manifest::BootstrapPackageManifest, pipeline_evidence: bootstrap_pipeline::BootstrapEvidence) -> bootstrap_release::BootstrapReleaseEvidence
+  - public fn bootstrap_release::bootstrap_release_evidence(environment: bootstrap_environment::CompilerEnvironment, package_manifest: bootstrap_manifest::BootstrapPackageManifest, package_validation: bootstrap_release::BootstrapPackageValidation, pipeline_evidence: bootstrap_pipeline::BootstrapEvidence) -> bootstrap_release::BootstrapReleaseEvidence
       block -> bootstrap_release::BootstrapReleaseEvidence
         let stage_harness: bootstrap_release::BootstrapStageHarness
           call bootstrap_release::bootstrap_stage_harness -> bootstrap_release::BootstrapStageHarness
@@ -1700,6 +1745,8 @@ functions:
                 local environment : bootstrap_environment::CompilerEnvironment
             init package_manifest [shorthand]
               local package_manifest : bootstrap_manifest::BootstrapPackageManifest
+            init package_validation [shorthand]
+              local package_validation : bootstrap_release::BootstrapPackageValidation
             init stage_harness [shorthand]
               local stage_harness : bootstrap_release::BootstrapStageHarness
             init pipeline_evidence [shorthand]
@@ -1727,25 +1774,12 @@ functions:
           call bootstrap_manifest::bootstrap_package_manifest -> bootstrap_manifest::BootstrapPackageManifest
             local source : bootstrap_source::PackageSource
             local layout : bootstrap_layout::BootstrapPackageLayout
-        let source_file_count: Nat
-          call bootstrap_source::compiler_package_file_count -> Nat
-            local source : bootstrap_source::PackageSource
-        let module_count: Nat
-          call bootstrap_layout::bootstrap_package_module_count -> Nat
-            local layout : bootstrap_layout::BootstrapPackageLayout
-        let manifest_entry_count: Nat
-          call bootstrap_manifest::bootstrap_package_manifest_entry_count -> Nat
-            local manifest : bootstrap_manifest::BootstrapPackageManifest
-        let compiler_layout_module: bootstrap_layout::BootstrapPackageModule
+        let package_validation: bootstrap_release::BootstrapPackageValidation
           try
-            call bootstrap_layout::bootstrap_package_module_by_name -> bootstrap_layout::BootstrapPackageModule fails
+            call bootstrap_release::bootstrap_package_validation -> bootstrap_release::BootstrapPackageValidation fails
+              local source : bootstrap_source::PackageSource
               local layout : bootstrap_layout::BootstrapPackageLayout
-              string "bootstrap_compiler" : Text
-        let compiler_manifest_entry: bootstrap_manifest::BootstrapPackageManifestEntry
-          try
-            call bootstrap_manifest::bootstrap_package_manifest_entry_by_name -> bootstrap_manifest::BootstrapPackageManifestEntry fails
               local manifest : bootstrap_manifest::BootstrapPackageManifest
-              string "bootstrap_compiler" : Text
         let outlined: bootstrap_pipeline::CompilerPipeline::SourceOutlined [affine]
           call bootstrap_pipeline::outline -> bootstrap_pipeline::CompilerPipeline::SourceOutlined [affine]
             local source : bootstrap_source::PackageSource
@@ -1776,6 +1810,7 @@ functions:
           call bootstrap_release::bootstrap_release_evidence -> bootstrap_release::BootstrapReleaseEvidence
             local environment : bootstrap_environment::CompilerEnvironment
             local manifest : bootstrap_manifest::BootstrapPackageManifest
+            local package_validation : bootstrap_release::BootstrapPackageValidation
             local evidence : bootstrap_pipeline::BootstrapEvidence
         let outline: bootstrap_pipeline::BootstrapOutlineRecorded [affine]
           call bootstrap_pipeline::record_outline -> bootstrap_pipeline::BootstrapOutlineRecorded [affine]
@@ -1792,20 +1827,12 @@ functions:
               local layout : bootstrap_layout::BootstrapPackageLayout
             init manifest [shorthand]
               local manifest : bootstrap_manifest::BootstrapPackageManifest
+            init package_validation [shorthand]
+              local package_validation : bootstrap_release::BootstrapPackageValidation
             init release [shorthand]
               local release : bootstrap_release::BootstrapReleaseEvidence
             init package
               local source : bootstrap_source::PackageSource
-            init source_file_count [shorthand]
-              local source_file_count : Nat
-            init module_count [shorthand]
-              local module_count : Nat
-            init manifest_entry_count [shorthand]
-              local manifest_entry_count : Nat
-            init compiler_layout_module [shorthand]
-              local compiler_layout_module : bootstrap_layout::BootstrapPackageModule
-            init compiler_manifest_entry [shorthand]
-              local compiler_manifest_entry : bootstrap_manifest::BootstrapPackageManifestEntry
             init exit_status [shorthand]
               local exit_status : bootstrap_host::ExitStatus
             init pipeline

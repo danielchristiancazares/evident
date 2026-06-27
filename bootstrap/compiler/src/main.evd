@@ -14,13 +14,9 @@ public record BootstrapStatus {
     public discovery: bootstrap_discovery::SourceDiscovery,
     public layout: bootstrap_layout::BootstrapPackageLayout,
     public manifest: bootstrap_manifest::BootstrapPackageManifest,
+    public package_validation: bootstrap_release::BootstrapPackageValidation,
     public release: bootstrap_release::BootstrapReleaseEvidence,
     public package: bootstrap_source::PackageSource,
-    public source_file_count: Nat,
-    public module_count: Nat,
-    public manifest_entry_count: Nat,
-    public compiler_layout_module: bootstrap_layout::BootstrapPackageModule,
-    public compiler_manifest_entry: bootstrap_manifest::BootstrapPackageManifestEntry,
     public exit_status: bootstrap_host::ExitStatus,
     public pipeline: bootstrap_pipeline::CompilerPipeline::StageTwoValidated,
     public evidence: bootstrap_pipeline::BootstrapEvidence,
@@ -35,11 +31,7 @@ public fn build_status() -> BootstrapStatus fails MapBindingFailure {
     let source = bootstrap_source::compiler_package(environment, discovery.graph);
     let layout = bootstrap_layout::bootstrap_package_layout(source);
     let manifest = bootstrap_manifest::bootstrap_package_manifest(source, layout);
-    let source_file_count = bootstrap_source::compiler_package_file_count(source);
-    let module_count = bootstrap_layout::bootstrap_package_module_count(layout);
-    let manifest_entry_count = bootstrap_manifest::bootstrap_package_manifest_entry_count(manifest);
-    let compiler_layout_module = try bootstrap_layout::bootstrap_package_module_by_name(layout, "bootstrap_compiler");
-    let compiler_manifest_entry = try bootstrap_manifest::bootstrap_package_manifest_entry_by_name(manifest, "bootstrap_compiler");
+    let package_validation = try bootstrap_release::bootstrap_package_validation(source, layout, manifest);
     let outlined = bootstrap_pipeline::outline(source);
     let seed = bootstrap_pipeline::compile_with_seed(outlined);
     let stage_one = bootstrap_pipeline::compile_stage_one(seed);
@@ -54,7 +46,7 @@ public fn build_status() -> BootstrapStatus fails MapBindingFailure {
         stage_two_receipt,
         equivalence,
     );
-    let release = bootstrap_release::bootstrap_release_evidence(environment, manifest, evidence);
+    let release = bootstrap_release::bootstrap_release_evidence(environment, manifest, package_validation, evidence);
     let outline = bootstrap_pipeline::record_outline("evident.compiler");
 
     BootstrapStatus {
@@ -63,13 +55,9 @@ public fn build_status() -> BootstrapStatus fails MapBindingFailure {
         discovery,
         layout,
         manifest,
+        package_validation,
         release,
         package: source,
-        source_file_count,
-        module_count,
-        manifest_entry_count,
-        compiler_layout_module,
-        compiler_manifest_entry,
         exit_status,
         pipeline: stage_two,
         evidence,

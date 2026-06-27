@@ -1088,6 +1088,33 @@ functions:
         return %2[$return]
       block %2
         fail %4[failure]
+  - public fn bootstrap_release::bootstrap_package_validation -> bootstrap_release::BootstrapPackageValidation fails MapBindingFailure
+      locals:
+        %0[package] : bootstrap_source::PackageSource
+        %1[layout] : bootstrap_layout::BootstrapPackageLayout
+        %2[manifest] : bootstrap_manifest::BootstrapPackageManifest
+        %3[$return] : bootstrap_release::BootstrapPackageValidation
+        %4[compiler_layout_module] : bootstrap_layout::BootstrapPackageModule
+        %5[failure] : MapBindingFailure
+        %6[compiler_manifest_entry] : bootstrap_manifest::BootstrapPackageManifestEntry
+        %7[failure] : MapBindingFailure
+        %8[source_file_count] : Nat
+        %9[module_count] : Nat
+        %10[manifest_entry_count] : Nat
+      block %0
+        invoke bootstrap_layout::bootstrap_package_module_by_name(%1[layout], "bootstrap_compiler") ok %4[compiler_layout_module] -> %1 fail %5[failure] -> %2
+      block %1
+        invoke bootstrap_manifest::bootstrap_package_manifest_entry_by_name(%2[manifest], "bootstrap_compiler") ok %6[compiler_manifest_entry] -> %3 fail %7[failure] -> %4
+      block %2
+        fail %5[failure]
+      block %3
+        %8[source_file_count] = call bootstrap_source::compiler_package_file_count(%0[package])
+        %9[module_count] = call bootstrap_layout::bootstrap_package_module_count(%1[layout])
+        %10[manifest_entry_count] = call bootstrap_manifest::bootstrap_package_manifest_entry_count(%2[manifest])
+        %3[$return] = construct bootstrap_release::BootstrapPackageValidation {package: %0[package], layout: %1[layout], manifest: %2[manifest], compiler_layout_module: %4[compiler_layout_module], compiler_manifest_entry: %6[compiler_manifest_entry], source_file_count: %8[source_file_count], module_count: %9[module_count], manifest_entry_count: %10[manifest_entry_count]}
+        return %3[$return]
+      block %4
+        fail %7[failure]
   - public fn bootstrap_release::bootstrap_stage_invocation -> bootstrap_release::BootstrapStageInvocation
       locals:
         %0[stage_name] : Text
@@ -1114,21 +1141,22 @@ functions:
       locals:
         %0[environment] : bootstrap_environment::CompilerEnvironment
         %1[package_manifest] : bootstrap_manifest::BootstrapPackageManifest
-        %2[pipeline_evidence] : bootstrap_pipeline::BootstrapEvidence
-        %3[$return] : bootstrap_release::BootstrapReleaseEvidence
-        %4[stage_harness] : bootstrap_release::BootstrapStageHarness
-        %5[tmp] : Text
+        %2[package_validation] : bootstrap_release::BootstrapPackageValidation
+        %3[pipeline_evidence] : bootstrap_pipeline::BootstrapEvidence
+        %4[$return] : bootstrap_release::BootstrapReleaseEvidence
+        %5[stage_harness] : bootstrap_release::BootstrapStageHarness
         %6[tmp] : Text
         %7[tmp] : Text
         %8[tmp] : Text
+        %9[tmp] : Text
       block %0
-        %4[stage_harness] = call bootstrap_release::bootstrap_stage_harness()
-        %5[tmp] = %0[environment].source_commit
-        %6[tmp] = %0[environment].target_triple
-        %7[tmp] = %0[environment].clang_driver
-        %8[tmp] = %0[environment].linker_driver
-        %3[$return] = construct bootstrap_release::BootstrapReleaseEvidence {source_commit: %5[tmp], target_triple: %6[tmp], clang_driver: %7[tmp], linker_driver: %8[tmp], package_manifest: %1[package_manifest], stage_harness: %4[stage_harness], pipeline_evidence: %2[pipeline_evidence]}
-        return %3[$return]
+        %5[stage_harness] = call bootstrap_release::bootstrap_stage_harness()
+        %6[tmp] = %0[environment].source_commit
+        %7[tmp] = %0[environment].target_triple
+        %8[tmp] = %0[environment].clang_driver
+        %9[tmp] = %0[environment].linker_driver
+        %4[$return] = construct bootstrap_release::BootstrapReleaseEvidence {source_commit: %6[tmp], target_triple: %7[tmp], clang_driver: %8[tmp], linker_driver: %9[tmp], package_manifest: %1[package_manifest], package_validation: %2[package_validation], stage_harness: %5[stage_harness], pipeline_evidence: %3[pipeline_evidence]}
+        return %4[$return]
   - public fn bootstrap_compiler::build_status -> bootstrap_compiler::BootstrapStatus fails MapBindingFailure
       locals:
         %0[$return] : bootstrap_compiler::BootstrapStatus [affine]
@@ -1140,24 +1168,19 @@ functions:
         %6[tmp] : bootstrap_source::SourceGraph
         %7[layout] : bootstrap_layout::BootstrapPackageLayout
         %8[manifest] : bootstrap_manifest::BootstrapPackageManifest
-        %9[source_file_count] : Nat
-        %10[module_count] : Nat
-        %11[manifest_entry_count] : Nat
-        %12[compiler_layout_module] : bootstrap_layout::BootstrapPackageModule
-        %13[failure] : MapBindingFailure
-        %14[compiler_manifest_entry] : bootstrap_manifest::BootstrapPackageManifestEntry
-        %15[failure] : MapBindingFailure
-        %16[outlined] : bootstrap_pipeline::CompilerPipeline::SourceOutlined [affine]
-        %17[seed] : bootstrap_pipeline::CompilerPipeline::SeedCompiled [affine]
-        %18[stage_one] : bootstrap_pipeline::CompilerPipeline::StageOneCompiled [affine]
-        %19[stage_two] : bootstrap_pipeline::CompilerPipeline::StageTwoValidated [affine]
-        %20[seed_receipt] : bootstrap_pipeline::StageReceipt
-        %21[stage_one_receipt] : bootstrap_pipeline::StageReceipt
-        %22[stage_two_receipt] : bootstrap_pipeline::StageReceipt
-        %23[equivalence] : bootstrap_pipeline::BootstrapEquivalence
-        %24[evidence] : bootstrap_pipeline::BootstrapEvidence
-        %25[release] : bootstrap_release::BootstrapReleaseEvidence
-        %26[outline] : bootstrap_pipeline::BootstrapOutlineRecorded [affine]
+        %9[package_validation] : bootstrap_release::BootstrapPackageValidation
+        %10[failure] : MapBindingFailure
+        %11[outlined] : bootstrap_pipeline::CompilerPipeline::SourceOutlined [affine]
+        %12[seed] : bootstrap_pipeline::CompilerPipeline::SeedCompiled [affine]
+        %13[stage_one] : bootstrap_pipeline::CompilerPipeline::StageOneCompiled [affine]
+        %14[stage_two] : bootstrap_pipeline::CompilerPipeline::StageTwoValidated [affine]
+        %15[seed_receipt] : bootstrap_pipeline::StageReceipt
+        %16[stage_one_receipt] : bootstrap_pipeline::StageReceipt
+        %17[stage_two_receipt] : bootstrap_pipeline::StageReceipt
+        %18[equivalence] : bootstrap_pipeline::BootstrapEquivalence
+        %19[evidence] : bootstrap_pipeline::BootstrapEvidence
+        %20[release] : bootstrap_release::BootstrapReleaseEvidence
+        %21[outline] : bootstrap_pipeline::BootstrapOutlineRecorded [affine]
       block %0
         %1[host] = call bootstrap_host::bootstrap_host_surface()
         %2[environment] = call bootstrap_environment::bootstrap_environment_surface()
@@ -1167,30 +1190,23 @@ functions:
         %5[source] = call bootstrap_source::compiler_package(%2[environment], %6[tmp])
         %7[layout] = call bootstrap_layout::bootstrap_package_layout(%5[source])
         %8[manifest] = call bootstrap_manifest::bootstrap_package_manifest(%5[source], %7[layout])
-        %9[source_file_count] = call bootstrap_source::compiler_package_file_count(%5[source])
-        %10[module_count] = call bootstrap_layout::bootstrap_package_module_count(%7[layout])
-        %11[manifest_entry_count] = call bootstrap_manifest::bootstrap_package_manifest_entry_count(%8[manifest])
-        invoke bootstrap_layout::bootstrap_package_module_by_name(%7[layout], "bootstrap_compiler") ok %12[compiler_layout_module] -> %1 fail %13[failure] -> %2
+        invoke bootstrap_release::bootstrap_package_validation(%5[source], %7[layout], %8[manifest]) ok %9[package_validation] -> %1 fail %10[failure] -> %2
       block %1
-        invoke bootstrap_manifest::bootstrap_package_manifest_entry_by_name(%8[manifest], "bootstrap_compiler") ok %14[compiler_manifest_entry] -> %3 fail %15[failure] -> %4
-      block %2
-        fail %13[failure]
-      block %3
-        %16[outlined] = call bootstrap_pipeline::outline(%5[source])
-        %17[seed] = call bootstrap_pipeline::compile_with_seed(%16[outlined])
-        %18[stage_one] = call bootstrap_pipeline::compile_stage_one(%17[seed])
-        %19[stage_two] = call bootstrap_pipeline::validate_stage_two(%18[stage_one])
-        %20[seed_receipt] = call bootstrap_pipeline::seed_receipt()
-        %21[stage_one_receipt] = call bootstrap_pipeline::stage_one_receipt()
-        %22[stage_two_receipt] = call bootstrap_pipeline::stage_two_receipt()
-        %23[equivalence] = call bootstrap_pipeline::bootstrap_equivalence()
-        %24[evidence] = call bootstrap_pipeline::bootstrap_evidence(%20[seed_receipt], %21[stage_one_receipt], %22[stage_two_receipt], %23[equivalence])
-        %25[release] = call bootstrap_release::bootstrap_release_evidence(%2[environment], %8[manifest], %24[evidence])
-        %26[outline] = call bootstrap_pipeline::record_outline("evident.compiler")
-        %0[$return] = construct bootstrap_compiler::BootstrapStatus {host: %1[host], environment: %2[environment], discovery: %3[discovery], layout: %7[layout], manifest: %8[manifest], release: %25[release], package: %5[source], source_file_count: %9[source_file_count], module_count: %10[module_count], manifest_entry_count: %11[manifest_entry_count], compiler_layout_module: %12[compiler_layout_module], compiler_manifest_entry: %14[compiler_manifest_entry], exit_status: %4[exit_status], pipeline: %19[stage_two], evidence: %24[evidence], outline: %26[outline]}
+        %11[outlined] = call bootstrap_pipeline::outline(%5[source])
+        %12[seed] = call bootstrap_pipeline::compile_with_seed(%11[outlined])
+        %13[stage_one] = call bootstrap_pipeline::compile_stage_one(%12[seed])
+        %14[stage_two] = call bootstrap_pipeline::validate_stage_two(%13[stage_one])
+        %15[seed_receipt] = call bootstrap_pipeline::seed_receipt()
+        %16[stage_one_receipt] = call bootstrap_pipeline::stage_one_receipt()
+        %17[stage_two_receipt] = call bootstrap_pipeline::stage_two_receipt()
+        %18[equivalence] = call bootstrap_pipeline::bootstrap_equivalence()
+        %19[evidence] = call bootstrap_pipeline::bootstrap_evidence(%15[seed_receipt], %16[stage_one_receipt], %17[stage_two_receipt], %18[equivalence])
+        %20[release] = call bootstrap_release::bootstrap_release_evidence(%2[environment], %8[manifest], %9[package_validation], %19[evidence])
+        %21[outline] = call bootstrap_pipeline::record_outline("evident.compiler")
+        %0[$return] = construct bootstrap_compiler::BootstrapStatus {host: %1[host], environment: %2[environment], discovery: %3[discovery], layout: %7[layout], manifest: %8[manifest], package_validation: %9[package_validation], release: %20[release], package: %5[source], exit_status: %4[exit_status], pipeline: %14[stage_two], evidence: %19[evidence], outline: %21[outline]}
         return %0[$return]
-      block %4
-        fail %15[failure]
+      block %2
+        fail %10[failure]
   - public fn bootstrap_compiler::bootstrap_stage_count -> Int
       locals:
         %0[$return] : Int
