@@ -80,7 +80,7 @@ add_dependencies(package_checksum package)
 
 include(CTest)
 if(BUILD_TESTING)
-    set(EVIDENT_EXPECTED_CTEST_TOTAL 360)
+    set(EVIDENT_EXPECTED_CTEST_TOTAL 361)
 
     add_test(NAME parse_valid_example
         COMMAND evidc --dump-hir ${CMAKE_CURRENT_SOURCE_DIR}/examples/feature_mode.evd)
@@ -794,6 +794,13 @@ if(BUILD_TESTING)
     add_cli_failure_compare_test(cli_target_missing_argument
         expected_cli_target_missing_argument.stderr.out
         --target)
+    add_cli_failure_compare_test(cli_duplicate_target
+        expected_cli_duplicate_target.stderr.out
+        --target
+        x86_64-pc-windows-msvc
+        --target
+        x86_64-pc-windows-msvc
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/native_main_constant.evd)
     add_cli_failure_compare_test(cli_emit_exe_missing_argument
         expected_cli_emit_exe_missing_argument.stderr.out
         --emit-exe)

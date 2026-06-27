@@ -98,6 +98,13 @@ int main(int argc, char** argv) {
     };
     ToolchainReportRequest toolchain_report = ToolchainReportRequest::Suppressed;
 
+    enum class TargetSelectionState {
+        NotSelected,
+        SingleTriple,
+        DuplicateTriples,
+    };
+    TargetSelectionState target_selection = TargetSelectionState::NotSelected;
+
     enum class NativeEmitSelectionState {
         NotSelected,
         SingleMode,
@@ -142,7 +149,13 @@ int main(int argc, char** argv) {
             if (require_option_value(index, argc, arg) == OptionValueParseState::MissingArgumentReported) {
                 return 2;
             }
-            options.use_target_triple(std::string(argv[++index]));
+            std::string target_triple = argv[++index];
+            if (target_selection == TargetSelectionState::NotSelected) {
+                options.use_target_triple(std::move(target_triple));
+                target_selection = TargetSelectionState::SingleTriple;
+            } else {
+                target_selection = TargetSelectionState::DuplicateTriples;
+            }
         } else if (arg == "--print-toolchain") {
             if (toolchain_report == ToolchainReportRequest::Check) {
                 toolchain_report = ToolchainReportRequest::Conflicting;
@@ -214,6 +227,12 @@ int main(int argc, char** argv) {
 
     if (toolchain_report == ToolchainReportRequest::Conflicting) {
         std::cerr << "only one toolchain reporting mode may be selected per invocation\n";
+        print_usage(std::cerr);
+        return 2;
+    }
+
+    if (target_selection == TargetSelectionState::DuplicateTriples) {
+        std::cerr << "only one target triple may be selected per invocation\n";
         print_usage(std::cerr);
         return 2;
     }
