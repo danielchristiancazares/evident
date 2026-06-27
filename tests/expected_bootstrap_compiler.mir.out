@@ -1121,21 +1121,28 @@ functions:
         %1[compiler_name] : Text
         %2[command_line] : Text
         %3[validation_summary] : Text
-        %4[$return] : bootstrap_release::BootstrapStageInvocation
+        %4[output_path] : bootstrap_host::HostPath
+        %5[$return] : bootstrap_release::BootstrapStageInvocation
       block %0
-        %4[$return] = construct bootstrap_release::BootstrapStageInvocation {stage_name: %0[stage_name], compiler_name: %1[compiler_name], command_line: %2[command_line], validation_summary: %3[validation_summary]}
-        return %4[$return]
+        %5[$return] = construct bootstrap_release::BootstrapStageInvocation {stage_name: %0[stage_name], compiler_name: %1[compiler_name], command_line: %2[command_line], validation_summary: %3[validation_summary], output_path: %4[output_path]}
+        return %5[$return]
   - public fn bootstrap_release::bootstrap_stage_harness -> bootstrap_release::BootstrapStageHarness
       locals:
         %0[$return] : bootstrap_release::BootstrapStageHarness
-        %1[seed] : bootstrap_release::BootstrapStageInvocation
-        %2[stage_one] : bootstrap_release::BootstrapStageInvocation
-        %3[stage_two] : bootstrap_release::BootstrapStageInvocation
+        %1[seed_output] : bootstrap_host::HostPath
+        %2[stage_one_output] : bootstrap_host::HostPath
+        %3[stage_two_output] : bootstrap_host::HostPath
+        %4[seed] : bootstrap_release::BootstrapStageInvocation
+        %5[stage_one] : bootstrap_release::BootstrapStageInvocation
+        %6[stage_two] : bootstrap_release::BootstrapStageInvocation
       block %0
-        %1[seed] = call bootstrap_release::bootstrap_stage_invocation("seed", "cxx-seed-evidc", "ctest --preset windows-x64-ninja -R run_bootstrap_compiler_scaffold", "builds the bootstrap scaffold from the C++ seed compiler")
-        %2[stage_one] = call bootstrap_release::bootstrap_stage_invocation("stage-1", "stage-1 evidc", "stage-1 evidc --package bootstrap/compiler", "rebuilds the same Evident compiler package")
-        %3[stage_two] = call bootstrap_release::bootstrap_stage_invocation("stage-2", "stage-2 evidc", "stage-2 evidc --package bootstrap/compiler", "passes conformance, diagnostics, native emission, package, and release-contract checks")
-        %0[$return] = construct bootstrap_release::BootstrapStageHarness {seed: %1[seed], stage_one: %2[stage_one], stage_two: %3[stage_two]}
+        %1[seed_output] = call bootstrap_host::host_path("bootstrap/compiler/bootstrap-stage-output/seed-evidc.exe")
+        %2[stage_one_output] = call bootstrap_host::host_path("bootstrap/compiler/bootstrap-stage-output/stage-1-evidc.exe")
+        %3[stage_two_output] = call bootstrap_host::host_path("bootstrap/compiler/bootstrap-stage-output/stage-2-evidc.exe")
+        %4[seed] = call bootstrap_release::bootstrap_stage_invocation("seed", "cxx-seed-evidc", "ctest --preset windows-x64-ninja -R run_bootstrap_compiler_scaffold", "builds the bootstrap scaffold from the C++ seed compiler", %1[seed_output])
+        %5[stage_one] = call bootstrap_release::bootstrap_stage_invocation("stage-1", "stage-1 evidc", "stage-1 evidc --package bootstrap/compiler", "rebuilds the same Evident compiler package", %2[stage_one_output])
+        %6[stage_two] = call bootstrap_release::bootstrap_stage_invocation("stage-2", "stage-2 evidc", "stage-2 evidc --package bootstrap/compiler", "passes conformance, diagnostics, native emission, package, and release-contract checks", %3[stage_two_output])
+        %0[$return] = construct bootstrap_release::BootstrapStageHarness {seed: %4[seed], stage_one: %5[stage_one], stage_two: %6[stage_two]}
         return %0[$return]
   - public fn bootstrap_release::bootstrap_release_evidence -> bootstrap_release::BootstrapReleaseEvidence
       locals:

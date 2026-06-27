@@ -223,6 +223,7 @@ types:
       field compiler_name: Text
       field command_line: Text
       field validation_summary: Text
+      field output_path: bootstrap_host::HostPath
   - public record bootstrap_release::BootstrapStageHarness
       field seed: bootstrap_release::BootstrapStageInvocation
       field stage_one: bootstrap_release::BootstrapStageInvocation
@@ -1685,7 +1686,7 @@ functions:
               local module_count : Nat
             init manifest_entry_count [shorthand]
               local manifest_entry_count : Nat
-  - public fn bootstrap_release::bootstrap_stage_invocation(stage_name: Text, compiler_name: Text, command_line: Text, validation_summary: Text) -> bootstrap_release::BootstrapStageInvocation
+  - public fn bootstrap_release::bootstrap_stage_invocation(stage_name: Text, compiler_name: Text, command_line: Text, validation_summary: Text, output_path: bootstrap_host::HostPath) -> bootstrap_release::BootstrapStageInvocation
       block -> bootstrap_release::BootstrapStageInvocation
         result
           construct bootstrap_release::BootstrapStageInvocation : bootstrap_release::BootstrapStageInvocation
@@ -1697,26 +1698,40 @@ functions:
               local command_line : Text
             init validation_summary [shorthand]
               local validation_summary : Text
+            init output_path [shorthand]
+              local output_path : bootstrap_host::HostPath
   - public fn bootstrap_release::bootstrap_stage_harness() -> bootstrap_release::BootstrapStageHarness
       block -> bootstrap_release::BootstrapStageHarness
+        let seed_output: bootstrap_host::HostPath
+          call bootstrap_host::host_path -> bootstrap_host::HostPath
+            string "bootstrap/compiler/bootstrap-stage-output/seed-evidc.exe" : Text
+        let stage_one_output: bootstrap_host::HostPath
+          call bootstrap_host::host_path -> bootstrap_host::HostPath
+            string "bootstrap/compiler/bootstrap-stage-output/stage-1-evidc.exe" : Text
+        let stage_two_output: bootstrap_host::HostPath
+          call bootstrap_host::host_path -> bootstrap_host::HostPath
+            string "bootstrap/compiler/bootstrap-stage-output/stage-2-evidc.exe" : Text
         let seed: bootstrap_release::BootstrapStageInvocation
           call bootstrap_release::bootstrap_stage_invocation -> bootstrap_release::BootstrapStageInvocation
             string "seed" : Text
             string "cxx-seed-evidc" : Text
             string "ctest --preset windows-x64-ninja -R run_bootstrap_compiler_scaffold" : Text
             string "builds the bootstrap scaffold from the C++ seed compiler" : Text
+            local seed_output : bootstrap_host::HostPath
         let stage_one: bootstrap_release::BootstrapStageInvocation
           call bootstrap_release::bootstrap_stage_invocation -> bootstrap_release::BootstrapStageInvocation
             string "stage-1" : Text
             string "stage-1 evidc" : Text
             string "stage-1 evidc --package bootstrap/compiler" : Text
             string "rebuilds the same Evident compiler package" : Text
+            local stage_one_output : bootstrap_host::HostPath
         let stage_two: bootstrap_release::BootstrapStageInvocation
           call bootstrap_release::bootstrap_stage_invocation -> bootstrap_release::BootstrapStageInvocation
             string "stage-2" : Text
             string "stage-2 evidc" : Text
             string "stage-2 evidc --package bootstrap/compiler" : Text
             string "passes conformance, diagnostics, native emission, package, and release-contract checks" : Text
+            local stage_two_output : bootstrap_host::HostPath
         result
           construct bootstrap_release::BootstrapStageHarness : bootstrap_release::BootstrapStageHarness
             init seed [shorthand]
