@@ -1,0 +1,174 @@
+import bootstrap_layout;
+import bootstrap_source;
+
+domain module bootstrap_manifest {
+public record BootstrapPackageManifestEntry {
+    public module_name: Text,
+    public source: bootstrap_source::SourcePath,
+    public imports: List<Text>,
+}
+
+public record BootstrapPackageManifest {
+    public package: bootstrap_source::PackageSource,
+    public layout: bootstrap_layout::BootstrapPackageLayout,
+    public entries: NonEmptyList<BootstrapPackageManifestEntry>,
+}
+
+public fn bootstrap_package_manifest_entry(module_name: Text, source: Text, imports: List<Text>) -> BootstrapPackageManifestEntry {
+    BootstrapPackageManifestEntry {
+        module_name,
+        source: bootstrap_source::SourcePath { text: source },
+        imports,
+    }
+}
+
+fn append_bootstrap_package_manifest_import(imports: List<Text>, item: Text) -> List<Text> {
+    let widened = nonempty_list_widen<Text>(list_append<Text>(imports, item));
+    widened
+}
+
+fn append_bootstrap_package_manifest_entry(entries: NonEmptyList<BootstrapPackageManifestEntry>, item: BootstrapPackageManifestEntry) -> NonEmptyList<BootstrapPackageManifestEntry> {
+    let widened = nonempty_list_widen<BootstrapPackageManifestEntry>(entries);
+    list_append<BootstrapPackageManifestEntry>(widened, item)
+}
+
+public fn bootstrap_package_manifest(package: bootstrap_source::PackageSource, layout: bootstrap_layout::BootstrapPackageLayout) -> BootstrapPackageManifest {
+    let host = list_single<BootstrapPackageManifestEntry>(bootstrap_package_manifest_entry(
+        "bootstrap_host",
+        "src/host.evd",
+        list_empty<Text>(),
+    ));
+    let environment_imports = append_bootstrap_package_manifest_import(list_empty<Text>(), "bootstrap_host");
+    let environment = append_bootstrap_package_manifest_entry(
+        host,
+        bootstrap_package_manifest_entry(
+            "bootstrap_environment",
+            "src/environment.evd",
+            environment_imports,
+        ),
+    );
+    let source_imports = append_bootstrap_package_manifest_import(list_empty<Text>(), "bootstrap_environment");
+    let source = append_bootstrap_package_manifest_entry(
+        environment,
+        bootstrap_package_manifest_entry(
+            "bootstrap_source",
+            "src/source.evd",
+            source_imports,
+        ),
+    );
+    let lexing_imports = append_bootstrap_package_manifest_import(list_empty<Text>(), "bootstrap_source");
+    let lexing = append_bootstrap_package_manifest_entry(
+        source,
+        bootstrap_package_manifest_entry(
+            "bootstrap_lexing",
+            "src/lexing.evd",
+            lexing_imports,
+        ),
+    );
+    let parsing_imports = append_bootstrap_package_manifest_import(list_empty<Text>(), "bootstrap_source");
+    let parsing_imports_final = append_bootstrap_package_manifest_import(parsing_imports, "bootstrap_lexing");
+    let parsing = append_bootstrap_package_manifest_entry(
+        lexing,
+        bootstrap_package_manifest_entry(
+            "bootstrap_parsing",
+            "src/parsing.evd",
+            parsing_imports_final,
+        ),
+    );
+    let semantics_imports = append_bootstrap_package_manifest_import(list_empty<Text>(), "bootstrap_source");
+    let semantics_imports_more = append_bootstrap_package_manifest_import(semantics_imports, "bootstrap_lexing");
+    let semantics_imports_final = append_bootstrap_package_manifest_import(semantics_imports_more, "bootstrap_parsing");
+    let semantics = append_bootstrap_package_manifest_entry(
+        parsing,
+        bootstrap_package_manifest_entry(
+            "bootstrap_semantics",
+            "src/semantics.evd",
+            semantics_imports_final,
+        ),
+    );
+    let diagnostics_imports = append_bootstrap_package_manifest_import(list_empty<Text>(), "bootstrap_source");
+    let diagnostics = append_bootstrap_package_manifest_entry(
+        semantics,
+        bootstrap_package_manifest_entry(
+            "bootstrap_diagnostics",
+            "src/diagnostics.evd",
+            diagnostics_imports,
+        ),
+    );
+    let discovery_imports = append_bootstrap_package_manifest_import(list_empty<Text>(), "bootstrap_environment");
+    let discovery_imports_more = append_bootstrap_package_manifest_import(discovery_imports, "bootstrap_diagnostics");
+    let discovery_imports_final = append_bootstrap_package_manifest_import(discovery_imports_more, "bootstrap_source");
+    let discovery = append_bootstrap_package_manifest_entry(
+        diagnostics,
+        bootstrap_package_manifest_entry(
+            "bootstrap_discovery",
+            "src/discovery.evd",
+            discovery_imports_final,
+        ),
+    );
+    let pipeline_imports = append_bootstrap_package_manifest_import(list_empty<Text>(), "bootstrap_source");
+    let pipeline_imports_more = append_bootstrap_package_manifest_import(pipeline_imports, "bootstrap_lexing");
+    let pipeline_imports_more2 = append_bootstrap_package_manifest_import(pipeline_imports_more, "bootstrap_parsing");
+    let pipeline_imports_final = append_bootstrap_package_manifest_import(pipeline_imports_more2, "bootstrap_semantics");
+    let pipeline = append_bootstrap_package_manifest_entry(
+        discovery,
+        bootstrap_package_manifest_entry(
+            "bootstrap_pipeline",
+            "src/pipeline.evd",
+            pipeline_imports_final,
+        ),
+    );
+    let layout_imports = append_bootstrap_package_manifest_import(list_empty<Text>(), "bootstrap_source");
+    let layout_entries = append_bootstrap_package_manifest_entry(
+        pipeline,
+        bootstrap_package_manifest_entry(
+            "bootstrap_layout",
+            "src/layout.evd",
+            layout_imports,
+        ),
+    );
+    let manifest_imports = append_bootstrap_package_manifest_import(list_empty<Text>(), "bootstrap_layout");
+    let manifest_imports_final = append_bootstrap_package_manifest_import(manifest_imports, "bootstrap_source");
+    let manifest = append_bootstrap_package_manifest_entry(
+        layout_entries,
+        bootstrap_package_manifest_entry(
+            "bootstrap_manifest",
+            "src/manifest.evd",
+            manifest_imports_final,
+        ),
+    );
+    let release_imports = append_bootstrap_package_manifest_import(list_empty<Text>(), "bootstrap_environment");
+    let release_imports_more = append_bootstrap_package_manifest_import(release_imports, "bootstrap_manifest");
+    let release_imports_final = append_bootstrap_package_manifest_import(release_imports_more, "bootstrap_pipeline");
+    let release = append_bootstrap_package_manifest_entry(
+        manifest,
+        bootstrap_package_manifest_entry(
+            "bootstrap_release",
+            "src/release.evd",
+            release_imports_final,
+        ),
+    );
+    let main_imports = append_bootstrap_package_manifest_import(list_empty<Text>(), "bootstrap_host");
+    let main_imports_more = append_bootstrap_package_manifest_import(main_imports, "bootstrap_environment");
+    let main_imports_more2 = append_bootstrap_package_manifest_import(main_imports_more, "bootstrap_discovery");
+    let main_imports_more3 = append_bootstrap_package_manifest_import(main_imports_more2, "bootstrap_layout");
+    let main_imports_more4 = append_bootstrap_package_manifest_import(main_imports_more3, "bootstrap_manifest");
+    let main_imports_more5 = append_bootstrap_package_manifest_import(main_imports_more4, "bootstrap_release");
+    let main_imports_more6 = append_bootstrap_package_manifest_import(main_imports_more5, "bootstrap_source");
+    let main_imports_final = append_bootstrap_package_manifest_import(main_imports_more6, "bootstrap_pipeline");
+    let main = append_bootstrap_package_manifest_entry(
+        release,
+        bootstrap_package_manifest_entry(
+            "bootstrap_compiler",
+            "src/main.evd",
+            main_imports_final,
+        ),
+    );
+
+    BootstrapPackageManifest {
+        package,
+        layout,
+        entries: main,
+    }
+}
+}

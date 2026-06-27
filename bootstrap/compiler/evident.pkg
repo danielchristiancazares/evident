@@ -10,5 +10,6 @@ src/environment.evd
 src/discovery.evd
 src/pipeline.evd
 src/layout.evd
+src/manifest.evd
 src/release.evd
 src/main.evd

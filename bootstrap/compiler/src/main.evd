@@ -2,6 +2,7 @@ import bootstrap_host;
 import bootstrap_environment;
 import bootstrap_discovery;
 import bootstrap_layout;
+import bootstrap_manifest;
 import bootstrap_release;
 import bootstrap_source;
 import bootstrap_pipeline;
@@ -12,6 +13,7 @@ public record BootstrapStatus {
     public environment: bootstrap_environment::CompilerEnvironment,
     public discovery: bootstrap_discovery::SourceDiscovery,
     public layout: bootstrap_layout::BootstrapPackageLayout,
+    public manifest: bootstrap_manifest::BootstrapPackageManifest,
     public release: bootstrap_release::BootstrapReleaseEvidence,
     public package: bootstrap_source::PackageSource,
     public exit_status: bootstrap_host::ExitStatus,
@@ -27,6 +29,7 @@ public fn build_status() -> BootstrapStatus {
     let exit_status = bootstrap_host::success_status();
     let source = bootstrap_source::compiler_package(environment, discovery.graph);
     let layout = bootstrap_layout::bootstrap_package_layout(source);
+    let manifest = bootstrap_manifest::bootstrap_package_manifest(source, layout);
     let outlined = bootstrap_pipeline::outline(source);
     let seed = bootstrap_pipeline::compile_with_seed(outlined);
     let stage_one = bootstrap_pipeline::compile_stage_one(seed);
@@ -41,7 +44,7 @@ public fn build_status() -> BootstrapStatus {
         stage_two_receipt,
         equivalence,
     );
-    let release = bootstrap_release::bootstrap_release_evidence(environment, evidence);
+    let release = bootstrap_release::bootstrap_release_evidence(environment, manifest, evidence);
     let outline = bootstrap_pipeline::record_outline("evident.compiler");
 
     BootstrapStatus {
@@ -49,6 +52,7 @@ public fn build_status() -> BootstrapStatus {
         environment,
         discovery,
         layout,
+        manifest,
         release,
         package: source,
         exit_status,

@@ -196,6 +196,14 @@ types:
   - public record bootstrap_layout::BootstrapPackageLayout
       field package: bootstrap_source::PackageSource
       field modules: NonEmptyList<bootstrap_layout::BootstrapPackageModule>
+  - public record bootstrap_manifest::BootstrapPackageManifestEntry
+      field module_name: Text
+      field source: bootstrap_source::SourcePath
+      field imports: List<Text>
+  - public record bootstrap_manifest::BootstrapPackageManifest
+      field package: bootstrap_source::PackageSource
+      field layout: bootstrap_layout::BootstrapPackageLayout
+      field entries: NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
   - public record bootstrap_release::BootstrapStageInvocation
       field stage_name: Text
       field compiler_name: Text
@@ -210,6 +218,7 @@ types:
       field target_triple: Text
       field clang_driver: Text
       field linker_driver: Text
+      field package_manifest: bootstrap_manifest::BootstrapPackageManifest
       field stage_harness: bootstrap_release::BootstrapStageHarness
       field pipeline_evidence: bootstrap_pipeline::BootstrapEvidence
   - public record bootstrap_compiler::BootstrapStatus [affine]
@@ -217,6 +226,7 @@ types:
       field environment: bootstrap_environment::CompilerEnvironment
       field discovery: bootstrap_discovery::SourceDiscovery
       field layout: bootstrap_layout::BootstrapPackageLayout
+      field manifest: bootstrap_manifest::BootstrapPackageManifest
       field release: bootstrap_release::BootstrapReleaseEvidence
       field package: bootstrap_source::PackageSource
       field exit_status: bootstrap_host::ExitStatus
@@ -662,9 +672,15 @@ functions:
             call bootstrap_discovery::source_manifest_entry -> bootstrap_discovery::SourceManifestEntry
               string "src/layout.evd" : Text
               string "bootstrap package layout and internal dependency graph" : Text
-        let release: NonEmptyList<bootstrap_discovery::SourceManifestEntry>
+        let manifest_entries: NonEmptyList<bootstrap_discovery::SourceManifestEntry>
           call bootstrap_discovery::append_manifest_entry -> NonEmptyList<bootstrap_discovery::SourceManifestEntry>
             local layout : NonEmptyList<bootstrap_discovery::SourceManifestEntry>
+            call bootstrap_discovery::source_manifest_entry -> bootstrap_discovery::SourceManifestEntry
+              string "src/manifest.evd" : Text
+              string "bootstrap package manifest and package metadata" : Text
+        let release: NonEmptyList<bootstrap_discovery::SourceManifestEntry>
+          call bootstrap_discovery::append_manifest_entry -> NonEmptyList<bootstrap_discovery::SourceManifestEntry>
+            local manifest_entries : NonEmptyList<bootstrap_discovery::SourceManifestEntry>
             call bootstrap_discovery::source_manifest_entry -> bootstrap_discovery::SourceManifestEntry
               string "src/release.evd" : Text
               string "bootstrap stage harness and release evidence record" : Text
@@ -680,7 +696,7 @@ functions:
               field-access .text : Text
                 field-access .package_root : bootstrap_host::HostPath
                   local environment : bootstrap_environment::CompilerEnvironment
-        let manifest: bootstrap_source::SourcePath
+        let manifest_path: bootstrap_source::SourcePath
           construct bootstrap_source::SourcePath : bootstrap_source::SourcePath
             init text
               field-access .text : Text
@@ -696,8 +712,8 @@ functions:
           construct bootstrap_discovery::SourceDiscoveryPlan : bootstrap_discovery::SourceDiscoveryPlan
             init package_root [shorthand]
               local package_root : bootstrap_source::SourcePath
-            init manifest [shorthand]
-              local manifest : bootstrap_source::SourcePath
+            init manifest
+              local manifest_path : bootstrap_source::SourcePath
             init source_root [shorthand]
               local source_root : bootstrap_source::SourcePath
             init entries
@@ -766,9 +782,15 @@ functions:
             call bootstrap_source::source_file -> bootstrap_source::SourceFile
               string "src/layout.evd" : Text
               string "bootstrap package layout and internal dependency graph" : Text
-        let release: NonEmptyList<bootstrap_source::SourceFile>
+        let manifest: NonEmptyList<bootstrap_source::SourceFile>
           call bootstrap_discovery::append_source_file -> NonEmptyList<bootstrap_source::SourceFile>
             local layout : NonEmptyList<bootstrap_source::SourceFile>
+            call bootstrap_source::source_file -> bootstrap_source::SourceFile
+              string "src/manifest.evd" : Text
+              string "bootstrap package manifest and package metadata" : Text
+        let release: NonEmptyList<bootstrap_source::SourceFile>
+          call bootstrap_discovery::append_source_file -> NonEmptyList<bootstrap_source::SourceFile>
+            local manifest : NonEmptyList<bootstrap_source::SourceFile>
             call bootstrap_source::source_file -> bootstrap_source::SourceFile
               string "src/release.evd" : Text
               string "bootstrap stage harness and release evidence record" : Text
@@ -794,7 +816,7 @@ functions:
             init original_file_diagnostic [shorthand]
               local original_file_diagnostic : bootstrap_diagnostics::OriginalFileDiagnostic
             init source_count
-              number 12 : Int
+              number 13 : Int
   - public fn bootstrap_pipeline::outline(source: bootstrap_source::PackageSource) -> bootstrap_pipeline::CompilerPipeline::SourceOutlined [affine]
       block -> bootstrap_pipeline::CompilerPipeline::SourceOutlined [affine]
         let tokens: bootstrap_lexing::TokenStream
@@ -1144,6 +1166,256 @@ functions:
               local package : bootstrap_source::PackageSource
             init modules
               local main : NonEmptyList<bootstrap_layout::BootstrapPackageModule>
+  - public fn bootstrap_manifest::bootstrap_package_manifest_entry(module_name: Text, source: Text, imports: List<Text>) -> bootstrap_manifest::BootstrapPackageManifestEntry
+      block -> bootstrap_manifest::BootstrapPackageManifestEntry
+        result
+          construct bootstrap_manifest::BootstrapPackageManifestEntry : bootstrap_manifest::BootstrapPackageManifestEntry
+            init module_name [shorthand]
+              local module_name : Text
+            init source
+              construct bootstrap_source::SourcePath : bootstrap_source::SourcePath
+                init text
+                  local source : Text
+            init imports [shorthand]
+              local imports : List<Text>
+  - private fn bootstrap_manifest::append_bootstrap_package_manifest_import(imports: List<Text>, item: Text) -> List<Text>
+      block -> List<Text>
+        let widened: List<Text>
+          call nonempty_list_widen<Text> -> List<Text>
+            call list_append<Text> -> NonEmptyList<Text>
+              local imports : List<Text>
+              local item : Text
+        result
+          local widened : List<Text>
+  - private fn bootstrap_manifest::append_bootstrap_package_manifest_entry(entries: NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>, item: bootstrap_manifest::BootstrapPackageManifestEntry) -> NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+      block -> NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+        let widened: List<bootstrap_manifest::BootstrapPackageManifestEntry>
+          call nonempty_list_widen<bootstrap_manifest::BootstrapPackageManifestEntry> -> List<bootstrap_manifest::BootstrapPackageManifestEntry>
+            local entries : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+        result
+          call list_append<bootstrap_manifest::BootstrapPackageManifestEntry> -> NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+            local widened : List<bootstrap_manifest::BootstrapPackageManifestEntry>
+            local item : bootstrap_manifest::BootstrapPackageManifestEntry
+  - public fn bootstrap_manifest::bootstrap_package_manifest(package: bootstrap_source::PackageSource, layout: bootstrap_layout::BootstrapPackageLayout) -> bootstrap_manifest::BootstrapPackageManifest
+      block -> bootstrap_manifest::BootstrapPackageManifest
+        let host: NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+          call list_single<bootstrap_manifest::BootstrapPackageManifestEntry> -> NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+            call bootstrap_manifest::bootstrap_package_manifest_entry -> bootstrap_manifest::BootstrapPackageManifestEntry
+              string "bootstrap_host" : Text
+              string "src/host.evd" : Text
+              call list_empty<Text> -> List<Text>
+        let environment_imports: List<Text>
+          call bootstrap_manifest::append_bootstrap_package_manifest_import -> List<Text>
+            call list_empty<Text> -> List<Text>
+            string "bootstrap_host" : Text
+        let environment: NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+          call bootstrap_manifest::append_bootstrap_package_manifest_entry -> NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+            local host : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+            call bootstrap_manifest::bootstrap_package_manifest_entry -> bootstrap_manifest::BootstrapPackageManifestEntry
+              string "bootstrap_environment" : Text
+              string "src/environment.evd" : Text
+              local environment_imports : List<Text>
+        let source_imports: List<Text>
+          call bootstrap_manifest::append_bootstrap_package_manifest_import -> List<Text>
+            call list_empty<Text> -> List<Text>
+            string "bootstrap_environment" : Text
+        let source: NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+          call bootstrap_manifest::append_bootstrap_package_manifest_entry -> NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+            local environment : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+            call bootstrap_manifest::bootstrap_package_manifest_entry -> bootstrap_manifest::BootstrapPackageManifestEntry
+              string "bootstrap_source" : Text
+              string "src/source.evd" : Text
+              local source_imports : List<Text>
+        let lexing_imports: List<Text>
+          call bootstrap_manifest::append_bootstrap_package_manifest_import -> List<Text>
+            call list_empty<Text> -> List<Text>
+            string "bootstrap_source" : Text
+        let lexing: NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+          call bootstrap_manifest::append_bootstrap_package_manifest_entry -> NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+            local source : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+            call bootstrap_manifest::bootstrap_package_manifest_entry -> bootstrap_manifest::BootstrapPackageManifestEntry
+              string "bootstrap_lexing" : Text
+              string "src/lexing.evd" : Text
+              local lexing_imports : List<Text>
+        let parsing_imports: List<Text>
+          call bootstrap_manifest::append_bootstrap_package_manifest_import -> List<Text>
+            call list_empty<Text> -> List<Text>
+            string "bootstrap_source" : Text
+        let parsing_imports_final: List<Text>
+          call bootstrap_manifest::append_bootstrap_package_manifest_import -> List<Text>
+            local parsing_imports : List<Text>
+            string "bootstrap_lexing" : Text
+        let parsing: NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+          call bootstrap_manifest::append_bootstrap_package_manifest_entry -> NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+            local lexing : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+            call bootstrap_manifest::bootstrap_package_manifest_entry -> bootstrap_manifest::BootstrapPackageManifestEntry
+              string "bootstrap_parsing" : Text
+              string "src/parsing.evd" : Text
+              local parsing_imports_final : List<Text>
+        let semantics_imports: List<Text>
+          call bootstrap_manifest::append_bootstrap_package_manifest_import -> List<Text>
+            call list_empty<Text> -> List<Text>
+            string "bootstrap_source" : Text
+        let semantics_imports_more: List<Text>
+          call bootstrap_manifest::append_bootstrap_package_manifest_import -> List<Text>
+            local semantics_imports : List<Text>
+            string "bootstrap_lexing" : Text
+        let semantics_imports_final: List<Text>
+          call bootstrap_manifest::append_bootstrap_package_manifest_import -> List<Text>
+            local semantics_imports_more : List<Text>
+            string "bootstrap_parsing" : Text
+        let semantics: NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+          call bootstrap_manifest::append_bootstrap_package_manifest_entry -> NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+            local parsing : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+            call bootstrap_manifest::bootstrap_package_manifest_entry -> bootstrap_manifest::BootstrapPackageManifestEntry
+              string "bootstrap_semantics" : Text
+              string "src/semantics.evd" : Text
+              local semantics_imports_final : List<Text>
+        let diagnostics_imports: List<Text>
+          call bootstrap_manifest::append_bootstrap_package_manifest_import -> List<Text>
+            call list_empty<Text> -> List<Text>
+            string "bootstrap_source" : Text
+        let diagnostics: NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+          call bootstrap_manifest::append_bootstrap_package_manifest_entry -> NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+            local semantics : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+            call bootstrap_manifest::bootstrap_package_manifest_entry -> bootstrap_manifest::BootstrapPackageManifestEntry
+              string "bootstrap_diagnostics" : Text
+              string "src/diagnostics.evd" : Text
+              local diagnostics_imports : List<Text>
+        let discovery_imports: List<Text>
+          call bootstrap_manifest::append_bootstrap_package_manifest_import -> List<Text>
+            call list_empty<Text> -> List<Text>
+            string "bootstrap_environment" : Text
+        let discovery_imports_more: List<Text>
+          call bootstrap_manifest::append_bootstrap_package_manifest_import -> List<Text>
+            local discovery_imports : List<Text>
+            string "bootstrap_diagnostics" : Text
+        let discovery_imports_final: List<Text>
+          call bootstrap_manifest::append_bootstrap_package_manifest_import -> List<Text>
+            local discovery_imports_more : List<Text>
+            string "bootstrap_source" : Text
+        let discovery: NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+          call bootstrap_manifest::append_bootstrap_package_manifest_entry -> NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+            local diagnostics : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+            call bootstrap_manifest::bootstrap_package_manifest_entry -> bootstrap_manifest::BootstrapPackageManifestEntry
+              string "bootstrap_discovery" : Text
+              string "src/discovery.evd" : Text
+              local discovery_imports_final : List<Text>
+        let pipeline_imports: List<Text>
+          call bootstrap_manifest::append_bootstrap_package_manifest_import -> List<Text>
+            call list_empty<Text> -> List<Text>
+            string "bootstrap_source" : Text
+        let pipeline_imports_more: List<Text>
+          call bootstrap_manifest::append_bootstrap_package_manifest_import -> List<Text>
+            local pipeline_imports : List<Text>
+            string "bootstrap_lexing" : Text
+        let pipeline_imports_more2: List<Text>
+          call bootstrap_manifest::append_bootstrap_package_manifest_import -> List<Text>
+            local pipeline_imports_more : List<Text>
+            string "bootstrap_parsing" : Text
+        let pipeline_imports_final: List<Text>
+          call bootstrap_manifest::append_bootstrap_package_manifest_import -> List<Text>
+            local pipeline_imports_more2 : List<Text>
+            string "bootstrap_semantics" : Text
+        let pipeline: NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+          call bootstrap_manifest::append_bootstrap_package_manifest_entry -> NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+            local discovery : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+            call bootstrap_manifest::bootstrap_package_manifest_entry -> bootstrap_manifest::BootstrapPackageManifestEntry
+              string "bootstrap_pipeline" : Text
+              string "src/pipeline.evd" : Text
+              local pipeline_imports_final : List<Text>
+        let layout_imports: List<Text>
+          call bootstrap_manifest::append_bootstrap_package_manifest_import -> List<Text>
+            call list_empty<Text> -> List<Text>
+            string "bootstrap_source" : Text
+        let layout_entries: NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+          call bootstrap_manifest::append_bootstrap_package_manifest_entry -> NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+            local pipeline : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+            call bootstrap_manifest::bootstrap_package_manifest_entry -> bootstrap_manifest::BootstrapPackageManifestEntry
+              string "bootstrap_layout" : Text
+              string "src/layout.evd" : Text
+              local layout_imports : List<Text>
+        let manifest_imports: List<Text>
+          call bootstrap_manifest::append_bootstrap_package_manifest_import -> List<Text>
+            call list_empty<Text> -> List<Text>
+            string "bootstrap_layout" : Text
+        let manifest_imports_final: List<Text>
+          call bootstrap_manifest::append_bootstrap_package_manifest_import -> List<Text>
+            local manifest_imports : List<Text>
+            string "bootstrap_source" : Text
+        let manifest: NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+          call bootstrap_manifest::append_bootstrap_package_manifest_entry -> NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+            local layout_entries : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+            call bootstrap_manifest::bootstrap_package_manifest_entry -> bootstrap_manifest::BootstrapPackageManifestEntry
+              string "bootstrap_manifest" : Text
+              string "src/manifest.evd" : Text
+              local manifest_imports_final : List<Text>
+        let release_imports: List<Text>
+          call bootstrap_manifest::append_bootstrap_package_manifest_import -> List<Text>
+            call list_empty<Text> -> List<Text>
+            string "bootstrap_environment" : Text
+        let release_imports_more: List<Text>
+          call bootstrap_manifest::append_bootstrap_package_manifest_import -> List<Text>
+            local release_imports : List<Text>
+            string "bootstrap_manifest" : Text
+        let release_imports_final: List<Text>
+          call bootstrap_manifest::append_bootstrap_package_manifest_import -> List<Text>
+            local release_imports_more : List<Text>
+            string "bootstrap_pipeline" : Text
+        let release: NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+          call bootstrap_manifest::append_bootstrap_package_manifest_entry -> NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+            local manifest : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+            call bootstrap_manifest::bootstrap_package_manifest_entry -> bootstrap_manifest::BootstrapPackageManifestEntry
+              string "bootstrap_release" : Text
+              string "src/release.evd" : Text
+              local release_imports_final : List<Text>
+        let main_imports: List<Text>
+          call bootstrap_manifest::append_bootstrap_package_manifest_import -> List<Text>
+            call list_empty<Text> -> List<Text>
+            string "bootstrap_host" : Text
+        let main_imports_more: List<Text>
+          call bootstrap_manifest::append_bootstrap_package_manifest_import -> List<Text>
+            local main_imports : List<Text>
+            string "bootstrap_environment" : Text
+        let main_imports_more2: List<Text>
+          call bootstrap_manifest::append_bootstrap_package_manifest_import -> List<Text>
+            local main_imports_more : List<Text>
+            string "bootstrap_discovery" : Text
+        let main_imports_more3: List<Text>
+          call bootstrap_manifest::append_bootstrap_package_manifest_import -> List<Text>
+            local main_imports_more2 : List<Text>
+            string "bootstrap_layout" : Text
+        let main_imports_more4: List<Text>
+          call bootstrap_manifest::append_bootstrap_package_manifest_import -> List<Text>
+            local main_imports_more3 : List<Text>
+            string "bootstrap_manifest" : Text
+        let main_imports_more5: List<Text>
+          call bootstrap_manifest::append_bootstrap_package_manifest_import -> List<Text>
+            local main_imports_more4 : List<Text>
+            string "bootstrap_release" : Text
+        let main_imports_more6: List<Text>
+          call bootstrap_manifest::append_bootstrap_package_manifest_import -> List<Text>
+            local main_imports_more5 : List<Text>
+            string "bootstrap_source" : Text
+        let main_imports_final: List<Text>
+          call bootstrap_manifest::append_bootstrap_package_manifest_import -> List<Text>
+            local main_imports_more6 : List<Text>
+            string "bootstrap_pipeline" : Text
+        let main: NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+          call bootstrap_manifest::append_bootstrap_package_manifest_entry -> NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+            local release : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+            call bootstrap_manifest::bootstrap_package_manifest_entry -> bootstrap_manifest::BootstrapPackageManifestEntry
+              string "bootstrap_compiler" : Text
+              string "src/main.evd" : Text
+              local main_imports_final : List<Text>
+        result
+          construct bootstrap_manifest::BootstrapPackageManifest : bootstrap_manifest::BootstrapPackageManifest
+            init package [shorthand]
+              local package : bootstrap_source::PackageSource
+            init layout [shorthand]
+              local layout : bootstrap_layout::BootstrapPackageLayout
+            init entries
+              local main : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
   - public fn bootstrap_release::bootstrap_stage_invocation(stage_name: Text, compiler_name: Text, command_line: Text, validation_summary: Text) -> bootstrap_release::BootstrapStageInvocation
       block -> bootstrap_release::BootstrapStageInvocation
         result
@@ -1184,7 +1456,7 @@ functions:
               local stage_one : bootstrap_release::BootstrapStageInvocation
             init stage_two [shorthand]
               local stage_two : bootstrap_release::BootstrapStageInvocation
-  - public fn bootstrap_release::bootstrap_release_evidence(environment: bootstrap_environment::CompilerEnvironment, pipeline_evidence: bootstrap_pipeline::BootstrapEvidence) -> bootstrap_release::BootstrapReleaseEvidence
+  - public fn bootstrap_release::bootstrap_release_evidence(environment: bootstrap_environment::CompilerEnvironment, package_manifest: bootstrap_manifest::BootstrapPackageManifest, pipeline_evidence: bootstrap_pipeline::BootstrapEvidence) -> bootstrap_release::BootstrapReleaseEvidence
       block -> bootstrap_release::BootstrapReleaseEvidence
         let stage_harness: bootstrap_release::BootstrapStageHarness
           call bootstrap_release::bootstrap_stage_harness -> bootstrap_release::BootstrapStageHarness
@@ -1202,6 +1474,8 @@ functions:
             init linker_driver
               field-access .linker_driver : Text
                 local environment : bootstrap_environment::CompilerEnvironment
+            init package_manifest [shorthand]
+              local package_manifest : bootstrap_manifest::BootstrapPackageManifest
             init stage_harness [shorthand]
               local stage_harness : bootstrap_release::BootstrapStageHarness
             init pipeline_evidence [shorthand]
@@ -1225,6 +1499,10 @@ functions:
         let layout: bootstrap_layout::BootstrapPackageLayout
           call bootstrap_layout::bootstrap_package_layout -> bootstrap_layout::BootstrapPackageLayout
             local source : bootstrap_source::PackageSource
+        let manifest: bootstrap_manifest::BootstrapPackageManifest
+          call bootstrap_manifest::bootstrap_package_manifest -> bootstrap_manifest::BootstrapPackageManifest
+            local source : bootstrap_source::PackageSource
+            local layout : bootstrap_layout::BootstrapPackageLayout
         let outlined: bootstrap_pipeline::CompilerPipeline::SourceOutlined [affine]
           call bootstrap_pipeline::outline -> bootstrap_pipeline::CompilerPipeline::SourceOutlined [affine]
             local source : bootstrap_source::PackageSource
@@ -1254,6 +1532,7 @@ functions:
         let release: bootstrap_release::BootstrapReleaseEvidence
           call bootstrap_release::bootstrap_release_evidence -> bootstrap_release::BootstrapReleaseEvidence
             local environment : bootstrap_environment::CompilerEnvironment
+            local manifest : bootstrap_manifest::BootstrapPackageManifest
             local evidence : bootstrap_pipeline::BootstrapEvidence
         let outline: bootstrap_pipeline::BootstrapOutlineRecorded [affine]
           call bootstrap_pipeline::record_outline -> bootstrap_pipeline::BootstrapOutlineRecorded [affine]
@@ -1268,6 +1547,8 @@ functions:
               local discovery : bootstrap_discovery::SourceDiscovery
             init layout [shorthand]
               local layout : bootstrap_layout::BootstrapPackageLayout
+            init manifest [shorthand]
+              local manifest : bootstrap_manifest::BootstrapPackageManifest
             init release [shorthand]
               local release : bootstrap_release::BootstrapReleaseEvidence
             init package

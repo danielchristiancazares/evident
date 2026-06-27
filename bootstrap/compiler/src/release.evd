@@ -1,3 +1,4 @@
+import bootstrap_manifest;
 import bootstrap_environment;
 import bootstrap_pipeline;
 
@@ -20,6 +21,7 @@ public record BootstrapReleaseEvidence {
     public target_triple: Text,
     public clang_driver: Text,
     public linker_driver: Text,
+    public package_manifest: bootstrap_manifest::BootstrapPackageManifest,
     public stage_harness: BootstrapStageHarness,
     public pipeline_evidence: bootstrap_pipeline::BootstrapEvidence,
 }
@@ -60,7 +62,7 @@ public fn bootstrap_stage_harness() -> BootstrapStageHarness {
     }
 }
 
-public fn bootstrap_release_evidence(environment: bootstrap_environment::CompilerEnvironment, pipeline_evidence: bootstrap_pipeline::BootstrapEvidence) -> BootstrapReleaseEvidence {
+public fn bootstrap_release_evidence(environment: bootstrap_environment::CompilerEnvironment, package_manifest: bootstrap_manifest::BootstrapPackageManifest, pipeline_evidence: bootstrap_pipeline::BootstrapEvidence) -> BootstrapReleaseEvidence {
     let stage_harness = bootstrap_stage_harness();
 
     BootstrapReleaseEvidence {
@@ -68,6 +70,7 @@ public fn bootstrap_release_evidence(environment: bootstrap_environment::Compile
         target_triple: environment.target_triple,
         clang_driver: environment.clang_driver,
         linker_driver: environment.linker_driver,
+        package_manifest,
         stage_harness,
         pipeline_evidence,
     }

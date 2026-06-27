@@ -18,7 +18,7 @@ Evident can be called bootstrap-capable only when all of the following are true:
 
 The compiler is not yet self-hosting.
 
-The repository now contains an initial Evident package outline at `bootstrap/compiler`. That package is a compilable bootstrap scaffold, not a compiler implementation. It models package identity, a deterministic source-discovery plan, an original-file diagnostic anchor, a bootstrap stage harness, a release evidence record, a deterministic package layout with an internal dependency graph, initial lexical token stream data, parsed package syntax data, and a semantic symbol catalog so stage-oriented self-hosting work has real Evident source and compiler-domain data to carry through the pipeline while the larger language and runtime gaps close. Its package identity is derived from the bootstrap environment surface, and it carries host file, path, environment, and tool boundary data plus bootstrap stage-provenance and equivalence records. The Windows CTest suite emits and runs this scaffold through `run_bootstrap_compiler_scaffold` so seed-compiler validation keeps the package natively compilable.
+The repository now contains an initial Evident package outline at `bootstrap/compiler`. That package is a compilable bootstrap scaffold, not a compiler implementation. It models package identity, a deterministic source-discovery plan, an original-file diagnostic anchor, a bootstrap stage harness, a release evidence record, a deterministic package manifest and layout with an internal dependency graph, initial lexical token stream data, parsed package syntax data, and a semantic symbol catalog so stage-oriented self-hosting work has real Evident source and compiler-domain data to carry through the pipeline while the larger language and runtime gaps close. Its package identity is derived from the bootstrap environment surface, and it carries host file, path, environment, and tool boundary data plus bootstrap stage-provenance and equivalence records. The Windows CTest suite emits and runs this scaffold through `run_bootstrap_compiler_scaffold` so seed-compiler validation keeps the package natively compilable.
 
 The current blocker is not a single backend issue. The repository still lacks:
 
@@ -44,12 +44,12 @@ C emission can remain a temporary debugging or migration aid, but it is not the 
 
 Bootstrap requires at least these capabilities:
 
-- package metadata durable enough to identify the compiler package, its deterministic source-discovery plan, and its internal dependency graph
+- package metadata durable enough to identify the compiler package, its deterministic source-discovery plan, its internal dependency graph, and its manifest record
 - deterministic source discovery and original-file diagnostics for the compiler package
 - enough collection, text, bytes, and map behavior to implement lexing, parsing, diagnostics, and symbol tables
 - explicit boundary modules for host file I/O, environment, process exit, and tool invocation
 - stable diagnostic rendering so stage outputs can be compared
 - native backend coverage for the compiler implementation's concrete data shapes
-- release evidence that records the seed compiler, stage-1 compiler, stage-2 compiler, and validation commands
+- release evidence that records the seed compiler, stage-1 compiler, stage-2 compiler, package manifest, and validation commands
 
 These requirements do not weaken the language contract in `docs/EVIDENT_LANGUAGE_SPEC.md`. Bootstrap work must preserve explicit permits, proof construction, affine discipline, consequence-first naming, and boundary-local collapse of foreign ambiguity.
