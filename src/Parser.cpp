@@ -588,8 +588,7 @@ ast::FunctionSignature Parser::parse_foreign_function_signature(std::string name
     }
     const std::size_t begin = peek().span().begin;
     signature.params = parse_foreign_parameter_list();
-    expect(TokenKind::Arrow, "expected '->' after parameter list");
-    signature.return_type = parse_type();
+    signature.return_type = parse_return_type_after_parameter_list();
     for (;;) {
         if (token_check(TokenKind::KeywordFails) == TokenCheckState::Matches) {
             const Token fails_tok = advance();
@@ -621,8 +620,7 @@ ast::FunctionSignature Parser::parse_function_signature(std::string name) {
     signature.generic_params = parse_generic_params();
     const std::size_t begin = peek().span().begin;
     signature.params = parse_parameter_list();
-    expect(TokenKind::Arrow, "expected '->' after parameter list");
-    signature.return_type = parse_type();
+    signature.return_type = parse_return_type_after_parameter_list();
     for (;;) {
         if (consume_if(TokenKind::KeywordFails) == TokenConsumptionState::Consumed) {
             ast::TypeRef fails_type = parse_type();
@@ -660,6 +658,21 @@ ast::FunctionSignature Parser::parse_function_signature(std::string name) {
     }
     signature.span = SourceSpan{begin, end};
     return signature;
+}
+
+ast::TypeRef Parser::parse_return_type_after_parameter_list() {
+    if (consume_if(TokenKind::Arrow) == TokenConsumptionState::Consumed) {
+        return parse_type();
+    }
+
+    diagnostics_.error(peek().span(), "expected '->' after parameter list");
+    if (token_check(TokenKind::Identifier) == TokenCheckState::Matches) {
+        return parse_type();
+    }
+
+    ast::TypeRef missing_type;
+    missing_type.span = peek().span();
+    return missing_type;
 }
 
 ast::TypeRef Parser::parse_type() {

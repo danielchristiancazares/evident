@@ -77,6 +77,7 @@ private:
     std::vector<ast::Parameter> parse_foreign_parameter_list();
     ast::FunctionSignature parse_function_signature(std::string name);
     ast::FunctionSignature parse_foreign_function_signature(std::string name);
+    ast::TypeRef parse_return_type_after_parameter_list();
     ast::TypeRef parse_type();
     std::vector<ast::TypeRef> parse_type_argument_list();
     std::vector<std::string> parse_path();

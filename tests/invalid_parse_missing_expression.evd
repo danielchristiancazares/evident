@@ -5,6 +5,12 @@ public fn main() -> Int {
 }
 }
 
+domain module missing_return_arrow {
+    public fn broken() {
+        1
+    }
+}
+
 record LooseTopLevel {
     value: Int,
 }
