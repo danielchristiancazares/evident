@@ -18,7 +18,7 @@ Evident can be called bootstrap-capable only when all of the following are true:
 
 The compiler is not yet self-hosting.
 
-The repository now contains an initial Evident package outline at `bootstrap/compiler`. That package is a compilable bootstrap scaffold, not a compiler implementation. It models package identity and a deterministic source graph so stage-oriented self-hosting work has real Evident source to carry through the pipeline while the larger language and runtime gaps close. The Windows CTest suite emits and runs this scaffold through `run_bootstrap_compiler_scaffold` so seed-compiler validation keeps the package natively compilable.
+The repository now contains an initial Evident package outline at `bootstrap/compiler`. That package is a compilable bootstrap scaffold, not a compiler implementation. It models package identity, a deterministic source graph, and an initial lexical token stream so stage-oriented self-hosting work has real Evident source and compiler-domain data to carry through the pipeline while the larger language and runtime gaps close. The Windows CTest suite emits and runs this scaffold through `run_bootstrap_compiler_scaffold` so seed-compiler validation keeps the package natively compilable.
 
 The current blocker is not a single backend issue. The repository still lacks:
 

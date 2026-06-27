@@ -1,0 +1,71 @@
+import bootstrap_source;
+
+domain module bootstrap_lexing {
+public record SourceOffset {
+    public byte_index: Int,
+}
+
+public record SourceSpan {
+    public path: bootstrap_source::SourcePath,
+    public start: SourceOffset,
+    public finish: SourceOffset,
+}
+
+public state TokenCategory {
+    ModuleDeclarationIntroduced,
+    IdentifierNamedReference,
+    TextLiteralIntroduced,
+    NumericLiteralIntroduced,
+    ScopeOpened,
+    ScopeClosed,
+}
+
+public record Token {
+    public category: TokenCategory,
+    public lexeme: Text,
+    public span: SourceSpan,
+}
+
+public record TokenStream {
+    public tokens: NonEmptyList<Token>,
+}
+
+public reason LexicalRejection {
+    SourceTextCouldNotBeTokenized { path: bootstrap_source::SourcePath },
+}
+
+public fn source_offset(byte_index: Int) -> SourceOffset {
+    SourceOffset { byte_index }
+}
+
+public fn source_span(path: bootstrap_source::SourcePath, start: Int, finish: Int) -> SourceSpan {
+    SourceSpan {
+        path,
+        start: source_offset(start),
+        finish: source_offset(finish),
+    }
+}
+
+public fn token(category: TokenCategory, lexeme: Text, span: SourceSpan) -> Token {
+    Token {
+        category,
+        lexeme,
+        span,
+    }
+}
+
+public fn seed_token_stream() -> TokenStream {
+    let manifest_path = bootstrap_source::SourcePath { text: "bootstrap/compiler/evident.pkg" };
+    let first_span = source_span(manifest_path, 0, 10);
+    let first_token = token(IdentifierNamedReference, "bootstrap", first_span);
+
+    TokenStream {
+        tokens: list_single<Token>(first_token),
+    }
+}
+
+public fn seed_token_stream_size() -> Int {
+    let stream = seed_token_stream();
+    1
+}
+}

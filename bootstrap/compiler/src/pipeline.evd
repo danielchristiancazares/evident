@@ -1,10 +1,16 @@
 import bootstrap_source;
+import bootstrap_lexing;
 
 domain module bootstrap_pipeline {
+public record PackageOutline {
+    public source: bootstrap_source::PackageSource,
+    public tokens: bootstrap_lexing::TokenStream,
+}
+
 public phase CompilerPipeline {
     fields {
         public package_name: Text,
-        public source: bootstrap_source::PackageSource,
+        public outline: PackageOutline,
     }
 
     positions {
@@ -27,28 +33,31 @@ public record StageReceipt {
 public fn outline(source: bootstrap_source::PackageSource) -> CompilerPipeline::SourceOutlined {
     CompilerPipeline::SourceOutlined {
         package_name: source.identity.name,
-        source,
+        outline: PackageOutline {
+            source,
+            tokens: bootstrap_lexing::seed_token_stream(),
+        },
     }
 }
 
 public fn compile_with_seed(pipeline: CompilerPipeline::SourceOutlined) -> CompilerPipeline::SeedCompiled {
     CompilerPipeline::SeedCompiled {
         package_name: pipeline.package_name,
-        source: pipeline.source,
+        outline: pipeline.outline,
     }
 }
 
 public fn compile_stage_one(pipeline: CompilerPipeline::SeedCompiled) -> CompilerPipeline::StageOneCompiled {
     CompilerPipeline::StageOneCompiled {
         package_name: pipeline.package_name,
-        source: pipeline.source,
+        outline: pipeline.outline,
     }
 }
 
 public fn validate_stage_two(pipeline: CompilerPipeline::StageOneCompiled) -> CompilerPipeline::StageTwoValidated {
     CompilerPipeline::StageTwoValidated {
         package_name: pipeline.package_name,
-        source: pipeline.source,
+        outline: pipeline.outline,
     }
 }
 

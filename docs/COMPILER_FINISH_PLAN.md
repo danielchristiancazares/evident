@@ -67,7 +67,7 @@ This avoids polishing backend details that may need redesign once generics, trai
 
 - The repository is not self-hosting yet. The current compiler is a C++23 seed compiler.
 - `docs/BOOTSTRAP_PLAN.md` defines the bootstrap target: the seed compiler must compile an Evident compiler package into stage 1, stage 1 must compile the same package into stage 2, and stage 2 must pass the same required conformance, diagnostics, native emission, package, and release-contract checks.
-- Major bootstrap gaps remain: `bootstrap/compiler` is only an initial Evident package outline with package identity and a deterministic source graph, not a compiler implementation. The `run_bootstrap_compiler_scaffold` CTest keeps that scaffold natively compilable with the seed compiler, but there is no bootstrap stage harness, no release evidence section for seed/stage-1/stage-2 provenance, and the language/runtime boundary for compiler-scale file I/O, diagnostics, path handling, and tool invocation is not yet complete.
+- Major bootstrap gaps remain: `bootstrap/compiler` is only an initial Evident package outline with package identity, a deterministic source graph, and a lexical token stream model, not a compiler implementation. The `run_bootstrap_compiler_scaffold` CTest keeps that scaffold natively compilable with the seed compiler, but there is no bootstrap stage harness, no release evidence section for seed/stage-1/stage-2 provenance, and the language/runtime boundary for compiler-scale file I/O, diagnostics, path handling, and tool invocation is not yet complete.
 
 ### Testing and Productization
 

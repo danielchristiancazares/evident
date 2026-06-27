@@ -26,6 +26,7 @@ public fn bootstrap_stage_count() -> Int {
 }
 
 public fn main() -> Int {
+    let status = build_status();
     bootstrap_source::compiler_source_count()
 }
 }
