@@ -288,7 +288,7 @@ match-arm          = pattern "=>" expression ;
 
 grant-expr         = "grant" call-expr "as" identifier block ;
 fail-expr          = "fail" path [ record-initializer ] ;
-prove-expr         = "prove" path [ record-initializer ] ;
+prove-expr         = "prove" path record-initializer ;
 
 postfix-expr       = primary-expr { field-access | call-suffix | construct-suffix } ;
 field-access       = "." identifier ;

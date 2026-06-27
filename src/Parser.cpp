@@ -1174,10 +1174,12 @@ std::unique_ptr<ast::Expr> Parser::parse_prove_expr() {
         expr->path = parse_path();
         expr->span.begin = start.span().begin;
         expr->span.end = tokens_[current_ - 1].span().end;
-        if (token_check(TokenKind::LeftBrace) == TokenCheckState::Matches) {
-            expr->fields = parse_record_field_initializers();
-            expr->span.end = tokens_[current_ - 1].span().end;
+        if (token_check(TokenKind::LeftBrace) == TokenCheckState::DifferentToken) {
+            diagnostics_.error(peek().span(), "expected proof initializer after proof type");
+            return expr;
         }
+        expr->fields = parse_record_field_initializers();
+        expr->span.end = tokens_[current_ - 1].span().end;
         return expr;
     }
     return parse_postfix_expr();

@@ -1,0 +1,10 @@
+domain module test {
+public proof Receipt {
+    count: Int,
+}
+
+public fn make() -> Receipt proves Receipt {
+    prove Receipt
+    1
+}
+}
