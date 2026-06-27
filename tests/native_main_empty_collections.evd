@@ -11,12 +11,20 @@ public fn single_map() -> NonEmptyMap<Text, Int> {
     map_single<Text, Int>("one", 7)
 }
 
+public fn single_int_map() -> NonEmptyMap<Int, Int> {
+    map_single<Int, Int>(4, 7)
+}
+
 public fn widened_list(values: NonEmptyList<Int>) -> List<Int> {
     nonempty_list_widen<Int>(values)
 }
 
 public fn widened_map(entries: NonEmptyMap<Text, Int>) -> Map<Text, Int> {
     nonempty_map_widen<Text, Int>(entries)
+}
+
+public fn widened_int_map(entries: NonEmptyMap<Int, Int>) -> Map<Int, Int> {
+    nonempty_map_widen<Int, Int>(entries)
 }
 
 public fn list_count(values: List<Int>) -> Nat {
@@ -99,6 +107,46 @@ public fn consume_single_map_entry_value() -> Int {
     }
 }
 
+public fn lookup_empty_map_value() -> Int {
+    match map_lookup_copy<Text, Int>(empty_map(), "missing") {
+        succeeded(value) => value,
+        failed(RequestedKeyHadNoBinding) => 7,
+        failed(RequestedKeyAlreadyHadBinding) => 3,
+    }
+}
+
+public fn lookup_single_map_value() -> Int {
+    match map_lookup_copy<Text, Int>(widened_map(single_map()), "one") {
+        succeeded(value) => value,
+        failed(RequestedKeyHadNoBinding) => 3,
+        failed(RequestedKeyAlreadyHadBinding) => 3,
+    }
+}
+
+public fn lookup_nonempty_single_map_value() -> Int {
+    match nonempty_map_lookup_copy<Text, Int>(single_map(), "one") {
+        succeeded(value) => value,
+        failed(RequestedKeyHadNoBinding) => 3,
+        failed(RequestedKeyAlreadyHadBinding) => 3,
+    }
+}
+
+public fn lookup_missing_single_map_value() -> Int {
+    match nonempty_map_lookup_copy<Text, Int>(single_map(), "two") {
+        succeeded(value) => value,
+        failed(RequestedKeyHadNoBinding) => 7,
+        failed(RequestedKeyAlreadyHadBinding) => 3,
+    }
+}
+
+public fn lookup_int_map_value() -> Int {
+    match map_lookup_copy<Int, Int>(widened_int_map(single_int_map()), 4) {
+        succeeded(value) => value,
+        failed(RequestedKeyHadNoBinding) => 3,
+        failed(RequestedKeyAlreadyHadBinding) => 3,
+    }
+}
+
 public fn copied_empty_map_entries_count() -> Nat {
     let entries = map_entries_copy<Text, Int>(empty_map())
     list_count_copy<MapEntry<Text, Int>>(entries)
@@ -176,6 +224,11 @@ public fn main() -> Int {
     let empty_entries_count = copied_empty_map_entries_count()
     let copied_entries_result = copied_single_map_entries_value()
     let consumed_widened_entries_result = consumed_widened_map_entries_value()
-    consumed_single_map_entries_value()
+    let consumed_entries_result = consumed_single_map_entries_value()
+    let empty_lookup_result = lookup_empty_map_value()
+    let lookup_result = lookup_single_map_value()
+    let nonempty_lookup_result = lookup_nonempty_single_map_value()
+    let int_lookup_result = lookup_int_map_value()
+    lookup_missing_single_map_value()
 }
 }

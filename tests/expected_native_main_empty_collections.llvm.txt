@@ -7,17 +7,27 @@ target triple = "x86_64-pc-windows-msvc"
 %evid.type.ListCardinalityFailure = type { i32 }
 %evid.type.MapEntry_Text__Int_ = type { { ptr, i64 }, i64 }
 %evid.type.MapFirstEntryAndRest_Text__Int_ = type { %evid.type.MapEntry_Text__Int_, { ptr, i64 } }
+%evid.payload.MapBindingFailure.RequestedKeyHadNoBinding = type {}
+%evid.payload.MapBindingFailure.RequestedKeyAlreadyHadBinding = type {}
+%evid.type.MapBindingFailure = type { i32 }
 %evid.type.ListFirstAndRest_MapEntry_Text__Int__ = type { %evid.type.MapEntry_Text__Int_, { ptr, i64 } }
 %evid.type.ListFirstAndRest_Int_ = type { i64, { ptr, i64 } }
+%evid.type.MapEntry_Int__Int_ = type { i64, i64 }
 
 %evid.yield.map_require_nonempty$Text$Int = type { i8, [7 x i8], { i64, [8 x i8] } }
 %evid.yield.list_require_nonempty$Int = type { i8, [7 x i8], { i64, [8 x i8] } }
+%evid.yield.map_lookup_copy$Text$Int = type { i8, [7 x i8], i64 }
+%evid.yield.nonempty_map_lookup_copy$Text$Int = type { i8, [7 x i8], i64 }
+%evid.yield.map_lookup_copy$Int$Int = type { i8, [7 x i8], i64 }
 %evid.yield.list_require_nonempty$MapEntry_Text__Int_ = type { i8, [7 x i8], { i64, [8 x i8] } }
 
 @evid.str.0 = private unnamed_addr constant [4 x i8] c"\6F\6E\65\00", align 1
+@evid.str.1 = private unnamed_addr constant [8 x i8] c"\6D\69\73\73\69\6E\67\00", align 1
+@evid.str.2 = private unnamed_addr constant [4 x i8] c"\74\77\6F\00", align 1
 
 declare ptr @malloc(i64)
 declare void @llvm.memcpy.p0.p0.i64(ptr, ptr, i64, i1 immarg)
+declare i32 @memcmp(ptr, ptr, i64)
 
 define { ptr, i64 } @evid$test$empty_list() {
 entry:
@@ -61,6 +71,19 @@ bb0:
 
 }
 
+define { ptr, i64 } @evid$test$single_int_map() {
+entry:
+  %slot0 = alloca { ptr, i64 }
+  br label %bb0
+
+bb0:
+  %call0 = call { ptr, i64 } @evid$map_single$Int$Int(i64 4, i64 7)
+  store { ptr, i64 } %call0, ptr %slot0
+  %load1 = load { ptr, i64 }, ptr %slot0
+  ret { ptr, i64 } %load1
+
+}
+
 define { ptr, i64 } @evid$test$widened_list({ ptr, i64 } %arg0) {
 entry:
   %slot0 = alloca { ptr, i64 }
@@ -87,6 +110,22 @@ entry:
 bb0:
   %load0 = load { ptr, i64 }, ptr %slot0
   %call1 = call { ptr, i64 } @evid$nonempty_map_widen$Text$Int({ ptr, i64 } %load0)
+  store { ptr, i64 } %call1, ptr %slot1
+  %load2 = load { ptr, i64 }, ptr %slot1
+  ret { ptr, i64 } %load2
+
+}
+
+define { ptr, i64 } @evid$test$widened_int_map({ ptr, i64 } %arg0) {
+entry:
+  %slot0 = alloca { ptr, i64 }
+  %slot1 = alloca { ptr, i64 }
+  store { ptr, i64 } %arg0, ptr %slot0
+  br label %bb0
+
+bb0:
+  %load0 = load { ptr, i64 }, ptr %slot0
+  %call1 = call { ptr, i64 } @evid$nonempty_map_widen$Int$Int({ ptr, i64 } %load0)
   store { ptr, i64 } %call1, ptr %slot1
   %load2 = load { ptr, i64 }, ptr %slot1
   ret { ptr, i64 } %load2
@@ -492,6 +531,361 @@ bb.invoke.ok.0:
 
 bb.invoke.fail.1:
   store %evid.type.MapCardinalityFailure %unpack12, ptr %slot4
+  br label %bb2
+
+bb.trap.2:
+  unreachable
+
+bb.trap.3:
+  unreachable
+
+}
+
+define i64 @evid$test$lookup_empty_map_value() {
+entry:
+  %slot0 = alloca i64
+  %slot1 = alloca i64
+  %slot2 = alloca %evid.type.MapBindingFailure
+  %slot3 = alloca { ptr, i64 }
+  %slot4 = alloca i64
+  br label %bb0
+
+bb0:
+  %call0 = call { ptr, i64 } @evid$test$empty_map()
+  store { ptr, i64 } %call0, ptr %slot3
+  %load1 = load { ptr, i64 }, ptr %slot3
+  %strptr2 = getelementptr inbounds [8 x i8], ptr @evid.str.1, i64 0, i64 0
+  %ins3 = insertvalue { ptr, i64 } zeroinitializer, ptr %strptr2, 0
+  %ins4 = insertvalue { ptr, i64 } %ins3, i64 7, 1
+  %invoke5 = call %evid.yield.map_lookup_copy$Text$Int @evid$map_lookup_copy$Text$Int({ ptr, i64 } %load1, { ptr, i64 } %ins4)
+  %ext6 = extractvalue %evid.yield.map_lookup_copy$Text$Int %invoke5, 0
+  %ext7 = extractvalue %evid.yield.map_lookup_copy$Text$Int %invoke5, 2
+  %unpack.slot8 = alloca i64
+  store i64 %ext7, ptr %unpack.slot8
+  %unpack9 = load %evid.type.MapBindingFailure, ptr %unpack.slot8
+  switch i8 %ext6, label %bb.trap.2 [
+    i8 0, label %bb.invoke.ok.0
+    i8 1, label %bb.invoke.fail.1
+  ]
+
+bb1:
+  %load10 = load i64, ptr %slot1
+  store i64 %load10, ptr %slot4
+  %load11 = load i64, ptr %slot4
+  store i64 %load11, ptr %slot0
+  br label %bb3
+
+bb2:
+  %load12 = load %evid.type.MapBindingFailure, ptr %slot2
+  %ext13 = extractvalue %evid.type.MapBindingFailure %load12, 0
+  switch i32 %ext13, label %bb.trap.3 [
+    i32 2, label %bb4
+    i32 3, label %bb5
+  ]
+
+bb3:
+  %load14 = load i64, ptr %slot0
+  ret i64 %load14
+
+bb4:
+  store i64 7, ptr %slot0
+  br label %bb3
+
+bb5:
+  store i64 3, ptr %slot0
+  br label %bb3
+
+bb.invoke.ok.0:
+  store i64 %ext7, ptr %slot1
+  br label %bb1
+
+bb.invoke.fail.1:
+  store %evid.type.MapBindingFailure %unpack9, ptr %slot2
+  br label %bb2
+
+bb.trap.2:
+  unreachable
+
+bb.trap.3:
+  unreachable
+
+}
+
+define i64 @evid$test$lookup_single_map_value() {
+entry:
+  %slot0 = alloca i64
+  %slot1 = alloca i64
+  %slot2 = alloca %evid.type.MapBindingFailure
+  %slot3 = alloca { ptr, i64 }
+  %slot4 = alloca { ptr, i64 }
+  %slot5 = alloca i64
+  br label %bb0
+
+bb0:
+  %call0 = call { ptr, i64 } @evid$test$single_map()
+  store { ptr, i64 } %call0, ptr %slot4
+  %load1 = load { ptr, i64 }, ptr %slot4
+  %call2 = call { ptr, i64 } @evid$test$widened_map({ ptr, i64 } %load1)
+  store { ptr, i64 } %call2, ptr %slot3
+  %load3 = load { ptr, i64 }, ptr %slot3
+  %strptr4 = getelementptr inbounds [4 x i8], ptr @evid.str.0, i64 0, i64 0
+  %ins5 = insertvalue { ptr, i64 } zeroinitializer, ptr %strptr4, 0
+  %ins6 = insertvalue { ptr, i64 } %ins5, i64 3, 1
+  %invoke7 = call %evid.yield.map_lookup_copy$Text$Int @evid$map_lookup_copy$Text$Int({ ptr, i64 } %load3, { ptr, i64 } %ins6)
+  %ext8 = extractvalue %evid.yield.map_lookup_copy$Text$Int %invoke7, 0
+  %ext9 = extractvalue %evid.yield.map_lookup_copy$Text$Int %invoke7, 2
+  %unpack.slot10 = alloca i64
+  store i64 %ext9, ptr %unpack.slot10
+  %unpack11 = load %evid.type.MapBindingFailure, ptr %unpack.slot10
+  switch i8 %ext8, label %bb.trap.2 [
+    i8 0, label %bb.invoke.ok.0
+    i8 1, label %bb.invoke.fail.1
+  ]
+
+bb1:
+  %load12 = load i64, ptr %slot1
+  store i64 %load12, ptr %slot5
+  %load13 = load i64, ptr %slot5
+  store i64 %load13, ptr %slot0
+  br label %bb3
+
+bb2:
+  %load14 = load %evid.type.MapBindingFailure, ptr %slot2
+  %ext15 = extractvalue %evid.type.MapBindingFailure %load14, 0
+  switch i32 %ext15, label %bb.trap.3 [
+    i32 2, label %bb4
+    i32 3, label %bb5
+  ]
+
+bb3:
+  %load16 = load i64, ptr %slot0
+  ret i64 %load16
+
+bb4:
+  store i64 3, ptr %slot0
+  br label %bb3
+
+bb5:
+  store i64 3, ptr %slot0
+  br label %bb3
+
+bb.invoke.ok.0:
+  store i64 %ext9, ptr %slot1
+  br label %bb1
+
+bb.invoke.fail.1:
+  store %evid.type.MapBindingFailure %unpack11, ptr %slot2
+  br label %bb2
+
+bb.trap.2:
+  unreachable
+
+bb.trap.3:
+  unreachable
+
+}
+
+define i64 @evid$test$lookup_nonempty_single_map_value() {
+entry:
+  %slot0 = alloca i64
+  %slot1 = alloca i64
+  %slot2 = alloca %evid.type.MapBindingFailure
+  %slot3 = alloca { ptr, i64 }
+  %slot4 = alloca i64
+  br label %bb0
+
+bb0:
+  %call0 = call { ptr, i64 } @evid$test$single_map()
+  store { ptr, i64 } %call0, ptr %slot3
+  %load1 = load { ptr, i64 }, ptr %slot3
+  %strptr2 = getelementptr inbounds [4 x i8], ptr @evid.str.0, i64 0, i64 0
+  %ins3 = insertvalue { ptr, i64 } zeroinitializer, ptr %strptr2, 0
+  %ins4 = insertvalue { ptr, i64 } %ins3, i64 3, 1
+  %invoke5 = call %evid.yield.nonempty_map_lookup_copy$Text$Int @evid$nonempty_map_lookup_copy$Text$Int({ ptr, i64 } %load1, { ptr, i64 } %ins4)
+  %ext6 = extractvalue %evid.yield.nonempty_map_lookup_copy$Text$Int %invoke5, 0
+  %ext7 = extractvalue %evid.yield.nonempty_map_lookup_copy$Text$Int %invoke5, 2
+  %unpack.slot8 = alloca i64
+  store i64 %ext7, ptr %unpack.slot8
+  %unpack9 = load %evid.type.MapBindingFailure, ptr %unpack.slot8
+  switch i8 %ext6, label %bb.trap.2 [
+    i8 0, label %bb.invoke.ok.0
+    i8 1, label %bb.invoke.fail.1
+  ]
+
+bb1:
+  %load10 = load i64, ptr %slot1
+  store i64 %load10, ptr %slot4
+  %load11 = load i64, ptr %slot4
+  store i64 %load11, ptr %slot0
+  br label %bb3
+
+bb2:
+  %load12 = load %evid.type.MapBindingFailure, ptr %slot2
+  %ext13 = extractvalue %evid.type.MapBindingFailure %load12, 0
+  switch i32 %ext13, label %bb.trap.3 [
+    i32 2, label %bb4
+    i32 3, label %bb5
+  ]
+
+bb3:
+  %load14 = load i64, ptr %slot0
+  ret i64 %load14
+
+bb4:
+  store i64 3, ptr %slot0
+  br label %bb3
+
+bb5:
+  store i64 3, ptr %slot0
+  br label %bb3
+
+bb.invoke.ok.0:
+  store i64 %ext7, ptr %slot1
+  br label %bb1
+
+bb.invoke.fail.1:
+  store %evid.type.MapBindingFailure %unpack9, ptr %slot2
+  br label %bb2
+
+bb.trap.2:
+  unreachable
+
+bb.trap.3:
+  unreachable
+
+}
+
+define i64 @evid$test$lookup_missing_single_map_value() {
+entry:
+  %slot0 = alloca i64
+  %slot1 = alloca i64
+  %slot2 = alloca %evid.type.MapBindingFailure
+  %slot3 = alloca { ptr, i64 }
+  %slot4 = alloca i64
+  br label %bb0
+
+bb0:
+  %call0 = call { ptr, i64 } @evid$test$single_map()
+  store { ptr, i64 } %call0, ptr %slot3
+  %load1 = load { ptr, i64 }, ptr %slot3
+  %strptr2 = getelementptr inbounds [4 x i8], ptr @evid.str.2, i64 0, i64 0
+  %ins3 = insertvalue { ptr, i64 } zeroinitializer, ptr %strptr2, 0
+  %ins4 = insertvalue { ptr, i64 } %ins3, i64 3, 1
+  %invoke5 = call %evid.yield.nonempty_map_lookup_copy$Text$Int @evid$nonempty_map_lookup_copy$Text$Int({ ptr, i64 } %load1, { ptr, i64 } %ins4)
+  %ext6 = extractvalue %evid.yield.nonempty_map_lookup_copy$Text$Int %invoke5, 0
+  %ext7 = extractvalue %evid.yield.nonempty_map_lookup_copy$Text$Int %invoke5, 2
+  %unpack.slot8 = alloca i64
+  store i64 %ext7, ptr %unpack.slot8
+  %unpack9 = load %evid.type.MapBindingFailure, ptr %unpack.slot8
+  switch i8 %ext6, label %bb.trap.2 [
+    i8 0, label %bb.invoke.ok.0
+    i8 1, label %bb.invoke.fail.1
+  ]
+
+bb1:
+  %load10 = load i64, ptr %slot1
+  store i64 %load10, ptr %slot4
+  %load11 = load i64, ptr %slot4
+  store i64 %load11, ptr %slot0
+  br label %bb3
+
+bb2:
+  %load12 = load %evid.type.MapBindingFailure, ptr %slot2
+  %ext13 = extractvalue %evid.type.MapBindingFailure %load12, 0
+  switch i32 %ext13, label %bb.trap.3 [
+    i32 2, label %bb4
+    i32 3, label %bb5
+  ]
+
+bb3:
+  %load14 = load i64, ptr %slot0
+  ret i64 %load14
+
+bb4:
+  store i64 7, ptr %slot0
+  br label %bb3
+
+bb5:
+  store i64 3, ptr %slot0
+  br label %bb3
+
+bb.invoke.ok.0:
+  store i64 %ext7, ptr %slot1
+  br label %bb1
+
+bb.invoke.fail.1:
+  store %evid.type.MapBindingFailure %unpack9, ptr %slot2
+  br label %bb2
+
+bb.trap.2:
+  unreachable
+
+bb.trap.3:
+  unreachable
+
+}
+
+define i64 @evid$test$lookup_int_map_value() {
+entry:
+  %slot0 = alloca i64
+  %slot1 = alloca i64
+  %slot2 = alloca %evid.type.MapBindingFailure
+  %slot3 = alloca { ptr, i64 }
+  %slot4 = alloca { ptr, i64 }
+  %slot5 = alloca i64
+  br label %bb0
+
+bb0:
+  %call0 = call { ptr, i64 } @evid$test$single_int_map()
+  store { ptr, i64 } %call0, ptr %slot4
+  %load1 = load { ptr, i64 }, ptr %slot4
+  %call2 = call { ptr, i64 } @evid$test$widened_int_map({ ptr, i64 } %load1)
+  store { ptr, i64 } %call2, ptr %slot3
+  %load3 = load { ptr, i64 }, ptr %slot3
+  %invoke4 = call %evid.yield.map_lookup_copy$Int$Int @evid$map_lookup_copy$Int$Int({ ptr, i64 } %load3, i64 4)
+  %ext5 = extractvalue %evid.yield.map_lookup_copy$Int$Int %invoke4, 0
+  %ext6 = extractvalue %evid.yield.map_lookup_copy$Int$Int %invoke4, 2
+  %unpack.slot7 = alloca i64
+  store i64 %ext6, ptr %unpack.slot7
+  %unpack8 = load %evid.type.MapBindingFailure, ptr %unpack.slot7
+  switch i8 %ext5, label %bb.trap.2 [
+    i8 0, label %bb.invoke.ok.0
+    i8 1, label %bb.invoke.fail.1
+  ]
+
+bb1:
+  %load9 = load i64, ptr %slot1
+  store i64 %load9, ptr %slot5
+  %load10 = load i64, ptr %slot5
+  store i64 %load10, ptr %slot0
+  br label %bb3
+
+bb2:
+  %load11 = load %evid.type.MapBindingFailure, ptr %slot2
+  %ext12 = extractvalue %evid.type.MapBindingFailure %load11, 0
+  switch i32 %ext12, label %bb.trap.3 [
+    i32 2, label %bb4
+    i32 3, label %bb5
+  ]
+
+bb3:
+  %load13 = load i64, ptr %slot0
+  ret i64 %load13
+
+bb4:
+  store i64 3, ptr %slot0
+  br label %bb3
+
+bb5:
+  store i64 3, ptr %slot0
+  br label %bb3
+
+bb.invoke.ok.0:
+  store i64 %ext6, ptr %slot1
+  br label %bb1
+
+bb.invoke.fail.1:
+  store %evid.type.MapBindingFailure %unpack8, ptr %slot2
   br label %bb2
 
 bb.trap.2:
@@ -999,6 +1393,11 @@ entry:
   %slot7 = alloca i64
   %slot8 = alloca i64
   %slot9 = alloca i64
+  %slot10 = alloca i64
+  %slot11 = alloca i64
+  %slot12 = alloca i64
+  %slot13 = alloca i64
+  %slot14 = alloca i64
   br label %bb0
 
 bb0:
@@ -1021,9 +1420,19 @@ bb0:
   %call8 = call i64 @evid$test$consumed_widened_map_entries_value()
   store i64 %call8, ptr %slot9
   %call9 = call i64 @evid$test$consumed_single_map_entries_value()
-  store i64 %call9, ptr %slot0
-  %load10 = load i64, ptr %slot0
-  ret i64 %load10
+  store i64 %call9, ptr %slot10
+  %call10 = call i64 @evid$test$lookup_empty_map_value()
+  store i64 %call10, ptr %slot11
+  %call11 = call i64 @evid$test$lookup_single_map_value()
+  store i64 %call11, ptr %slot12
+  %call12 = call i64 @evid$test$lookup_nonempty_single_map_value()
+  store i64 %call12, ptr %slot13
+  %call13 = call i64 @evid$test$lookup_int_map_value()
+  store i64 %call13, ptr %slot14
+  %call14 = call i64 @evid$test$lookup_missing_single_map_value()
+  store i64 %call14, ptr %slot0
+  %load15 = load i64, ptr %slot0
+  ret i64 %load15
 
 }
 
@@ -1048,12 +1457,28 @@ entry:
   ret { ptr, i64 } %carrier1
 }
 
+define { ptr, i64 } @evid$map_single$Int$Int(i64 %arg0, i64 %arg1) {
+entry:
+  %entry0 = insertvalue %evid.type.MapEntry_Int__Int_ zeroinitializer, i64 %arg0, 0
+  %entry1 = insertvalue %evid.type.MapEntry_Int__Int_ %entry0, i64 %arg1, 1
+  %data0 = call ptr @malloc(i64 16)
+  store %evid.type.MapEntry_Int__Int_ %entry1, ptr %data0
+  %carrier0 = insertvalue { ptr, i64 } zeroinitializer, ptr %data0, 0
+  %carrier1 = insertvalue { ptr, i64 } %carrier0, i64 1, 1
+  ret { ptr, i64 } %carrier1
+}
+
 define { ptr, i64 } @evid$nonempty_list_widen$Int({ ptr, i64 } %arg0) {
 entry:
   ret { ptr, i64 } %arg0
 }
 
 define { ptr, i64 } @evid$nonempty_map_widen$Text$Int({ ptr, i64 } %arg0) {
+entry:
+  ret { ptr, i64 } %arg0
+}
+
+define { ptr, i64 } @evid$nonempty_map_widen$Int$Int({ ptr, i64 } %arg0) {
 entry:
   ret { ptr, i64 } %arg0
 }
@@ -1201,6 +1626,156 @@ entry:
   %result0 = insertvalue %evid.type.MapFirstEntryAndRest_Text__Int_ zeroinitializer, %evid.type.MapEntry_Text__Int_ %entry0, 0
   %result1 = insertvalue %evid.type.MapFirstEntryAndRest_Text__Int_ %result0, { ptr, i64 } %rest1, 1
   ret %evid.type.MapFirstEntryAndRest_Text__Int_ %result1
+}
+
+define %evid.yield.map_lookup_copy$Text$Int @evid$map_lookup_copy$Text$Int({ ptr, i64 } %arg0, { ptr, i64 } %arg1) {
+entry:
+  %data0 = extractvalue { ptr, i64 } %arg0, 0
+  %count0 = extractvalue { ptr, i64 } %arg0, 1
+  br label %scan
+
+scan:
+  %index0 = phi i64 [ 0, %entry ], [ %next0, %not_match ]
+  %at_end0 = icmp eq i64 %index0, %count0
+  br i1 %at_end0, label %missing, label %probe
+
+probe:
+  %offset0 = mul i64 %index0, 24
+  %entry_ptr0 = getelementptr i8, ptr %data0, i64 %offset0
+  %entry0 = load %evid.type.MapEntry_Text__Int_, ptr %entry_ptr0
+  %candidate_key0 = extractvalue %evid.type.MapEntry_Text__Int_ %entry0, 0
+  %candidate_data0 = extractvalue { ptr, i64 } %candidate_key0, 0
+  %candidate_count0 = extractvalue { ptr, i64 } %candidate_key0, 1
+  %lookup_data0 = extractvalue { ptr, i64 } %arg1, 0
+  %lookup_count0 = extractvalue { ptr, i64 } %arg1, 1
+  %key_size_equal0 = icmp eq i64 %candidate_count0, %lookup_count0
+  br i1 %key_size_equal0, label %key_bytes_compare, label %not_match
+
+key_bytes_compare:
+  %key_cmp0 = call i32 @memcmp(ptr %candidate_data0, ptr %lookup_data0, i64 %candidate_count0)
+  %key_equal0 = icmp eq i32 %key_cmp0, 0
+  br i1 %key_equal0, label %found, label %not_match
+
+not_match:
+  %next0 = add i64 %index0, 1
+  br label %scan
+
+found:
+  %value0 = extractvalue %evid.type.MapEntry_Text__Int_ %entry0, 1
+  %ok.tag = insertvalue %evid.yield.map_lookup_copy$Text$Int zeroinitializer, i8 0, 0
+  %ok.pack.slot = alloca i64
+  store i64 zeroinitializer, ptr %ok.pack.slot
+  store i64 %value0, ptr %ok.pack.slot
+  %ok.pack = load i64, ptr %ok.pack.slot
+  %ok.value = insertvalue %evid.yield.map_lookup_copy$Text$Int %ok.tag, i64 %ok.pack, 2
+  ret %evid.yield.map_lookup_copy$Text$Int %ok.value
+
+missing:
+  %reason0 = insertvalue %evid.type.MapBindingFailure zeroinitializer, i32 2, 0
+  %fail.tag = insertvalue %evid.yield.map_lookup_copy$Text$Int zeroinitializer, i8 1, 0
+  %fail.pack.slot = alloca i64
+  store i64 zeroinitializer, ptr %fail.pack.slot
+  store %evid.type.MapBindingFailure %reason0, ptr %fail.pack.slot
+  %fail.pack = load i64, ptr %fail.pack.slot
+  %fail.value = insertvalue %evid.yield.map_lookup_copy$Text$Int %fail.tag, i64 %fail.pack, 2
+  ret %evid.yield.map_lookup_copy$Text$Int %fail.value
+}
+
+define %evid.yield.nonempty_map_lookup_copy$Text$Int @evid$nonempty_map_lookup_copy$Text$Int({ ptr, i64 } %arg0, { ptr, i64 } %arg1) {
+entry:
+  %data0 = extractvalue { ptr, i64 } %arg0, 0
+  %count0 = extractvalue { ptr, i64 } %arg0, 1
+  br label %scan
+
+scan:
+  %index0 = phi i64 [ 0, %entry ], [ %next0, %not_match ]
+  %at_end0 = icmp eq i64 %index0, %count0
+  br i1 %at_end0, label %missing, label %probe
+
+probe:
+  %offset0 = mul i64 %index0, 24
+  %entry_ptr0 = getelementptr i8, ptr %data0, i64 %offset0
+  %entry0 = load %evid.type.MapEntry_Text__Int_, ptr %entry_ptr0
+  %candidate_key0 = extractvalue %evid.type.MapEntry_Text__Int_ %entry0, 0
+  %candidate_data0 = extractvalue { ptr, i64 } %candidate_key0, 0
+  %candidate_count0 = extractvalue { ptr, i64 } %candidate_key0, 1
+  %lookup_data0 = extractvalue { ptr, i64 } %arg1, 0
+  %lookup_count0 = extractvalue { ptr, i64 } %arg1, 1
+  %key_size_equal0 = icmp eq i64 %candidate_count0, %lookup_count0
+  br i1 %key_size_equal0, label %key_bytes_compare, label %not_match
+
+key_bytes_compare:
+  %key_cmp0 = call i32 @memcmp(ptr %candidate_data0, ptr %lookup_data0, i64 %candidate_count0)
+  %key_equal0 = icmp eq i32 %key_cmp0, 0
+  br i1 %key_equal0, label %found, label %not_match
+
+not_match:
+  %next0 = add i64 %index0, 1
+  br label %scan
+
+found:
+  %value0 = extractvalue %evid.type.MapEntry_Text__Int_ %entry0, 1
+  %ok.tag = insertvalue %evid.yield.nonempty_map_lookup_copy$Text$Int zeroinitializer, i8 0, 0
+  %ok.pack.slot = alloca i64
+  store i64 zeroinitializer, ptr %ok.pack.slot
+  store i64 %value0, ptr %ok.pack.slot
+  %ok.pack = load i64, ptr %ok.pack.slot
+  %ok.value = insertvalue %evid.yield.nonempty_map_lookup_copy$Text$Int %ok.tag, i64 %ok.pack, 2
+  ret %evid.yield.nonempty_map_lookup_copy$Text$Int %ok.value
+
+missing:
+  %reason0 = insertvalue %evid.type.MapBindingFailure zeroinitializer, i32 2, 0
+  %fail.tag = insertvalue %evid.yield.nonempty_map_lookup_copy$Text$Int zeroinitializer, i8 1, 0
+  %fail.pack.slot = alloca i64
+  store i64 zeroinitializer, ptr %fail.pack.slot
+  store %evid.type.MapBindingFailure %reason0, ptr %fail.pack.slot
+  %fail.pack = load i64, ptr %fail.pack.slot
+  %fail.value = insertvalue %evid.yield.nonempty_map_lookup_copy$Text$Int %fail.tag, i64 %fail.pack, 2
+  ret %evid.yield.nonempty_map_lookup_copy$Text$Int %fail.value
+}
+
+define %evid.yield.map_lookup_copy$Int$Int @evid$map_lookup_copy$Int$Int({ ptr, i64 } %arg0, i64 %arg1) {
+entry:
+  %data0 = extractvalue { ptr, i64 } %arg0, 0
+  %count0 = extractvalue { ptr, i64 } %arg0, 1
+  br label %scan
+
+scan:
+  %index0 = phi i64 [ 0, %entry ], [ %next0, %not_match ]
+  %at_end0 = icmp eq i64 %index0, %count0
+  br i1 %at_end0, label %missing, label %probe
+
+probe:
+  %offset0 = mul i64 %index0, 16
+  %entry_ptr0 = getelementptr i8, ptr %data0, i64 %offset0
+  %entry0 = load %evid.type.MapEntry_Int__Int_, ptr %entry_ptr0
+  %candidate_key0 = extractvalue %evid.type.MapEntry_Int__Int_ %entry0, 0
+  %key_equal0 = icmp eq i64 %candidate_key0, %arg1
+  br i1 %key_equal0, label %found, label %not_match
+
+not_match:
+  %next0 = add i64 %index0, 1
+  br label %scan
+
+found:
+  %value0 = extractvalue %evid.type.MapEntry_Int__Int_ %entry0, 1
+  %ok.tag = insertvalue %evid.yield.map_lookup_copy$Int$Int zeroinitializer, i8 0, 0
+  %ok.pack.slot = alloca i64
+  store i64 zeroinitializer, ptr %ok.pack.slot
+  store i64 %value0, ptr %ok.pack.slot
+  %ok.pack = load i64, ptr %ok.pack.slot
+  %ok.value = insertvalue %evid.yield.map_lookup_copy$Int$Int %ok.tag, i64 %ok.pack, 2
+  ret %evid.yield.map_lookup_copy$Int$Int %ok.value
+
+missing:
+  %reason0 = insertvalue %evid.type.MapBindingFailure zeroinitializer, i32 2, 0
+  %fail.tag = insertvalue %evid.yield.map_lookup_copy$Int$Int zeroinitializer, i8 1, 0
+  %fail.pack.slot = alloca i64
+  store i64 zeroinitializer, ptr %fail.pack.slot
+  store %evid.type.MapBindingFailure %reason0, ptr %fail.pack.slot
+  %fail.pack = load i64, ptr %fail.pack.slot
+  %fail.value = insertvalue %evid.yield.map_lookup_copy$Int$Int %fail.tag, i64 %fail.pack, 2
+  ret %evid.yield.map_lookup_copy$Int$Int %fail.value
 }
 
 define { ptr, i64 } @evid$map_entries_copy$Text$Int({ ptr, i64 } %arg0) {
