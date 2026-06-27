@@ -349,7 +349,376 @@ type as `Text`, `Bytes`, or `CString`. This rule does not create implicit conver
 
 There is no built-in `Bool`, no built-in optional type, and no nullable reference type in the core language.
 
-The completed collection library surface is **[Deferred]**.
+### 9.1 Collection categories and invariants
+
+The compiler-owned collection families are semantically blind data plumbing. They are not user-defined generic
+declarations, and they do not permit user code to declare generic `state`, `reason`, `proof`, `permit`, or `phase`
+types.
+
+The collection families have these meanings:
+
+* `List<T>` is a finite ordered sequence of zero or more `T` values.
+* `NonEmptyList<T>` is a finite ordered sequence of one or more `T` values.
+* `Map<K, V>` is a finite set of key bindings from `K` to `V` with at most one binding for each key.
+* `NonEmptyMap<K, V>` is a finite map with one or more bindings.
+
+A collection type argument MUST be a data type. A `reason` or `permit` type MUST NOT be used as a collection type
+argument.
+
+A collection instantiated with an affine-bearing element or value type is affine-bearing. A collection operation MUST
+NOT copy an affine-bearing element, value, entry, or collection. An operation that extracts an affine-bearing payload
+from a collection MUST consume the containing collection and move the payload into the result.
+
+Empty `List<T>` and empty `Map<K, V>` values are ordinary structural collection values. They MUST NOT be used in public
+domain surfaces as sentinel encodings for failure, denial, not-yet-initialized state, or domain absence. A public domain
+surface that requires at least one element or binding MUST use `NonEmptyList<T>` or `NonEmptyMap<K, V>` rather than a
+weaker collection plus a convention.
+
+Collection operations MUST NOT expose hidden fallback values, hidden insertion or merge policies, nullable results,
+optional results, boolean existence checks, sentinel results, or provider-chosen conflict behavior. An operation whose
+result depends on emptiness, key absence, key collision, or duplicate entries MUST do at least one of the following:
+
+* take a stronger input type that rules out the condition,
+* fail with an explicit compiler-owned collection `reason`, or
+* name the caller-selected collision or duplicate-entry consequence in the operation name.
+
+### 9.2 Map key types
+
+`Map<K, V>` and `NonEmptyMap<K, V>` require a compiler-defined canonical key order. In this draft, a map key type `K`
+MUST be exactly one of:
+
+* `Int`
+* `Nat`
+* `Byte`
+* `Char`
+* `Text`
+* `Bytes`
+
+`Float`, `CString`, records, states, proofs, concrete phase types, collection types, and contract types MUST NOT be map
+key types.
+
+The canonical order is numeric order for `Int`, `Nat`, and `Byte`; Unicode scalar order for `Char`; lexicographic
+Unicode scalar order for `Text`; and lexicographic byte order for `Bytes`. A map operation that exposes entries as a
+list MUST expose them in canonical key order.
+
+User-defined key admission, custom ordering, and locale-sensitive collation are **[Deferred]**.
+
+### 9.3 Compiler-owned collection companions
+
+A conforming implementation MUST provide the following compiler-owned structural companion types and reasons. These
+types are part of the language surface, not declarations that user code may redefine.
+
+```evd
+public reason ListCardinalityFailure {
+    ListHadNoElements,
+}
+
+public reason MapCardinalityFailure {
+    MapHadNoEntries,
+}
+
+public reason MapBindingFailure {
+    RequestedKeyHadNoBinding,
+    RequestedKeyAlreadyHadBinding,
+}
+
+public reason MapMergeFailure {
+    InputsHadSharedKey,
+}
+
+public record ListFirstAndRest<T> {
+    public first: T,
+    public rest: List<T>,
+}
+
+public record MapEntry<K, V> {
+    public key: K,
+    public value: V,
+}
+
+public record MapFirstEntryAndRest<K, V> {
+    public first: MapEntry<K, V>,
+    public rest: Map<K, V>,
+}
+
+public record MapBoundValueAndRest<K, V> {
+    public value: V,
+    public rest: Map<K, V>,
+}
+```
+
+The generic companion records above are compiler-owned structural records. They do not authorize user-defined generic
+records outside `foundation` modules and they MUST NOT be used to encode domain meaning in their type parameters.
+Every use of `ListFirstAndRest<T>` MUST use a data type for `T`. Every use of `MapEntry<K, V>`,
+`MapFirstEntryAndRest<K, V>`, or `MapBoundValueAndRest<K, V>` MUST use a permitted map key type for `K` and a data type
+for `V`.
+
+The public labels inside these companion records are structural collection labels. They are reserved for the
+compiler-owned collection surface and do not weaken the public modeling rules in Section 10 for user-authored domain,
+boundary, foundation, or hazard APIs.
+
+### 9.4 Collection operation availability
+
+The operation signatures in this section are compiler-owned generic functions. Calls to these operations MUST write all
+type arguments explicitly. Signature notes such as `[T copyable]` and `[V copyable]` are static availability conditions,
+not source syntax.
+
+The compiler-owned companion type names, reason names, reason variant names, and operation names in this section are
+reserved. User code MUST NOT redeclare them.
+
+An operation whose name ends in `_copy` MUST be available only when every payload that would be duplicated by the
+operation is copyable. Instantiating a `_copy` operation with an affine-bearing payload type is invalid.
+
+An operation whose name contains `_consume_` does not require payload copying. For copyable instantiations, ordinary
+value-copy semantics preserve the caller's binding. For affine-bearing instantiations, passing the collection moves the
+caller binding into the operation and returned payloads are moved into the result.
+
+A map operation that would remove, replace, or discard an existing value without returning that value MUST be available
+only when the map value type is copyable. Code that removes, replaces, or resolves collisions for affine-bearing map
+values MUST use an explicit consume operation that moves the affected value into the result, or a rejecting operation
+that fails rather than selecting a hidden policy.
+
+The compiler-owned collection surface is closed for this draft. A conforming implementation MUST NOT expose additional
+core collection operations whose behavior is equivalent to optional lookup, boolean containment, fallback lookup,
+sentinel extraction, provider-selected insertion policy, provider-selected merge policy, or implicit duplicate-key
+resolution.
+
+### 9.5 List operations
+
+A conforming implementation MUST provide these list construction and cardinality operations:
+
+```evd
+list_empty<T>() -> List<T>
+
+list_single<T>(value: T) -> NonEmptyList<T>
+
+list_prepend<T>(value: T, values: List<T>) -> NonEmptyList<T>
+list_append<T>(values: List<T>, value: T) -> NonEmptyList<T>
+
+list_concat<T>(left: List<T>, right: List<T>) -> List<T>
+nonempty_list_concat_left<T>(left: NonEmptyList<T>, right: List<T>) -> NonEmptyList<T>
+nonempty_list_concat_right<T>(left: List<T>, right: NonEmptyList<T>) -> NonEmptyList<T>
+nonempty_list_concat<T>(left: NonEmptyList<T>, right: NonEmptyList<T>) -> NonEmptyList<T>
+
+list_require_nonempty<T>(values: List<T>) -> NonEmptyList<T>
+    fails ListCardinalityFailure
+
+nonempty_list_widen<T>(values: NonEmptyList<T>) -> List<T>
+```
+
+`list_require_nonempty` MUST fail with `ListCardinalityFailure::ListHadNoElements` when `values` has no elements. It
+MUST NOT invent an element, return a placeholder element, or choose a fallback value.
+
+`list_prepend` MUST place `value` before every element of `values`. `list_append` MUST place `value` after every
+element of `values`. The `list_concat` operations MUST preserve all elements from `left` in their original order,
+followed by all elements from `right` in their original order.
+
+A conforming implementation MUST provide these list observation and decomposition operations:
+
+```evd
+list_count_copy<T>(values: List<T>) -> Nat
+    [T copyable]
+
+nonempty_list_count_copy<T>(values: NonEmptyList<T>) -> Nat
+    [T copyable]
+
+nonempty_list_first_copy<T>(values: NonEmptyList<T>) -> T
+    [T copyable]
+
+nonempty_list_consume_first<T>(values: NonEmptyList<T>) -> ListFirstAndRest<T>
+```
+
+Operations that require a first element MUST take `NonEmptyList<T>`. There is no core `first` operation on `List<T>`.
+Code with only `List<T>` evidence MUST first call `list_require_nonempty` and handle `ListCardinalityFailure`.
+`nonempty_list_first_copy` and `nonempty_list_consume_first` operate on the first element in list order. The `rest`
+field of `ListFirstAndRest<T>` contains every remaining element in its original order.
+
+### 9.6 Map operations
+
+A conforming implementation MUST provide these map construction and cardinality operations:
+
+```evd
+map_empty<K, V>() -> Map<K, V>
+
+map_single<K, V>(key: K, value: V) -> NonEmptyMap<K, V>
+
+map_require_nonempty<K, V>(entries: Map<K, V>) -> NonEmptyMap<K, V>
+    fails MapCardinalityFailure
+
+nonempty_map_widen<K, V>(entries: NonEmptyMap<K, V>) -> Map<K, V>
+```
+
+`map_require_nonempty` MUST fail with `MapCardinalityFailure::MapHadNoEntries` when `entries` has no bindings.
+
+Map operations produce collection values. They MUST NOT mutate an existing caller-visible collection in place, consult
+provider-local insertion or merge policy, or preserve hidden state outside the returned value and explicit failure
+reason.
+
+A conforming implementation MUST provide these map binding operations:
+
+```evd
+map_bind_new<K, V>(entries: Map<K, V>, key: K, value: V) -> NonEmptyMap<K, V>
+    fails MapBindingFailure
+
+nonempty_map_bind_new<K, V>(entries: NonEmptyMap<K, V>, key: K, value: V) -> NonEmptyMap<K, V>
+    fails MapBindingFailure
+
+map_replace_bound<K, V>(entries: Map<K, V>, key: K, value: V) -> NonEmptyMap<K, V>
+    fails MapBindingFailure
+    [V copyable]
+
+nonempty_map_replace_bound<K, V>(entries: NonEmptyMap<K, V>, key: K, value: V) -> NonEmptyMap<K, V>
+    fails MapBindingFailure
+    [V copyable]
+
+map_bind_or_replace<K, V>(entries: Map<K, V>, key: K, value: V) -> NonEmptyMap<K, V>
+    [V copyable]
+
+nonempty_map_bind_or_replace<K, V>(entries: NonEmptyMap<K, V>, key: K, value: V) -> NonEmptyMap<K, V>
+    [V copyable]
+
+map_remove_bound<K, V>(entries: Map<K, V>, key: K) -> Map<K, V>
+    fails MapBindingFailure
+    [V copyable]
+
+nonempty_map_remove_bound<K, V>(entries: NonEmptyMap<K, V>, key: K) -> Map<K, V>
+    fails MapBindingFailure
+    [V copyable]
+
+map_consume_bound_value<K, V>(entries: Map<K, V>, key: K) -> MapBoundValueAndRest<K, V>
+    fails MapBindingFailure
+
+nonempty_map_consume_bound_value<K, V>(entries: NonEmptyMap<K, V>, key: K) -> MapBoundValueAndRest<K, V>
+    fails MapBindingFailure
+```
+
+`map_bind_new` and `nonempty_map_bind_new` MUST fail with
+`MapBindingFailure::RequestedKeyAlreadyHadBinding` when the key is already bound.
+
+`map_replace_bound`, `nonempty_map_replace_bound`, `map_remove_bound`, `nonempty_map_remove_bound`,
+`map_consume_bound_value`, and `nonempty_map_consume_bound_value` MUST fail with
+`MapBindingFailure::RequestedKeyHadNoBinding` when the key is not bound.
+
+`map_bind_or_replace` and `nonempty_map_bind_or_replace` encode their collision policy in the function name: a binding
+for the requested key is created when absent and replaced when present. They MUST NOT expose whether replacement
+occurred as a boolean, optional result, sentinel value, hidden side channel, or provider-specific policy result.
+
+A conforming implementation MUST provide these map observation and entry operations:
+
+```evd
+map_count_copy<K, V>(entries: Map<K, V>) -> Nat
+    [V copyable]
+
+nonempty_map_count_copy<K, V>(entries: NonEmptyMap<K, V>) -> Nat
+    [V copyable]
+
+map_lookup_copy<K, V>(entries: Map<K, V>, key: K) -> V
+    fails MapBindingFailure
+    [V copyable]
+
+nonempty_map_lookup_copy<K, V>(entries: NonEmptyMap<K, V>, key: K) -> V
+    fails MapBindingFailure
+    [V copyable]
+
+nonempty_map_first_entry_copy<K, V>(entries: NonEmptyMap<K, V>) -> MapEntry<K, V>
+    [V copyable]
+
+nonempty_map_consume_first_entry<K, V>(entries: NonEmptyMap<K, V>) -> MapFirstEntryAndRest<K, V>
+
+map_entries_copy<K, V>(entries: Map<K, V>) -> List<MapEntry<K, V>>
+    [V copyable]
+
+nonempty_map_entries_copy<K, V>(entries: NonEmptyMap<K, V>) -> NonEmptyList<MapEntry<K, V>>
+    [V copyable]
+
+map_consume_entries<K, V>(entries: Map<K, V>) -> List<MapEntry<K, V>>
+
+nonempty_map_consume_entries<K, V>(entries: NonEmptyMap<K, V>) -> NonEmptyList<MapEntry<K, V>>
+```
+
+`map_lookup_copy` and `nonempty_map_lookup_copy` MUST fail with
+`MapBindingFailure::RequestedKeyHadNoBinding` when the key is not bound. There is no core map containment function and
+no lookup function that returns a boolean, optional, nullable, sentinel, or fallback value.
+
+Entry-list operations MUST use canonical key order. `nonempty_map_first_entry_copy` and
+`nonempty_map_consume_first_entry` operate on the entry with the least key in canonical key order. The `rest` field of
+`MapFirstEntryAndRest<K, V>` contains every remaining entry.
+
+A conforming implementation MUST provide these map merge operations:
+
+```evd
+map_merge_rejecting_shared_keys<K, V>(left: Map<K, V>, right: Map<K, V>) -> Map<K, V>
+    fails MapMergeFailure
+
+map_merge_left_nonempty_rejecting_shared_keys<K, V>(left: NonEmptyMap<K, V>, right: Map<K, V>) -> NonEmptyMap<K, V>
+    fails MapMergeFailure
+
+map_merge_right_nonempty_rejecting_shared_keys<K, V>(left: Map<K, V>, right: NonEmptyMap<K, V>) -> NonEmptyMap<K, V>
+    fails MapMergeFailure
+
+nonempty_map_merge_rejecting_shared_keys<K, V>(left: NonEmptyMap<K, V>, right: NonEmptyMap<K, V>) -> NonEmptyMap<K, V>
+    fails MapMergeFailure
+
+map_merge_using_left_bindings_for_shared_keys<K, V>(left: Map<K, V>, right: Map<K, V>) -> Map<K, V>
+    [V copyable]
+
+map_merge_left_nonempty_using_left_bindings_for_shared_keys<K, V>(left: NonEmptyMap<K, V>, right: Map<K, V>) -> NonEmptyMap<K, V>
+    [V copyable]
+
+map_merge_right_nonempty_using_left_bindings_for_shared_keys<K, V>(left: Map<K, V>, right: NonEmptyMap<K, V>) -> NonEmptyMap<K, V>
+    [V copyable]
+
+nonempty_map_merge_using_left_bindings_for_shared_keys<K, V>(left: NonEmptyMap<K, V>, right: NonEmptyMap<K, V>) -> NonEmptyMap<K, V>
+    [V copyable]
+
+map_merge_using_right_bindings_for_shared_keys<K, V>(left: Map<K, V>, right: Map<K, V>) -> Map<K, V>
+    [V copyable]
+
+map_merge_left_nonempty_using_right_bindings_for_shared_keys<K, V>(left: NonEmptyMap<K, V>, right: Map<K, V>) -> NonEmptyMap<K, V>
+    [V copyable]
+
+map_merge_right_nonempty_using_right_bindings_for_shared_keys<K, V>(left: Map<K, V>, right: NonEmptyMap<K, V>) -> NonEmptyMap<K, V>
+    [V copyable]
+
+nonempty_map_merge_using_right_bindings_for_shared_keys<K, V>(left: NonEmptyMap<K, V>, right: NonEmptyMap<K, V>) -> NonEmptyMap<K, V>
+    [V copyable]
+```
+
+The rejecting merge operations MUST fail with `MapMergeFailure::InputsHadSharedKey` if both inputs bind the same key.
+The left-binding and right-binding merge operations encode the collision policy in the function name. For shared keys,
+the unchosen binding is discarded from the produced map as the explicit consequence of the named operation, which is why
+those operations require copyable map values.
+
+A conforming implementation MUST provide these entry-list conversion operations:
+
+```evd
+map_from_entries_rejecting_shared_keys<K, V>(entries: List<MapEntry<K, V>>) -> Map<K, V>
+    fails MapMergeFailure
+
+nonempty_map_from_entries_rejecting_shared_keys<K, V>(entries: NonEmptyList<MapEntry<K, V>>) -> NonEmptyMap<K, V>
+    fails MapMergeFailure
+
+map_from_entries_using_first_bindings<K, V>(entries: List<MapEntry<K, V>>) -> Map<K, V>
+    [V copyable]
+
+nonempty_map_from_entries_using_first_bindings<K, V>(entries: NonEmptyList<MapEntry<K, V>>) -> NonEmptyMap<K, V>
+    [V copyable]
+
+map_from_entries_using_last_bindings<K, V>(entries: List<MapEntry<K, V>>) -> Map<K, V>
+    [V copyable]
+
+nonempty_map_from_entries_using_last_bindings<K, V>(entries: NonEmptyList<MapEntry<K, V>>) -> NonEmptyMap<K, V>
+    [V copyable]
+```
+
+The rejecting entry-list conversions MUST fail with `MapMergeFailure::InputsHadSharedKey` if the input list contains
+more than one entry for the same key. The first-binding and last-binding conversions encode duplicate-key policy in the
+function name. No unsuffixed `map_from_entries` operation exists in the core surface.
+
+### 9.7 Collection extensions
+
+Collection literals, comprehensions, higher-order traversal, borrowing iterators, index-based access, slicing, sorting,
+and specialized representation controls are **[Deferred]**.
 
 ## 10. Modeling Rules and Boundary Discipline
 
@@ -1130,6 +1499,14 @@ A conforming Evident toolchain MUST reject at least the following:
 * a `foreign fn` with a body
 * a `foreign fn` with any contract clause
 * a `foreign fn` with a permit parameter
+* a compiler-owned collection family used with the wrong number of type arguments
+* a user declaration that redeclares a compiler-owned collection companion type, collection companion reason, collection
+  reason variant, or collection operation name from Section 9
+* a collection family or collection companion type argument that is not a data type
+* a map key type outside the permitted compiler-ordered key set in Section 9.2
+* a `_copy` collection operation instantiated with an affine-bearing payload type that the operation would duplicate
+* a map operation that would remove, replace, or discard an existing value without returning it when instantiated with
+  an affine-bearing map value type
 * a `reason` type in a stored data position
 * a `permit` type in an ordinary parameter, return, field, collection, pattern, or generic-argument position
 * an ordinary parameter whose type is a `permit`
@@ -1173,7 +1550,8 @@ The following areas are intentionally outside this draft:
 * mutation and assignment semantics beyond the immutable core defined here
 * trait declarations, trait bounds, and open polymorphism
 * explicit phase-family helper syntax for “any position of a family”
-* the completed collection library surface
+* collection literals, comprehensions, higher-order traversal, borrowing iterators, index-based access, slicing, sorting,
+  and specialized representation controls
 * concurrency and runtime coordination primitives beyond module classification
 * macros and compile-time metaprogramming
 * custom constructor syntax beyond field visibility, `grant`, and `prove`
