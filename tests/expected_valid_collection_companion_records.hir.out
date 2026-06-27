@@ -13,3 +13,49 @@ functions:
       block -> MapEntry<Text, Int>
         result
           local entry : MapEntry<Text, Int>
+  - public fn test::list_first_value(first: ListFirstAndRest<Int>) -> Int
+      block -> Int
+        result
+          field-access .first : Int
+            local first : ListFirstAndRest<Int>
+  - public fn test::list_rest_values(first: ListFirstAndRest<Int>) -> List<Int>
+      block -> List<Int>
+        result
+          field-access .rest : List<Int>
+            local first : ListFirstAndRest<Int>
+  - public fn test::entry_key(entry: MapEntry<Text, Int>) -> Text
+      block -> Text
+        result
+          field-access .key : Text
+            local entry : MapEntry<Text, Int>
+  - public fn test::entry_value(entry: MapEntry<Text, Int>) -> Int
+      block -> Int
+        result
+          field-access .value : Int
+            local entry : MapEntry<Text, Int>
+  - public fn test::map_first_entry(first: MapFirstEntryAndRest<Text, Int>) -> MapEntry<Text, Int>
+      block -> MapEntry<Text, Int>
+        result
+          field-access .first : MapEntry<Text, Int>
+            local first : MapFirstEntryAndRest<Text, Int>
+  - public fn test::map_first_key(first: MapFirstEntryAndRest<Text, Int>) -> Text
+      block -> Text
+        result
+          field-access .key : Text
+            field-access .first : MapEntry<Text, Int>
+              local first : MapFirstEntryAndRest<Text, Int>
+  - public fn test::map_rest(first: MapFirstEntryAndRest<Text, Int>) -> Map<Text, Int>
+      block -> Map<Text, Int>
+        result
+          field-access .rest : Map<Text, Int>
+            local first : MapFirstEntryAndRest<Text, Int>
+  - public fn test::bound_value(bound: MapBoundValueAndRest<Bytes, Text>) -> Text
+      block -> Text
+        result
+          field-access .value : Text
+            local bound : MapBoundValueAndRest<Bytes, Text>
+  - public fn test::bound_rest(bound: MapBoundValueAndRest<Bytes, Text>) -> Map<Bytes, Text>
+      block -> Map<Bytes, Text>
+        result
+          field-access .rest : Map<Bytes, Text>
+            local bound : MapBoundValueAndRest<Bytes, Text>

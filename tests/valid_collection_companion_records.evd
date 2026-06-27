@@ -13,4 +13,40 @@ public fn keep_first(first: ListFirstAndRest<Int>) -> ListFirstAndRest<Int> {
 public fn keep_entry(entry: MapEntry<Text, Int>) -> MapEntry<Text, Int> {
     entry
 }
+
+public fn list_first_value(first: ListFirstAndRest<Int>) -> Int {
+    first.first
+}
+
+public fn list_rest_values(first: ListFirstAndRest<Int>) -> List<Int> {
+    first.rest
+}
+
+public fn entry_key(entry: MapEntry<Text, Int>) -> Text {
+    entry.key
+}
+
+public fn entry_value(entry: MapEntry<Text, Int>) -> Int {
+    entry.value
+}
+
+public fn map_first_entry(first: MapFirstEntryAndRest<Text, Int>) -> MapEntry<Text, Int> {
+    first.first
+}
+
+public fn map_first_key(first: MapFirstEntryAndRest<Text, Int>) -> Text {
+    first.first.key
+}
+
+public fn map_rest(first: MapFirstEntryAndRest<Text, Int>) -> Map<Text, Int> {
+    first.rest
+}
+
+public fn bound_value(bound: MapBoundValueAndRest<Bytes, Text>) -> Text {
+    bound.value
+}
+
+public fn bound_rest(bound: MapBoundValueAndRest<Bytes, Text>) -> Map<Bytes, Text> {
+    bound.rest
+}
 }

@@ -10,3 +10,9 @@
 <input>:33:5: error: type 'test::Config::Draft' has no field 'missing'
         Config::Draft { id: 1 }.missing
         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<input>:37:5: error: type 'MapEntry<Text, Int>' has no field 'missing'
+        entry.missing
+        ^^^^^^^^^^^^^
+<input>:41:5: error: field access on affine value requires a copyable field type
+        first.first
+        ^^^^^^^^^^^

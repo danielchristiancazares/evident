@@ -491,6 +491,19 @@ private:
         ControlFlowReachability reachability = ControlFlowReachability::ContinuesToFollowingCode;
     };
 
+    enum class CollectionCompanionRecordFieldState {
+        NotCollectionCompanionRecord,
+        MalformedCollectionCompanionRecord,
+        FieldFound,
+        FieldNotFound,
+    };
+
+    struct CollectionCompanionRecordField {
+        CollectionCompanionRecordFieldState state =
+            CollectionCompanionRecordFieldState::NotCollectionCompanionRecord;
+        Type type;
+    };
+
     using BindingId = std::size_t;
 
     enum class BindingMoveState {
@@ -778,6 +791,101 @@ private:
         auto it = qualified_names_.find(decl);
         const std::string name = it != qualified_names_.end() ? it->second : decl->name;
         return typesys::named_type(name, decl, std::move(args));
+    }
+
+    CollectionCompanionRecordField collection_companion_record_field_type(
+        const Type& owner,
+        std::string_view field_name) const {
+        if (owner.flavor != typesys::TypeFlavor::Builtin
+            || !kCompilerOwnedCollectionCompanionRecordNames.contains(owner.name)) {
+            return {};
+        }
+
+        auto malformed = [] {
+            return CollectionCompanionRecordField{
+                CollectionCompanionRecordFieldState::MalformedCollectionCompanionRecord,
+                typesys::error_type(),
+            };
+        };
+        auto found = [](Type type) {
+            return CollectionCompanionRecordField{
+                CollectionCompanionRecordFieldState::FieldFound,
+                std::move(type),
+            };
+        };
+        auto missing = [] {
+            return CollectionCompanionRecordField{
+                CollectionCompanionRecordFieldState::FieldNotFound,
+                typesys::error_type(),
+            };
+        };
+        auto list_type = [this](Type element) {
+            std::vector<Type> args;
+            args.push_back(std::move(element));
+            return builtin_type("List", std::move(args));
+        };
+        auto map_type = [this](Type key, Type value) {
+            std::vector<Type> args;
+            args.push_back(std::move(key));
+            args.push_back(std::move(value));
+            return builtin_type("Map", std::move(args));
+        };
+        auto map_entry_type = [this](Type key, Type value) {
+            std::vector<Type> args;
+            args.push_back(std::move(key));
+            args.push_back(std::move(value));
+            return builtin_type("MapEntry", std::move(args));
+        };
+
+        if (owner.name == "ListFirstAndRest") {
+            if (owner.args.size() != 1) {
+                return malformed();
+            }
+            if (field_name == "first") {
+                return found(owner.args.front());
+            }
+            if (field_name == "rest") {
+                return found(list_type(owner.args.front()));
+            }
+            return missing();
+        }
+        if (owner.name == "MapEntry") {
+            if (owner.args.size() != 2) {
+                return malformed();
+            }
+            if (field_name == "key") {
+                return found(owner.args[0]);
+            }
+            if (field_name == "value") {
+                return found(owner.args[1]);
+            }
+            return missing();
+        }
+        if (owner.name == "MapFirstEntryAndRest") {
+            if (owner.args.size() != 2) {
+                return malformed();
+            }
+            if (field_name == "first") {
+                return found(map_entry_type(owner.args[0], owner.args[1]));
+            }
+            if (field_name == "rest") {
+                return found(map_type(owner.args[0], owner.args[1]));
+            }
+            return missing();
+        }
+        if (owner.name == "MapBoundValueAndRest") {
+            if (owner.args.size() != 2) {
+                return malformed();
+            }
+            if (field_name == "value") {
+                return found(owner.args[1]);
+            }
+            if (field_name == "rest") {
+                return found(map_type(owner.args[0], owner.args[1]));
+            }
+            return missing();
+        }
+        return {};
     }
 
     static ScopeContainment scope_containment(const Scope* ancestor, const Scope* descendant) {
@@ -2953,6 +3061,27 @@ private:
         if (type_error_state(recv.value) == typesys::TypeErrorState::SuppressesFollowupDiagnostics) {
             return recv;
         }
+
+        const CollectionCompanionRecordField companion_field =
+            collection_companion_record_field_type(recv.value, expr.field_name);
+        switch (companion_field.state) {
+        case CollectionCompanionRecordFieldState::NotCollectionCompanionRecord:
+            break;
+        case CollectionCompanionRecordFieldState::MalformedCollectionCompanionRecord:
+            return make_expr(error_type());
+        case CollectionCompanionRecordFieldState::FieldFound:
+            if (typesys::discipline_movement(discipline(recv.value)) == typesys::DisciplineMovement::Affine
+                && discipline(companion_field.type) != typesys::UseDiscipline::Copyable) {
+                diagnostics_.error(expr.span, "field access on affine value requires a copyable field type");
+                return make_expr(error_type());
+            }
+            return make_expr(companion_field.type);
+        case CollectionCompanionRecordFieldState::FieldNotFound:
+            diagnostics_.error(expr.span,
+                               "type '" + type_name(recv.value) + "' has no field '" + expr.field_name + "'");
+            return make_expr(error_type());
+        }
+
         const ast::Decl* decl = recv.value.decl;
         if (decl == nullptr) {
             diagnostics_.error(expr.span,

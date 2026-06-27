@@ -32,4 +32,12 @@ public fn bad_proof_field() -> Int proves Receipt {
 public fn bad_phase_field() -> Int {
     Config::Draft { id: 1 }.missing
 }
+
+public fn bad_companion_field(entry: MapEntry<Text, Int>) -> Int {
+    entry.missing
+}
+
+public fn bad_affine_companion_field(first: ListFirstAndRest<Receipt>) -> Receipt {
+    first.first
+}
 }

@@ -270,6 +270,21 @@ typesys::TypeErrorState type_ref_error_state(const TypeRef& type) {
         : typesys::TypeErrorState::CarriesTypeFacts;
 }
 
+TypeRef builtin_type_ref(std::string name, std::vector<TypeRef> args = {}) {
+    typesys::UseDiscipline discipline = typesys::UseDiscipline::Copyable;
+    for (const TypeRef& arg : args) {
+        discipline = typesys::merge_discipline(discipline, arg.discipline);
+    }
+    std::string base = std::move(name);
+    return TypeRef{
+        format_type_args(base, args),
+        TypeIdentity::from_type_flavor(),
+        typesys::TypeFlavor::Builtin,
+        discipline,
+        std::move(args),
+    };
+}
+
 struct Lowerer {
     Package package;
     Scope root;
@@ -323,6 +338,8 @@ private:
     [[nodiscard]] TypeRef lower_type_ref(const Scope& scope,
                                          const std::vector<std::string>& generics,
                                          const ast::TypeRef& type_ref) const;
+    [[nodiscard]] TypeRef collection_companion_record_field_type(const TypeRef& owner,
+                                                                 std::string_view field_name) const;
     [[nodiscard]] std::vector<std::string> generic_names_for(
         const std::vector<ast::GenericParam>& generic_params) const;
     [[nodiscard]] std::vector<std::pair<std::string, typesys::Type>> build_call_substitutions(
@@ -937,6 +954,86 @@ TypeRef Lowerer::lower_type_ref(const Scope& scope,
     return lower_resolved_type(resolve_type(scope, generics, {}, type_ref));
 }
 
+TypeRef Lowerer::collection_companion_record_field_type(const TypeRef& owner,
+                                                       std::string_view field_name) const {
+    if (owner.flavor != typesys::TypeFlavor::Builtin
+        || !kCompilerOwnedCollectionCompanionRecordNames.contains(type_base_name(owner.text))) {
+        return {};
+    }
+
+    auto malformed = [] {
+        return TypeRef{};
+    };
+    auto list_type = [](TypeRef element) {
+        std::vector<TypeRef> args;
+        args.push_back(std::move(element));
+        return builtin_type_ref("List", std::move(args));
+    };
+    auto map_type = [](TypeRef key, TypeRef value) {
+        std::vector<TypeRef> args;
+        args.push_back(std::move(key));
+        args.push_back(std::move(value));
+        return builtin_type_ref("Map", std::move(args));
+    };
+    auto map_entry_type = [](TypeRef key, TypeRef value) {
+        std::vector<TypeRef> args;
+        args.push_back(std::move(key));
+        args.push_back(std::move(value));
+        return builtin_type_ref("MapEntry", std::move(args));
+    };
+
+    const std::string base_name = type_base_name(owner.text);
+    if (base_name == "ListFirstAndRest") {
+        if (owner.args.size() != 1) {
+            return malformed();
+        }
+        if (field_name == "first") {
+            return owner.args.front();
+        }
+        if (field_name == "rest") {
+            return list_type(owner.args.front());
+        }
+        return {};
+    }
+    if (base_name == "MapEntry") {
+        if (owner.args.size() != 2) {
+            return malformed();
+        }
+        if (field_name == "key") {
+            return owner.args[0];
+        }
+        if (field_name == "value") {
+            return owner.args[1];
+        }
+        return {};
+    }
+    if (base_name == "MapFirstEntryAndRest") {
+        if (owner.args.size() != 2) {
+            return malformed();
+        }
+        if (field_name == "first") {
+            return map_entry_type(owner.args[0], owner.args[1]);
+        }
+        if (field_name == "rest") {
+            return map_type(owner.args[0], owner.args[1]);
+        }
+        return {};
+    }
+    if (base_name == "MapBoundValueAndRest") {
+        if (owner.args.size() != 2) {
+            return malformed();
+        }
+        if (field_name == "value") {
+            return owner.args[1];
+        }
+        if (field_name == "rest") {
+            return map_type(owner.args[0], owner.args[1]);
+        }
+        return {};
+    }
+    return {};
+}
+
 std::vector<std::string> Lowerer::generic_names_for(const std::vector<ast::GenericParam>& generic_params) const {
     std::vector<std::string> generics;
     generics.reserve(generic_params.size());
@@ -1463,6 +1560,12 @@ std::unique_ptr<Expr> Lowerer::lower_field_access_expr(const ast::FieldAccessExp
     lowered->object = lower_expr(*expr.object, context, env);
     lowered->field_name = expr.field_name;
     lowered->result_type = TypeRef{};
+    TypeRef companion_field_type =
+        collection_companion_record_field_type(lowered->object->result_type, expr.field_name);
+    if (type_ref_error_state(companion_field_type) != typesys::TypeErrorState::SuppressesFollowupDiagnostics) {
+        lowered->result_type = std::move(companion_field_type);
+        return lowered;
+    }
     if (lowered->object->result_type.identity.source() == TypeIdentitySource::PackageTypeDeclaration) {
         const TypeDecl& owner = package.types[lowered->object->result_type.identity.package_type_id()];
         std::unordered_map<std::string, TypeRef> substitutions;
