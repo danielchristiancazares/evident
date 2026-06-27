@@ -59,7 +59,7 @@ The compiler currently enforces:
 - `fails` targeting a non-`reason` type
 - foreign functions using `fails`, `grants`, `proves`, generics, or permit parameters, or defining bodies
 - reason types forbidden in ordinary data positions
-- permit types forbidden in stored positions and return types
+- permit types forbidden in ordinary data positions, including ordinary parameters, returns, fields, collections, and generic arguments
 - proof values restricted to `prove` and affine move-safe use
 - permit values restricted to explicit `as name` arguments or scoped `grant` use
 - `grant` failure typing across grantor and body failures
