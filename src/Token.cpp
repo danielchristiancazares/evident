@@ -104,10 +104,10 @@ std::string_view token_kind_name(TokenKind kind) {
         return "succeeded";
     case TokenKind::KeywordFailed:
         return "failed";
-    case TokenKind::Unknown:
-        return "Unknown";
+    case TokenKind::RejectedLexeme:
+        return "RejectedLexeme";
     }
-    return "Unknown";
+    return "UnhandledTokenKind";
 }
 
 } // namespace evident

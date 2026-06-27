@@ -137,7 +137,7 @@ std::vector<Token> Lexer::lex() {
                 tokens.push_back(make_token(TokenKind::Arrow, begin, offset_));
             } else {
                 report_unknown(begin, ch);
-                tokens.push_back(make_token(TokenKind::Unknown, begin, offset_));
+                tokens.push_back(make_token(TokenKind::RejectedLexeme, begin, offset_));
             }
             break;
         case '"':
@@ -153,7 +153,7 @@ std::vector<Token> Lexer::lex() {
                 tokens.push_back(lex_number());
             } else {
                 report_unknown(begin, ch);
-                tokens.push_back(make_token(TokenKind::Unknown, begin, offset_));
+                tokens.push_back(make_token(TokenKind::RejectedLexeme, begin, offset_));
             }
             break;
         }

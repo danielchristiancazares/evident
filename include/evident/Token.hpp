@@ -60,7 +60,7 @@ enum class TokenKind {
     KeywordSucceeded,
     KeywordFailed,
 
-    Unknown,
+    RejectedLexeme,
 };
 
 struct Token {
