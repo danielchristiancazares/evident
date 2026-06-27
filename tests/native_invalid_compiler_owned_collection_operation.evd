@@ -1,10 +1,10 @@
 domain module test {
 public fn main() -> Int {
-    let empty = map_empty<Text, Int>()
-    match map_consume_bound_value<Text, Int>(empty, "one") {
-        succeeded(consumed) => consumed.value,
-        failed(RequestedKeyHadNoBinding) => 1,
-        failed(RequestedKeyAlreadyHadBinding) => 2,
+    let left = map_empty<Text, Int>()
+    let right = map_empty<Text, Int>()
+    match map_merge_rejecting_shared_keys<Text, Int>(left, right) {
+        succeeded(entries) => 0,
+        failed(InputsHadSharedKey) => 1,
     }
 }
 }
