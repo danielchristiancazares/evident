@@ -21,6 +21,7 @@ public record BootstrapStageInvocation {
     public stage_name: Text,
     public compiler_name: Text,
     public command_line: Text,
+    public tool: bootstrap_host::HostToolInvocation,
     public validation_summary: Text,
     public output_path: bootstrap_host::HostPath,
 }
@@ -61,38 +62,63 @@ public fn bootstrap_package_validation(package: bootstrap_source::PackageSource,
     }
 }
 
-public fn bootstrap_stage_invocation(stage_name: Text, compiler_name: Text, command_line: Text, validation_summary: Text, output_path: bootstrap_host::HostPath) -> BootstrapStageInvocation {
+fn append_bootstrap_stage_argument(arguments: List<Text>, item: Text) -> List<Text> {
+    let widened = nonempty_list_widen<Text>(list_append<Text>(arguments, item));
+    widened
+}
+
+fn bootstrap_stage_tool(working_directory: bootstrap_host::HostPath, executable: bootstrap_host::HostPath, arguments: List<Text>) -> bootstrap_host::HostToolInvocation {
+    bootstrap_host::host_tool_invocation(working_directory, executable, arguments)
+}
+
+public fn bootstrap_stage_invocation(stage_name: Text, compiler_name: Text, command_line: Text, tool: bootstrap_host::HostToolInvocation, validation_summary: Text, output_path: bootstrap_host::HostPath) -> BootstrapStageInvocation {
     BootstrapStageInvocation {
         stage_name,
         compiler_name,
         command_line,
+        tool,
         validation_summary,
         output_path,
     }
 }
 
 public fn bootstrap_stage_harness() -> BootstrapStageHarness {
+    let package_root = bootstrap_host::host_path("bootstrap/compiler");
     let seed_output = bootstrap_host::host_path("bootstrap/compiler/bootstrap-stage-output/seed-evidc.exe");
     let stage_one_output = bootstrap_host::host_path("bootstrap/compiler/bootstrap-stage-output/stage-1-evidc.exe");
     let stage_two_output = bootstrap_host::host_path("bootstrap/compiler/bootstrap-stage-output/stage-2-evidc.exe");
+    let seed_arguments = append_bootstrap_stage_argument(list_empty<Text>(), "--preset");
+    let seed_arguments_more = append_bootstrap_stage_argument(seed_arguments, "windows-x64-ninja");
+    let seed_arguments_more2 = append_bootstrap_stage_argument(seed_arguments_more, "-R");
+    let seed_arguments_final = append_bootstrap_stage_argument(seed_arguments_more2, "run_bootstrap_compiler_scaffold");
+    let seed_tool = bootstrap_stage_tool(package_root, bootstrap_host::host_path("ctest"), seed_arguments_final);
     let seed = bootstrap_stage_invocation(
         "seed",
         "cxx-seed-evidc",
         "ctest --preset windows-x64-ninja -R run_bootstrap_compiler_scaffold",
+        seed_tool,
         "builds the bootstrap scaffold from the C++ seed compiler",
         seed_output,
     );
+    let stage_one_arguments = append_bootstrap_stage_argument(list_empty<Text>(), "--package");
+    let stage_one_arguments_final = append_bootstrap_stage_argument(stage_one_arguments, "bootstrap/compiler");
+    let stage_one_tool = bootstrap_stage_tool(package_root, stage_one_output, stage_one_arguments_final);
     let stage_one = bootstrap_stage_invocation(
         "stage-1",
         "stage-1 evidc",
         "stage-1 evidc --package bootstrap/compiler",
+        stage_one_tool,
         "rebuilds the same Evident compiler package",
         stage_one_output,
     );
+    let stage_two_arguments = append_bootstrap_stage_argument(list_empty<Text>(), "--package");
+    let stage_two_arguments_final = append_bootstrap_stage_argument(stage_two_arguments, "bootstrap/compiler");
+    let stage_two_tool = bootstrap_stage_tool(package_root, stage_two_output, stage_two_arguments_final);
     let stage_two = bootstrap_stage_invocation(
         "stage-2",
         "stage-2 evidc",
         "stage-2 evidc --package bootstrap/compiler",
+        stage_two_tool,
         "passes conformance, diagnostics, native emission, package, and release-contract checks",
         stage_two_output,
     );

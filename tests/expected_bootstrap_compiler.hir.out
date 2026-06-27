@@ -222,6 +222,7 @@ types:
       field stage_name: Text
       field compiler_name: Text
       field command_line: Text
+      field tool: bootstrap_host::HostToolInvocation
       field validation_summary: Text
       field output_path: bootstrap_host::HostPath
   - public record bootstrap_release::BootstrapStageHarness
@@ -1686,7 +1687,23 @@ functions:
               local module_count : Nat
             init manifest_entry_count [shorthand]
               local manifest_entry_count : Nat
-  - public fn bootstrap_release::bootstrap_stage_invocation(stage_name: Text, compiler_name: Text, command_line: Text, validation_summary: Text, output_path: bootstrap_host::HostPath) -> bootstrap_release::BootstrapStageInvocation
+  - private fn bootstrap_release::append_bootstrap_stage_argument(arguments: List<Text>, item: Text) -> List<Text>
+      block -> List<Text>
+        let widened: List<Text>
+          call nonempty_list_widen<Text> -> List<Text>
+            call list_append<Text> -> NonEmptyList<Text>
+              local arguments : List<Text>
+              local item : Text
+        result
+          local widened : List<Text>
+  - private fn bootstrap_release::bootstrap_stage_tool(working_directory: bootstrap_host::HostPath, executable: bootstrap_host::HostPath, arguments: List<Text>) -> bootstrap_host::HostToolInvocation
+      block -> bootstrap_host::HostToolInvocation
+        result
+          call bootstrap_host::host_tool_invocation -> bootstrap_host::HostToolInvocation
+            local working_directory : bootstrap_host::HostPath
+            local executable : bootstrap_host::HostPath
+            local arguments : List<Text>
+  - public fn bootstrap_release::bootstrap_stage_invocation(stage_name: Text, compiler_name: Text, command_line: Text, tool: bootstrap_host::HostToolInvocation, validation_summary: Text, output_path: bootstrap_host::HostPath) -> bootstrap_release::BootstrapStageInvocation
       block -> bootstrap_release::BootstrapStageInvocation
         result
           construct bootstrap_release::BootstrapStageInvocation : bootstrap_release::BootstrapStageInvocation
@@ -1696,12 +1713,17 @@ functions:
               local compiler_name : Text
             init command_line [shorthand]
               local command_line : Text
+            init tool [shorthand]
+              local tool : bootstrap_host::HostToolInvocation
             init validation_summary [shorthand]
               local validation_summary : Text
             init output_path [shorthand]
               local output_path : bootstrap_host::HostPath
   - public fn bootstrap_release::bootstrap_stage_harness() -> bootstrap_release::BootstrapStageHarness
       block -> bootstrap_release::BootstrapStageHarness
+        let package_root: bootstrap_host::HostPath
+          call bootstrap_host::host_path -> bootstrap_host::HostPath
+            string "bootstrap/compiler" : Text
         let seed_output: bootstrap_host::HostPath
           call bootstrap_host::host_path -> bootstrap_host::HostPath
             string "bootstrap/compiler/bootstrap-stage-output/seed-evidc.exe" : Text
@@ -1711,25 +1733,76 @@ functions:
         let stage_two_output: bootstrap_host::HostPath
           call bootstrap_host::host_path -> bootstrap_host::HostPath
             string "bootstrap/compiler/bootstrap-stage-output/stage-2-evidc.exe" : Text
+        let seed_arguments: List<Text>
+          call bootstrap_release::append_bootstrap_stage_argument -> List<Text>
+            call list_empty<Text> -> List<Text>
+            string "--preset" : Text
+        let seed_arguments_more: List<Text>
+          call bootstrap_release::append_bootstrap_stage_argument -> List<Text>
+            local seed_arguments : List<Text>
+            string "windows-x64-ninja" : Text
+        let seed_arguments_more2: List<Text>
+          call bootstrap_release::append_bootstrap_stage_argument -> List<Text>
+            local seed_arguments_more : List<Text>
+            string "-R" : Text
+        let seed_arguments_final: List<Text>
+          call bootstrap_release::append_bootstrap_stage_argument -> List<Text>
+            local seed_arguments_more2 : List<Text>
+            string "run_bootstrap_compiler_scaffold" : Text
+        let seed_tool: bootstrap_host::HostToolInvocation
+          call bootstrap_release::bootstrap_stage_tool -> bootstrap_host::HostToolInvocation
+            local package_root : bootstrap_host::HostPath
+            call bootstrap_host::host_path -> bootstrap_host::HostPath
+              string "ctest" : Text
+            local seed_arguments_final : List<Text>
         let seed: bootstrap_release::BootstrapStageInvocation
           call bootstrap_release::bootstrap_stage_invocation -> bootstrap_release::BootstrapStageInvocation
             string "seed" : Text
             string "cxx-seed-evidc" : Text
             string "ctest --preset windows-x64-ninja -R run_bootstrap_compiler_scaffold" : Text
+            local seed_tool : bootstrap_host::HostToolInvocation
             string "builds the bootstrap scaffold from the C++ seed compiler" : Text
             local seed_output : bootstrap_host::HostPath
+        let stage_one_arguments: List<Text>
+          call bootstrap_release::append_bootstrap_stage_argument -> List<Text>
+            call list_empty<Text> -> List<Text>
+            string "--package" : Text
+        let stage_one_arguments_final: List<Text>
+          call bootstrap_release::append_bootstrap_stage_argument -> List<Text>
+            local stage_one_arguments : List<Text>
+            string "bootstrap/compiler" : Text
+        let stage_one_tool: bootstrap_host::HostToolInvocation
+          call bootstrap_release::bootstrap_stage_tool -> bootstrap_host::HostToolInvocation
+            local package_root : bootstrap_host::HostPath
+            local stage_one_output : bootstrap_host::HostPath
+            local stage_one_arguments_final : List<Text>
         let stage_one: bootstrap_release::BootstrapStageInvocation
           call bootstrap_release::bootstrap_stage_invocation -> bootstrap_release::BootstrapStageInvocation
             string "stage-1" : Text
             string "stage-1 evidc" : Text
             string "stage-1 evidc --package bootstrap/compiler" : Text
+            local stage_one_tool : bootstrap_host::HostToolInvocation
             string "rebuilds the same Evident compiler package" : Text
             local stage_one_output : bootstrap_host::HostPath
+        let stage_two_arguments: List<Text>
+          call bootstrap_release::append_bootstrap_stage_argument -> List<Text>
+            call list_empty<Text> -> List<Text>
+            string "--package" : Text
+        let stage_two_arguments_final: List<Text>
+          call bootstrap_release::append_bootstrap_stage_argument -> List<Text>
+            local stage_two_arguments : List<Text>
+            string "bootstrap/compiler" : Text
+        let stage_two_tool: bootstrap_host::HostToolInvocation
+          call bootstrap_release::bootstrap_stage_tool -> bootstrap_host::HostToolInvocation
+            local package_root : bootstrap_host::HostPath
+            local stage_two_output : bootstrap_host::HostPath
+            local stage_two_arguments_final : List<Text>
         let stage_two: bootstrap_release::BootstrapStageInvocation
           call bootstrap_release::bootstrap_stage_invocation -> bootstrap_release::BootstrapStageInvocation
             string "stage-2" : Text
             string "stage-2 evidc" : Text
             string "stage-2 evidc --package bootstrap/compiler" : Text
+            local stage_two_tool : bootstrap_host::HostToolInvocation
             string "passes conformance, diagnostics, native emission, package, and release-contract checks" : Text
             local stage_two_output : bootstrap_host::HostPath
         result
