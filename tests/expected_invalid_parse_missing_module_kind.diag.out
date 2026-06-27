@@ -1,0 +1,6 @@
+<input>:1:1: error: expected module kind (domain, boundary, foundation, or hazard) before `module`
+    module missing_kind {
+    ^^^^^^
+<input>:5:5: error: expected module kind (domain, boundary, foundation, or hazard) before `module`
+        module nested_missing_kind {
+        ^^^^^^

@@ -1,0 +1,11 @@
+module missing_kind {
+}
+
+domain module outer {
+    module nested_missing_kind {
+    }
+
+    public fn main() -> Int {
+        0
+    }
+}

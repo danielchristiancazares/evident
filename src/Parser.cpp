@@ -187,6 +187,10 @@ void Parser::parse_import_into(ast::TranslationUnit& unit) {
 
 std::unique_ptr<ast::Decl> Parser::parse_top_level_decl() {
     const ast::Visibility visibility = parse_visibility();
+    if (token_check(TokenKind::KeywordModule) == TokenCheckState::Matches) {
+        reject_kindless_module();
+        return nullptr;
+    }
     if (module_kind_token_role(peek().kind()) == ModuleKindTokenRole::ModuleKindKeyword) {
         return parse_module(visibility);
     }
@@ -202,6 +206,10 @@ std::unique_ptr<ast::Decl> Parser::parse_top_level_decl() {
 std::unique_ptr<ast::Decl> Parser::parse_decl() {
     const ast::Visibility visibility = parse_visibility();
 
+    if (token_check(TokenKind::KeywordModule) == TokenCheckState::Matches) {
+        reject_kindless_module();
+        return nullptr;
+    }
     if (module_kind_token_role(peek().kind()) == ModuleKindTokenRole::ModuleKindKeyword) {
         return parse_module(visibility);
     }
@@ -239,6 +247,11 @@ std::unique_ptr<ast::Decl> Parser::parse_decl() {
 
     diagnostics_.error(peek().span(), "expected a declaration");
     return nullptr;
+}
+
+void Parser::reject_kindless_module() {
+    diagnostics_.error(peek().span(), "expected module kind (domain, boundary, foundation, or hazard) before `module`");
+    advance();
 }
 
 std::unique_ptr<ast::ModuleDecl> Parser::parse_module(ast::Visibility visibility) {
