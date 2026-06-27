@@ -2,6 +2,7 @@
 # Keep this manifest deterministic; bootstrap validation depends on stable source order.
 src/source.evd
 src/lexing.evd
+src/parsing.evd
 src/diagnostics.evd
 src/host.evd
 src/pipeline.evd

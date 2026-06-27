@@ -1,0 +1,86 @@
+import bootstrap_source;
+import bootstrap_lexing;
+
+domain module bootstrap_parsing {
+public record ModulePath {
+    public text: Text,
+}
+
+public state ModuleKind {
+    DomainTruthCarried,
+    BoundaryAmbiguityCollapsed,
+    FoundationPlumbingCarried,
+    HazardInteractionIsolated,
+}
+
+public state SyntaxDeclarationCategory {
+    ModuleScopeIntroduced,
+    ProductShapeIntroduced,
+    RuntimeAlternativeIntroduced,
+    FailureExplanationIntroduced,
+    ProofWitnessIntroduced,
+    AuthorityScopeIntroduced,
+    LifecyclePositionsIntroduced,
+    BehaviorIntroduced,
+}
+
+public record SyntaxDeclaration {
+    public category: SyntaxDeclarationCategory,
+    public name: Text,
+    public span: bootstrap_lexing::SourceSpan,
+}
+
+public record SyntaxModule {
+    public kind: ModuleKind,
+    public path: ModulePath,
+    public declarations: NonEmptyList<SyntaxDeclaration>,
+}
+
+public record PackageSyntax {
+    public modules: NonEmptyList<SyntaxModule>,
+}
+
+public reason ParsingRejection {
+    TokenStreamCouldNotFormSyntax { path: bootstrap_source::SourcePath },
+}
+
+public fn module_path(text: Text) -> ModulePath {
+    ModulePath { text }
+}
+
+public fn syntax_declaration(category: SyntaxDeclarationCategory, name: Text, span: bootstrap_lexing::SourceSpan) -> SyntaxDeclaration {
+    SyntaxDeclaration {
+        category,
+        name,
+        span,
+    }
+}
+
+public fn syntax_module(kind: ModuleKind, path: ModulePath, declarations: NonEmptyList<SyntaxDeclaration>) -> SyntaxModule {
+    SyntaxModule {
+        kind,
+        path,
+        declarations,
+    }
+}
+
+public fn seed_package_syntax(tokens: bootstrap_lexing::TokenStream) -> PackageSyntax {
+    let source_path = bootstrap_source::SourcePath { text: "bootstrap/compiler/src/source.evd" };
+    let module_span = bootstrap_lexing::source_span(source_path, 0, 30);
+    let declaration = syntax_declaration(ModuleScopeIntroduced, "bootstrap_source", module_span);
+    let source_module = syntax_module(
+        DomainTruthCarried,
+        module_path("bootstrap_source"),
+        list_single<SyntaxDeclaration>(declaration),
+    );
+
+    PackageSyntax {
+        modules: list_single<SyntaxModule>(source_module),
+    }
+}
+
+public fn seed_package_syntax_module_count() -> Int {
+    let syntax = seed_package_syntax(bootstrap_lexing::seed_token_stream());
+    1
+}
+}

@@ -118,7 +118,7 @@ assert_doc_contains(README.md
     "Bootstrap plan: `docs/BOOTSTRAP_PLAN.md`"
     "The first bootstrap-oriented Evident package outline lives under `bootstrap/compiler`."
     "package identity, a deterministic source graph"
-    "initial lexical token stream model"
+    "initial lexical token stream and parsed package syntax models"
     "`run_bootstrap_compiler_scaffold`"
 )
 
@@ -419,7 +419,7 @@ assert_doc_contains(docs/BOOTSTRAP_PLAN.md
     "initial Evident package outline at `bootstrap/compiler`"
     "That package is a compilable bootstrap scaffold, not a compiler implementation."
     "package identity, a deterministic source graph"
-    "initial lexical token stream"
+    "initial lexical token stream and parsed package syntax data"
     "`run_bootstrap_compiler_scaffold`"
     "C emission can remain a temporary debugging or migration aid, but it is not the production bootstrap proof."
     "Bootstrap work must preserve explicit permits, proof construction, affine discipline, consequence-first naming, and boundary-local collapse of foreign ambiguity."
