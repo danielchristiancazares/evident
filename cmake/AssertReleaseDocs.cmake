@@ -59,7 +59,7 @@ assert_doc_contains(README.md
     "checked-toolchain version probes identifying clang and LLD"
     "full source commit SHA"
     "validates that evidence file against the workflow `GITHUB_SHA` before upload"
-    "current `402/402` CTest pass summary inside `[ctest output]`"
+    "current `403/403` CTest pass summary inside `[ctest output]`"
     "shared package checksum validator"
     "sidecar path, canonical text, filename, and ZIP bytes match"
     "revalidates the downloaded release evidence against the downloaded ZIP filename, byte size, SHA256, and workflow `GITHUB_SHA`"
@@ -117,6 +117,7 @@ assert_doc_contains(README.md
     "self-hosting or bootstrapping; the current compiler is still a C++23 seed compiler"
     "Bootstrap plan: `docs/BOOTSTRAP_PLAN.md`"
     "The first bootstrap-oriented Evident package outline lives under `bootstrap/compiler`."
+    "`run_bootstrap_compiler_scaffold`"
 )
 
 assert_doc_contains(.gitignore
@@ -206,7 +207,7 @@ assert_doc_contains(docs/RELEASE_CHECKLIST.md
     "sidecars missing the final newline"
     "sidecars with extra trailing blank lines"
     "non-ZIP package paths"
-    "current `402/402` CTest pass summary inside `[ctest output]`"
+    "current `403/403` CTest pass summary inside `[ctest output]`"
     "package filename, size, and SHA256 inside `[release ZIP]`"
     "MSVC `cl` output identifying x64 target architecture"
     "tool-version output identifying CMake, Ninja, clang, and LLD"
@@ -252,7 +253,7 @@ assert_doc_contains(docs/TOOLCHAIN_REPRODUCIBILITY.md
     "`evidc --version` output matching the version embedded in the release ZIP filename"
     "`evidc --print-toolchain` output with expected native target, supported target, selected clang driver, override environment variable, and linker mode"
     "`evidc --check-toolchain` output with those expected fields plus version-probe lines identifying clang and LLD"
-    "expected CTest `402/402` pass summary inside `[ctest output]`"
+    "expected CTest `403/403` pass summary inside `[ctest output]`"
     "The read-only release source-tree audit passes on the intended release branch, including rejection of tracked generated build directories, `CMakeUserPresets.json`, root-level in-source CMake/Ninja/CTest/CPack artifacts, release ZIP/checksum/evidence artifacts, and ignored local-only artifacts."
     "install layout validation rejects unsafe or duplicate expected install allowlist paths"
     "validates the installed compiler as a PE executable"
@@ -334,7 +335,7 @@ assert_doc_contains(docs/NATIVE_BACKEND_PLAN.md
 )
 
 assert_doc_contains(docs/COMPILER_FINISH_PLAN.md
-    "passed `402/402` tests."
+    "passed `403/403` tests."
     "CI workflow, release-docs, CTest total, invalid corpus, test corpus registration, and C++ design escape-hatch contract validation"
     "CTest total contract"
     "release source-tree contract"
@@ -415,6 +416,7 @@ assert_doc_contains(docs/BOOTSTRAP_PLAN.md
     "The compiler is not yet self-hosting."
     "initial Evident package outline at `bootstrap/compiler`"
     "That package is a compilable bootstrap scaffold, not a compiler implementation."
+    "`run_bootstrap_compiler_scaffold`"
     "C emission can remain a temporary debugging or migration aid, but it is not the production bootstrap proof."
     "Bootstrap work must preserve explicit permits, proof construction, affine discipline, consequence-first naming, and boundary-local collapse of foreign ambiguity."
 )

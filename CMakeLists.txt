@@ -80,7 +80,7 @@ add_dependencies(package_checksum package)
 
 include(CTest)
 if(BUILD_TESTING)
-    set(EVIDENT_EXPECTED_CTEST_TOTAL 402)
+    set(EVIDENT_EXPECTED_CTEST_TOTAL 403)
 
     add_test(NAME parse_valid_example
         COMMAND evidc --dump-hir ${CMAKE_CURRENT_SOURCE_DIR}/examples/feature_mode.evd)
@@ -785,6 +785,14 @@ if(BUILD_TESTING)
         package_manifest
         19
         native_package_manifest.exe)
+    add_test(NAME run_bootstrap_compiler_scaffold
+        COMMAND ${CMAKE_COMMAND}
+            -DCOMMAND_PATH=$<TARGET_FILE:evidc>
+            -DPACKAGE_DIR=${CMAKE_CURRENT_SOURCE_DIR}/bootstrap/compiler
+            -DOUTPUT_PATH=${CMAKE_CURRENT_BINARY_DIR}/bootstrap_compiler_scaffold.exe
+            -DEXPECTED_EXIT=2
+            -DTARGET_TRIPLE=x86_64-pc-windows-msvc
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/RunEmitAndCheckExit.cmake)
 
     add_cli_success_compare_test(cli_help
         expected_cli_help.stdout.out
