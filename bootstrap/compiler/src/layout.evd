@@ -10,6 +10,7 @@ public record BootstrapPackageModule {
 public record BootstrapPackageLayout {
     public package: bootstrap_source::PackageSource,
     public modules: NonEmptyList<BootstrapPackageModule>,
+    public modules_by_name: NonEmptyMap<Text, BootstrapPackageModule>,
 }
 
 public fn bootstrap_package_module(name: Text, source: Text, imports: List<Text>) -> BootstrapPackageModule {
@@ -30,111 +31,137 @@ fn append_bootstrap_package_module(modules: NonEmptyList<BootstrapPackageModule>
     list_append<BootstrapPackageModule>(widened, item)
 }
 
+fn append_bootstrap_package_module_index(modules: NonEmptyMap<Text, BootstrapPackageModule>, item: BootstrapPackageModule) -> NonEmptyMap<Text, BootstrapPackageModule> {
+    nonempty_map_bind_or_replace<Text, BootstrapPackageModule>(modules, item.name, item)
+}
+
 public fn bootstrap_package_layout(package: bootstrap_source::PackageSource) -> BootstrapPackageLayout {
-    let host = list_single<BootstrapPackageModule>(bootstrap_package_module(
+    let host_module = bootstrap_package_module(
         "bootstrap_host",
         "src/host.evd",
         list_empty<Text>(),
-    ));
+    );
+    let host = list_single<BootstrapPackageModule>(host_module);
+    let host_by_name = map_single<Text, BootstrapPackageModule>(host_module.name, host_module);
     let environment_imports = append_text_import(list_empty<Text>(), "bootstrap_host");
+    let environment_module = bootstrap_package_module(
+        "bootstrap_environment",
+        "src/environment.evd",
+        environment_imports,
+    );
     let environment = append_bootstrap_package_module(
         host,
-        bootstrap_package_module(
-            "bootstrap_environment",
-            "src/environment.evd",
-            environment_imports,
-        ),
+        environment_module,
     );
+    let environment_by_name = append_bootstrap_package_module_index(host_by_name, environment_module);
     let source_imports = append_text_import(list_empty<Text>(), "bootstrap_environment");
+    let source_module = bootstrap_package_module(
+        "bootstrap_source",
+        "src/source.evd",
+        source_imports,
+    );
     let source = append_bootstrap_package_module(
         environment,
-        bootstrap_package_module(
-            "bootstrap_source",
-            "src/source.evd",
-            source_imports,
-        ),
+        source_module,
     );
+    let source_by_name = append_bootstrap_package_module_index(environment_by_name, source_module);
     let lexing_imports = append_text_import(list_empty<Text>(), "bootstrap_source");
+    let lexing_module = bootstrap_package_module(
+        "bootstrap_lexing",
+        "src/lexing.evd",
+        lexing_imports,
+    );
     let lexing = append_bootstrap_package_module(
         source,
-        bootstrap_package_module(
-            "bootstrap_lexing",
-            "src/lexing.evd",
-            lexing_imports,
-        ),
+        lexing_module,
     );
+    let lexing_by_name = append_bootstrap_package_module_index(source_by_name, lexing_module);
     let parsing_imports = append_text_import(list_empty<Text>(), "bootstrap_source");
     let parsing_imports_final = append_text_import(parsing_imports, "bootstrap_lexing");
+    let parsing_module = bootstrap_package_module(
+        "bootstrap_parsing",
+        "src/parsing.evd",
+        parsing_imports_final,
+    );
     let parsing = append_bootstrap_package_module(
         lexing,
-        bootstrap_package_module(
-            "bootstrap_parsing",
-            "src/parsing.evd",
-            parsing_imports_final,
-        ),
+        parsing_module,
     );
+    let parsing_by_name = append_bootstrap_package_module_index(lexing_by_name, parsing_module);
     let semantics_imports = append_text_import(list_empty<Text>(), "bootstrap_source");
     let semantics_imports_more = append_text_import(semantics_imports, "bootstrap_lexing");
     let semantics_imports_final = append_text_import(semantics_imports_more, "bootstrap_parsing");
+    let semantics_module = bootstrap_package_module(
+        "bootstrap_semantics",
+        "src/semantics.evd",
+        semantics_imports_final,
+    );
     let semantics = append_bootstrap_package_module(
         parsing,
-        bootstrap_package_module(
-            "bootstrap_semantics",
-            "src/semantics.evd",
-            semantics_imports_final,
-        ),
+        semantics_module,
     );
+    let semantics_by_name = append_bootstrap_package_module_index(parsing_by_name, semantics_module);
     let diagnostics_imports = append_text_import(list_empty<Text>(), "bootstrap_source");
+    let diagnostics_module = bootstrap_package_module(
+        "bootstrap_diagnostics",
+        "src/diagnostics.evd",
+        diagnostics_imports,
+    );
     let diagnostics = append_bootstrap_package_module(
         semantics,
-        bootstrap_package_module(
-            "bootstrap_diagnostics",
-            "src/diagnostics.evd",
-            diagnostics_imports,
-        ),
+        diagnostics_module,
     );
+    let diagnostics_by_name = append_bootstrap_package_module_index(semantics_by_name, diagnostics_module);
     let discovery_imports = append_text_import(list_empty<Text>(), "bootstrap_environment");
     let discovery_imports_more = append_text_import(discovery_imports, "bootstrap_diagnostics");
     let discovery_imports_final = append_text_import(discovery_imports_more, "bootstrap_source");
+    let discovery_module = bootstrap_package_module(
+        "bootstrap_discovery",
+        "src/discovery.evd",
+        discovery_imports_final,
+    );
     let discovery = append_bootstrap_package_module(
         diagnostics,
-        bootstrap_package_module(
-            "bootstrap_discovery",
-            "src/discovery.evd",
-            discovery_imports_final,
-        ),
+        discovery_module,
     );
+    let discovery_by_name = append_bootstrap_package_module_index(diagnostics_by_name, discovery_module);
     let pipeline_imports = append_text_import(list_empty<Text>(), "bootstrap_source");
     let pipeline_imports_more = append_text_import(pipeline_imports, "bootstrap_lexing");
     let pipeline_imports_more2 = append_text_import(pipeline_imports_more, "bootstrap_parsing");
     let pipeline_imports_final = append_text_import(pipeline_imports_more2, "bootstrap_semantics");
+    let pipeline_module = bootstrap_package_module(
+        "bootstrap_pipeline",
+        "src/pipeline.evd",
+        pipeline_imports_final,
+    );
     let pipeline = append_bootstrap_package_module(
         discovery,
-        bootstrap_package_module(
-            "bootstrap_pipeline",
-            "src/pipeline.evd",
-            pipeline_imports_final,
-        ),
+        pipeline_module,
     );
+    let pipeline_by_name = append_bootstrap_package_module_index(discovery_by_name, pipeline_module);
     let layout_imports = append_text_import(list_empty<Text>(), "bootstrap_source");
+    let layout_module = bootstrap_package_module(
+        "bootstrap_layout",
+        "src/layout.evd",
+        layout_imports,
+    );
     let layout = append_bootstrap_package_module(
         pipeline,
-        bootstrap_package_module(
-            "bootstrap_layout",
-            "src/layout.evd",
-            layout_imports,
-        ),
+        layout_module,
     );
+    let layout_by_name = append_bootstrap_package_module_index(pipeline_by_name, layout_module);
     let release_imports = append_text_import(list_empty<Text>(), "bootstrap_environment");
     let release_imports_final = append_text_import(release_imports, "bootstrap_pipeline");
+    let release_module = bootstrap_package_module(
+        "bootstrap_release",
+        "src/release.evd",
+        release_imports_final,
+    );
     let release = append_bootstrap_package_module(
         layout,
-        bootstrap_package_module(
-            "bootstrap_release",
-            "src/release.evd",
-            release_imports_final,
-        ),
+        release_module,
     );
+    let release_by_name = append_bootstrap_package_module_index(layout_by_name, release_module);
     let main_imports = append_text_import(list_empty<Text>(), "bootstrap_host");
     let main_imports_more = append_text_import(main_imports, "bootstrap_environment");
     let main_imports_more2 = append_text_import(main_imports_more, "bootstrap_discovery");
@@ -142,22 +169,30 @@ public fn bootstrap_package_layout(package: bootstrap_source::PackageSource) -> 
     let main_imports_more4 = append_text_import(main_imports_more3, "bootstrap_release");
     let main_imports_more5 = append_text_import(main_imports_more4, "bootstrap_source");
     let main_imports_final = append_text_import(main_imports_more5, "bootstrap_pipeline");
+    let main_module = bootstrap_package_module(
+        "bootstrap_compiler",
+        "src/main.evd",
+        main_imports_final,
+    );
     let main = append_bootstrap_package_module(
         release,
-        bootstrap_package_module(
-            "bootstrap_compiler",
-            "src/main.evd",
-            main_imports_final,
-        ),
+        main_module,
     );
+    let main_by_name = append_bootstrap_package_module_index(release_by_name, main_module);
 
     BootstrapPackageLayout {
         package,
         modules: main,
+        modules_by_name: main_by_name,
     }
 }
 
 public fn bootstrap_package_module_count(layout: BootstrapPackageLayout) -> Nat {
-    nonempty_list_count_copy<BootstrapPackageModule>(layout.modules)
+    nonempty_map_count_copy<Text, BootstrapPackageModule>(layout.modules_by_name)
+}
+
+public fn bootstrap_package_module_by_name(layout: BootstrapPackageLayout, module_name: Text) -> BootstrapPackageModule fails MapBindingFailure {
+    let found_module = try nonempty_map_lookup_copy<Text, BootstrapPackageModule>(layout.modules_by_name, module_name);
+    found_module
 }
 }

@@ -654,146 +654,198 @@ functions:
         %3[widened] = call nonempty_list_widen$bootstrap_layout__BootstrapPackageModule(%0[modules])
         %2[$return] = call list_append$bootstrap_layout__BootstrapPackageModule(%3[widened], %1[item])
         return %2[$return]
+  - private fn bootstrap_layout::append_bootstrap_package_module_index -> NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
+      locals:
+        %0[modules] : NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
+        %1[item] : bootstrap_layout::BootstrapPackageModule
+        %2[$return] : NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
+        %3[tmp] : Text
+      block %0
+        %3[tmp] = %1[item].name
+        %2[$return] = call nonempty_map_bind_or_replace$Text$bootstrap_layout__BootstrapPackageModule(%0[modules], %3[tmp], %1[item])
+        return %2[$return]
   - public fn bootstrap_layout::bootstrap_package_layout -> bootstrap_layout::BootstrapPackageLayout
       locals:
         %0[package] : bootstrap_source::PackageSource
         %1[$return] : bootstrap_layout::BootstrapPackageLayout
-        %2[host] : NonEmptyList<bootstrap_layout::BootstrapPackageModule>
-        %3[tmp] : bootstrap_layout::BootstrapPackageModule
-        %4[tmp] : List<Text>
-        %5[environment_imports] : List<Text>
-        %6[tmp] : List<Text>
-        %7[environment] : NonEmptyList<bootstrap_layout::BootstrapPackageModule>
-        %8[tmp] : bootstrap_layout::BootstrapPackageModule
-        %9[source_imports] : List<Text>
-        %10[tmp] : List<Text>
-        %11[source] : NonEmptyList<bootstrap_layout::BootstrapPackageModule>
-        %12[tmp] : bootstrap_layout::BootstrapPackageModule
-        %13[lexing_imports] : List<Text>
-        %14[tmp] : List<Text>
-        %15[lexing] : NonEmptyList<bootstrap_layout::BootstrapPackageModule>
-        %16[tmp] : bootstrap_layout::BootstrapPackageModule
-        %17[parsing_imports] : List<Text>
+        %2[host_module] : bootstrap_layout::BootstrapPackageModule
+        %3[tmp] : List<Text>
+        %4[host] : NonEmptyList<bootstrap_layout::BootstrapPackageModule>
+        %5[host_by_name] : NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
+        %6[tmp] : Text
+        %7[environment_imports] : List<Text>
+        %8[tmp] : List<Text>
+        %9[environment_module] : bootstrap_layout::BootstrapPackageModule
+        %10[environment] : NonEmptyList<bootstrap_layout::BootstrapPackageModule>
+        %11[environment_by_name] : NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
+        %12[source_imports] : List<Text>
+        %13[tmp] : List<Text>
+        %14[source_module] : bootstrap_layout::BootstrapPackageModule
+        %15[source] : NonEmptyList<bootstrap_layout::BootstrapPackageModule>
+        %16[source_by_name] : NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
+        %17[lexing_imports] : List<Text>
         %18[tmp] : List<Text>
-        %19[parsing_imports_final] : List<Text>
-        %20[parsing] : NonEmptyList<bootstrap_layout::BootstrapPackageModule>
-        %21[tmp] : bootstrap_layout::BootstrapPackageModule
-        %22[semantics_imports] : List<Text>
+        %19[lexing_module] : bootstrap_layout::BootstrapPackageModule
+        %20[lexing] : NonEmptyList<bootstrap_layout::BootstrapPackageModule>
+        %21[lexing_by_name] : NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
+        %22[parsing_imports] : List<Text>
         %23[tmp] : List<Text>
-        %24[semantics_imports_more] : List<Text>
-        %25[semantics_imports_final] : List<Text>
-        %26[semantics] : NonEmptyList<bootstrap_layout::BootstrapPackageModule>
-        %27[tmp] : bootstrap_layout::BootstrapPackageModule
-        %28[diagnostics_imports] : List<Text>
+        %24[parsing_imports_final] : List<Text>
+        %25[parsing_module] : bootstrap_layout::BootstrapPackageModule
+        %26[parsing] : NonEmptyList<bootstrap_layout::BootstrapPackageModule>
+        %27[parsing_by_name] : NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
+        %28[semantics_imports] : List<Text>
         %29[tmp] : List<Text>
-        %30[diagnostics] : NonEmptyList<bootstrap_layout::BootstrapPackageModule>
-        %31[tmp] : bootstrap_layout::BootstrapPackageModule
-        %32[discovery_imports] : List<Text>
-        %33[tmp] : List<Text>
-        %34[discovery_imports_more] : List<Text>
-        %35[discovery_imports_final] : List<Text>
-        %36[discovery] : NonEmptyList<bootstrap_layout::BootstrapPackageModule>
-        %37[tmp] : bootstrap_layout::BootstrapPackageModule
-        %38[pipeline_imports] : List<Text>
-        %39[tmp] : List<Text>
-        %40[pipeline_imports_more] : List<Text>
-        %41[pipeline_imports_more2] : List<Text>
-        %42[pipeline_imports_final] : List<Text>
-        %43[pipeline] : NonEmptyList<bootstrap_layout::BootstrapPackageModule>
-        %44[tmp] : bootstrap_layout::BootstrapPackageModule
-        %45[layout_imports] : List<Text>
-        %46[tmp] : List<Text>
-        %47[layout] : NonEmptyList<bootstrap_layout::BootstrapPackageModule>
-        %48[tmp] : bootstrap_layout::BootstrapPackageModule
-        %49[release_imports] : List<Text>
-        %50[tmp] : List<Text>
-        %51[release_imports_final] : List<Text>
-        %52[release] : NonEmptyList<bootstrap_layout::BootstrapPackageModule>
-        %53[tmp] : bootstrap_layout::BootstrapPackageModule
-        %54[main_imports] : List<Text>
-        %55[tmp] : List<Text>
-        %56[main_imports_more] : List<Text>
-        %57[main_imports_more2] : List<Text>
-        %58[main_imports_more3] : List<Text>
-        %59[main_imports_more4] : List<Text>
-        %60[main_imports_more5] : List<Text>
-        %61[main_imports_final] : List<Text>
-        %62[main] : NonEmptyList<bootstrap_layout::BootstrapPackageModule>
-        %63[tmp] : bootstrap_layout::BootstrapPackageModule
+        %30[semantics_imports_more] : List<Text>
+        %31[semantics_imports_final] : List<Text>
+        %32[semantics_module] : bootstrap_layout::BootstrapPackageModule
+        %33[semantics] : NonEmptyList<bootstrap_layout::BootstrapPackageModule>
+        %34[semantics_by_name] : NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
+        %35[diagnostics_imports] : List<Text>
+        %36[tmp] : List<Text>
+        %37[diagnostics_module] : bootstrap_layout::BootstrapPackageModule
+        %38[diagnostics] : NonEmptyList<bootstrap_layout::BootstrapPackageModule>
+        %39[diagnostics_by_name] : NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
+        %40[discovery_imports] : List<Text>
+        %41[tmp] : List<Text>
+        %42[discovery_imports_more] : List<Text>
+        %43[discovery_imports_final] : List<Text>
+        %44[discovery_module] : bootstrap_layout::BootstrapPackageModule
+        %45[discovery] : NonEmptyList<bootstrap_layout::BootstrapPackageModule>
+        %46[discovery_by_name] : NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
+        %47[pipeline_imports] : List<Text>
+        %48[tmp] : List<Text>
+        %49[pipeline_imports_more] : List<Text>
+        %50[pipeline_imports_more2] : List<Text>
+        %51[pipeline_imports_final] : List<Text>
+        %52[pipeline_module] : bootstrap_layout::BootstrapPackageModule
+        %53[pipeline] : NonEmptyList<bootstrap_layout::BootstrapPackageModule>
+        %54[pipeline_by_name] : NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
+        %55[layout_imports] : List<Text>
+        %56[tmp] : List<Text>
+        %57[layout_module] : bootstrap_layout::BootstrapPackageModule
+        %58[layout] : NonEmptyList<bootstrap_layout::BootstrapPackageModule>
+        %59[layout_by_name] : NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
+        %60[release_imports] : List<Text>
+        %61[tmp] : List<Text>
+        %62[release_imports_final] : List<Text>
+        %63[release_module] : bootstrap_layout::BootstrapPackageModule
+        %64[release] : NonEmptyList<bootstrap_layout::BootstrapPackageModule>
+        %65[release_by_name] : NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
+        %66[main_imports] : List<Text>
+        %67[tmp] : List<Text>
+        %68[main_imports_more] : List<Text>
+        %69[main_imports_more2] : List<Text>
+        %70[main_imports_more3] : List<Text>
+        %71[main_imports_more4] : List<Text>
+        %72[main_imports_more5] : List<Text>
+        %73[main_imports_final] : List<Text>
+        %74[main_module] : bootstrap_layout::BootstrapPackageModule
+        %75[main] : NonEmptyList<bootstrap_layout::BootstrapPackageModule>
+        %76[main_by_name] : NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
       block %0
-        %4[tmp] = call list_empty$Text()
-        %3[tmp] = call bootstrap_layout::bootstrap_package_module("bootstrap_host", "src/host.evd", %4[tmp])
-        %2[host] = call list_single$bootstrap_layout__BootstrapPackageModule(%3[tmp])
-        %6[tmp] = call list_empty$Text()
-        %5[environment_imports] = call bootstrap_layout::append_text_import(%6[tmp], "bootstrap_host")
-        %8[tmp] = call bootstrap_layout::bootstrap_package_module("bootstrap_environment", "src/environment.evd", %5[environment_imports])
-        %7[environment] = call bootstrap_layout::append_bootstrap_package_module(%2[host], %8[tmp])
-        %10[tmp] = call list_empty$Text()
-        %9[source_imports] = call bootstrap_layout::append_text_import(%10[tmp], "bootstrap_environment")
-        %12[tmp] = call bootstrap_layout::bootstrap_package_module("bootstrap_source", "src/source.evd", %9[source_imports])
-        %11[source] = call bootstrap_layout::append_bootstrap_package_module(%7[environment], %12[tmp])
-        %14[tmp] = call list_empty$Text()
-        %13[lexing_imports] = call bootstrap_layout::append_text_import(%14[tmp], "bootstrap_source")
-        %16[tmp] = call bootstrap_layout::bootstrap_package_module("bootstrap_lexing", "src/lexing.evd", %13[lexing_imports])
-        %15[lexing] = call bootstrap_layout::append_bootstrap_package_module(%11[source], %16[tmp])
+        %3[tmp] = call list_empty$Text()
+        %2[host_module] = call bootstrap_layout::bootstrap_package_module("bootstrap_host", "src/host.evd", %3[tmp])
+        %4[host] = call list_single$bootstrap_layout__BootstrapPackageModule(%2[host_module])
+        %6[tmp] = %2[host_module].name
+        %5[host_by_name] = call map_single$Text$bootstrap_layout__BootstrapPackageModule(%6[tmp], %2[host_module])
+        %8[tmp] = call list_empty$Text()
+        %7[environment_imports] = call bootstrap_layout::append_text_import(%8[tmp], "bootstrap_host")
+        %9[environment_module] = call bootstrap_layout::bootstrap_package_module("bootstrap_environment", "src/environment.evd", %7[environment_imports])
+        %10[environment] = call bootstrap_layout::append_bootstrap_package_module(%4[host], %9[environment_module])
+        %11[environment_by_name] = call bootstrap_layout::append_bootstrap_package_module_index(%5[host_by_name], %9[environment_module])
+        %13[tmp] = call list_empty$Text()
+        %12[source_imports] = call bootstrap_layout::append_text_import(%13[tmp], "bootstrap_environment")
+        %14[source_module] = call bootstrap_layout::bootstrap_package_module("bootstrap_source", "src/source.evd", %12[source_imports])
+        %15[source] = call bootstrap_layout::append_bootstrap_package_module(%10[environment], %14[source_module])
+        %16[source_by_name] = call bootstrap_layout::append_bootstrap_package_module_index(%11[environment_by_name], %14[source_module])
         %18[tmp] = call list_empty$Text()
-        %17[parsing_imports] = call bootstrap_layout::append_text_import(%18[tmp], "bootstrap_source")
-        %19[parsing_imports_final] = call bootstrap_layout::append_text_import(%17[parsing_imports], "bootstrap_lexing")
-        %21[tmp] = call bootstrap_layout::bootstrap_package_module("bootstrap_parsing", "src/parsing.evd", %19[parsing_imports_final])
-        %20[parsing] = call bootstrap_layout::append_bootstrap_package_module(%15[lexing], %21[tmp])
+        %17[lexing_imports] = call bootstrap_layout::append_text_import(%18[tmp], "bootstrap_source")
+        %19[lexing_module] = call bootstrap_layout::bootstrap_package_module("bootstrap_lexing", "src/lexing.evd", %17[lexing_imports])
+        %20[lexing] = call bootstrap_layout::append_bootstrap_package_module(%15[source], %19[lexing_module])
+        %21[lexing_by_name] = call bootstrap_layout::append_bootstrap_package_module_index(%16[source_by_name], %19[lexing_module])
         %23[tmp] = call list_empty$Text()
-        %22[semantics_imports] = call bootstrap_layout::append_text_import(%23[tmp], "bootstrap_source")
-        %24[semantics_imports_more] = call bootstrap_layout::append_text_import(%22[semantics_imports], "bootstrap_lexing")
-        %25[semantics_imports_final] = call bootstrap_layout::append_text_import(%24[semantics_imports_more], "bootstrap_parsing")
-        %27[tmp] = call bootstrap_layout::bootstrap_package_module("bootstrap_semantics", "src/semantics.evd", %25[semantics_imports_final])
-        %26[semantics] = call bootstrap_layout::append_bootstrap_package_module(%20[parsing], %27[tmp])
+        %22[parsing_imports] = call bootstrap_layout::append_text_import(%23[tmp], "bootstrap_source")
+        %24[parsing_imports_final] = call bootstrap_layout::append_text_import(%22[parsing_imports], "bootstrap_lexing")
+        %25[parsing_module] = call bootstrap_layout::bootstrap_package_module("bootstrap_parsing", "src/parsing.evd", %24[parsing_imports_final])
+        %26[parsing] = call bootstrap_layout::append_bootstrap_package_module(%20[lexing], %25[parsing_module])
+        %27[parsing_by_name] = call bootstrap_layout::append_bootstrap_package_module_index(%21[lexing_by_name], %25[parsing_module])
         %29[tmp] = call list_empty$Text()
-        %28[diagnostics_imports] = call bootstrap_layout::append_text_import(%29[tmp], "bootstrap_source")
-        %31[tmp] = call bootstrap_layout::bootstrap_package_module("bootstrap_diagnostics", "src/diagnostics.evd", %28[diagnostics_imports])
-        %30[diagnostics] = call bootstrap_layout::append_bootstrap_package_module(%26[semantics], %31[tmp])
-        %33[tmp] = call list_empty$Text()
-        %32[discovery_imports] = call bootstrap_layout::append_text_import(%33[tmp], "bootstrap_environment")
-        %34[discovery_imports_more] = call bootstrap_layout::append_text_import(%32[discovery_imports], "bootstrap_diagnostics")
-        %35[discovery_imports_final] = call bootstrap_layout::append_text_import(%34[discovery_imports_more], "bootstrap_source")
-        %37[tmp] = call bootstrap_layout::bootstrap_package_module("bootstrap_discovery", "src/discovery.evd", %35[discovery_imports_final])
-        %36[discovery] = call bootstrap_layout::append_bootstrap_package_module(%30[diagnostics], %37[tmp])
-        %39[tmp] = call list_empty$Text()
-        %38[pipeline_imports] = call bootstrap_layout::append_text_import(%39[tmp], "bootstrap_source")
-        %40[pipeline_imports_more] = call bootstrap_layout::append_text_import(%38[pipeline_imports], "bootstrap_lexing")
-        %41[pipeline_imports_more2] = call bootstrap_layout::append_text_import(%40[pipeline_imports_more], "bootstrap_parsing")
-        %42[pipeline_imports_final] = call bootstrap_layout::append_text_import(%41[pipeline_imports_more2], "bootstrap_semantics")
-        %44[tmp] = call bootstrap_layout::bootstrap_package_module("bootstrap_pipeline", "src/pipeline.evd", %42[pipeline_imports_final])
-        %43[pipeline] = call bootstrap_layout::append_bootstrap_package_module(%36[discovery], %44[tmp])
-        %46[tmp] = call list_empty$Text()
-        %45[layout_imports] = call bootstrap_layout::append_text_import(%46[tmp], "bootstrap_source")
-        %48[tmp] = call bootstrap_layout::bootstrap_package_module("bootstrap_layout", "src/layout.evd", %45[layout_imports])
-        %47[layout] = call bootstrap_layout::append_bootstrap_package_module(%43[pipeline], %48[tmp])
-        %50[tmp] = call list_empty$Text()
-        %49[release_imports] = call bootstrap_layout::append_text_import(%50[tmp], "bootstrap_environment")
-        %51[release_imports_final] = call bootstrap_layout::append_text_import(%49[release_imports], "bootstrap_pipeline")
-        %53[tmp] = call bootstrap_layout::bootstrap_package_module("bootstrap_release", "src/release.evd", %51[release_imports_final])
-        %52[release] = call bootstrap_layout::append_bootstrap_package_module(%47[layout], %53[tmp])
-        %55[tmp] = call list_empty$Text()
-        %54[main_imports] = call bootstrap_layout::append_text_import(%55[tmp], "bootstrap_host")
-        %56[main_imports_more] = call bootstrap_layout::append_text_import(%54[main_imports], "bootstrap_environment")
-        %57[main_imports_more2] = call bootstrap_layout::append_text_import(%56[main_imports_more], "bootstrap_discovery")
-        %58[main_imports_more3] = call bootstrap_layout::append_text_import(%57[main_imports_more2], "bootstrap_layout")
-        %59[main_imports_more4] = call bootstrap_layout::append_text_import(%58[main_imports_more3], "bootstrap_release")
-        %60[main_imports_more5] = call bootstrap_layout::append_text_import(%59[main_imports_more4], "bootstrap_source")
-        %61[main_imports_final] = call bootstrap_layout::append_text_import(%60[main_imports_more5], "bootstrap_pipeline")
-        %63[tmp] = call bootstrap_layout::bootstrap_package_module("bootstrap_compiler", "src/main.evd", %61[main_imports_final])
-        %62[main] = call bootstrap_layout::append_bootstrap_package_module(%52[release], %63[tmp])
-        %1[$return] = construct bootstrap_layout::BootstrapPackageLayout {package: %0[package], modules: %62[main]}
+        %28[semantics_imports] = call bootstrap_layout::append_text_import(%29[tmp], "bootstrap_source")
+        %30[semantics_imports_more] = call bootstrap_layout::append_text_import(%28[semantics_imports], "bootstrap_lexing")
+        %31[semantics_imports_final] = call bootstrap_layout::append_text_import(%30[semantics_imports_more], "bootstrap_parsing")
+        %32[semantics_module] = call bootstrap_layout::bootstrap_package_module("bootstrap_semantics", "src/semantics.evd", %31[semantics_imports_final])
+        %33[semantics] = call bootstrap_layout::append_bootstrap_package_module(%26[parsing], %32[semantics_module])
+        %34[semantics_by_name] = call bootstrap_layout::append_bootstrap_package_module_index(%27[parsing_by_name], %32[semantics_module])
+        %36[tmp] = call list_empty$Text()
+        %35[diagnostics_imports] = call bootstrap_layout::append_text_import(%36[tmp], "bootstrap_source")
+        %37[diagnostics_module] = call bootstrap_layout::bootstrap_package_module("bootstrap_diagnostics", "src/diagnostics.evd", %35[diagnostics_imports])
+        %38[diagnostics] = call bootstrap_layout::append_bootstrap_package_module(%33[semantics], %37[diagnostics_module])
+        %39[diagnostics_by_name] = call bootstrap_layout::append_bootstrap_package_module_index(%34[semantics_by_name], %37[diagnostics_module])
+        %41[tmp] = call list_empty$Text()
+        %40[discovery_imports] = call bootstrap_layout::append_text_import(%41[tmp], "bootstrap_environment")
+        %42[discovery_imports_more] = call bootstrap_layout::append_text_import(%40[discovery_imports], "bootstrap_diagnostics")
+        %43[discovery_imports_final] = call bootstrap_layout::append_text_import(%42[discovery_imports_more], "bootstrap_source")
+        %44[discovery_module] = call bootstrap_layout::bootstrap_package_module("bootstrap_discovery", "src/discovery.evd", %43[discovery_imports_final])
+        %45[discovery] = call bootstrap_layout::append_bootstrap_package_module(%38[diagnostics], %44[discovery_module])
+        %46[discovery_by_name] = call bootstrap_layout::append_bootstrap_package_module_index(%39[diagnostics_by_name], %44[discovery_module])
+        %48[tmp] = call list_empty$Text()
+        %47[pipeline_imports] = call bootstrap_layout::append_text_import(%48[tmp], "bootstrap_source")
+        %49[pipeline_imports_more] = call bootstrap_layout::append_text_import(%47[pipeline_imports], "bootstrap_lexing")
+        %50[pipeline_imports_more2] = call bootstrap_layout::append_text_import(%49[pipeline_imports_more], "bootstrap_parsing")
+        %51[pipeline_imports_final] = call bootstrap_layout::append_text_import(%50[pipeline_imports_more2], "bootstrap_semantics")
+        %52[pipeline_module] = call bootstrap_layout::bootstrap_package_module("bootstrap_pipeline", "src/pipeline.evd", %51[pipeline_imports_final])
+        %53[pipeline] = call bootstrap_layout::append_bootstrap_package_module(%45[discovery], %52[pipeline_module])
+        %54[pipeline_by_name] = call bootstrap_layout::append_bootstrap_package_module_index(%46[discovery_by_name], %52[pipeline_module])
+        %56[tmp] = call list_empty$Text()
+        %55[layout_imports] = call bootstrap_layout::append_text_import(%56[tmp], "bootstrap_source")
+        %57[layout_module] = call bootstrap_layout::bootstrap_package_module("bootstrap_layout", "src/layout.evd", %55[layout_imports])
+        %58[layout] = call bootstrap_layout::append_bootstrap_package_module(%53[pipeline], %57[layout_module])
+        %59[layout_by_name] = call bootstrap_layout::append_bootstrap_package_module_index(%54[pipeline_by_name], %57[layout_module])
+        %61[tmp] = call list_empty$Text()
+        %60[release_imports] = call bootstrap_layout::append_text_import(%61[tmp], "bootstrap_environment")
+        %62[release_imports_final] = call bootstrap_layout::append_text_import(%60[release_imports], "bootstrap_pipeline")
+        %63[release_module] = call bootstrap_layout::bootstrap_package_module("bootstrap_release", "src/release.evd", %62[release_imports_final])
+        %64[release] = call bootstrap_layout::append_bootstrap_package_module(%58[layout], %63[release_module])
+        %65[release_by_name] = call bootstrap_layout::append_bootstrap_package_module_index(%59[layout_by_name], %63[release_module])
+        %67[tmp] = call list_empty$Text()
+        %66[main_imports] = call bootstrap_layout::append_text_import(%67[tmp], "bootstrap_host")
+        %68[main_imports_more] = call bootstrap_layout::append_text_import(%66[main_imports], "bootstrap_environment")
+        %69[main_imports_more2] = call bootstrap_layout::append_text_import(%68[main_imports_more], "bootstrap_discovery")
+        %70[main_imports_more3] = call bootstrap_layout::append_text_import(%69[main_imports_more2], "bootstrap_layout")
+        %71[main_imports_more4] = call bootstrap_layout::append_text_import(%70[main_imports_more3], "bootstrap_release")
+        %72[main_imports_more5] = call bootstrap_layout::append_text_import(%71[main_imports_more4], "bootstrap_source")
+        %73[main_imports_final] = call bootstrap_layout::append_text_import(%72[main_imports_more5], "bootstrap_pipeline")
+        %74[main_module] = call bootstrap_layout::bootstrap_package_module("bootstrap_compiler", "src/main.evd", %73[main_imports_final])
+        %75[main] = call bootstrap_layout::append_bootstrap_package_module(%64[release], %74[main_module])
+        %76[main_by_name] = call bootstrap_layout::append_bootstrap_package_module_index(%65[release_by_name], %74[main_module])
+        %1[$return] = construct bootstrap_layout::BootstrapPackageLayout {package: %0[package], modules: %75[main], modules_by_name: %76[main_by_name]}
         return %1[$return]
   - public fn bootstrap_layout::bootstrap_package_module_count -> Nat
       locals:
         %0[layout] : bootstrap_layout::BootstrapPackageLayout
         %1[$return] : Nat
-        %2[tmp] : NonEmptyList<bootstrap_layout::BootstrapPackageModule>
+        %2[tmp] : NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
       block %0
-        %2[tmp] = %0[layout].modules
-        %1[$return] = call nonempty_list_count_copy$bootstrap_layout__BootstrapPackageModule(%2[tmp])
+        %2[tmp] = %0[layout].modules_by_name
+        %1[$return] = call nonempty_map_count_copy$Text$bootstrap_layout__BootstrapPackageModule(%2[tmp])
         return %1[$return]
+  - public fn bootstrap_layout::bootstrap_package_module_by_name -> bootstrap_layout::BootstrapPackageModule fails MapBindingFailure
+      locals:
+        %0[layout] : bootstrap_layout::BootstrapPackageLayout
+        %1[module_name] : Text
+        %2[$return] : bootstrap_layout::BootstrapPackageModule
+        %3[found_module] : bootstrap_layout::BootstrapPackageModule
+        %4[failure] : MapBindingFailure
+        %5[tmp] : NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
+      block %0
+        %5[tmp] = %0[layout].modules_by_name
+        invoke nonempty_map_lookup_copy$Text$bootstrap_layout__BootstrapPackageModule(%5[tmp], %1[module_name]) ok %3[found_module] -> %1 fail %4[failure] -> %2
+      block %1
+        %2[$return] = %3[found_module]
+        return %2[$return]
+      block %2
+        fail %4[failure]
   - public fn bootstrap_manifest::bootstrap_package_manifest_entry -> bootstrap_manifest::BootstrapPackageManifestEntry
       locals:
         %0[module_name] : Text
@@ -827,161 +879,215 @@ functions:
         %3[widened] = call nonempty_list_widen$bootstrap_manifest__BootstrapPackageManifestEntry(%0[entries])
         %2[$return] = call list_append$bootstrap_manifest__BootstrapPackageManifestEntry(%3[widened], %1[item])
         return %2[$return]
+  - private fn bootstrap_manifest::append_bootstrap_package_manifest_index -> NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+      locals:
+        %0[entries] : NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+        %1[item] : bootstrap_manifest::BootstrapPackageManifestEntry
+        %2[$return] : NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+        %3[tmp] : Text
+      block %0
+        %3[tmp] = %1[item].module_name
+        %2[$return] = call nonempty_map_bind_or_replace$Text$bootstrap_manifest__BootstrapPackageManifestEntry(%0[entries], %3[tmp], %1[item])
+        return %2[$return]
   - public fn bootstrap_manifest::bootstrap_package_manifest -> bootstrap_manifest::BootstrapPackageManifest
       locals:
         %0[package] : bootstrap_source::PackageSource
         %1[layout] : bootstrap_layout::BootstrapPackageLayout
         %2[$return] : bootstrap_manifest::BootstrapPackageManifest
-        %3[host] : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
-        %4[tmp] : bootstrap_manifest::BootstrapPackageManifestEntry
-        %5[tmp] : List<Text>
-        %6[environment_imports] : List<Text>
-        %7[tmp] : List<Text>
-        %8[environment] : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
-        %9[tmp] : bootstrap_manifest::BootstrapPackageManifestEntry
-        %10[source_imports] : List<Text>
-        %11[tmp] : List<Text>
-        %12[source] : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
-        %13[tmp] : bootstrap_manifest::BootstrapPackageManifestEntry
-        %14[lexing_imports] : List<Text>
-        %15[tmp] : List<Text>
-        %16[lexing] : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
-        %17[tmp] : bootstrap_manifest::BootstrapPackageManifestEntry
-        %18[parsing_imports] : List<Text>
+        %3[host_entry] : bootstrap_manifest::BootstrapPackageManifestEntry
+        %4[tmp] : List<Text>
+        %5[host] : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+        %6[host_by_module] : NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+        %7[tmp] : Text
+        %8[environment_imports] : List<Text>
+        %9[tmp] : List<Text>
+        %10[environment_entry] : bootstrap_manifest::BootstrapPackageManifestEntry
+        %11[environment] : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+        %12[environment_by_module] : NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+        %13[source_imports] : List<Text>
+        %14[tmp] : List<Text>
+        %15[source_entry] : bootstrap_manifest::BootstrapPackageManifestEntry
+        %16[source] : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+        %17[source_by_module] : NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+        %18[lexing_imports] : List<Text>
         %19[tmp] : List<Text>
-        %20[parsing_imports_final] : List<Text>
-        %21[parsing] : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
-        %22[tmp] : bootstrap_manifest::BootstrapPackageManifestEntry
-        %23[semantics_imports] : List<Text>
+        %20[lexing_entry] : bootstrap_manifest::BootstrapPackageManifestEntry
+        %21[lexing] : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+        %22[lexing_by_module] : NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+        %23[parsing_imports] : List<Text>
         %24[tmp] : List<Text>
-        %25[semantics_imports_more] : List<Text>
-        %26[semantics_imports_final] : List<Text>
-        %27[semantics] : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
-        %28[tmp] : bootstrap_manifest::BootstrapPackageManifestEntry
-        %29[diagnostics_imports] : List<Text>
+        %25[parsing_imports_final] : List<Text>
+        %26[parsing_entry] : bootstrap_manifest::BootstrapPackageManifestEntry
+        %27[parsing] : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+        %28[parsing_by_module] : NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+        %29[semantics_imports] : List<Text>
         %30[tmp] : List<Text>
-        %31[diagnostics] : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
-        %32[tmp] : bootstrap_manifest::BootstrapPackageManifestEntry
-        %33[discovery_imports] : List<Text>
-        %34[tmp] : List<Text>
-        %35[discovery_imports_more] : List<Text>
-        %36[discovery_imports_final] : List<Text>
-        %37[discovery] : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
-        %38[tmp] : bootstrap_manifest::BootstrapPackageManifestEntry
-        %39[pipeline_imports] : List<Text>
-        %40[tmp] : List<Text>
-        %41[pipeline_imports_more] : List<Text>
-        %42[pipeline_imports_more2] : List<Text>
-        %43[pipeline_imports_final] : List<Text>
-        %44[pipeline] : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
-        %45[tmp] : bootstrap_manifest::BootstrapPackageManifestEntry
-        %46[layout_imports] : List<Text>
-        %47[tmp] : List<Text>
-        %48[layout_entries] : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
-        %49[tmp] : bootstrap_manifest::BootstrapPackageManifestEntry
-        %50[manifest_imports] : List<Text>
-        %51[tmp] : List<Text>
-        %52[manifest_imports_final] : List<Text>
-        %53[manifest] : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
-        %54[tmp] : bootstrap_manifest::BootstrapPackageManifestEntry
-        %55[release_imports] : List<Text>
-        %56[tmp] : List<Text>
-        %57[release_imports_more] : List<Text>
-        %58[release_imports_final] : List<Text>
-        %59[release] : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
-        %60[tmp] : bootstrap_manifest::BootstrapPackageManifestEntry
-        %61[main_imports] : List<Text>
+        %31[semantics_imports_more] : List<Text>
+        %32[semantics_imports_final] : List<Text>
+        %33[semantics_entry] : bootstrap_manifest::BootstrapPackageManifestEntry
+        %34[semantics] : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+        %35[semantics_by_module] : NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+        %36[diagnostics_imports] : List<Text>
+        %37[tmp] : List<Text>
+        %38[diagnostics_entry] : bootstrap_manifest::BootstrapPackageManifestEntry
+        %39[diagnostics] : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+        %40[diagnostics_by_module] : NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+        %41[discovery_imports] : List<Text>
+        %42[tmp] : List<Text>
+        %43[discovery_imports_more] : List<Text>
+        %44[discovery_imports_final] : List<Text>
+        %45[discovery_entry] : bootstrap_manifest::BootstrapPackageManifestEntry
+        %46[discovery] : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+        %47[discovery_by_module] : NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+        %48[pipeline_imports] : List<Text>
+        %49[tmp] : List<Text>
+        %50[pipeline_imports_more] : List<Text>
+        %51[pipeline_imports_more2] : List<Text>
+        %52[pipeline_imports_final] : List<Text>
+        %53[pipeline_entry] : bootstrap_manifest::BootstrapPackageManifestEntry
+        %54[pipeline] : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+        %55[pipeline_by_module] : NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+        %56[layout_imports] : List<Text>
+        %57[tmp] : List<Text>
+        %58[layout_entry] : bootstrap_manifest::BootstrapPackageManifestEntry
+        %59[layout_entries] : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+        %60[layout_by_module] : NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+        %61[manifest_imports] : List<Text>
         %62[tmp] : List<Text>
-        %63[main_imports_more] : List<Text>
-        %64[main_imports_more2] : List<Text>
-        %65[main_imports_more3] : List<Text>
-        %66[main_imports_more4] : List<Text>
-        %67[main_imports_more5] : List<Text>
-        %68[main_imports_more6] : List<Text>
-        %69[main_imports_final] : List<Text>
-        %70[main] : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
-        %71[tmp] : bootstrap_manifest::BootstrapPackageManifestEntry
+        %63[manifest_imports_final] : List<Text>
+        %64[manifest_entry] : bootstrap_manifest::BootstrapPackageManifestEntry
+        %65[manifest] : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+        %66[manifest_by_module] : NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+        %67[release_imports] : List<Text>
+        %68[tmp] : List<Text>
+        %69[release_imports_more] : List<Text>
+        %70[release_imports_final] : List<Text>
+        %71[release_entry] : bootstrap_manifest::BootstrapPackageManifestEntry
+        %72[release] : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+        %73[release_by_module] : NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+        %74[main_imports] : List<Text>
+        %75[tmp] : List<Text>
+        %76[main_imports_more] : List<Text>
+        %77[main_imports_more2] : List<Text>
+        %78[main_imports_more3] : List<Text>
+        %79[main_imports_more4] : List<Text>
+        %80[main_imports_more5] : List<Text>
+        %81[main_imports_more6] : List<Text>
+        %82[main_imports_final] : List<Text>
+        %83[main_entry] : bootstrap_manifest::BootstrapPackageManifestEntry
+        %84[main] : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+        %85[main_by_module] : NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
       block %0
-        %5[tmp] = call list_empty$Text()
-        %4[tmp] = call bootstrap_manifest::bootstrap_package_manifest_entry("bootstrap_host", "src/host.evd", %5[tmp])
-        %3[host] = call list_single$bootstrap_manifest__BootstrapPackageManifestEntry(%4[tmp])
-        %7[tmp] = call list_empty$Text()
-        %6[environment_imports] = call bootstrap_manifest::append_bootstrap_package_manifest_import(%7[tmp], "bootstrap_host")
-        %9[tmp] = call bootstrap_manifest::bootstrap_package_manifest_entry("bootstrap_environment", "src/environment.evd", %6[environment_imports])
-        %8[environment] = call bootstrap_manifest::append_bootstrap_package_manifest_entry(%3[host], %9[tmp])
-        %11[tmp] = call list_empty$Text()
-        %10[source_imports] = call bootstrap_manifest::append_bootstrap_package_manifest_import(%11[tmp], "bootstrap_environment")
-        %13[tmp] = call bootstrap_manifest::bootstrap_package_manifest_entry("bootstrap_source", "src/source.evd", %10[source_imports])
-        %12[source] = call bootstrap_manifest::append_bootstrap_package_manifest_entry(%8[environment], %13[tmp])
-        %15[tmp] = call list_empty$Text()
-        %14[lexing_imports] = call bootstrap_manifest::append_bootstrap_package_manifest_import(%15[tmp], "bootstrap_source")
-        %17[tmp] = call bootstrap_manifest::bootstrap_package_manifest_entry("bootstrap_lexing", "src/lexing.evd", %14[lexing_imports])
-        %16[lexing] = call bootstrap_manifest::append_bootstrap_package_manifest_entry(%12[source], %17[tmp])
+        %4[tmp] = call list_empty$Text()
+        %3[host_entry] = call bootstrap_manifest::bootstrap_package_manifest_entry("bootstrap_host", "src/host.evd", %4[tmp])
+        %5[host] = call list_single$bootstrap_manifest__BootstrapPackageManifestEntry(%3[host_entry])
+        %7[tmp] = %3[host_entry].module_name
+        %6[host_by_module] = call map_single$Text$bootstrap_manifest__BootstrapPackageManifestEntry(%7[tmp], %3[host_entry])
+        %9[tmp] = call list_empty$Text()
+        %8[environment_imports] = call bootstrap_manifest::append_bootstrap_package_manifest_import(%9[tmp], "bootstrap_host")
+        %10[environment_entry] = call bootstrap_manifest::bootstrap_package_manifest_entry("bootstrap_environment", "src/environment.evd", %8[environment_imports])
+        %11[environment] = call bootstrap_manifest::append_bootstrap_package_manifest_entry(%5[host], %10[environment_entry])
+        %12[environment_by_module] = call bootstrap_manifest::append_bootstrap_package_manifest_index(%6[host_by_module], %10[environment_entry])
+        %14[tmp] = call list_empty$Text()
+        %13[source_imports] = call bootstrap_manifest::append_bootstrap_package_manifest_import(%14[tmp], "bootstrap_environment")
+        %15[source_entry] = call bootstrap_manifest::bootstrap_package_manifest_entry("bootstrap_source", "src/source.evd", %13[source_imports])
+        %16[source] = call bootstrap_manifest::append_bootstrap_package_manifest_entry(%11[environment], %15[source_entry])
+        %17[source_by_module] = call bootstrap_manifest::append_bootstrap_package_manifest_index(%12[environment_by_module], %15[source_entry])
         %19[tmp] = call list_empty$Text()
-        %18[parsing_imports] = call bootstrap_manifest::append_bootstrap_package_manifest_import(%19[tmp], "bootstrap_source")
-        %20[parsing_imports_final] = call bootstrap_manifest::append_bootstrap_package_manifest_import(%18[parsing_imports], "bootstrap_lexing")
-        %22[tmp] = call bootstrap_manifest::bootstrap_package_manifest_entry("bootstrap_parsing", "src/parsing.evd", %20[parsing_imports_final])
-        %21[parsing] = call bootstrap_manifest::append_bootstrap_package_manifest_entry(%16[lexing], %22[tmp])
+        %18[lexing_imports] = call bootstrap_manifest::append_bootstrap_package_manifest_import(%19[tmp], "bootstrap_source")
+        %20[lexing_entry] = call bootstrap_manifest::bootstrap_package_manifest_entry("bootstrap_lexing", "src/lexing.evd", %18[lexing_imports])
+        %21[lexing] = call bootstrap_manifest::append_bootstrap_package_manifest_entry(%16[source], %20[lexing_entry])
+        %22[lexing_by_module] = call bootstrap_manifest::append_bootstrap_package_manifest_index(%17[source_by_module], %20[lexing_entry])
         %24[tmp] = call list_empty$Text()
-        %23[semantics_imports] = call bootstrap_manifest::append_bootstrap_package_manifest_import(%24[tmp], "bootstrap_source")
-        %25[semantics_imports_more] = call bootstrap_manifest::append_bootstrap_package_manifest_import(%23[semantics_imports], "bootstrap_lexing")
-        %26[semantics_imports_final] = call bootstrap_manifest::append_bootstrap_package_manifest_import(%25[semantics_imports_more], "bootstrap_parsing")
-        %28[tmp] = call bootstrap_manifest::bootstrap_package_manifest_entry("bootstrap_semantics", "src/semantics.evd", %26[semantics_imports_final])
-        %27[semantics] = call bootstrap_manifest::append_bootstrap_package_manifest_entry(%21[parsing], %28[tmp])
+        %23[parsing_imports] = call bootstrap_manifest::append_bootstrap_package_manifest_import(%24[tmp], "bootstrap_source")
+        %25[parsing_imports_final] = call bootstrap_manifest::append_bootstrap_package_manifest_import(%23[parsing_imports], "bootstrap_lexing")
+        %26[parsing_entry] = call bootstrap_manifest::bootstrap_package_manifest_entry("bootstrap_parsing", "src/parsing.evd", %25[parsing_imports_final])
+        %27[parsing] = call bootstrap_manifest::append_bootstrap_package_manifest_entry(%21[lexing], %26[parsing_entry])
+        %28[parsing_by_module] = call bootstrap_manifest::append_bootstrap_package_manifest_index(%22[lexing_by_module], %26[parsing_entry])
         %30[tmp] = call list_empty$Text()
-        %29[diagnostics_imports] = call bootstrap_manifest::append_bootstrap_package_manifest_import(%30[tmp], "bootstrap_source")
-        %32[tmp] = call bootstrap_manifest::bootstrap_package_manifest_entry("bootstrap_diagnostics", "src/diagnostics.evd", %29[diagnostics_imports])
-        %31[diagnostics] = call bootstrap_manifest::append_bootstrap_package_manifest_entry(%27[semantics], %32[tmp])
-        %34[tmp] = call list_empty$Text()
-        %33[discovery_imports] = call bootstrap_manifest::append_bootstrap_package_manifest_import(%34[tmp], "bootstrap_environment")
-        %35[discovery_imports_more] = call bootstrap_manifest::append_bootstrap_package_manifest_import(%33[discovery_imports], "bootstrap_diagnostics")
-        %36[discovery_imports_final] = call bootstrap_manifest::append_bootstrap_package_manifest_import(%35[discovery_imports_more], "bootstrap_source")
-        %38[tmp] = call bootstrap_manifest::bootstrap_package_manifest_entry("bootstrap_discovery", "src/discovery.evd", %36[discovery_imports_final])
-        %37[discovery] = call bootstrap_manifest::append_bootstrap_package_manifest_entry(%31[diagnostics], %38[tmp])
-        %40[tmp] = call list_empty$Text()
-        %39[pipeline_imports] = call bootstrap_manifest::append_bootstrap_package_manifest_import(%40[tmp], "bootstrap_source")
-        %41[pipeline_imports_more] = call bootstrap_manifest::append_bootstrap_package_manifest_import(%39[pipeline_imports], "bootstrap_lexing")
-        %42[pipeline_imports_more2] = call bootstrap_manifest::append_bootstrap_package_manifest_import(%41[pipeline_imports_more], "bootstrap_parsing")
-        %43[pipeline_imports_final] = call bootstrap_manifest::append_bootstrap_package_manifest_import(%42[pipeline_imports_more2], "bootstrap_semantics")
-        %45[tmp] = call bootstrap_manifest::bootstrap_package_manifest_entry("bootstrap_pipeline", "src/pipeline.evd", %43[pipeline_imports_final])
-        %44[pipeline] = call bootstrap_manifest::append_bootstrap_package_manifest_entry(%37[discovery], %45[tmp])
-        %47[tmp] = call list_empty$Text()
-        %46[layout_imports] = call bootstrap_manifest::append_bootstrap_package_manifest_import(%47[tmp], "bootstrap_source")
-        %49[tmp] = call bootstrap_manifest::bootstrap_package_manifest_entry("bootstrap_layout", "src/layout.evd", %46[layout_imports])
-        %48[layout_entries] = call bootstrap_manifest::append_bootstrap_package_manifest_entry(%44[pipeline], %49[tmp])
-        %51[tmp] = call list_empty$Text()
-        %50[manifest_imports] = call bootstrap_manifest::append_bootstrap_package_manifest_import(%51[tmp], "bootstrap_layout")
-        %52[manifest_imports_final] = call bootstrap_manifest::append_bootstrap_package_manifest_import(%50[manifest_imports], "bootstrap_source")
-        %54[tmp] = call bootstrap_manifest::bootstrap_package_manifest_entry("bootstrap_manifest", "src/manifest.evd", %52[manifest_imports_final])
-        %53[manifest] = call bootstrap_manifest::append_bootstrap_package_manifest_entry(%48[layout_entries], %54[tmp])
-        %56[tmp] = call list_empty$Text()
-        %55[release_imports] = call bootstrap_manifest::append_bootstrap_package_manifest_import(%56[tmp], "bootstrap_environment")
-        %57[release_imports_more] = call bootstrap_manifest::append_bootstrap_package_manifest_import(%55[release_imports], "bootstrap_manifest")
-        %58[release_imports_final] = call bootstrap_manifest::append_bootstrap_package_manifest_import(%57[release_imports_more], "bootstrap_pipeline")
-        %60[tmp] = call bootstrap_manifest::bootstrap_package_manifest_entry("bootstrap_release", "src/release.evd", %58[release_imports_final])
-        %59[release] = call bootstrap_manifest::append_bootstrap_package_manifest_entry(%53[manifest], %60[tmp])
+        %29[semantics_imports] = call bootstrap_manifest::append_bootstrap_package_manifest_import(%30[tmp], "bootstrap_source")
+        %31[semantics_imports_more] = call bootstrap_manifest::append_bootstrap_package_manifest_import(%29[semantics_imports], "bootstrap_lexing")
+        %32[semantics_imports_final] = call bootstrap_manifest::append_bootstrap_package_manifest_import(%31[semantics_imports_more], "bootstrap_parsing")
+        %33[semantics_entry] = call bootstrap_manifest::bootstrap_package_manifest_entry("bootstrap_semantics", "src/semantics.evd", %32[semantics_imports_final])
+        %34[semantics] = call bootstrap_manifest::append_bootstrap_package_manifest_entry(%27[parsing], %33[semantics_entry])
+        %35[semantics_by_module] = call bootstrap_manifest::append_bootstrap_package_manifest_index(%28[parsing_by_module], %33[semantics_entry])
+        %37[tmp] = call list_empty$Text()
+        %36[diagnostics_imports] = call bootstrap_manifest::append_bootstrap_package_manifest_import(%37[tmp], "bootstrap_source")
+        %38[diagnostics_entry] = call bootstrap_manifest::bootstrap_package_manifest_entry("bootstrap_diagnostics", "src/diagnostics.evd", %36[diagnostics_imports])
+        %39[diagnostics] = call bootstrap_manifest::append_bootstrap_package_manifest_entry(%34[semantics], %38[diagnostics_entry])
+        %40[diagnostics_by_module] = call bootstrap_manifest::append_bootstrap_package_manifest_index(%35[semantics_by_module], %38[diagnostics_entry])
+        %42[tmp] = call list_empty$Text()
+        %41[discovery_imports] = call bootstrap_manifest::append_bootstrap_package_manifest_import(%42[tmp], "bootstrap_environment")
+        %43[discovery_imports_more] = call bootstrap_manifest::append_bootstrap_package_manifest_import(%41[discovery_imports], "bootstrap_diagnostics")
+        %44[discovery_imports_final] = call bootstrap_manifest::append_bootstrap_package_manifest_import(%43[discovery_imports_more], "bootstrap_source")
+        %45[discovery_entry] = call bootstrap_manifest::bootstrap_package_manifest_entry("bootstrap_discovery", "src/discovery.evd", %44[discovery_imports_final])
+        %46[discovery] = call bootstrap_manifest::append_bootstrap_package_manifest_entry(%39[diagnostics], %45[discovery_entry])
+        %47[discovery_by_module] = call bootstrap_manifest::append_bootstrap_package_manifest_index(%40[diagnostics_by_module], %45[discovery_entry])
+        %49[tmp] = call list_empty$Text()
+        %48[pipeline_imports] = call bootstrap_manifest::append_bootstrap_package_manifest_import(%49[tmp], "bootstrap_source")
+        %50[pipeline_imports_more] = call bootstrap_manifest::append_bootstrap_package_manifest_import(%48[pipeline_imports], "bootstrap_lexing")
+        %51[pipeline_imports_more2] = call bootstrap_manifest::append_bootstrap_package_manifest_import(%50[pipeline_imports_more], "bootstrap_parsing")
+        %52[pipeline_imports_final] = call bootstrap_manifest::append_bootstrap_package_manifest_import(%51[pipeline_imports_more2], "bootstrap_semantics")
+        %53[pipeline_entry] = call bootstrap_manifest::bootstrap_package_manifest_entry("bootstrap_pipeline", "src/pipeline.evd", %52[pipeline_imports_final])
+        %54[pipeline] = call bootstrap_manifest::append_bootstrap_package_manifest_entry(%46[discovery], %53[pipeline_entry])
+        %55[pipeline_by_module] = call bootstrap_manifest::append_bootstrap_package_manifest_index(%47[discovery_by_module], %53[pipeline_entry])
+        %57[tmp] = call list_empty$Text()
+        %56[layout_imports] = call bootstrap_manifest::append_bootstrap_package_manifest_import(%57[tmp], "bootstrap_source")
+        %58[layout_entry] = call bootstrap_manifest::bootstrap_package_manifest_entry("bootstrap_layout", "src/layout.evd", %56[layout_imports])
+        %59[layout_entries] = call bootstrap_manifest::append_bootstrap_package_manifest_entry(%54[pipeline], %58[layout_entry])
+        %60[layout_by_module] = call bootstrap_manifest::append_bootstrap_package_manifest_index(%55[pipeline_by_module], %58[layout_entry])
         %62[tmp] = call list_empty$Text()
-        %61[main_imports] = call bootstrap_manifest::append_bootstrap_package_manifest_import(%62[tmp], "bootstrap_host")
-        %63[main_imports_more] = call bootstrap_manifest::append_bootstrap_package_manifest_import(%61[main_imports], "bootstrap_environment")
-        %64[main_imports_more2] = call bootstrap_manifest::append_bootstrap_package_manifest_import(%63[main_imports_more], "bootstrap_discovery")
-        %65[main_imports_more3] = call bootstrap_manifest::append_bootstrap_package_manifest_import(%64[main_imports_more2], "bootstrap_layout")
-        %66[main_imports_more4] = call bootstrap_manifest::append_bootstrap_package_manifest_import(%65[main_imports_more3], "bootstrap_manifest")
-        %67[main_imports_more5] = call bootstrap_manifest::append_bootstrap_package_manifest_import(%66[main_imports_more4], "bootstrap_release")
-        %68[main_imports_more6] = call bootstrap_manifest::append_bootstrap_package_manifest_import(%67[main_imports_more5], "bootstrap_source")
-        %69[main_imports_final] = call bootstrap_manifest::append_bootstrap_package_manifest_import(%68[main_imports_more6], "bootstrap_pipeline")
-        %71[tmp] = call bootstrap_manifest::bootstrap_package_manifest_entry("bootstrap_compiler", "src/main.evd", %69[main_imports_final])
-        %70[main] = call bootstrap_manifest::append_bootstrap_package_manifest_entry(%59[release], %71[tmp])
-        %2[$return] = construct bootstrap_manifest::BootstrapPackageManifest {package: %0[package], layout: %1[layout], entries: %70[main]}
+        %61[manifest_imports] = call bootstrap_manifest::append_bootstrap_package_manifest_import(%62[tmp], "bootstrap_layout")
+        %63[manifest_imports_final] = call bootstrap_manifest::append_bootstrap_package_manifest_import(%61[manifest_imports], "bootstrap_source")
+        %64[manifest_entry] = call bootstrap_manifest::bootstrap_package_manifest_entry("bootstrap_manifest", "src/manifest.evd", %63[manifest_imports_final])
+        %65[manifest] = call bootstrap_manifest::append_bootstrap_package_manifest_entry(%59[layout_entries], %64[manifest_entry])
+        %66[manifest_by_module] = call bootstrap_manifest::append_bootstrap_package_manifest_index(%60[layout_by_module], %64[manifest_entry])
+        %68[tmp] = call list_empty$Text()
+        %67[release_imports] = call bootstrap_manifest::append_bootstrap_package_manifest_import(%68[tmp], "bootstrap_environment")
+        %69[release_imports_more] = call bootstrap_manifest::append_bootstrap_package_manifest_import(%67[release_imports], "bootstrap_manifest")
+        %70[release_imports_final] = call bootstrap_manifest::append_bootstrap_package_manifest_import(%69[release_imports_more], "bootstrap_pipeline")
+        %71[release_entry] = call bootstrap_manifest::bootstrap_package_manifest_entry("bootstrap_release", "src/release.evd", %70[release_imports_final])
+        %72[release] = call bootstrap_manifest::append_bootstrap_package_manifest_entry(%65[manifest], %71[release_entry])
+        %73[release_by_module] = call bootstrap_manifest::append_bootstrap_package_manifest_index(%66[manifest_by_module], %71[release_entry])
+        %75[tmp] = call list_empty$Text()
+        %74[main_imports] = call bootstrap_manifest::append_bootstrap_package_manifest_import(%75[tmp], "bootstrap_host")
+        %76[main_imports_more] = call bootstrap_manifest::append_bootstrap_package_manifest_import(%74[main_imports], "bootstrap_environment")
+        %77[main_imports_more2] = call bootstrap_manifest::append_bootstrap_package_manifest_import(%76[main_imports_more], "bootstrap_discovery")
+        %78[main_imports_more3] = call bootstrap_manifest::append_bootstrap_package_manifest_import(%77[main_imports_more2], "bootstrap_layout")
+        %79[main_imports_more4] = call bootstrap_manifest::append_bootstrap_package_manifest_import(%78[main_imports_more3], "bootstrap_manifest")
+        %80[main_imports_more5] = call bootstrap_manifest::append_bootstrap_package_manifest_import(%79[main_imports_more4], "bootstrap_release")
+        %81[main_imports_more6] = call bootstrap_manifest::append_bootstrap_package_manifest_import(%80[main_imports_more5], "bootstrap_source")
+        %82[main_imports_final] = call bootstrap_manifest::append_bootstrap_package_manifest_import(%81[main_imports_more6], "bootstrap_pipeline")
+        %83[main_entry] = call bootstrap_manifest::bootstrap_package_manifest_entry("bootstrap_compiler", "src/main.evd", %82[main_imports_final])
+        %84[main] = call bootstrap_manifest::append_bootstrap_package_manifest_entry(%72[release], %83[main_entry])
+        %85[main_by_module] = call bootstrap_manifest::append_bootstrap_package_manifest_index(%73[release_by_module], %83[main_entry])
+        %2[$return] = construct bootstrap_manifest::BootstrapPackageManifest {package: %0[package], layout: %1[layout], entries: %84[main], entries_by_module: %85[main_by_module]}
         return %2[$return]
   - public fn bootstrap_manifest::bootstrap_package_manifest_entry_count -> Nat
       locals:
         %0[manifest] : bootstrap_manifest::BootstrapPackageManifest
         %1[$return] : Nat
-        %2[tmp] : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+        %2[tmp] : NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
       block %0
-        %2[tmp] = %0[manifest].entries
-        %1[$return] = call nonempty_list_count_copy$bootstrap_manifest__BootstrapPackageManifestEntry(%2[tmp])
+        %2[tmp] = %0[manifest].entries_by_module
+        %1[$return] = call nonempty_map_count_copy$Text$bootstrap_manifest__BootstrapPackageManifestEntry(%2[tmp])
         return %1[$return]
+  - public fn bootstrap_manifest::bootstrap_package_manifest_entry_by_name -> bootstrap_manifest::BootstrapPackageManifestEntry fails MapBindingFailure
+      locals:
+        %0[manifest] : bootstrap_manifest::BootstrapPackageManifest
+        %1[module_name] : Text
+        %2[$return] : bootstrap_manifest::BootstrapPackageManifestEntry
+        %3[entry] : bootstrap_manifest::BootstrapPackageManifestEntry
+        %4[failure] : MapBindingFailure
+        %5[tmp] : NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+      block %0
+        %5[tmp] = %0[manifest].entries_by_module
+        invoke nonempty_map_lookup_copy$Text$bootstrap_manifest__BootstrapPackageManifestEntry(%5[tmp], %1[module_name]) ok %3[entry] -> %1 fail %4[failure] -> %2
+      block %1
+        %2[$return] = %3[entry]
+        return %2[$return]
+      block %2
+        fail %4[failure]
   - public fn bootstrap_release::bootstrap_stage_invocation -> bootstrap_release::BootstrapStageInvocation
       locals:
         %0[stage_name] : Text
@@ -1023,7 +1129,7 @@ functions:
         %8[tmp] = %0[environment].linker_driver
         %3[$return] = construct bootstrap_release::BootstrapReleaseEvidence {source_commit: %5[tmp], target_triple: %6[tmp], clang_driver: %7[tmp], linker_driver: %8[tmp], package_manifest: %1[package_manifest], stage_harness: %4[stage_harness], pipeline_evidence: %2[pipeline_evidence]}
         return %3[$return]
-  - public fn bootstrap_compiler::build_status -> bootstrap_compiler::BootstrapStatus
+  - public fn bootstrap_compiler::build_status -> bootstrap_compiler::BootstrapStatus fails MapBindingFailure
       locals:
         %0[$return] : bootstrap_compiler::BootstrapStatus [affine]
         %1[host] : bootstrap_host::CompilerHostSurface
@@ -1037,17 +1143,21 @@ functions:
         %9[source_file_count] : Nat
         %10[module_count] : Nat
         %11[manifest_entry_count] : Nat
-        %12[outlined] : bootstrap_pipeline::CompilerPipeline::SourceOutlined [affine]
-        %13[seed] : bootstrap_pipeline::CompilerPipeline::SeedCompiled [affine]
-        %14[stage_one] : bootstrap_pipeline::CompilerPipeline::StageOneCompiled [affine]
-        %15[stage_two] : bootstrap_pipeline::CompilerPipeline::StageTwoValidated [affine]
-        %16[seed_receipt] : bootstrap_pipeline::StageReceipt
-        %17[stage_one_receipt] : bootstrap_pipeline::StageReceipt
-        %18[stage_two_receipt] : bootstrap_pipeline::StageReceipt
-        %19[equivalence] : bootstrap_pipeline::BootstrapEquivalence
-        %20[evidence] : bootstrap_pipeline::BootstrapEvidence
-        %21[release] : bootstrap_release::BootstrapReleaseEvidence
-        %22[outline] : bootstrap_pipeline::BootstrapOutlineRecorded [affine]
+        %12[compiler_layout_module] : bootstrap_layout::BootstrapPackageModule
+        %13[failure] : MapBindingFailure
+        %14[compiler_manifest_entry] : bootstrap_manifest::BootstrapPackageManifestEntry
+        %15[failure] : MapBindingFailure
+        %16[outlined] : bootstrap_pipeline::CompilerPipeline::SourceOutlined [affine]
+        %17[seed] : bootstrap_pipeline::CompilerPipeline::SeedCompiled [affine]
+        %18[stage_one] : bootstrap_pipeline::CompilerPipeline::StageOneCompiled [affine]
+        %19[stage_two] : bootstrap_pipeline::CompilerPipeline::StageTwoValidated [affine]
+        %20[seed_receipt] : bootstrap_pipeline::StageReceipt
+        %21[stage_one_receipt] : bootstrap_pipeline::StageReceipt
+        %22[stage_two_receipt] : bootstrap_pipeline::StageReceipt
+        %23[equivalence] : bootstrap_pipeline::BootstrapEquivalence
+        %24[evidence] : bootstrap_pipeline::BootstrapEvidence
+        %25[release] : bootstrap_release::BootstrapReleaseEvidence
+        %26[outline] : bootstrap_pipeline::BootstrapOutlineRecorded [affine]
       block %0
         %1[host] = call bootstrap_host::bootstrap_host_surface()
         %2[environment] = call bootstrap_environment::bootstrap_environment_surface()
@@ -1060,19 +1170,27 @@ functions:
         %9[source_file_count] = call bootstrap_source::compiler_package_file_count(%5[source])
         %10[module_count] = call bootstrap_layout::bootstrap_package_module_count(%7[layout])
         %11[manifest_entry_count] = call bootstrap_manifest::bootstrap_package_manifest_entry_count(%8[manifest])
-        %12[outlined] = call bootstrap_pipeline::outline(%5[source])
-        %13[seed] = call bootstrap_pipeline::compile_with_seed(%12[outlined])
-        %14[stage_one] = call bootstrap_pipeline::compile_stage_one(%13[seed])
-        %15[stage_two] = call bootstrap_pipeline::validate_stage_two(%14[stage_one])
-        %16[seed_receipt] = call bootstrap_pipeline::seed_receipt()
-        %17[stage_one_receipt] = call bootstrap_pipeline::stage_one_receipt()
-        %18[stage_two_receipt] = call bootstrap_pipeline::stage_two_receipt()
-        %19[equivalence] = call bootstrap_pipeline::bootstrap_equivalence()
-        %20[evidence] = call bootstrap_pipeline::bootstrap_evidence(%16[seed_receipt], %17[stage_one_receipt], %18[stage_two_receipt], %19[equivalence])
-        %21[release] = call bootstrap_release::bootstrap_release_evidence(%2[environment], %8[manifest], %20[evidence])
-        %22[outline] = call bootstrap_pipeline::record_outline("evident.compiler")
-        %0[$return] = construct bootstrap_compiler::BootstrapStatus {host: %1[host], environment: %2[environment], discovery: %3[discovery], layout: %7[layout], manifest: %8[manifest], release: %21[release], package: %5[source], source_file_count: %9[source_file_count], module_count: %10[module_count], manifest_entry_count: %11[manifest_entry_count], exit_status: %4[exit_status], pipeline: %15[stage_two], evidence: %20[evidence], outline: %22[outline]}
+        invoke bootstrap_layout::bootstrap_package_module_by_name(%7[layout], "bootstrap_compiler") ok %12[compiler_layout_module] -> %1 fail %13[failure] -> %2
+      block %1
+        invoke bootstrap_manifest::bootstrap_package_manifest_entry_by_name(%8[manifest], "bootstrap_compiler") ok %14[compiler_manifest_entry] -> %3 fail %15[failure] -> %4
+      block %2
+        fail %13[failure]
+      block %3
+        %16[outlined] = call bootstrap_pipeline::outline(%5[source])
+        %17[seed] = call bootstrap_pipeline::compile_with_seed(%16[outlined])
+        %18[stage_one] = call bootstrap_pipeline::compile_stage_one(%17[seed])
+        %19[stage_two] = call bootstrap_pipeline::validate_stage_two(%18[stage_one])
+        %20[seed_receipt] = call bootstrap_pipeline::seed_receipt()
+        %21[stage_one_receipt] = call bootstrap_pipeline::stage_one_receipt()
+        %22[stage_two_receipt] = call bootstrap_pipeline::stage_two_receipt()
+        %23[equivalence] = call bootstrap_pipeline::bootstrap_equivalence()
+        %24[evidence] = call bootstrap_pipeline::bootstrap_evidence(%20[seed_receipt], %21[stage_one_receipt], %22[stage_two_receipt], %23[equivalence])
+        %25[release] = call bootstrap_release::bootstrap_release_evidence(%2[environment], %8[manifest], %24[evidence])
+        %26[outline] = call bootstrap_pipeline::record_outline("evident.compiler")
+        %0[$return] = construct bootstrap_compiler::BootstrapStatus {host: %1[host], environment: %2[environment], discovery: %3[discovery], layout: %7[layout], manifest: %8[manifest], release: %25[release], package: %5[source], source_file_count: %9[source_file_count], module_count: %10[module_count], manifest_entry_count: %11[manifest_entry_count], compiler_layout_module: %12[compiler_layout_module], compiler_manifest_entry: %14[compiler_manifest_entry], exit_status: %4[exit_status], pipeline: %19[stage_two], evidence: %24[evidence], outline: %26[outline]}
         return %0[$return]
+      block %4
+        fail %15[failure]
   - public fn bootstrap_compiler::bootstrap_stage_count -> Int
       locals:
         %0[$return] : Int
@@ -1082,13 +1200,29 @@ functions:
   - public fn bootstrap_compiler::main -> Int
       locals:
         %0[$return] : Int
-        %1[status] : bootstrap_compiler::BootstrapStatus [affine]
-        %2[tmp] : bootstrap_discovery::SourceDiscovery
+        %1[success] : bootstrap_compiler::BootstrapStatus [affine]
+        %2[failure] : MapBindingFailure
+        %3[status] : bootstrap_compiler::BootstrapStatus [affine]
+        %4[tmp] : bootstrap_discovery::SourceDiscovery
       block %0
-        %1[status] = call bootstrap_compiler::build_status()
-        %2[tmp] = %1[status].discovery
-        %0[$return] = %2[tmp].source_count
+        invoke bootstrap_compiler::build_status() ok %1[success] -> %1 fail %2[failure] -> %2
+      block %1
+        %3[status] = %1[success]
+        %4[tmp] = %3[status].discovery
+        %0[$return] = %4[tmp].source_count
+        goto %3
+      block %2
+        switch %2[failure]
+          arm RequestedKeyHadNoBinding -> %4
+          arm RequestedKeyAlreadyHadBinding -> %5
+      block %3
         return %0[$return]
+      block %4
+        %0[$return] = 1
+        goto %3
+      block %5
+        %0[$return] = 1
+        goto %3
   - public fn nonempty_list_count_copy$bootstrap_source__SourceFile -> Nat
       locals:
         %0[values] : NonEmptyList<bootstrap_source::SourceFile>
@@ -1160,13 +1294,29 @@ functions:
         %0[values] : List<bootstrap_layout::BootstrapPackageModule>
         %1[value] : bootstrap_layout::BootstrapPackageModule
       blocks: <none>
+  - public fn nonempty_map_bind_or_replace$Text$bootstrap_layout__BootstrapPackageModule -> NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
+      locals:
+        %0[entries] : NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
+        %1[key] : Text
+        %2[value] : bootstrap_layout::BootstrapPackageModule
+      blocks: <none>
   - public fn list_single$bootstrap_layout__BootstrapPackageModule -> NonEmptyList<bootstrap_layout::BootstrapPackageModule>
       locals:
         %0[value] : bootstrap_layout::BootstrapPackageModule
       blocks: <none>
-  - public fn nonempty_list_count_copy$bootstrap_layout__BootstrapPackageModule -> Nat
+  - public fn map_single$Text$bootstrap_layout__BootstrapPackageModule -> NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
       locals:
-        %0[values] : NonEmptyList<bootstrap_layout::BootstrapPackageModule>
+        %0[key] : Text
+        %1[value] : bootstrap_layout::BootstrapPackageModule
+      blocks: <none>
+  - public fn nonempty_map_count_copy$Text$bootstrap_layout__BootstrapPackageModule -> Nat
+      locals:
+        %0[entries] : NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
+      blocks: <none>
+  - public fn nonempty_map_lookup_copy$Text$bootstrap_layout__BootstrapPackageModule -> bootstrap_layout::BootstrapPackageModule fails MapBindingFailure
+      locals:
+        %0[entries] : NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
+        %1[key] : Text
       blocks: <none>
   - public fn nonempty_list_widen$bootstrap_manifest__BootstrapPackageManifestEntry -> List<bootstrap_manifest::BootstrapPackageManifestEntry>
       locals:
@@ -1177,11 +1327,27 @@ functions:
         %0[values] : List<bootstrap_manifest::BootstrapPackageManifestEntry>
         %1[value] : bootstrap_manifest::BootstrapPackageManifestEntry
       blocks: <none>
+  - public fn nonempty_map_bind_or_replace$Text$bootstrap_manifest__BootstrapPackageManifestEntry -> NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+      locals:
+        %0[entries] : NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+        %1[key] : Text
+        %2[value] : bootstrap_manifest::BootstrapPackageManifestEntry
+      blocks: <none>
   - public fn list_single$bootstrap_manifest__BootstrapPackageManifestEntry -> NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
       locals:
         %0[value] : bootstrap_manifest::BootstrapPackageManifestEntry
       blocks: <none>
-  - public fn nonempty_list_count_copy$bootstrap_manifest__BootstrapPackageManifestEntry -> Nat
+  - public fn map_single$Text$bootstrap_manifest__BootstrapPackageManifestEntry -> NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
       locals:
-        %0[values] : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+        %0[key] : Text
+        %1[value] : bootstrap_manifest::BootstrapPackageManifestEntry
+      blocks: <none>
+  - public fn nonempty_map_count_copy$Text$bootstrap_manifest__BootstrapPackageManifestEntry -> Nat
+      locals:
+        %0[entries] : NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+      blocks: <none>
+  - public fn nonempty_map_lookup_copy$Text$bootstrap_manifest__BootstrapPackageManifestEntry -> bootstrap_manifest::BootstrapPackageManifestEntry fails MapBindingFailure
+      locals:
+        %0[entries] : NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+        %1[key] : Text
       blocks: <none>

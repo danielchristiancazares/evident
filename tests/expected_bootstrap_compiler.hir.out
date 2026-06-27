@@ -1,4 +1,7 @@
 types:
+  - public reason MapBindingFailure
+      variant RequestedKeyHadNoBinding
+      variant RequestedKeyAlreadyHadBinding
   - public record bootstrap_source::SourcePath
       field text: Text
   - public record bootstrap_source::SourceFile
@@ -196,6 +199,7 @@ types:
   - public record bootstrap_layout::BootstrapPackageLayout
       field package: bootstrap_source::PackageSource
       field modules: NonEmptyList<bootstrap_layout::BootstrapPackageModule>
+      field modules_by_name: NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
   - public record bootstrap_manifest::BootstrapPackageManifestEntry
       field module_name: Text
       field source: bootstrap_source::SourcePath
@@ -204,6 +208,7 @@ types:
       field package: bootstrap_source::PackageSource
       field layout: bootstrap_layout::BootstrapPackageLayout
       field entries: NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+      field entries_by_module: NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
   - public record bootstrap_release::BootstrapStageInvocation
       field stage_name: Text
       field compiler_name: Text
@@ -232,6 +237,8 @@ types:
       field source_file_count: Nat
       field module_count: Nat
       field manifest_entry_count: Nat
+      field compiler_layout_module: bootstrap_layout::BootstrapPackageModule
+      field compiler_manifest_entry: bootstrap_manifest::BootstrapPackageManifestEntry
       field exit_status: bootstrap_host::ExitStatus
       field pipeline: bootstrap_pipeline::CompilerPipeline::StageTwoValidated [affine]
       field evidence: bootstrap_pipeline::BootstrapEvidence
@@ -244,6 +251,8 @@ functions:
   - public fn list_empty<T>() -> List<T>
   - public fn nonempty_list_widen<T>(values: NonEmptyList<T>) -> List<T>
   - public fn list_append<T>(values: List<T>, value: T) -> NonEmptyList<T>
+  - public fn nonempty_map_bind_or_replace<K, V>(entries: NonEmptyMap<K, V>, key: K, value: V) -> NonEmptyMap<K, V>
+  - public fn nonempty_map_lookup_copy<K, V>(entries: NonEmptyMap<K, V>, key: K) -> V fails MapBindingFailure
   - public fn bootstrap_source::source_file(path: Text, contents: Text) -> bootstrap_source::SourceFile
       block -> bootstrap_source::SourceFile
         result
@@ -982,47 +991,80 @@ functions:
           call list_append<bootstrap_layout::BootstrapPackageModule> -> NonEmptyList<bootstrap_layout::BootstrapPackageModule>
             local widened : List<bootstrap_layout::BootstrapPackageModule>
             local item : bootstrap_layout::BootstrapPackageModule
+  - private fn bootstrap_layout::append_bootstrap_package_module_index(modules: NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>, item: bootstrap_layout::BootstrapPackageModule) -> NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
+      block -> NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
+        result
+          call nonempty_map_bind_or_replace<Text, bootstrap_layout::BootstrapPackageModule> -> NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
+            local modules : NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
+            field-access .name : Text
+              local item : bootstrap_layout::BootstrapPackageModule
+            local item : bootstrap_layout::BootstrapPackageModule
   - public fn bootstrap_layout::bootstrap_package_layout(package: bootstrap_source::PackageSource) -> bootstrap_layout::BootstrapPackageLayout
       block -> bootstrap_layout::BootstrapPackageLayout
+        let host_module: bootstrap_layout::BootstrapPackageModule
+          call bootstrap_layout::bootstrap_package_module -> bootstrap_layout::BootstrapPackageModule
+            string "bootstrap_host" : Text
+            string "src/host.evd" : Text
+            call list_empty<Text> -> List<Text>
         let host: NonEmptyList<bootstrap_layout::BootstrapPackageModule>
           call list_single<bootstrap_layout::BootstrapPackageModule> -> NonEmptyList<bootstrap_layout::BootstrapPackageModule>
-            call bootstrap_layout::bootstrap_package_module -> bootstrap_layout::BootstrapPackageModule
-              string "bootstrap_host" : Text
-              string "src/host.evd" : Text
-              call list_empty<Text> -> List<Text>
+            local host_module : bootstrap_layout::BootstrapPackageModule
+        let host_by_name: NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
+          call map_single<Text, bootstrap_layout::BootstrapPackageModule> -> NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
+            field-access .name : Text
+              local host_module : bootstrap_layout::BootstrapPackageModule
+            local host_module : bootstrap_layout::BootstrapPackageModule
         let environment_imports: List<Text>
           call bootstrap_layout::append_text_import -> List<Text>
             call list_empty<Text> -> List<Text>
             string "bootstrap_host" : Text
+        let environment_module: bootstrap_layout::BootstrapPackageModule
+          call bootstrap_layout::bootstrap_package_module -> bootstrap_layout::BootstrapPackageModule
+            string "bootstrap_environment" : Text
+            string "src/environment.evd" : Text
+            local environment_imports : List<Text>
         let environment: NonEmptyList<bootstrap_layout::BootstrapPackageModule>
           call bootstrap_layout::append_bootstrap_package_module -> NonEmptyList<bootstrap_layout::BootstrapPackageModule>
             local host : NonEmptyList<bootstrap_layout::BootstrapPackageModule>
-            call bootstrap_layout::bootstrap_package_module -> bootstrap_layout::BootstrapPackageModule
-              string "bootstrap_environment" : Text
-              string "src/environment.evd" : Text
-              local environment_imports : List<Text>
+            local environment_module : bootstrap_layout::BootstrapPackageModule
+        let environment_by_name: NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
+          call bootstrap_layout::append_bootstrap_package_module_index -> NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
+            local host_by_name : NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
+            local environment_module : bootstrap_layout::BootstrapPackageModule
         let source_imports: List<Text>
           call bootstrap_layout::append_text_import -> List<Text>
             call list_empty<Text> -> List<Text>
             string "bootstrap_environment" : Text
+        let source_module: bootstrap_layout::BootstrapPackageModule
+          call bootstrap_layout::bootstrap_package_module -> bootstrap_layout::BootstrapPackageModule
+            string "bootstrap_source" : Text
+            string "src/source.evd" : Text
+            local source_imports : List<Text>
         let source: NonEmptyList<bootstrap_layout::BootstrapPackageModule>
           call bootstrap_layout::append_bootstrap_package_module -> NonEmptyList<bootstrap_layout::BootstrapPackageModule>
             local environment : NonEmptyList<bootstrap_layout::BootstrapPackageModule>
-            call bootstrap_layout::bootstrap_package_module -> bootstrap_layout::BootstrapPackageModule
-              string "bootstrap_source" : Text
-              string "src/source.evd" : Text
-              local source_imports : List<Text>
+            local source_module : bootstrap_layout::BootstrapPackageModule
+        let source_by_name: NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
+          call bootstrap_layout::append_bootstrap_package_module_index -> NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
+            local environment_by_name : NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
+            local source_module : bootstrap_layout::BootstrapPackageModule
         let lexing_imports: List<Text>
           call bootstrap_layout::append_text_import -> List<Text>
             call list_empty<Text> -> List<Text>
             string "bootstrap_source" : Text
+        let lexing_module: bootstrap_layout::BootstrapPackageModule
+          call bootstrap_layout::bootstrap_package_module -> bootstrap_layout::BootstrapPackageModule
+            string "bootstrap_lexing" : Text
+            string "src/lexing.evd" : Text
+            local lexing_imports : List<Text>
         let lexing: NonEmptyList<bootstrap_layout::BootstrapPackageModule>
           call bootstrap_layout::append_bootstrap_package_module -> NonEmptyList<bootstrap_layout::BootstrapPackageModule>
             local source : NonEmptyList<bootstrap_layout::BootstrapPackageModule>
-            call bootstrap_layout::bootstrap_package_module -> bootstrap_layout::BootstrapPackageModule
-              string "bootstrap_lexing" : Text
-              string "src/lexing.evd" : Text
-              local lexing_imports : List<Text>
+            local lexing_module : bootstrap_layout::BootstrapPackageModule
+        let lexing_by_name: NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
+          call bootstrap_layout::append_bootstrap_package_module_index -> NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
+            local source_by_name : NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
+            local lexing_module : bootstrap_layout::BootstrapPackageModule
         let parsing_imports: List<Text>
           call bootstrap_layout::append_text_import -> List<Text>
             call list_empty<Text> -> List<Text>
@@ -1031,13 +1073,19 @@ functions:
           call bootstrap_layout::append_text_import -> List<Text>
             local parsing_imports : List<Text>
             string "bootstrap_lexing" : Text
+        let parsing_module: bootstrap_layout::BootstrapPackageModule
+          call bootstrap_layout::bootstrap_package_module -> bootstrap_layout::BootstrapPackageModule
+            string "bootstrap_parsing" : Text
+            string "src/parsing.evd" : Text
+            local parsing_imports_final : List<Text>
         let parsing: NonEmptyList<bootstrap_layout::BootstrapPackageModule>
           call bootstrap_layout::append_bootstrap_package_module -> NonEmptyList<bootstrap_layout::BootstrapPackageModule>
             local lexing : NonEmptyList<bootstrap_layout::BootstrapPackageModule>
-            call bootstrap_layout::bootstrap_package_module -> bootstrap_layout::BootstrapPackageModule
-              string "bootstrap_parsing" : Text
-              string "src/parsing.evd" : Text
-              local parsing_imports_final : List<Text>
+            local parsing_module : bootstrap_layout::BootstrapPackageModule
+        let parsing_by_name: NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
+          call bootstrap_layout::append_bootstrap_package_module_index -> NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
+            local lexing_by_name : NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
+            local parsing_module : bootstrap_layout::BootstrapPackageModule
         let semantics_imports: List<Text>
           call bootstrap_layout::append_text_import -> List<Text>
             call list_empty<Text> -> List<Text>
@@ -1050,24 +1098,36 @@ functions:
           call bootstrap_layout::append_text_import -> List<Text>
             local semantics_imports_more : List<Text>
             string "bootstrap_parsing" : Text
+        let semantics_module: bootstrap_layout::BootstrapPackageModule
+          call bootstrap_layout::bootstrap_package_module -> bootstrap_layout::BootstrapPackageModule
+            string "bootstrap_semantics" : Text
+            string "src/semantics.evd" : Text
+            local semantics_imports_final : List<Text>
         let semantics: NonEmptyList<bootstrap_layout::BootstrapPackageModule>
           call bootstrap_layout::append_bootstrap_package_module -> NonEmptyList<bootstrap_layout::BootstrapPackageModule>
             local parsing : NonEmptyList<bootstrap_layout::BootstrapPackageModule>
-            call bootstrap_layout::bootstrap_package_module -> bootstrap_layout::BootstrapPackageModule
-              string "bootstrap_semantics" : Text
-              string "src/semantics.evd" : Text
-              local semantics_imports_final : List<Text>
+            local semantics_module : bootstrap_layout::BootstrapPackageModule
+        let semantics_by_name: NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
+          call bootstrap_layout::append_bootstrap_package_module_index -> NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
+            local parsing_by_name : NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
+            local semantics_module : bootstrap_layout::BootstrapPackageModule
         let diagnostics_imports: List<Text>
           call bootstrap_layout::append_text_import -> List<Text>
             call list_empty<Text> -> List<Text>
             string "bootstrap_source" : Text
+        let diagnostics_module: bootstrap_layout::BootstrapPackageModule
+          call bootstrap_layout::bootstrap_package_module -> bootstrap_layout::BootstrapPackageModule
+            string "bootstrap_diagnostics" : Text
+            string "src/diagnostics.evd" : Text
+            local diagnostics_imports : List<Text>
         let diagnostics: NonEmptyList<bootstrap_layout::BootstrapPackageModule>
           call bootstrap_layout::append_bootstrap_package_module -> NonEmptyList<bootstrap_layout::BootstrapPackageModule>
             local semantics : NonEmptyList<bootstrap_layout::BootstrapPackageModule>
-            call bootstrap_layout::bootstrap_package_module -> bootstrap_layout::BootstrapPackageModule
-              string "bootstrap_diagnostics" : Text
-              string "src/diagnostics.evd" : Text
-              local diagnostics_imports : List<Text>
+            local diagnostics_module : bootstrap_layout::BootstrapPackageModule
+        let diagnostics_by_name: NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
+          call bootstrap_layout::append_bootstrap_package_module_index -> NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
+            local semantics_by_name : NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
+            local diagnostics_module : bootstrap_layout::BootstrapPackageModule
         let discovery_imports: List<Text>
           call bootstrap_layout::append_text_import -> List<Text>
             call list_empty<Text> -> List<Text>
@@ -1080,13 +1140,19 @@ functions:
           call bootstrap_layout::append_text_import -> List<Text>
             local discovery_imports_more : List<Text>
             string "bootstrap_source" : Text
+        let discovery_module: bootstrap_layout::BootstrapPackageModule
+          call bootstrap_layout::bootstrap_package_module -> bootstrap_layout::BootstrapPackageModule
+            string "bootstrap_discovery" : Text
+            string "src/discovery.evd" : Text
+            local discovery_imports_final : List<Text>
         let discovery: NonEmptyList<bootstrap_layout::BootstrapPackageModule>
           call bootstrap_layout::append_bootstrap_package_module -> NonEmptyList<bootstrap_layout::BootstrapPackageModule>
             local diagnostics : NonEmptyList<bootstrap_layout::BootstrapPackageModule>
-            call bootstrap_layout::bootstrap_package_module -> bootstrap_layout::BootstrapPackageModule
-              string "bootstrap_discovery" : Text
-              string "src/discovery.evd" : Text
-              local discovery_imports_final : List<Text>
+            local discovery_module : bootstrap_layout::BootstrapPackageModule
+        let discovery_by_name: NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
+          call bootstrap_layout::append_bootstrap_package_module_index -> NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
+            local diagnostics_by_name : NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
+            local discovery_module : bootstrap_layout::BootstrapPackageModule
         let pipeline_imports: List<Text>
           call bootstrap_layout::append_text_import -> List<Text>
             call list_empty<Text> -> List<Text>
@@ -1103,24 +1169,36 @@ functions:
           call bootstrap_layout::append_text_import -> List<Text>
             local pipeline_imports_more2 : List<Text>
             string "bootstrap_semantics" : Text
+        let pipeline_module: bootstrap_layout::BootstrapPackageModule
+          call bootstrap_layout::bootstrap_package_module -> bootstrap_layout::BootstrapPackageModule
+            string "bootstrap_pipeline" : Text
+            string "src/pipeline.evd" : Text
+            local pipeline_imports_final : List<Text>
         let pipeline: NonEmptyList<bootstrap_layout::BootstrapPackageModule>
           call bootstrap_layout::append_bootstrap_package_module -> NonEmptyList<bootstrap_layout::BootstrapPackageModule>
             local discovery : NonEmptyList<bootstrap_layout::BootstrapPackageModule>
-            call bootstrap_layout::bootstrap_package_module -> bootstrap_layout::BootstrapPackageModule
-              string "bootstrap_pipeline" : Text
-              string "src/pipeline.evd" : Text
-              local pipeline_imports_final : List<Text>
+            local pipeline_module : bootstrap_layout::BootstrapPackageModule
+        let pipeline_by_name: NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
+          call bootstrap_layout::append_bootstrap_package_module_index -> NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
+            local discovery_by_name : NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
+            local pipeline_module : bootstrap_layout::BootstrapPackageModule
         let layout_imports: List<Text>
           call bootstrap_layout::append_text_import -> List<Text>
             call list_empty<Text> -> List<Text>
             string "bootstrap_source" : Text
+        let layout_module: bootstrap_layout::BootstrapPackageModule
+          call bootstrap_layout::bootstrap_package_module -> bootstrap_layout::BootstrapPackageModule
+            string "bootstrap_layout" : Text
+            string "src/layout.evd" : Text
+            local layout_imports : List<Text>
         let layout: NonEmptyList<bootstrap_layout::BootstrapPackageModule>
           call bootstrap_layout::append_bootstrap_package_module -> NonEmptyList<bootstrap_layout::BootstrapPackageModule>
             local pipeline : NonEmptyList<bootstrap_layout::BootstrapPackageModule>
-            call bootstrap_layout::bootstrap_package_module -> bootstrap_layout::BootstrapPackageModule
-              string "bootstrap_layout" : Text
-              string "src/layout.evd" : Text
-              local layout_imports : List<Text>
+            local layout_module : bootstrap_layout::BootstrapPackageModule
+        let layout_by_name: NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
+          call bootstrap_layout::append_bootstrap_package_module_index -> NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
+            local pipeline_by_name : NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
+            local layout_module : bootstrap_layout::BootstrapPackageModule
         let release_imports: List<Text>
           call bootstrap_layout::append_text_import -> List<Text>
             call list_empty<Text> -> List<Text>
@@ -1129,13 +1207,19 @@ functions:
           call bootstrap_layout::append_text_import -> List<Text>
             local release_imports : List<Text>
             string "bootstrap_pipeline" : Text
+        let release_module: bootstrap_layout::BootstrapPackageModule
+          call bootstrap_layout::bootstrap_package_module -> bootstrap_layout::BootstrapPackageModule
+            string "bootstrap_release" : Text
+            string "src/release.evd" : Text
+            local release_imports_final : List<Text>
         let release: NonEmptyList<bootstrap_layout::BootstrapPackageModule>
           call bootstrap_layout::append_bootstrap_package_module -> NonEmptyList<bootstrap_layout::BootstrapPackageModule>
             local layout : NonEmptyList<bootstrap_layout::BootstrapPackageModule>
-            call bootstrap_layout::bootstrap_package_module -> bootstrap_layout::BootstrapPackageModule
-              string "bootstrap_release" : Text
-              string "src/release.evd" : Text
-              local release_imports_final : List<Text>
+            local release_module : bootstrap_layout::BootstrapPackageModule
+        let release_by_name: NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
+          call bootstrap_layout::append_bootstrap_package_module_index -> NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
+            local layout_by_name : NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
+            local release_module : bootstrap_layout::BootstrapPackageModule
         let main_imports: List<Text>
           call bootstrap_layout::append_text_import -> List<Text>
             call list_empty<Text> -> List<Text>
@@ -1164,25 +1248,43 @@ functions:
           call bootstrap_layout::append_text_import -> List<Text>
             local main_imports_more5 : List<Text>
             string "bootstrap_pipeline" : Text
+        let main_module: bootstrap_layout::BootstrapPackageModule
+          call bootstrap_layout::bootstrap_package_module -> bootstrap_layout::BootstrapPackageModule
+            string "bootstrap_compiler" : Text
+            string "src/main.evd" : Text
+            local main_imports_final : List<Text>
         let main: NonEmptyList<bootstrap_layout::BootstrapPackageModule>
           call bootstrap_layout::append_bootstrap_package_module -> NonEmptyList<bootstrap_layout::BootstrapPackageModule>
             local release : NonEmptyList<bootstrap_layout::BootstrapPackageModule>
-            call bootstrap_layout::bootstrap_package_module -> bootstrap_layout::BootstrapPackageModule
-              string "bootstrap_compiler" : Text
-              string "src/main.evd" : Text
-              local main_imports_final : List<Text>
+            local main_module : bootstrap_layout::BootstrapPackageModule
+        let main_by_name: NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
+          call bootstrap_layout::append_bootstrap_package_module_index -> NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
+            local release_by_name : NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
+            local main_module : bootstrap_layout::BootstrapPackageModule
         result
           construct bootstrap_layout::BootstrapPackageLayout : bootstrap_layout::BootstrapPackageLayout
             init package [shorthand]
               local package : bootstrap_source::PackageSource
             init modules
               local main : NonEmptyList<bootstrap_layout::BootstrapPackageModule>
+            init modules_by_name
+              local main_by_name : NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
   - public fn bootstrap_layout::bootstrap_package_module_count(layout: bootstrap_layout::BootstrapPackageLayout) -> Nat
       block -> Nat
         result
-          call nonempty_list_count_copy<bootstrap_layout::BootstrapPackageModule> -> Nat
-            field-access .modules : NonEmptyList<bootstrap_layout::BootstrapPackageModule>
+          call nonempty_map_count_copy<Text, bootstrap_layout::BootstrapPackageModule> -> Nat
+            field-access .modules_by_name : NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
               local layout : bootstrap_layout::BootstrapPackageLayout
+  - public fn bootstrap_layout::bootstrap_package_module_by_name(layout: bootstrap_layout::BootstrapPackageLayout, module_name: Text) -> bootstrap_layout::BootstrapPackageModule fails MapBindingFailure
+      block -> bootstrap_layout::BootstrapPackageModule
+        let found_module: bootstrap_layout::BootstrapPackageModule
+          try
+            call nonempty_map_lookup_copy<Text, bootstrap_layout::BootstrapPackageModule> -> bootstrap_layout::BootstrapPackageModule fails
+              field-access .modules_by_name : NonEmptyMap<Text, bootstrap_layout::BootstrapPackageModule>
+                local layout : bootstrap_layout::BootstrapPackageLayout
+              local module_name : Text
+        result
+          local found_module : bootstrap_layout::BootstrapPackageModule
   - public fn bootstrap_manifest::bootstrap_package_manifest_entry(module_name: Text, source: Text, imports: List<Text>) -> bootstrap_manifest::BootstrapPackageManifestEntry
       block -> bootstrap_manifest::BootstrapPackageManifestEntry
         result
@@ -1213,47 +1315,80 @@ functions:
           call list_append<bootstrap_manifest::BootstrapPackageManifestEntry> -> NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
             local widened : List<bootstrap_manifest::BootstrapPackageManifestEntry>
             local item : bootstrap_manifest::BootstrapPackageManifestEntry
+  - private fn bootstrap_manifest::append_bootstrap_package_manifest_index(entries: NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>, item: bootstrap_manifest::BootstrapPackageManifestEntry) -> NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+      block -> NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+        result
+          call nonempty_map_bind_or_replace<Text, bootstrap_manifest::BootstrapPackageManifestEntry> -> NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+            local entries : NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+            field-access .module_name : Text
+              local item : bootstrap_manifest::BootstrapPackageManifestEntry
+            local item : bootstrap_manifest::BootstrapPackageManifestEntry
   - public fn bootstrap_manifest::bootstrap_package_manifest(package: bootstrap_source::PackageSource, layout: bootstrap_layout::BootstrapPackageLayout) -> bootstrap_manifest::BootstrapPackageManifest
       block -> bootstrap_manifest::BootstrapPackageManifest
+        let host_entry: bootstrap_manifest::BootstrapPackageManifestEntry
+          call bootstrap_manifest::bootstrap_package_manifest_entry -> bootstrap_manifest::BootstrapPackageManifestEntry
+            string "bootstrap_host" : Text
+            string "src/host.evd" : Text
+            call list_empty<Text> -> List<Text>
         let host: NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
           call list_single<bootstrap_manifest::BootstrapPackageManifestEntry> -> NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
-            call bootstrap_manifest::bootstrap_package_manifest_entry -> bootstrap_manifest::BootstrapPackageManifestEntry
-              string "bootstrap_host" : Text
-              string "src/host.evd" : Text
-              call list_empty<Text> -> List<Text>
+            local host_entry : bootstrap_manifest::BootstrapPackageManifestEntry
+        let host_by_module: NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+          call map_single<Text, bootstrap_manifest::BootstrapPackageManifestEntry> -> NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+            field-access .module_name : Text
+              local host_entry : bootstrap_manifest::BootstrapPackageManifestEntry
+            local host_entry : bootstrap_manifest::BootstrapPackageManifestEntry
         let environment_imports: List<Text>
           call bootstrap_manifest::append_bootstrap_package_manifest_import -> List<Text>
             call list_empty<Text> -> List<Text>
             string "bootstrap_host" : Text
+        let environment_entry: bootstrap_manifest::BootstrapPackageManifestEntry
+          call bootstrap_manifest::bootstrap_package_manifest_entry -> bootstrap_manifest::BootstrapPackageManifestEntry
+            string "bootstrap_environment" : Text
+            string "src/environment.evd" : Text
+            local environment_imports : List<Text>
         let environment: NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
           call bootstrap_manifest::append_bootstrap_package_manifest_entry -> NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
             local host : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
-            call bootstrap_manifest::bootstrap_package_manifest_entry -> bootstrap_manifest::BootstrapPackageManifestEntry
-              string "bootstrap_environment" : Text
-              string "src/environment.evd" : Text
-              local environment_imports : List<Text>
+            local environment_entry : bootstrap_manifest::BootstrapPackageManifestEntry
+        let environment_by_module: NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+          call bootstrap_manifest::append_bootstrap_package_manifest_index -> NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+            local host_by_module : NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+            local environment_entry : bootstrap_manifest::BootstrapPackageManifestEntry
         let source_imports: List<Text>
           call bootstrap_manifest::append_bootstrap_package_manifest_import -> List<Text>
             call list_empty<Text> -> List<Text>
             string "bootstrap_environment" : Text
+        let source_entry: bootstrap_manifest::BootstrapPackageManifestEntry
+          call bootstrap_manifest::bootstrap_package_manifest_entry -> bootstrap_manifest::BootstrapPackageManifestEntry
+            string "bootstrap_source" : Text
+            string "src/source.evd" : Text
+            local source_imports : List<Text>
         let source: NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
           call bootstrap_manifest::append_bootstrap_package_manifest_entry -> NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
             local environment : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
-            call bootstrap_manifest::bootstrap_package_manifest_entry -> bootstrap_manifest::BootstrapPackageManifestEntry
-              string "bootstrap_source" : Text
-              string "src/source.evd" : Text
-              local source_imports : List<Text>
+            local source_entry : bootstrap_manifest::BootstrapPackageManifestEntry
+        let source_by_module: NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+          call bootstrap_manifest::append_bootstrap_package_manifest_index -> NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+            local environment_by_module : NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+            local source_entry : bootstrap_manifest::BootstrapPackageManifestEntry
         let lexing_imports: List<Text>
           call bootstrap_manifest::append_bootstrap_package_manifest_import -> List<Text>
             call list_empty<Text> -> List<Text>
             string "bootstrap_source" : Text
+        let lexing_entry: bootstrap_manifest::BootstrapPackageManifestEntry
+          call bootstrap_manifest::bootstrap_package_manifest_entry -> bootstrap_manifest::BootstrapPackageManifestEntry
+            string "bootstrap_lexing" : Text
+            string "src/lexing.evd" : Text
+            local lexing_imports : List<Text>
         let lexing: NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
           call bootstrap_manifest::append_bootstrap_package_manifest_entry -> NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
             local source : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
-            call bootstrap_manifest::bootstrap_package_manifest_entry -> bootstrap_manifest::BootstrapPackageManifestEntry
-              string "bootstrap_lexing" : Text
-              string "src/lexing.evd" : Text
-              local lexing_imports : List<Text>
+            local lexing_entry : bootstrap_manifest::BootstrapPackageManifestEntry
+        let lexing_by_module: NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+          call bootstrap_manifest::append_bootstrap_package_manifest_index -> NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+            local source_by_module : NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+            local lexing_entry : bootstrap_manifest::BootstrapPackageManifestEntry
         let parsing_imports: List<Text>
           call bootstrap_manifest::append_bootstrap_package_manifest_import -> List<Text>
             call list_empty<Text> -> List<Text>
@@ -1262,13 +1397,19 @@ functions:
           call bootstrap_manifest::append_bootstrap_package_manifest_import -> List<Text>
             local parsing_imports : List<Text>
             string "bootstrap_lexing" : Text
+        let parsing_entry: bootstrap_manifest::BootstrapPackageManifestEntry
+          call bootstrap_manifest::bootstrap_package_manifest_entry -> bootstrap_manifest::BootstrapPackageManifestEntry
+            string "bootstrap_parsing" : Text
+            string "src/parsing.evd" : Text
+            local parsing_imports_final : List<Text>
         let parsing: NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
           call bootstrap_manifest::append_bootstrap_package_manifest_entry -> NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
             local lexing : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
-            call bootstrap_manifest::bootstrap_package_manifest_entry -> bootstrap_manifest::BootstrapPackageManifestEntry
-              string "bootstrap_parsing" : Text
-              string "src/parsing.evd" : Text
-              local parsing_imports_final : List<Text>
+            local parsing_entry : bootstrap_manifest::BootstrapPackageManifestEntry
+        let parsing_by_module: NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+          call bootstrap_manifest::append_bootstrap_package_manifest_index -> NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+            local lexing_by_module : NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+            local parsing_entry : bootstrap_manifest::BootstrapPackageManifestEntry
         let semantics_imports: List<Text>
           call bootstrap_manifest::append_bootstrap_package_manifest_import -> List<Text>
             call list_empty<Text> -> List<Text>
@@ -1281,24 +1422,36 @@ functions:
           call bootstrap_manifest::append_bootstrap_package_manifest_import -> List<Text>
             local semantics_imports_more : List<Text>
             string "bootstrap_parsing" : Text
+        let semantics_entry: bootstrap_manifest::BootstrapPackageManifestEntry
+          call bootstrap_manifest::bootstrap_package_manifest_entry -> bootstrap_manifest::BootstrapPackageManifestEntry
+            string "bootstrap_semantics" : Text
+            string "src/semantics.evd" : Text
+            local semantics_imports_final : List<Text>
         let semantics: NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
           call bootstrap_manifest::append_bootstrap_package_manifest_entry -> NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
             local parsing : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
-            call bootstrap_manifest::bootstrap_package_manifest_entry -> bootstrap_manifest::BootstrapPackageManifestEntry
-              string "bootstrap_semantics" : Text
-              string "src/semantics.evd" : Text
-              local semantics_imports_final : List<Text>
+            local semantics_entry : bootstrap_manifest::BootstrapPackageManifestEntry
+        let semantics_by_module: NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+          call bootstrap_manifest::append_bootstrap_package_manifest_index -> NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+            local parsing_by_module : NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+            local semantics_entry : bootstrap_manifest::BootstrapPackageManifestEntry
         let diagnostics_imports: List<Text>
           call bootstrap_manifest::append_bootstrap_package_manifest_import -> List<Text>
             call list_empty<Text> -> List<Text>
             string "bootstrap_source" : Text
+        let diagnostics_entry: bootstrap_manifest::BootstrapPackageManifestEntry
+          call bootstrap_manifest::bootstrap_package_manifest_entry -> bootstrap_manifest::BootstrapPackageManifestEntry
+            string "bootstrap_diagnostics" : Text
+            string "src/diagnostics.evd" : Text
+            local diagnostics_imports : List<Text>
         let diagnostics: NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
           call bootstrap_manifest::append_bootstrap_package_manifest_entry -> NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
             local semantics : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
-            call bootstrap_manifest::bootstrap_package_manifest_entry -> bootstrap_manifest::BootstrapPackageManifestEntry
-              string "bootstrap_diagnostics" : Text
-              string "src/diagnostics.evd" : Text
-              local diagnostics_imports : List<Text>
+            local diagnostics_entry : bootstrap_manifest::BootstrapPackageManifestEntry
+        let diagnostics_by_module: NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+          call bootstrap_manifest::append_bootstrap_package_manifest_index -> NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+            local semantics_by_module : NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+            local diagnostics_entry : bootstrap_manifest::BootstrapPackageManifestEntry
         let discovery_imports: List<Text>
           call bootstrap_manifest::append_bootstrap_package_manifest_import -> List<Text>
             call list_empty<Text> -> List<Text>
@@ -1311,13 +1464,19 @@ functions:
           call bootstrap_manifest::append_bootstrap_package_manifest_import -> List<Text>
             local discovery_imports_more : List<Text>
             string "bootstrap_source" : Text
+        let discovery_entry: bootstrap_manifest::BootstrapPackageManifestEntry
+          call bootstrap_manifest::bootstrap_package_manifest_entry -> bootstrap_manifest::BootstrapPackageManifestEntry
+            string "bootstrap_discovery" : Text
+            string "src/discovery.evd" : Text
+            local discovery_imports_final : List<Text>
         let discovery: NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
           call bootstrap_manifest::append_bootstrap_package_manifest_entry -> NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
             local diagnostics : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
-            call bootstrap_manifest::bootstrap_package_manifest_entry -> bootstrap_manifest::BootstrapPackageManifestEntry
-              string "bootstrap_discovery" : Text
-              string "src/discovery.evd" : Text
-              local discovery_imports_final : List<Text>
+            local discovery_entry : bootstrap_manifest::BootstrapPackageManifestEntry
+        let discovery_by_module: NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+          call bootstrap_manifest::append_bootstrap_package_manifest_index -> NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+            local diagnostics_by_module : NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+            local discovery_entry : bootstrap_manifest::BootstrapPackageManifestEntry
         let pipeline_imports: List<Text>
           call bootstrap_manifest::append_bootstrap_package_manifest_import -> List<Text>
             call list_empty<Text> -> List<Text>
@@ -1334,24 +1493,36 @@ functions:
           call bootstrap_manifest::append_bootstrap_package_manifest_import -> List<Text>
             local pipeline_imports_more2 : List<Text>
             string "bootstrap_semantics" : Text
+        let pipeline_entry: bootstrap_manifest::BootstrapPackageManifestEntry
+          call bootstrap_manifest::bootstrap_package_manifest_entry -> bootstrap_manifest::BootstrapPackageManifestEntry
+            string "bootstrap_pipeline" : Text
+            string "src/pipeline.evd" : Text
+            local pipeline_imports_final : List<Text>
         let pipeline: NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
           call bootstrap_manifest::append_bootstrap_package_manifest_entry -> NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
             local discovery : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
-            call bootstrap_manifest::bootstrap_package_manifest_entry -> bootstrap_manifest::BootstrapPackageManifestEntry
-              string "bootstrap_pipeline" : Text
-              string "src/pipeline.evd" : Text
-              local pipeline_imports_final : List<Text>
+            local pipeline_entry : bootstrap_manifest::BootstrapPackageManifestEntry
+        let pipeline_by_module: NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+          call bootstrap_manifest::append_bootstrap_package_manifest_index -> NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+            local discovery_by_module : NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+            local pipeline_entry : bootstrap_manifest::BootstrapPackageManifestEntry
         let layout_imports: List<Text>
           call bootstrap_manifest::append_bootstrap_package_manifest_import -> List<Text>
             call list_empty<Text> -> List<Text>
             string "bootstrap_source" : Text
+        let layout_entry: bootstrap_manifest::BootstrapPackageManifestEntry
+          call bootstrap_manifest::bootstrap_package_manifest_entry -> bootstrap_manifest::BootstrapPackageManifestEntry
+            string "bootstrap_layout" : Text
+            string "src/layout.evd" : Text
+            local layout_imports : List<Text>
         let layout_entries: NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
           call bootstrap_manifest::append_bootstrap_package_manifest_entry -> NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
             local pipeline : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
-            call bootstrap_manifest::bootstrap_package_manifest_entry -> bootstrap_manifest::BootstrapPackageManifestEntry
-              string "bootstrap_layout" : Text
-              string "src/layout.evd" : Text
-              local layout_imports : List<Text>
+            local layout_entry : bootstrap_manifest::BootstrapPackageManifestEntry
+        let layout_by_module: NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+          call bootstrap_manifest::append_bootstrap_package_manifest_index -> NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+            local pipeline_by_module : NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+            local layout_entry : bootstrap_manifest::BootstrapPackageManifestEntry
         let manifest_imports: List<Text>
           call bootstrap_manifest::append_bootstrap_package_manifest_import -> List<Text>
             call list_empty<Text> -> List<Text>
@@ -1360,13 +1531,19 @@ functions:
           call bootstrap_manifest::append_bootstrap_package_manifest_import -> List<Text>
             local manifest_imports : List<Text>
             string "bootstrap_source" : Text
+        let manifest_entry: bootstrap_manifest::BootstrapPackageManifestEntry
+          call bootstrap_manifest::bootstrap_package_manifest_entry -> bootstrap_manifest::BootstrapPackageManifestEntry
+            string "bootstrap_manifest" : Text
+            string "src/manifest.evd" : Text
+            local manifest_imports_final : List<Text>
         let manifest: NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
           call bootstrap_manifest::append_bootstrap_package_manifest_entry -> NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
             local layout_entries : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
-            call bootstrap_manifest::bootstrap_package_manifest_entry -> bootstrap_manifest::BootstrapPackageManifestEntry
-              string "bootstrap_manifest" : Text
-              string "src/manifest.evd" : Text
-              local manifest_imports_final : List<Text>
+            local manifest_entry : bootstrap_manifest::BootstrapPackageManifestEntry
+        let manifest_by_module: NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+          call bootstrap_manifest::append_bootstrap_package_manifest_index -> NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+            local layout_by_module : NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+            local manifest_entry : bootstrap_manifest::BootstrapPackageManifestEntry
         let release_imports: List<Text>
           call bootstrap_manifest::append_bootstrap_package_manifest_import -> List<Text>
             call list_empty<Text> -> List<Text>
@@ -1379,13 +1556,19 @@ functions:
           call bootstrap_manifest::append_bootstrap_package_manifest_import -> List<Text>
             local release_imports_more : List<Text>
             string "bootstrap_pipeline" : Text
+        let release_entry: bootstrap_manifest::BootstrapPackageManifestEntry
+          call bootstrap_manifest::bootstrap_package_manifest_entry -> bootstrap_manifest::BootstrapPackageManifestEntry
+            string "bootstrap_release" : Text
+            string "src/release.evd" : Text
+            local release_imports_final : List<Text>
         let release: NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
           call bootstrap_manifest::append_bootstrap_package_manifest_entry -> NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
             local manifest : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
-            call bootstrap_manifest::bootstrap_package_manifest_entry -> bootstrap_manifest::BootstrapPackageManifestEntry
-              string "bootstrap_release" : Text
-              string "src/release.evd" : Text
-              local release_imports_final : List<Text>
+            local release_entry : bootstrap_manifest::BootstrapPackageManifestEntry
+        let release_by_module: NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+          call bootstrap_manifest::append_bootstrap_package_manifest_index -> NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+            local manifest_by_module : NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+            local release_entry : bootstrap_manifest::BootstrapPackageManifestEntry
         let main_imports: List<Text>
           call bootstrap_manifest::append_bootstrap_package_manifest_import -> List<Text>
             call list_empty<Text> -> List<Text>
@@ -1418,13 +1601,19 @@ functions:
           call bootstrap_manifest::append_bootstrap_package_manifest_import -> List<Text>
             local main_imports_more6 : List<Text>
             string "bootstrap_pipeline" : Text
+        let main_entry: bootstrap_manifest::BootstrapPackageManifestEntry
+          call bootstrap_manifest::bootstrap_package_manifest_entry -> bootstrap_manifest::BootstrapPackageManifestEntry
+            string "bootstrap_compiler" : Text
+            string "src/main.evd" : Text
+            local main_imports_final : List<Text>
         let main: NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
           call bootstrap_manifest::append_bootstrap_package_manifest_entry -> NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
             local release : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
-            call bootstrap_manifest::bootstrap_package_manifest_entry -> bootstrap_manifest::BootstrapPackageManifestEntry
-              string "bootstrap_compiler" : Text
-              string "src/main.evd" : Text
-              local main_imports_final : List<Text>
+            local main_entry : bootstrap_manifest::BootstrapPackageManifestEntry
+        let main_by_module: NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+          call bootstrap_manifest::append_bootstrap_package_manifest_index -> NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+            local release_by_module : NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+            local main_entry : bootstrap_manifest::BootstrapPackageManifestEntry
         result
           construct bootstrap_manifest::BootstrapPackageManifest : bootstrap_manifest::BootstrapPackageManifest
             init package [shorthand]
@@ -1433,12 +1622,24 @@ functions:
               local layout : bootstrap_layout::BootstrapPackageLayout
             init entries
               local main : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+            init entries_by_module
+              local main_by_module : NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
   - public fn bootstrap_manifest::bootstrap_package_manifest_entry_count(manifest: bootstrap_manifest::BootstrapPackageManifest) -> Nat
       block -> Nat
         result
-          call nonempty_list_count_copy<bootstrap_manifest::BootstrapPackageManifestEntry> -> Nat
-            field-access .entries : NonEmptyList<bootstrap_manifest::BootstrapPackageManifestEntry>
+          call nonempty_map_count_copy<Text, bootstrap_manifest::BootstrapPackageManifestEntry> -> Nat
+            field-access .entries_by_module : NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
               local manifest : bootstrap_manifest::BootstrapPackageManifest
+  - public fn bootstrap_manifest::bootstrap_package_manifest_entry_by_name(manifest: bootstrap_manifest::BootstrapPackageManifest, module_name: Text) -> bootstrap_manifest::BootstrapPackageManifestEntry fails MapBindingFailure
+      block -> bootstrap_manifest::BootstrapPackageManifestEntry
+        let entry: bootstrap_manifest::BootstrapPackageManifestEntry
+          try
+            call nonempty_map_lookup_copy<Text, bootstrap_manifest::BootstrapPackageManifestEntry> -> bootstrap_manifest::BootstrapPackageManifestEntry fails
+              field-access .entries_by_module : NonEmptyMap<Text, bootstrap_manifest::BootstrapPackageManifestEntry>
+                local manifest : bootstrap_manifest::BootstrapPackageManifest
+              local module_name : Text
+        result
+          local entry : bootstrap_manifest::BootstrapPackageManifestEntry
   - public fn bootstrap_release::bootstrap_stage_invocation(stage_name: Text, compiler_name: Text, command_line: Text, validation_summary: Text) -> bootstrap_release::BootstrapStageInvocation
       block -> bootstrap_release::BootstrapStageInvocation
         result
@@ -1503,7 +1704,7 @@ functions:
               local stage_harness : bootstrap_release::BootstrapStageHarness
             init pipeline_evidence [shorthand]
               local pipeline_evidence : bootstrap_pipeline::BootstrapEvidence
-  - public fn bootstrap_compiler::build_status() -> bootstrap_compiler::BootstrapStatus [affine]
+  - public fn bootstrap_compiler::build_status() -> bootstrap_compiler::BootstrapStatus [affine] fails MapBindingFailure
       block -> bootstrap_compiler::BootstrapStatus [affine]
         let host: bootstrap_host::CompilerHostSurface
           call bootstrap_host::bootstrap_host_surface -> bootstrap_host::CompilerHostSurface
@@ -1535,6 +1736,16 @@ functions:
         let manifest_entry_count: Nat
           call bootstrap_manifest::bootstrap_package_manifest_entry_count -> Nat
             local manifest : bootstrap_manifest::BootstrapPackageManifest
+        let compiler_layout_module: bootstrap_layout::BootstrapPackageModule
+          try
+            call bootstrap_layout::bootstrap_package_module_by_name -> bootstrap_layout::BootstrapPackageModule fails
+              local layout : bootstrap_layout::BootstrapPackageLayout
+              string "bootstrap_compiler" : Text
+        let compiler_manifest_entry: bootstrap_manifest::BootstrapPackageManifestEntry
+          try
+            call bootstrap_manifest::bootstrap_package_manifest_entry_by_name -> bootstrap_manifest::BootstrapPackageManifestEntry fails
+              local manifest : bootstrap_manifest::BootstrapPackageManifest
+              string "bootstrap_compiler" : Text
         let outlined: bootstrap_pipeline::CompilerPipeline::SourceOutlined [affine]
           call bootstrap_pipeline::outline -> bootstrap_pipeline::CompilerPipeline::SourceOutlined [affine]
             local source : bootstrap_source::PackageSource
@@ -1591,6 +1802,10 @@ functions:
               local module_count : Nat
             init manifest_entry_count [shorthand]
               local manifest_entry_count : Nat
+            init compiler_layout_module [shorthand]
+              local compiler_layout_module : bootstrap_layout::BootstrapPackageModule
+            init compiler_manifest_entry [shorthand]
+              local compiler_manifest_entry : bootstrap_manifest::BootstrapPackageManifestEntry
             init exit_status [shorthand]
               local exit_status : bootstrap_host::ExitStatus
             init pipeline
@@ -1605,9 +1820,20 @@ functions:
           number 2 : Int
   - public fn bootstrap_compiler::main() -> Int
       block -> Int
-        let status: bootstrap_compiler::BootstrapStatus [affine]
-          call bootstrap_compiler::build_status -> bootstrap_compiler::BootstrapStatus [affine]
         result
-          field-access .source_count : Int
-            field-access .discovery : bootstrap_discovery::SourceDiscovery
-              local status : bootstrap_compiler::BootstrapStatus [affine]
+          match -> Int
+            scrutinee
+              call bootstrap_compiler::build_status -> bootstrap_compiler::BootstrapStatus [affine] fails
+            arm
+              pattern succeeded(status)
+              field-access .source_count : Int
+                field-access .discovery : bootstrap_discovery::SourceDiscovery
+                  local status : bootstrap_compiler::BootstrapStatus [affine]
+            arm
+              pattern failed
+                pattern MapBindingFailure::RequestedKeyHadNoBinding
+              number 1 : Int
+            arm
+              pattern failed
+                pattern MapBindingFailure::RequestedKeyAlreadyHadBinding
+              number 1 : Int
