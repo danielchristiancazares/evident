@@ -1,0 +1,3 @@
+record Naked {
+    value: Int
+}
