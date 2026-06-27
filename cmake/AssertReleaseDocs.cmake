@@ -198,7 +198,7 @@ assert_doc_contains(docs/RELEASE_CHECKLIST.md
     "sidecars missing the final newline"
     "sidecars with extra trailing blank lines"
     "non-ZIP package paths"
-    "current `358/358` CTest pass summary inside `[ctest output]`"
+    "current `360/360` CTest pass summary inside `[ctest output]`"
     "package filename, size, and SHA256 inside `[release ZIP]`"
     "MSVC `cl` output identifying x64 target architecture"
     "tool-version output identifying CMake, Ninja, clang, and LLD"
@@ -240,7 +240,7 @@ assert_doc_contains(docs/TOOLCHAIN_REPRODUCIBILITY.md
     "`evidc --version` output matching the version embedded in the release ZIP filename"
     "`evidc --print-toolchain` output with expected native target, supported target, selected clang driver, override environment variable, and linker mode"
     "`evidc --check-toolchain` output with those expected fields plus version-probe lines identifying clang and LLD"
-    "expected CTest `358/358` pass summary inside `[ctest output]`"
+    "expected CTest `360/360` pass summary inside `[ctest output]`"
     "The read-only release source-tree audit passes on the intended release branch, including rejection of tracked generated build directories, `CMakeUserPresets.json`, root-level in-source CMake/Ninja/CTest/CPack artifacts, release ZIP/checksum/evidence artifacts, and ignored local-only artifacts."
     "install layout validation rejects unsafe or duplicate expected install allowlist paths"
     "`evident-<version>-windows-x64.zip`"
@@ -312,7 +312,7 @@ assert_doc_contains(docs/NATIVE_BACKEND_PLAN.md
 )
 
 assert_doc_contains(docs/COMPILER_FINISH_PLAN.md
-    "passed `358/358` tests."
+    "passed `360/360` tests."
     "CI workflow, release-docs, CTest total, invalid corpus, test corpus registration, and C++ design escape-hatch contract validation"
     "CTest total contract"
     "release source-tree contract"

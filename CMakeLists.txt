@@ -80,7 +80,7 @@ add_dependencies(package_checksum package)
 
 include(CTest)
 if(BUILD_TESTING)
-    set(EVIDENT_EXPECTED_CTEST_TOTAL 358)
+    set(EVIDENT_EXPECTED_CTEST_TOTAL 360)
 
     add_test(NAME parse_valid_example
         COMMAND evidc --dump-hir ${CMAKE_CURRENT_SOURCE_DIR}/examples/feature_mode.evd)
@@ -811,6 +811,13 @@ if(BUILD_TESTING)
         --emit-llvm
         second.ll
         ${CMAKE_CURRENT_SOURCE_DIR}/tests/native_main_constant.evd)
+    add_cli_failure_compare_test(cli_duplicate_emit_stub
+        expected_cli_duplicate_emit_stub.stderr.out
+        --emit-stub
+        first.stub
+        --emit-stub
+        second.stub
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/native_main_constant.evd)
     add_cli_failure_compare_test(cli_emit_stub_native_conflict
         expected_cli_emit_stub_native_conflict.stderr.out
         --emit-stub
@@ -825,6 +832,12 @@ if(BUILD_TESTING)
     add_cli_failure_compare_test(cli_package_missing_argument
         expected_cli_package_missing_argument.stderr.out
         --package)
+    add_cli_failure_compare_test(cli_duplicate_package
+        expected_cli_duplicate_package.stderr.out
+        --package
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/package_dir
+        --package
+        ${CMAKE_CURRENT_SOURCE_DIR}/tests/package_manifest)
     add_cli_failure_compare_test(cli_package_cannot_mix_inputs
         expected_cli_package_cannot_mix_inputs.stderr.out
         --package

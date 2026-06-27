@@ -105,6 +105,20 @@ int main(int argc, char** argv) {
     };
     NativeEmitSelectionState native_emit_selection = NativeEmitSelectionState::NotSelected;
 
+    enum class PackageSelectionState {
+        NotSelected,
+        SingleDirectory,
+        DuplicateDirectories,
+    };
+    PackageSelectionState package_selection = PackageSelectionState::NotSelected;
+
+    enum class StubEmitSelectionState {
+        NotSelected,
+        SingleOutput,
+        DuplicateOutputs,
+    };
+    StubEmitSelectionState stub_emit_selection = StubEmitSelectionState::NotSelected;
+
     auto request_native_artifact = [&](evident::NativeArtifactRequest request) {
         if (native_emit_selection == NativeEmitSelectionState::NotSelected) {
             options.use_native_artifact(std::move(request));
@@ -145,12 +159,24 @@ int main(int argc, char** argv) {
             if (require_option_value(index, argc, arg) == OptionValueParseState::MissingArgumentReported) {
                 return 2;
             }
-            options.use_source_request(evident::SourceRequest::package_directory(std::string(argv[++index])));
+            std::string package_path = argv[++index];
+            if (package_selection == PackageSelectionState::NotSelected) {
+                options.use_source_request(evident::SourceRequest::package_directory(std::move(package_path)));
+                package_selection = PackageSelectionState::SingleDirectory;
+            } else {
+                package_selection = PackageSelectionState::DuplicateDirectories;
+            }
         } else if (arg == "--emit-stub") {
             if (require_option_value(index, argc, arg) == OptionValueParseState::MissingArgumentReported) {
                 return 2;
             }
-            options.use_stub_emission(evident::StubEmissionRequest::write_to(std::string(argv[++index])));
+            std::string output_path = argv[++index];
+            if (stub_emit_selection == StubEmitSelectionState::NotSelected) {
+                options.use_stub_emission(evident::StubEmissionRequest::write_to(std::move(output_path)));
+                stub_emit_selection = StubEmitSelectionState::SingleOutput;
+            } else {
+                stub_emit_selection = StubEmitSelectionState::DuplicateOutputs;
+            }
         } else if (arg == "--emit-llvm") {
             if (require_option_value(index, argc, arg) == OptionValueParseState::MissingArgumentReported) {
                 return 2;
@@ -232,6 +258,12 @@ int main(int argc, char** argv) {
         return 0;
     }
 
+    if (package_selection == PackageSelectionState::DuplicateDirectories) {
+        std::cerr << "only one package directory may be selected per invocation\n";
+        print_usage(std::cerr);
+        return 2;
+    }
+
     if (positional.empty() && options.source_request().kind() != evident::SourceRequestKind::PackageDirectory) {
         std::cerr << "no input file or package directory provided\n";
         print_usage(std::cerr);
@@ -245,6 +277,11 @@ int main(int argc, char** argv) {
 
     if (native_emit_selection == NativeEmitSelectionState::ConflictingModes) {
         std::cerr << "only one native emit mode may be selected per invocation\n";
+        print_usage(std::cerr);
+        return 2;
+    }
+    if (stub_emit_selection == StubEmitSelectionState::DuplicateOutputs) {
+        std::cerr << "only one stub emit path may be selected per invocation\n";
         print_usage(std::cerr);
         return 2;
     }
