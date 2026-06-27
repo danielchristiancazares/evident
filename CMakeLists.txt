@@ -722,14 +722,18 @@ if(BUILD_TESTING)
     add_test(NAME compare_hir_bootstrap_compiler
         COMMAND ${CMAKE_COMMAND}
             -DCOMMAND_PATH=$<TARGET_FILE:evidc>
+            -DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}
             "-DINPUT_PATHS=${EVIDENT_BOOTSTRAP_PACKAGE_INPUTS}"
+            -DNORMALIZE_BOOTSTRAP_SOURCE_COMMIT=ON
             -DMODE=--dump-hir
             -DEXPECTED_PATH=${CMAKE_CURRENT_SOURCE_DIR}/tests/expected_bootstrap_compiler.hir.out
             -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/RunAndCompareOutput.cmake)
     add_test(NAME compare_mir_bootstrap_compiler
         COMMAND ${CMAKE_COMMAND}
             -DCOMMAND_PATH=$<TARGET_FILE:evidc>
+            -DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}
             "-DINPUT_PATHS=${EVIDENT_BOOTSTRAP_PACKAGE_INPUTS}"
+            -DNORMALIZE_BOOTSTRAP_SOURCE_COMMIT=ON
             -DMODE=--dump-mir
             -DEXPECTED_PATH=${CMAKE_CURRENT_SOURCE_DIR}/tests/expected_bootstrap_compiler.mir.out
             -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/RunAndCompareOutput.cmake)
