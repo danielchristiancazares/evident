@@ -1,0 +1,535 @@
+functions:
+  - public fn bootstrap_source::source_file -> bootstrap_source::SourceFile
+      locals:
+        %0[path] : Text
+        %1[contents] : Text
+        %2[$return] : bootstrap_source::SourceFile
+        %3[tmp] : bootstrap_source::SourcePath
+      block %0
+        %3[tmp] = construct bootstrap_source::SourcePath {text: %0[path]}
+        %2[$return] = construct bootstrap_source::SourceFile {path: %3[tmp], contents: %1[contents]}
+        return %2[$return]
+  - private fn bootstrap_source::append_source -> NonEmptyList<bootstrap_source::SourceFile>
+      locals:
+        %0[files] : NonEmptyList<bootstrap_source::SourceFile>
+        %1[file] : bootstrap_source::SourceFile
+        %2[$return] : NonEmptyList<bootstrap_source::SourceFile>
+        %3[widened] : List<bootstrap_source::SourceFile>
+      block %0
+        %3[widened] = call nonempty_list_widen$bootstrap_source__SourceFile(%0[files])
+        %2[$return] = call list_append$bootstrap_source__SourceFile(%3[widened], %1[file])
+        return %2[$return]
+  - public fn bootstrap_source::compiler_source_graph -> bootstrap_source::SourceGraph
+      locals:
+        %0[$return] : bootstrap_source::SourceGraph
+        %1[source] : NonEmptyList<bootstrap_source::SourceFile>
+        %2[tmp] : bootstrap_source::SourceFile
+        %3[lexing] : NonEmptyList<bootstrap_source::SourceFile>
+        %4[tmp] : bootstrap_source::SourceFile
+        %5[parsing] : NonEmptyList<bootstrap_source::SourceFile>
+        %6[tmp] : bootstrap_source::SourceFile
+        %7[semantics] : NonEmptyList<bootstrap_source::SourceFile>
+        %8[tmp] : bootstrap_source::SourceFile
+        %9[diagnostics] : NonEmptyList<bootstrap_source::SourceFile>
+        %10[tmp] : bootstrap_source::SourceFile
+        %11[host] : NonEmptyList<bootstrap_source::SourceFile>
+        %12[tmp] : bootstrap_source::SourceFile
+        %13[pipeline] : NonEmptyList<bootstrap_source::SourceFile>
+        %14[tmp] : bootstrap_source::SourceFile
+        %15[main] : NonEmptyList<bootstrap_source::SourceFile>
+        %16[tmp] : bootstrap_source::SourceFile
+      block %0
+        %2[tmp] = call bootstrap_source::source_file("src/source.evd", "source graph and package identity")
+        %1[source] = call list_single$bootstrap_source__SourceFile(%2[tmp])
+        %4[tmp] = call bootstrap_source::source_file("src/lexing.evd", "lexical token stream model")
+        %3[lexing] = call bootstrap_source::append_source(%1[source], %4[tmp])
+        %6[tmp] = call bootstrap_source::source_file("src/parsing.evd", "parsed package syntax model")
+        %5[parsing] = call bootstrap_source::append_source(%3[lexing], %6[tmp])
+        %8[tmp] = call bootstrap_source::source_file("src/semantics.evd", "semantic symbol catalog model")
+        %7[semantics] = call bootstrap_source::append_source(%5[parsing], %8[tmp])
+        %10[tmp] = call bootstrap_source::source_file("src/diagnostics.evd", "diagnostics and bootstrap failure reasons")
+        %9[diagnostics] = call bootstrap_source::append_source(%7[semantics], %10[tmp])
+        %12[tmp] = call bootstrap_source::source_file("src/host.evd", "host file, path, and tool boundary handles")
+        %11[host] = call bootstrap_source::append_source(%9[diagnostics], %12[tmp])
+        %14[tmp] = call bootstrap_source::source_file("src/pipeline.evd", "bootstrap pipeline phases and stage evidence")
+        %13[pipeline] = call bootstrap_source::append_source(%11[host], %14[tmp])
+        %16[tmp] = call bootstrap_source::source_file("src/main.evd", "bootstrap package entrypoint and aggregate status")
+        %15[main] = call bootstrap_source::append_source(%13[pipeline], %16[tmp])
+        %0[$return] = construct bootstrap_source::SourceGraph {files: %15[main]}
+        return %0[$return]
+  - public fn bootstrap_source::compiler_package -> bootstrap_source::PackageSource
+      locals:
+        %0[$return] : bootstrap_source::PackageSource
+        %1[tmp] : bootstrap_source::PackageIdentity
+        %2[tmp] : bootstrap_source::SourcePath
+        %3[tmp] : bootstrap_source::SourcePath
+        %4[tmp] : bootstrap_source::SourceGraph
+      block %0
+        %2[tmp] = construct bootstrap_source::SourcePath {text: "bootstrap/compiler"}
+        %3[tmp] = construct bootstrap_source::SourcePath {text: "bootstrap/compiler/evident.pkg"}
+        %1[tmp] = construct bootstrap_source::PackageIdentity {name: "evident.compiler", root: %2[tmp], manifest: %3[tmp]}
+        %4[tmp] = call bootstrap_source::compiler_source_graph()
+        %0[$return] = construct bootstrap_source::PackageSource {identity: %1[tmp], graph: %4[tmp]}
+        return %0[$return]
+  - public fn bootstrap_source::compiler_source_count -> Int
+      locals:
+        %0[$return] : Int
+        %1[graph] : bootstrap_source::SourceGraph
+      block %0
+        %1[graph] = call bootstrap_source::compiler_source_graph()
+        %0[$return] = 8
+        return %0[$return]
+  - public fn bootstrap_lexing::source_offset -> bootstrap_lexing::SourceOffset
+      locals:
+        %0[byte_index] : Int
+        %1[$return] : bootstrap_lexing::SourceOffset
+      block %0
+        %1[$return] = construct bootstrap_lexing::SourceOffset {byte_index: %0[byte_index]}
+        return %1[$return]
+  - public fn bootstrap_lexing::source_span -> bootstrap_lexing::SourceSpan
+      locals:
+        %0[path] : bootstrap_source::SourcePath
+        %1[start] : Int
+        %2[finish] : Int
+        %3[$return] : bootstrap_lexing::SourceSpan
+        %4[tmp] : bootstrap_lexing::SourceOffset
+        %5[tmp] : bootstrap_lexing::SourceOffset
+      block %0
+        %4[tmp] = call bootstrap_lexing::source_offset(%1[start])
+        %5[tmp] = call bootstrap_lexing::source_offset(%2[finish])
+        %3[$return] = construct bootstrap_lexing::SourceSpan {path: %0[path], start: %4[tmp], finish: %5[tmp]}
+        return %3[$return]
+  - public fn bootstrap_lexing::token -> bootstrap_lexing::Token
+      locals:
+        %0[category] : bootstrap_lexing::TokenCategory
+        %1[lexeme] : Text
+        %2[span] : bootstrap_lexing::SourceSpan
+        %3[$return] : bootstrap_lexing::Token
+      block %0
+        %3[$return] = construct bootstrap_lexing::Token {category: %0[category], lexeme: %1[lexeme], span: %2[span]}
+        return %3[$return]
+  - public fn bootstrap_lexing::seed_token_stream -> bootstrap_lexing::TokenStream
+      locals:
+        %0[$return] : bootstrap_lexing::TokenStream
+        %1[manifest_path] : bootstrap_source::SourcePath
+        %2[first_span] : bootstrap_lexing::SourceSpan
+        %3[first_token] : bootstrap_lexing::Token
+        %4[tmp] : bootstrap_lexing::TokenCategory
+        %5[tmp] : NonEmptyList<bootstrap_lexing::Token>
+      block %0
+        %1[manifest_path] = construct bootstrap_source::SourcePath {text: "bootstrap/compiler/evident.pkg"}
+        %2[first_span] = call bootstrap_lexing::source_span(%1[manifest_path], 0, 10)
+        %4[tmp] = construct bootstrap_lexing::TokenCategory::IdentifierNamedReference {}
+        %3[first_token] = call bootstrap_lexing::token(%4[tmp], "bootstrap", %2[first_span])
+        %5[tmp] = call list_single$bootstrap_lexing__Token(%3[first_token])
+        %0[$return] = construct bootstrap_lexing::TokenStream {tokens: %5[tmp]}
+        return %0[$return]
+  - public fn bootstrap_lexing::seed_token_stream_size -> Int
+      locals:
+        %0[$return] : Int
+        %1[stream] : bootstrap_lexing::TokenStream
+      block %0
+        %1[stream] = call bootstrap_lexing::seed_token_stream()
+        %0[$return] = 1
+        return %0[$return]
+  - public fn bootstrap_parsing::module_path -> bootstrap_parsing::ModulePath
+      locals:
+        %0[text] : Text
+        %1[$return] : bootstrap_parsing::ModulePath
+      block %0
+        %1[$return] = construct bootstrap_parsing::ModulePath {text: %0[text]}
+        return %1[$return]
+  - public fn bootstrap_parsing::syntax_declaration -> bootstrap_parsing::SyntaxDeclaration
+      locals:
+        %0[category] : bootstrap_parsing::SyntaxDeclarationCategory
+        %1[name] : Text
+        %2[span] : bootstrap_lexing::SourceSpan
+        %3[$return] : bootstrap_parsing::SyntaxDeclaration
+      block %0
+        %3[$return] = construct bootstrap_parsing::SyntaxDeclaration {category: %0[category], name: %1[name], span: %2[span]}
+        return %3[$return]
+  - public fn bootstrap_parsing::syntax_module -> bootstrap_parsing::SyntaxModule
+      locals:
+        %0[kind] : bootstrap_parsing::ModuleKind
+        %1[path] : bootstrap_parsing::ModulePath
+        %2[declarations] : NonEmptyList<bootstrap_parsing::SyntaxDeclaration>
+        %3[$return] : bootstrap_parsing::SyntaxModule
+      block %0
+        %3[$return] = construct bootstrap_parsing::SyntaxModule {kind: %0[kind], path: %1[path], declarations: %2[declarations]}
+        return %3[$return]
+  - public fn bootstrap_parsing::seed_package_syntax -> bootstrap_parsing::PackageSyntax
+      locals:
+        %0[tokens] : bootstrap_lexing::TokenStream
+        %1[$return] : bootstrap_parsing::PackageSyntax
+        %2[source_path] : bootstrap_source::SourcePath
+        %3[module_span] : bootstrap_lexing::SourceSpan
+        %4[declaration] : bootstrap_parsing::SyntaxDeclaration
+        %5[tmp] : bootstrap_parsing::SyntaxDeclarationCategory
+        %6[source_module] : bootstrap_parsing::SyntaxModule
+        %7[tmp] : bootstrap_parsing::ModuleKind
+        %8[tmp] : bootstrap_parsing::ModulePath
+        %9[tmp] : NonEmptyList<bootstrap_parsing::SyntaxDeclaration>
+        %10[tmp] : NonEmptyList<bootstrap_parsing::SyntaxModule>
+      block %0
+        %2[source_path] = construct bootstrap_source::SourcePath {text: "bootstrap/compiler/src/source.evd"}
+        %3[module_span] = call bootstrap_lexing::source_span(%2[source_path], 0, 30)
+        %5[tmp] = construct bootstrap_parsing::SyntaxDeclarationCategory::ModuleScopeIntroduced {}
+        %4[declaration] = call bootstrap_parsing::syntax_declaration(%5[tmp], "bootstrap_source", %3[module_span])
+        %7[tmp] = construct bootstrap_parsing::ModuleKind::DomainTruthCarried {}
+        %8[tmp] = call bootstrap_parsing::module_path("bootstrap_source")
+        %9[tmp] = call list_single$bootstrap_parsing__SyntaxDeclaration(%4[declaration])
+        %6[source_module] = call bootstrap_parsing::syntax_module(%7[tmp], %8[tmp], %9[tmp])
+        %10[tmp] = call list_single$bootstrap_parsing__SyntaxModule(%6[source_module])
+        %1[$return] = construct bootstrap_parsing::PackageSyntax {modules: %10[tmp]}
+        return %1[$return]
+  - public fn bootstrap_parsing::seed_package_syntax_module_count -> Int
+      locals:
+        %0[$return] : Int
+        %1[syntax] : bootstrap_parsing::PackageSyntax
+        %2[tmp] : bootstrap_lexing::TokenStream
+      block %0
+        %2[tmp] = call bootstrap_lexing::seed_token_stream()
+        %1[syntax] = call bootstrap_parsing::seed_package_syntax(%2[tmp])
+        %0[$return] = 1
+        return %0[$return]
+  - public fn bootstrap_semantics::symbol_name -> bootstrap_semantics::SymbolName
+      locals:
+        %0[text] : Text
+        %1[$return] : bootstrap_semantics::SymbolName
+      block %0
+        %1[$return] = construct bootstrap_semantics::SymbolName {text: %0[text]}
+        return %1[$return]
+  - public fn bootstrap_semantics::symbol -> bootstrap_semantics::Symbol
+      locals:
+        %0[name] : bootstrap_semantics::SymbolName
+        %1[category] : bootstrap_semantics::SymbolCategory
+        %2[declared_at] : bootstrap_lexing::SourceSpan
+        %3[$return] : bootstrap_semantics::Symbol
+      block %0
+        %3[$return] = construct bootstrap_semantics::Symbol {name: %0[name], category: %1[category], declared_at: %2[declared_at]}
+        return %3[$return]
+  - public fn bootstrap_semantics::seed_symbol_catalog -> bootstrap_semantics::SymbolCatalog
+      locals:
+        %0[syntax] : bootstrap_parsing::PackageSyntax
+        %1[$return] : bootstrap_semantics::SymbolCatalog
+        %2[source_path] : bootstrap_source::SourcePath
+        %3[declared_at] : bootstrap_lexing::SourceSpan
+        %4[name] : bootstrap_semantics::SymbolName
+        %5[first_symbol] : bootstrap_semantics::Symbol
+        %6[tmp] : bootstrap_semantics::SymbolCategory
+        %7[tmp] : NonEmptyMap<Text, bootstrap_semantics::Symbol>
+        %8[tmp] : Text
+      block %0
+        %2[source_path] = construct bootstrap_source::SourcePath {text: "bootstrap/compiler/src/source.evd"}
+        %3[declared_at] = call bootstrap_lexing::source_span(%2[source_path], 0, 30)
+        %4[name] = call bootstrap_semantics::symbol_name("bootstrap_source")
+        %6[tmp] = construct bootstrap_semantics::SymbolCategory::ModuleScopeAvailable {}
+        %5[first_symbol] = call bootstrap_semantics::symbol(%4[name], %6[tmp], %3[declared_at])
+        %8[tmp] = %4[name].text
+        %7[tmp] = call map_single$Text$bootstrap_semantics__Symbol(%8[tmp], %5[first_symbol])
+        %1[$return] = construct bootstrap_semantics::SymbolCatalog {symbols_by_name: %7[tmp]}
+        return %1[$return]
+  - public fn bootstrap_semantics::seed_symbol_catalog_entry_count -> Nat
+      locals:
+        %0[$return] : Nat
+        %1[syntax] : bootstrap_parsing::PackageSyntax
+        %2[tmp] : bootstrap_lexing::TokenStream
+        %3[catalog] : bootstrap_semantics::SymbolCatalog
+        %4[tmp] : NonEmptyMap<Text, bootstrap_semantics::Symbol>
+      block %0
+        %2[tmp] = call bootstrap_lexing::seed_token_stream()
+        %1[syntax] = call bootstrap_parsing::seed_package_syntax(%2[tmp])
+        %3[catalog] = call bootstrap_semantics::seed_symbol_catalog(%1[syntax])
+        %4[tmp] = %3[catalog].symbols_by_name
+        %0[$return] = call nonempty_map_count_copy$Text$bootstrap_semantics__Symbol(%4[tmp])
+        return %0[$return]
+  - public fn bootstrap_diagnostics::source_rejected -> bootstrap_diagnostics::Diagnostic
+      locals:
+        %0[message] : Text
+        %1[$return] : bootstrap_diagnostics::Diagnostic
+        %2[tmp] : bootstrap_diagnostics::DiagnosticSeverity
+      block %0
+        %2[tmp] = construct bootstrap_diagnostics::DiagnosticSeverity::SourceRejected {}
+        %1[$return] = construct bootstrap_diagnostics::Diagnostic {severity: %2[tmp], message: %0[message]}
+        return %1[$return]
+  - public fn bootstrap_diagnostics::stage_blocked -> bootstrap_diagnostics::Diagnostic
+      locals:
+        %0[message] : Text
+        %1[$return] : bootstrap_diagnostics::Diagnostic
+        %2[tmp] : bootstrap_diagnostics::DiagnosticSeverity
+      block %0
+        %2[tmp] = construct bootstrap_diagnostics::DiagnosticSeverity::CompilationBlocked {}
+        %1[$return] = construct bootstrap_diagnostics::Diagnostic {severity: %2[tmp], message: %0[message]}
+        return %1[$return]
+  - public foreign-fn bootstrap_host::read_text_file -> bootstrap_host::HostFileContents
+      locals:
+        %0[request] : bootstrap_host::HostReadRequest
+      blocks: <none>
+  - public foreign-fn bootstrap_host::write_text_file -> CInt
+      locals:
+        %0[request] : bootstrap_host::HostWriteRequest
+      blocks: <none>
+  - public foreign-fn bootstrap_host::resolve_path -> bootstrap_host::HostPath
+      locals:
+        %0[base] : bootstrap_host::HostPath
+        %1[relative] : bootstrap_host::HostPath
+      blocks: <none>
+  - public foreign-fn bootstrap_host::spawn_tool -> CInt
+      locals:
+        %0[invocation] : bootstrap_host::HostToolInvocation
+      blocks: <none>
+  - public foreign-fn bootstrap_host::process_exit -> CInt
+      locals:
+        %0[code] : CInt
+      blocks: <none>
+  - public fn bootstrap_host::host_path -> bootstrap_host::HostPath
+      locals:
+        %0[text] : Text
+        %1[$return] : bootstrap_host::HostPath
+      block %0
+        %1[$return] = construct bootstrap_host::HostPath {text: %0[text]}
+        return %1[$return]
+  - public fn bootstrap_host::host_file_contents -> bootstrap_host::HostFileContents
+      locals:
+        %0[text] : Text
+        %1[$return] : bootstrap_host::HostFileContents
+      block %0
+        %1[$return] = construct bootstrap_host::HostFileContents {text: %0[text]}
+        return %1[$return]
+  - public fn bootstrap_host::host_read_request -> bootstrap_host::HostReadRequest
+      locals:
+        %0[path] : bootstrap_host::HostPath
+        %1[$return] : bootstrap_host::HostReadRequest
+      block %0
+        %1[$return] = construct bootstrap_host::HostReadRequest {path: %0[path]}
+        return %1[$return]
+  - public fn bootstrap_host::host_write_request -> bootstrap_host::HostWriteRequest
+      locals:
+        %0[path] : bootstrap_host::HostPath
+        %1[contents] : bootstrap_host::HostFileContents
+        %2[$return] : bootstrap_host::HostWriteRequest
+      block %0
+        %2[$return] = construct bootstrap_host::HostWriteRequest {path: %0[path], contents: %1[contents]}
+        return %2[$return]
+  - public fn bootstrap_host::host_tool_invocation -> bootstrap_host::HostToolInvocation
+      locals:
+        %0[working_directory] : bootstrap_host::HostPath
+        %1[executable] : bootstrap_host::HostPath
+        %2[arguments] : List<Text>
+        %3[$return] : bootstrap_host::HostToolInvocation
+      block %0
+        %3[$return] = construct bootstrap_host::HostToolInvocation {working_directory: %0[working_directory], executable: %1[executable], arguments: %2[arguments]}
+        return %3[$return]
+  - public fn bootstrap_host::bootstrap_host_surface -> bootstrap_host::CompilerHostSurface
+      locals:
+        %0[$return] : bootstrap_host::CompilerHostSurface
+        %1[package_root] : bootstrap_host::HostPath
+        %2[manifest] : bootstrap_host::HostPath
+        %3[source_root] : bootstrap_host::HostPath
+        %4[diagnostics_output] : bootstrap_host::HostPath
+        %5[stage_output] : bootstrap_host::HostPath
+        %6[tool] : bootstrap_host::HostToolInvocation
+        %7[tmp] : bootstrap_host::HostPath
+        %8[tmp] : List<Text>
+      block %0
+        %1[package_root] = call bootstrap_host::host_path("bootstrap/compiler")
+        %2[manifest] = call bootstrap_host::host_path("bootstrap/compiler/evident.pkg")
+        %3[source_root] = call bootstrap_host::host_path("bootstrap/compiler/src")
+        %4[diagnostics_output] = call bootstrap_host::host_path("bootstrap/compiler/bootstrap-diagnostics.log")
+        %5[stage_output] = call bootstrap_host::host_path("bootstrap/compiler/bootstrap-stage-output")
+        %7[tmp] = call bootstrap_host::host_path("bootstrap/compiler/evidc")
+        %8[tmp] = call list_empty$Text()
+        %6[tool] = call bootstrap_host::host_tool_invocation(%1[package_root], %7[tmp], %8[tmp])
+        %0[$return] = construct bootstrap_host::CompilerHostSurface {package_root: %1[package_root], manifest: %2[manifest], source_root: %3[source_root], diagnostics_output: %4[diagnostics_output], stage_output: %5[stage_output], tool: %6[tool]}
+        return %0[$return]
+  - public fn bootstrap_host::success_status -> bootstrap_host::ExitStatus
+      locals:
+        %0[$return] : bootstrap_host::ExitStatus
+      block %0
+        %0[$return] = construct bootstrap_host::ExitStatus {code: 0}
+        return %0[$return]
+  - public fn bootstrap_pipeline::outline -> bootstrap_pipeline::CompilerPipeline::SourceOutlined
+      locals:
+        %0[source] : bootstrap_source::PackageSource
+        %1[$return] : bootstrap_pipeline::CompilerPipeline::SourceOutlined [affine]
+        %2[tokens] : bootstrap_lexing::TokenStream
+        %3[syntax] : bootstrap_parsing::PackageSyntax
+        %4[tmp] : Text
+        %5[tmp] : bootstrap_source::PackageIdentity
+        %6[tmp] : bootstrap_pipeline::PackageOutline
+        %7[tmp] : bootstrap_semantics::SymbolCatalog
+      block %0
+        %2[tokens] = call bootstrap_lexing::seed_token_stream()
+        %3[syntax] = call bootstrap_parsing::seed_package_syntax(%2[tokens])
+        %5[tmp] = %0[source].identity
+        %4[tmp] = %5[tmp].name
+        %7[tmp] = call bootstrap_semantics::seed_symbol_catalog(%3[syntax])
+        %6[tmp] = construct bootstrap_pipeline::PackageOutline {source: %0[source], tokens: %2[tokens], syntax: %3[syntax], symbols: %7[tmp]}
+        %1[$return] = construct bootstrap_pipeline::CompilerPipeline::SourceOutlined {package_name: %4[tmp], outline: %6[tmp]}
+        return %1[$return]
+  - public fn bootstrap_pipeline::compile_with_seed -> bootstrap_pipeline::CompilerPipeline::SeedCompiled
+      locals:
+        %0[pipeline] : bootstrap_pipeline::CompilerPipeline::SourceOutlined [affine]
+        %1[$return] : bootstrap_pipeline::CompilerPipeline::SeedCompiled [affine]
+        %2[tmp] : Text
+        %3[tmp] : bootstrap_pipeline::PackageOutline
+      block %0
+        %2[tmp] = %0[pipeline].package_name
+        %3[tmp] = %0[pipeline].outline
+        %1[$return] = construct bootstrap_pipeline::CompilerPipeline::SeedCompiled {package_name: %2[tmp], outline: %3[tmp]}
+        return %1[$return]
+  - public fn bootstrap_pipeline::compile_stage_one -> bootstrap_pipeline::CompilerPipeline::StageOneCompiled
+      locals:
+        %0[pipeline] : bootstrap_pipeline::CompilerPipeline::SeedCompiled [affine]
+        %1[$return] : bootstrap_pipeline::CompilerPipeline::StageOneCompiled [affine]
+        %2[tmp] : Text
+        %3[tmp] : bootstrap_pipeline::PackageOutline
+      block %0
+        %2[tmp] = %0[pipeline].package_name
+        %3[tmp] = %0[pipeline].outline
+        %1[$return] = construct bootstrap_pipeline::CompilerPipeline::StageOneCompiled {package_name: %2[tmp], outline: %3[tmp]}
+        return %1[$return]
+  - public fn bootstrap_pipeline::validate_stage_two -> bootstrap_pipeline::CompilerPipeline::StageTwoValidated
+      locals:
+        %0[pipeline] : bootstrap_pipeline::CompilerPipeline::StageOneCompiled [affine]
+        %1[$return] : bootstrap_pipeline::CompilerPipeline::StageTwoValidated [affine]
+        %2[tmp] : Text
+        %3[tmp] : bootstrap_pipeline::PackageOutline
+      block %0
+        %2[tmp] = %0[pipeline].package_name
+        %3[tmp] = %0[pipeline].outline
+        %1[$return] = construct bootstrap_pipeline::CompilerPipeline::StageTwoValidated {package_name: %2[tmp], outline: %3[tmp]}
+        return %1[$return]
+  - public fn bootstrap_pipeline::record_outline -> bootstrap_pipeline::BootstrapOutlineRecorded proves bootstrap_pipeline::BootstrapOutlineRecorded
+      locals:
+        %0[package_name] : Text
+        %1[$return] : bootstrap_pipeline::BootstrapOutlineRecorded [affine]
+      block %0
+        %1[$return] = construct bootstrap_pipeline::BootstrapOutlineRecorded {package_name: %0[package_name]}
+        return %1[$return]
+  - public fn bootstrap_pipeline::stage_receipt -> bootstrap_pipeline::StageReceipt
+      locals:
+        %0[stage_name] : Text
+        %1[compiler_name] : Text
+        %2[source_commit] : Text
+        %3[validation_summary] : Text
+        %4[$return] : bootstrap_pipeline::StageReceipt
+      block %0
+        %4[$return] = construct bootstrap_pipeline::StageReceipt {stage_name: %0[stage_name], compiler_name: %1[compiler_name], source_commit: %2[source_commit], validation_summary: %3[validation_summary]}
+        return %4[$return]
+  - public fn bootstrap_pipeline::bootstrap_equivalence -> bootstrap_pipeline::BootstrapEquivalence
+      locals:
+        %0[$return] : bootstrap_pipeline::BootstrapEquivalence
+      block %0
+        %0[$return] = construct bootstrap_pipeline::BootstrapEquivalence {seed_to_stage_one: "stable semantic outputs from seed to stage-1", stage_one_to_stage_two: "stable semantic outputs from stage-1 to stage-2", semantic_outputs: "semantic outputs match", cli_behavior: "CLI behavior matches", diagnostics: "diagnostic goldens match", package_validation: "release package validation matches"}
+        return %0[$return]
+  - public fn bootstrap_pipeline::bootstrap_evidence -> bootstrap_pipeline::BootstrapEvidence
+      locals:
+        %0[seed] : bootstrap_pipeline::StageReceipt
+        %1[stage_one] : bootstrap_pipeline::StageReceipt
+        %2[stage_two] : bootstrap_pipeline::StageReceipt
+        %3[equivalence] : bootstrap_pipeline::BootstrapEquivalence
+        %4[$return] : bootstrap_pipeline::BootstrapEvidence
+      block %0
+        %4[$return] = construct bootstrap_pipeline::BootstrapEvidence {seed: %0[seed], stage_one: %1[stage_one], stage_two: %2[stage_two], equivalence: %3[equivalence]}
+        return %4[$return]
+  - public fn bootstrap_pipeline::seed_receipt -> bootstrap_pipeline::StageReceipt
+      locals:
+        %0[$return] : bootstrap_pipeline::StageReceipt
+      block %0
+        %0[$return] = call bootstrap_pipeline::stage_receipt("seed", "cxx-seed-evidc", "source commit recorded in release evidence", "builds the bootstrap scaffold from the C++ seed compiler")
+        return %0[$return]
+  - public fn bootstrap_pipeline::stage_one_receipt -> bootstrap_pipeline::StageReceipt
+      locals:
+        %0[$return] : bootstrap_pipeline::StageReceipt
+      block %0
+        %0[$return] = call bootstrap_pipeline::stage_receipt("stage-1", "stage-1 evidc", "source commit recorded in release evidence", "rebuilds the same Evident compiler package")
+        return %0[$return]
+  - public fn bootstrap_pipeline::stage_two_receipt -> bootstrap_pipeline::StageReceipt
+      locals:
+        %0[$return] : bootstrap_pipeline::StageReceipt
+      block %0
+        %0[$return] = call bootstrap_pipeline::stage_receipt("stage-2", "stage-2 evidc", "source commit recorded in release evidence", "passes conformance, diagnostics, native emission, package, and release-contract checks")
+        return %0[$return]
+  - public fn bootstrap_compiler::build_status -> bootstrap_compiler::BootstrapStatus
+      locals:
+        %0[$return] : bootstrap_compiler::BootstrapStatus [affine]
+        %1[host] : bootstrap_host::CompilerHostSurface
+        %2[exit_status] : bootstrap_host::ExitStatus
+        %3[source] : bootstrap_source::PackageSource
+        %4[outlined] : bootstrap_pipeline::CompilerPipeline::SourceOutlined [affine]
+        %5[seed] : bootstrap_pipeline::CompilerPipeline::SeedCompiled [affine]
+        %6[stage_one] : bootstrap_pipeline::CompilerPipeline::StageOneCompiled [affine]
+        %7[stage_two] : bootstrap_pipeline::CompilerPipeline::StageTwoValidated [affine]
+        %8[seed_receipt] : bootstrap_pipeline::StageReceipt
+        %9[stage_one_receipt] : bootstrap_pipeline::StageReceipt
+        %10[stage_two_receipt] : bootstrap_pipeline::StageReceipt
+        %11[equivalence] : bootstrap_pipeline::BootstrapEquivalence
+        %12[evidence] : bootstrap_pipeline::BootstrapEvidence
+        %13[outline] : bootstrap_pipeline::BootstrapOutlineRecorded [affine]
+      block %0
+        %1[host] = call bootstrap_host::bootstrap_host_surface()
+        %2[exit_status] = call bootstrap_host::success_status()
+        %3[source] = call bootstrap_source::compiler_package()
+        %4[outlined] = call bootstrap_pipeline::outline(%3[source])
+        %5[seed] = call bootstrap_pipeline::compile_with_seed(%4[outlined])
+        %6[stage_one] = call bootstrap_pipeline::compile_stage_one(%5[seed])
+        %7[stage_two] = call bootstrap_pipeline::validate_stage_two(%6[stage_one])
+        %8[seed_receipt] = call bootstrap_pipeline::seed_receipt()
+        %9[stage_one_receipt] = call bootstrap_pipeline::stage_one_receipt()
+        %10[stage_two_receipt] = call bootstrap_pipeline::stage_two_receipt()
+        %11[equivalence] = call bootstrap_pipeline::bootstrap_equivalence()
+        %12[evidence] = call bootstrap_pipeline::bootstrap_evidence(%8[seed_receipt], %9[stage_one_receipt], %10[stage_two_receipt], %11[equivalence])
+        %13[outline] = call bootstrap_pipeline::record_outline("evident.compiler")
+        %0[$return] = construct bootstrap_compiler::BootstrapStatus {host: %1[host], exit_status: %2[exit_status], pipeline: %7[stage_two], evidence: %12[evidence], outline: %13[outline]}
+        return %0[$return]
+  - public fn bootstrap_compiler::bootstrap_stage_count -> Int
+      locals:
+        %0[$return] : Int
+      block %0
+        %0[$return] = 2
+        return %0[$return]
+  - public fn bootstrap_compiler::main -> Int
+      locals:
+        %0[$return] : Int
+        %1[status] : bootstrap_compiler::BootstrapStatus [affine]
+      block %0
+        %1[status] = call bootstrap_compiler::build_status()
+        %0[$return] = call bootstrap_source::compiler_source_count()
+        return %0[$return]
+  - public fn nonempty_list_widen$bootstrap_source__SourceFile -> List<bootstrap_source::SourceFile>
+      locals:
+        %0[values] : NonEmptyList<bootstrap_source::SourceFile>
+      blocks: <none>
+  - public fn list_append$bootstrap_source__SourceFile -> NonEmptyList<bootstrap_source::SourceFile>
+      locals:
+        %0[values] : List<bootstrap_source::SourceFile>
+        %1[value] : bootstrap_source::SourceFile
+      blocks: <none>
+  - public fn list_single$bootstrap_source__SourceFile -> NonEmptyList<bootstrap_source::SourceFile>
+      locals:
+        %0[value] : bootstrap_source::SourceFile
+      blocks: <none>
+  - public fn list_single$bootstrap_lexing__Token -> NonEmptyList<bootstrap_lexing::Token>
+      locals:
+        %0[value] : bootstrap_lexing::Token
+      blocks: <none>
+  - public fn list_single$bootstrap_parsing__SyntaxDeclaration -> NonEmptyList<bootstrap_parsing::SyntaxDeclaration>
+      locals:
+        %0[value] : bootstrap_parsing::SyntaxDeclaration
+      blocks: <none>
+  - public fn list_single$bootstrap_parsing__SyntaxModule -> NonEmptyList<bootstrap_parsing::SyntaxModule>
+      locals:
+        %0[value] : bootstrap_parsing::SyntaxModule
+      blocks: <none>
+  - public fn map_single$Text$bootstrap_semantics__Symbol -> NonEmptyMap<Text, bootstrap_semantics::Symbol>
+      locals:
+        %0[key] : Text
+        %1[value] : bootstrap_semantics::Symbol
+      blocks: <none>
+  - public fn nonempty_map_count_copy$Text$bootstrap_semantics__Symbol -> Nat
+      locals:
+        %0[entries] : NonEmptyMap<Text, bootstrap_semantics::Symbol>
+      blocks: <none>
+  - public fn list_empty$Text -> List<Text>
+      blocks: <none>

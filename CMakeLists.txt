@@ -303,6 +303,36 @@ if(BUILD_TESTING)
                 -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/RunAndCompareOutput.cmake)
     endfunction()
 
+    function(add_package_mir_compare_test name package_dir expected_file)
+        add_test(NAME ${name}
+            COMMAND ${CMAKE_COMMAND}
+                -DCOMMAND_PATH=$<TARGET_FILE:evidc>
+                -DMODE=--dump-mir
+                -DPACKAGE_DIR=${CMAKE_CURRENT_SOURCE_DIR}/tests/${package_dir}
+                -DEXPECTED_PATH=${CMAKE_CURRENT_SOURCE_DIR}/tests/${expected_file}
+                -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/RunAndCompareOutput.cmake)
+    endfunction()
+
+    function(add_repo_package_hir_compare_test name package_dir expected_file)
+        add_test(NAME ${name}
+            COMMAND ${CMAKE_COMMAND}
+                -DCOMMAND_PATH=$<TARGET_FILE:evidc>
+                -DMODE=--dump-hir
+                -DPACKAGE_DIR=${CMAKE_CURRENT_SOURCE_DIR}/${package_dir}
+                -DEXPECTED_PATH=${CMAKE_CURRENT_SOURCE_DIR}/tests/${expected_file}
+                -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/RunAndCompareOutput.cmake)
+    endfunction()
+
+    function(add_repo_package_mir_compare_test name package_dir expected_file)
+        add_test(NAME ${name}
+            COMMAND ${CMAKE_COMMAND}
+                -DCOMMAND_PATH=$<TARGET_FILE:evidc>
+                -DMODE=--dump-mir
+                -DPACKAGE_DIR=${CMAKE_CURRENT_SOURCE_DIR}/${package_dir}
+                -DEXPECTED_PATH=${CMAKE_CURRENT_SOURCE_DIR}/tests/${expected_file}
+                -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/RunAndCompareOutput.cmake)
+    endfunction()
+
     function(add_emit_compare_test name emit_mode input_file expected_file output_name)
         add_test(NAME ${name}
             COMMAND ${CMAKE_COMMAND}
@@ -663,6 +693,12 @@ if(BUILD_TESTING)
     add_package_hir_compare_test(compare_hir_package_manifest
         package_manifest
         expected_package_manifest.hir.out)
+    add_repo_package_hir_compare_test(compare_hir_bootstrap_compiler
+        bootstrap/compiler
+        expected_bootstrap_compiler.hir.out)
+    add_repo_package_mir_compare_test(compare_mir_bootstrap_compiler
+        bootstrap/compiler
+        expected_bootstrap_compiler.mir.out)
     add_test(NAME parse_valid_copyable_generic_wrapper
         COMMAND evidc ${CMAKE_CURRENT_SOURCE_DIR}/tests/valid_copyable_generic_wrapper.evd)
     add_test(NAME parse_valid_affine_branch_diverge

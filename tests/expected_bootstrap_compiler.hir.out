@@ -1,0 +1,722 @@
+types:
+  - public record bootstrap_source::SourcePath
+      field text: Text
+  - public record bootstrap_source::SourceFile
+      field path: bootstrap_source::SourcePath
+      field contents: Text
+  - public record bootstrap_source::PackageIdentity
+      field name: Text
+      field root: bootstrap_source::SourcePath
+      field manifest: bootstrap_source::SourcePath
+  - public record bootstrap_source::SourceGraph
+      field files: NonEmptyList<bootstrap_source::SourceFile>
+  - public record bootstrap_source::PackageSource
+      field identity: bootstrap_source::PackageIdentity
+      field graph: bootstrap_source::SourceGraph
+  - public record bootstrap_lexing::SourceOffset
+      field byte_index: Int
+  - public record bootstrap_lexing::SourceSpan
+      field path: bootstrap_source::SourcePath
+      field start: bootstrap_lexing::SourceOffset
+      field finish: bootstrap_lexing::SourceOffset
+  - public state bootstrap_lexing::TokenCategory
+      variant ModuleDeclarationIntroduced
+      variant IdentifierNamedReference
+      variant TextLiteralIntroduced
+      variant NumericLiteralIntroduced
+      variant ScopeOpened
+      variant ScopeClosed
+  - public record bootstrap_lexing::Token
+      field category: bootstrap_lexing::TokenCategory
+      field lexeme: Text
+      field span: bootstrap_lexing::SourceSpan
+  - public record bootstrap_lexing::TokenStream
+      field tokens: NonEmptyList<bootstrap_lexing::Token>
+  - public reason bootstrap_lexing::LexicalRejection
+      variant SourceTextCouldNotBeTokenized
+        field path: bootstrap_source::SourcePath
+  - public record bootstrap_parsing::ModulePath
+      field text: Text
+  - public state bootstrap_parsing::ModuleKind
+      variant DomainTruthCarried
+      variant BoundaryAmbiguityCollapsed
+      variant FoundationPlumbingCarried
+      variant HazardInteractionIsolated
+  - public state bootstrap_parsing::SyntaxDeclarationCategory
+      variant ModuleScopeIntroduced
+      variant ProductShapeIntroduced
+      variant RuntimeAlternativeIntroduced
+      variant FailureExplanationIntroduced
+      variant ProofWitnessIntroduced
+      variant AuthorityScopeIntroduced
+      variant LifecyclePositionsIntroduced
+      variant BehaviorIntroduced
+  - public record bootstrap_parsing::SyntaxDeclaration
+      field category: bootstrap_parsing::SyntaxDeclarationCategory
+      field name: Text
+      field span: bootstrap_lexing::SourceSpan
+  - public record bootstrap_parsing::SyntaxModule
+      field kind: bootstrap_parsing::ModuleKind
+      field path: bootstrap_parsing::ModulePath
+      field declarations: NonEmptyList<bootstrap_parsing::SyntaxDeclaration>
+  - public record bootstrap_parsing::PackageSyntax
+      field modules: NonEmptyList<bootstrap_parsing::SyntaxModule>
+  - public reason bootstrap_parsing::ParsingRejection
+      variant TokenStreamCouldNotFormSyntax
+        field path: bootstrap_source::SourcePath
+  - public record bootstrap_semantics::SymbolName
+      field text: Text
+  - public state bootstrap_semantics::SymbolCategory
+      variant ModuleScopeAvailable
+      variant ProductShapeAvailable
+      variant RuntimeAlternativeAvailable
+      variant FailureExplanationAvailable
+      variant ProofWitnessAvailable
+      variant AuthorityScopeAvailable
+      variant LifecyclePositionsAvailable
+      variant BehaviorAvailable
+  - public record bootstrap_semantics::Symbol
+      field name: bootstrap_semantics::SymbolName
+      field category: bootstrap_semantics::SymbolCategory
+      field declared_at: bootstrap_lexing::SourceSpan
+  - public record bootstrap_semantics::SymbolCatalog
+      field symbols_by_name: NonEmptyMap<Text, bootstrap_semantics::Symbol>
+  - public reason bootstrap_semantics::SemanticRejection
+      variant PackageDeclaredConflictingName
+        field name: bootstrap_semantics::SymbolName
+      variant SyntaxNameCouldNotResolve
+        field name: bootstrap_semantics::SymbolName
+  - public state bootstrap_diagnostics::DiagnosticSeverity
+      variant SourceRejected
+      variant CompilationBlocked
+      variant BootstrapInvariantFailed
+  - public record bootstrap_diagnostics::Diagnostic
+      field severity: bootstrap_diagnostics::DiagnosticSeverity
+      field message: Text
+  - public reason bootstrap_diagnostics::BootstrapFailure
+      variant SourcePackageRejected
+        field message: Text
+      variant StageBuildRejected
+        field message: Text
+      variant StageOutputsDiverged
+        field message: Text
+  - public record bootstrap_host::HostPath
+      field text: Text
+  - public record bootstrap_host::HostFileContents
+      field text: Text
+  - public record bootstrap_host::HostReadRequest
+      field path: bootstrap_host::HostPath
+  - public record bootstrap_host::HostWriteRequest
+      field path: bootstrap_host::HostPath
+      field contents: bootstrap_host::HostFileContents
+  - public record bootstrap_host::HostToolInvocation
+      field working_directory: bootstrap_host::HostPath
+      field executable: bootstrap_host::HostPath
+      field arguments: List<Text>
+  - public record bootstrap_host::CompilerHostSurface
+      field package_root: bootstrap_host::HostPath
+      field manifest: bootstrap_host::HostPath
+      field source_root: bootstrap_host::HostPath
+      field diagnostics_output: bootstrap_host::HostPath
+      field stage_output: bootstrap_host::HostPath
+      field tool: bootstrap_host::HostToolInvocation
+  - public record bootstrap_host::ExitStatus
+      field code: Int
+  - public record bootstrap_pipeline::PackageOutline
+      field source: bootstrap_source::PackageSource
+      field tokens: bootstrap_lexing::TokenStream
+      field syntax: bootstrap_parsing::PackageSyntax
+      field symbols: bootstrap_semantics::SymbolCatalog
+  - public phase bootstrap_pipeline::CompilerPipeline::SourceOutlined [affine]
+      field package_name: Text
+      field outline: bootstrap_pipeline::PackageOutline
+  - public phase bootstrap_pipeline::CompilerPipeline::SeedCompiled [affine]
+      field package_name: Text
+      field outline: bootstrap_pipeline::PackageOutline
+  - public phase bootstrap_pipeline::CompilerPipeline::StageOneCompiled [affine]
+      field package_name: Text
+      field outline: bootstrap_pipeline::PackageOutline
+  - public phase bootstrap_pipeline::CompilerPipeline::StageTwoValidated [affine]
+      field package_name: Text
+      field outline: bootstrap_pipeline::PackageOutline
+  - public proof bootstrap_pipeline::BootstrapOutlineRecorded [affine]
+      field package_name: Text
+  - public record bootstrap_pipeline::StageReceipt
+      field stage_name: Text
+      field compiler_name: Text
+      field source_commit: Text
+      field validation_summary: Text
+  - public record bootstrap_pipeline::BootstrapEquivalence
+      field seed_to_stage_one: Text
+      field stage_one_to_stage_two: Text
+      field semantic_outputs: Text
+      field cli_behavior: Text
+      field diagnostics: Text
+      field package_validation: Text
+  - public record bootstrap_pipeline::BootstrapEvidence
+      field seed: bootstrap_pipeline::StageReceipt
+      field stage_one: bootstrap_pipeline::StageReceipt
+      field stage_two: bootstrap_pipeline::StageReceipt
+      field equivalence: bootstrap_pipeline::BootstrapEquivalence
+  - public record bootstrap_compiler::BootstrapStatus [affine]
+      field host: bootstrap_host::CompilerHostSurface
+      field exit_status: bootstrap_host::ExitStatus
+      field pipeline: bootstrap_pipeline::CompilerPipeline::StageTwoValidated [affine]
+      field evidence: bootstrap_pipeline::BootstrapEvidence
+      field outline: bootstrap_pipeline::BootstrapOutlineRecorded [affine]
+functions:
+  - public fn nonempty_list_widen<T>(values: NonEmptyList<T>) -> List<T>
+  - public fn list_append<T>(values: List<T>, value: T) -> NonEmptyList<T>
+  - public fn list_single<T>(value: T) -> NonEmptyList<T>
+  - public fn map_single<K, V>(key: K, value: V) -> NonEmptyMap<K, V>
+  - public fn nonempty_map_count_copy<K, V>(entries: NonEmptyMap<K, V>) -> Nat
+  - public fn list_empty<T>() -> List<T>
+  - public fn bootstrap_source::source_file(path: Text, contents: Text) -> bootstrap_source::SourceFile
+      block -> bootstrap_source::SourceFile
+        result
+          construct bootstrap_source::SourceFile : bootstrap_source::SourceFile
+            init path
+              construct bootstrap_source::SourcePath : bootstrap_source::SourcePath
+                init text
+                  local path : Text
+            init contents [shorthand]
+              local contents : Text
+  - private fn bootstrap_source::append_source(files: NonEmptyList<bootstrap_source::SourceFile>, file: bootstrap_source::SourceFile) -> NonEmptyList<bootstrap_source::SourceFile>
+      block -> NonEmptyList<bootstrap_source::SourceFile>
+        let widened: List<bootstrap_source::SourceFile>
+          call nonempty_list_widen<bootstrap_source::SourceFile> -> List<bootstrap_source::SourceFile>
+            local files : NonEmptyList<bootstrap_source::SourceFile>
+        result
+          call list_append<bootstrap_source::SourceFile> -> NonEmptyList<bootstrap_source::SourceFile>
+            local widened : List<bootstrap_source::SourceFile>
+            local file : bootstrap_source::SourceFile
+  - public fn bootstrap_source::compiler_source_graph() -> bootstrap_source::SourceGraph
+      block -> bootstrap_source::SourceGraph
+        let source: NonEmptyList<bootstrap_source::SourceFile>
+          call list_single<bootstrap_source::SourceFile> -> NonEmptyList<bootstrap_source::SourceFile>
+            call bootstrap_source::source_file -> bootstrap_source::SourceFile
+              string "src/source.evd" : Text
+              string "source graph and package identity" : Text
+        let lexing: NonEmptyList<bootstrap_source::SourceFile>
+          call bootstrap_source::append_source -> NonEmptyList<bootstrap_source::SourceFile>
+            local source : NonEmptyList<bootstrap_source::SourceFile>
+            call bootstrap_source::source_file -> bootstrap_source::SourceFile
+              string "src/lexing.evd" : Text
+              string "lexical token stream model" : Text
+        let parsing: NonEmptyList<bootstrap_source::SourceFile>
+          call bootstrap_source::append_source -> NonEmptyList<bootstrap_source::SourceFile>
+            local lexing : NonEmptyList<bootstrap_source::SourceFile>
+            call bootstrap_source::source_file -> bootstrap_source::SourceFile
+              string "src/parsing.evd" : Text
+              string "parsed package syntax model" : Text
+        let semantics: NonEmptyList<bootstrap_source::SourceFile>
+          call bootstrap_source::append_source -> NonEmptyList<bootstrap_source::SourceFile>
+            local parsing : NonEmptyList<bootstrap_source::SourceFile>
+            call bootstrap_source::source_file -> bootstrap_source::SourceFile
+              string "src/semantics.evd" : Text
+              string "semantic symbol catalog model" : Text
+        let diagnostics: NonEmptyList<bootstrap_source::SourceFile>
+          call bootstrap_source::append_source -> NonEmptyList<bootstrap_source::SourceFile>
+            local semantics : NonEmptyList<bootstrap_source::SourceFile>
+            call bootstrap_source::source_file -> bootstrap_source::SourceFile
+              string "src/diagnostics.evd" : Text
+              string "diagnostics and bootstrap failure reasons" : Text
+        let host: NonEmptyList<bootstrap_source::SourceFile>
+          call bootstrap_source::append_source -> NonEmptyList<bootstrap_source::SourceFile>
+            local diagnostics : NonEmptyList<bootstrap_source::SourceFile>
+            call bootstrap_source::source_file -> bootstrap_source::SourceFile
+              string "src/host.evd" : Text
+              string "host file, path, and tool boundary handles" : Text
+        let pipeline: NonEmptyList<bootstrap_source::SourceFile>
+          call bootstrap_source::append_source -> NonEmptyList<bootstrap_source::SourceFile>
+            local host : NonEmptyList<bootstrap_source::SourceFile>
+            call bootstrap_source::source_file -> bootstrap_source::SourceFile
+              string "src/pipeline.evd" : Text
+              string "bootstrap pipeline phases and stage evidence" : Text
+        let main: NonEmptyList<bootstrap_source::SourceFile>
+          call bootstrap_source::append_source -> NonEmptyList<bootstrap_source::SourceFile>
+            local pipeline : NonEmptyList<bootstrap_source::SourceFile>
+            call bootstrap_source::source_file -> bootstrap_source::SourceFile
+              string "src/main.evd" : Text
+              string "bootstrap package entrypoint and aggregate status" : Text
+        result
+          construct bootstrap_source::SourceGraph : bootstrap_source::SourceGraph
+            init files
+              local main : NonEmptyList<bootstrap_source::SourceFile>
+  - public fn bootstrap_source::compiler_package() -> bootstrap_source::PackageSource
+      block -> bootstrap_source::PackageSource
+        result
+          construct bootstrap_source::PackageSource : bootstrap_source::PackageSource
+            init identity
+              construct bootstrap_source::PackageIdentity : bootstrap_source::PackageIdentity
+                init name
+                  string "evident.compiler" : Text
+                init root
+                  construct bootstrap_source::SourcePath : bootstrap_source::SourcePath
+                    init text
+                      string "bootstrap/compiler" : Text
+                init manifest
+                  construct bootstrap_source::SourcePath : bootstrap_source::SourcePath
+                    init text
+                      string "bootstrap/compiler/evident.pkg" : Text
+            init graph
+              call bootstrap_source::compiler_source_graph -> bootstrap_source::SourceGraph
+  - public fn bootstrap_source::compiler_source_count() -> Int
+      block -> Int
+        let graph: bootstrap_source::SourceGraph
+          call bootstrap_source::compiler_source_graph -> bootstrap_source::SourceGraph
+        result
+          number 8 : Int
+  - public fn bootstrap_lexing::source_offset(byte_index: Int) -> bootstrap_lexing::SourceOffset
+      block -> bootstrap_lexing::SourceOffset
+        result
+          construct bootstrap_lexing::SourceOffset : bootstrap_lexing::SourceOffset
+            init byte_index [shorthand]
+              local byte_index : Int
+  - public fn bootstrap_lexing::source_span(path: bootstrap_source::SourcePath, start: Int, finish: Int) -> bootstrap_lexing::SourceSpan
+      block -> bootstrap_lexing::SourceSpan
+        result
+          construct bootstrap_lexing::SourceSpan : bootstrap_lexing::SourceSpan
+            init path [shorthand]
+              local path : bootstrap_source::SourcePath
+            init start
+              call bootstrap_lexing::source_offset -> bootstrap_lexing::SourceOffset
+                local start : Int
+            init finish
+              call bootstrap_lexing::source_offset -> bootstrap_lexing::SourceOffset
+                local finish : Int
+  - public fn bootstrap_lexing::token(category: bootstrap_lexing::TokenCategory, lexeme: Text, span: bootstrap_lexing::SourceSpan) -> bootstrap_lexing::Token
+      block -> bootstrap_lexing::Token
+        result
+          construct bootstrap_lexing::Token : bootstrap_lexing::Token
+            init category [shorthand]
+              local category : bootstrap_lexing::TokenCategory
+            init lexeme [shorthand]
+              local lexeme : Text
+            init span [shorthand]
+              local span : bootstrap_lexing::SourceSpan
+  - public fn bootstrap_lexing::seed_token_stream() -> bootstrap_lexing::TokenStream
+      block -> bootstrap_lexing::TokenStream
+        let manifest_path: bootstrap_source::SourcePath
+          construct bootstrap_source::SourcePath : bootstrap_source::SourcePath
+            init text
+              string "bootstrap/compiler/evident.pkg" : Text
+        let first_span: bootstrap_lexing::SourceSpan
+          call bootstrap_lexing::source_span -> bootstrap_lexing::SourceSpan
+            local manifest_path : bootstrap_source::SourcePath
+            number 0 : Int
+            number 10 : Int
+        let first_token: bootstrap_lexing::Token
+          call bootstrap_lexing::token -> bootstrap_lexing::Token
+            construct bootstrap_lexing::TokenCategory::IdentifierNamedReference : bootstrap_lexing::TokenCategory
+            string "bootstrap" : Text
+            local first_span : bootstrap_lexing::SourceSpan
+        result
+          construct bootstrap_lexing::TokenStream : bootstrap_lexing::TokenStream
+            init tokens
+              call list_single<bootstrap_lexing::Token> -> NonEmptyList<bootstrap_lexing::Token>
+                local first_token : bootstrap_lexing::Token
+  - public fn bootstrap_lexing::seed_token_stream_size() -> Int
+      block -> Int
+        let stream: bootstrap_lexing::TokenStream
+          call bootstrap_lexing::seed_token_stream -> bootstrap_lexing::TokenStream
+        result
+          number 1 : Int
+  - public fn bootstrap_parsing::module_path(text: Text) -> bootstrap_parsing::ModulePath
+      block -> bootstrap_parsing::ModulePath
+        result
+          construct bootstrap_parsing::ModulePath : bootstrap_parsing::ModulePath
+            init text [shorthand]
+              local text : Text
+  - public fn bootstrap_parsing::syntax_declaration(category: bootstrap_parsing::SyntaxDeclarationCategory, name: Text, span: bootstrap_lexing::SourceSpan) -> bootstrap_parsing::SyntaxDeclaration
+      block -> bootstrap_parsing::SyntaxDeclaration
+        result
+          construct bootstrap_parsing::SyntaxDeclaration : bootstrap_parsing::SyntaxDeclaration
+            init category [shorthand]
+              local category : bootstrap_parsing::SyntaxDeclarationCategory
+            init name [shorthand]
+              local name : Text
+            init span [shorthand]
+              local span : bootstrap_lexing::SourceSpan
+  - public fn bootstrap_parsing::syntax_module(kind: bootstrap_parsing::ModuleKind, path: bootstrap_parsing::ModulePath, declarations: NonEmptyList<bootstrap_parsing::SyntaxDeclaration>) -> bootstrap_parsing::SyntaxModule
+      block -> bootstrap_parsing::SyntaxModule
+        result
+          construct bootstrap_parsing::SyntaxModule : bootstrap_parsing::SyntaxModule
+            init kind [shorthand]
+              local kind : bootstrap_parsing::ModuleKind
+            init path [shorthand]
+              local path : bootstrap_parsing::ModulePath
+            init declarations [shorthand]
+              local declarations : NonEmptyList<bootstrap_parsing::SyntaxDeclaration>
+  - public fn bootstrap_parsing::seed_package_syntax(tokens: bootstrap_lexing::TokenStream) -> bootstrap_parsing::PackageSyntax
+      block -> bootstrap_parsing::PackageSyntax
+        let source_path: bootstrap_source::SourcePath
+          construct bootstrap_source::SourcePath : bootstrap_source::SourcePath
+            init text
+              string "bootstrap/compiler/src/source.evd" : Text
+        let module_span: bootstrap_lexing::SourceSpan
+          call bootstrap_lexing::source_span -> bootstrap_lexing::SourceSpan
+            local source_path : bootstrap_source::SourcePath
+            number 0 : Int
+            number 30 : Int
+        let declaration: bootstrap_parsing::SyntaxDeclaration
+          call bootstrap_parsing::syntax_declaration -> bootstrap_parsing::SyntaxDeclaration
+            construct bootstrap_parsing::SyntaxDeclarationCategory::ModuleScopeIntroduced : bootstrap_parsing::SyntaxDeclarationCategory
+            string "bootstrap_source" : Text
+            local module_span : bootstrap_lexing::SourceSpan
+        let source_module: bootstrap_parsing::SyntaxModule
+          call bootstrap_parsing::syntax_module -> bootstrap_parsing::SyntaxModule
+            construct bootstrap_parsing::ModuleKind::DomainTruthCarried : bootstrap_parsing::ModuleKind
+            call bootstrap_parsing::module_path -> bootstrap_parsing::ModulePath
+              string "bootstrap_source" : Text
+            call list_single<bootstrap_parsing::SyntaxDeclaration> -> NonEmptyList<bootstrap_parsing::SyntaxDeclaration>
+              local declaration : bootstrap_parsing::SyntaxDeclaration
+        result
+          construct bootstrap_parsing::PackageSyntax : bootstrap_parsing::PackageSyntax
+            init modules
+              call list_single<bootstrap_parsing::SyntaxModule> -> NonEmptyList<bootstrap_parsing::SyntaxModule>
+                local source_module : bootstrap_parsing::SyntaxModule
+  - public fn bootstrap_parsing::seed_package_syntax_module_count() -> Int
+      block -> Int
+        let syntax: bootstrap_parsing::PackageSyntax
+          call bootstrap_parsing::seed_package_syntax -> bootstrap_parsing::PackageSyntax
+            call bootstrap_lexing::seed_token_stream -> bootstrap_lexing::TokenStream
+        result
+          number 1 : Int
+  - public fn bootstrap_semantics::symbol_name(text: Text) -> bootstrap_semantics::SymbolName
+      block -> bootstrap_semantics::SymbolName
+        result
+          construct bootstrap_semantics::SymbolName : bootstrap_semantics::SymbolName
+            init text [shorthand]
+              local text : Text
+  - public fn bootstrap_semantics::symbol(name: bootstrap_semantics::SymbolName, category: bootstrap_semantics::SymbolCategory, declared_at: bootstrap_lexing::SourceSpan) -> bootstrap_semantics::Symbol
+      block -> bootstrap_semantics::Symbol
+        result
+          construct bootstrap_semantics::Symbol : bootstrap_semantics::Symbol
+            init name [shorthand]
+              local name : bootstrap_semantics::SymbolName
+            init category [shorthand]
+              local category : bootstrap_semantics::SymbolCategory
+            init declared_at [shorthand]
+              local declared_at : bootstrap_lexing::SourceSpan
+  - public fn bootstrap_semantics::seed_symbol_catalog(syntax: bootstrap_parsing::PackageSyntax) -> bootstrap_semantics::SymbolCatalog
+      block -> bootstrap_semantics::SymbolCatalog
+        let source_path: bootstrap_source::SourcePath
+          construct bootstrap_source::SourcePath : bootstrap_source::SourcePath
+            init text
+              string "bootstrap/compiler/src/source.evd" : Text
+        let declared_at: bootstrap_lexing::SourceSpan
+          call bootstrap_lexing::source_span -> bootstrap_lexing::SourceSpan
+            local source_path : bootstrap_source::SourcePath
+            number 0 : Int
+            number 30 : Int
+        let name: bootstrap_semantics::SymbolName
+          call bootstrap_semantics::symbol_name -> bootstrap_semantics::SymbolName
+            string "bootstrap_source" : Text
+        let first_symbol: bootstrap_semantics::Symbol
+          call bootstrap_semantics::symbol -> bootstrap_semantics::Symbol
+            local name : bootstrap_semantics::SymbolName
+            construct bootstrap_semantics::SymbolCategory::ModuleScopeAvailable : bootstrap_semantics::SymbolCategory
+            local declared_at : bootstrap_lexing::SourceSpan
+        result
+          construct bootstrap_semantics::SymbolCatalog : bootstrap_semantics::SymbolCatalog
+            init symbols_by_name
+              call map_single<Text, bootstrap_semantics::Symbol> -> NonEmptyMap<Text, bootstrap_semantics::Symbol>
+                field-access .text : Text
+                  local name : bootstrap_semantics::SymbolName
+                local first_symbol : bootstrap_semantics::Symbol
+  - public fn bootstrap_semantics::seed_symbol_catalog_entry_count() -> Nat
+      block -> Nat
+        let syntax: bootstrap_parsing::PackageSyntax
+          call bootstrap_parsing::seed_package_syntax -> bootstrap_parsing::PackageSyntax
+            call bootstrap_lexing::seed_token_stream -> bootstrap_lexing::TokenStream
+        let catalog: bootstrap_semantics::SymbolCatalog
+          call bootstrap_semantics::seed_symbol_catalog -> bootstrap_semantics::SymbolCatalog
+            local syntax : bootstrap_parsing::PackageSyntax
+        result
+          call nonempty_map_count_copy<Text, bootstrap_semantics::Symbol> -> Nat
+            field-access .symbols_by_name : NonEmptyMap<Text, bootstrap_semantics::Symbol>
+              local catalog : bootstrap_semantics::SymbolCatalog
+  - public fn bootstrap_diagnostics::source_rejected(message: Text) -> bootstrap_diagnostics::Diagnostic
+      block -> bootstrap_diagnostics::Diagnostic
+        result
+          construct bootstrap_diagnostics::Diagnostic : bootstrap_diagnostics::Diagnostic
+            init severity
+              construct bootstrap_diagnostics::DiagnosticSeverity::SourceRejected : bootstrap_diagnostics::DiagnosticSeverity
+            init message [shorthand]
+              local message : Text
+  - public fn bootstrap_diagnostics::stage_blocked(message: Text) -> bootstrap_diagnostics::Diagnostic
+      block -> bootstrap_diagnostics::Diagnostic
+        result
+          construct bootstrap_diagnostics::Diagnostic : bootstrap_diagnostics::Diagnostic
+            init severity
+              construct bootstrap_diagnostics::DiagnosticSeverity::CompilationBlocked : bootstrap_diagnostics::DiagnosticSeverity
+            init message [shorthand]
+              local message : Text
+  - public foreign-fn bootstrap_host::read_text_file(request: bootstrap_host::HostReadRequest) -> bootstrap_host::HostFileContents
+  - public foreign-fn bootstrap_host::write_text_file(request: bootstrap_host::HostWriteRequest) -> CInt
+  - public foreign-fn bootstrap_host::resolve_path(base: bootstrap_host::HostPath, relative: bootstrap_host::HostPath) -> bootstrap_host::HostPath
+  - public foreign-fn bootstrap_host::spawn_tool(invocation: bootstrap_host::HostToolInvocation) -> CInt
+  - public foreign-fn bootstrap_host::process_exit(code: CInt) -> CInt
+  - public fn bootstrap_host::host_path(text: Text) -> bootstrap_host::HostPath
+      block -> bootstrap_host::HostPath
+        result
+          construct bootstrap_host::HostPath : bootstrap_host::HostPath
+            init text [shorthand]
+              local text : Text
+  - public fn bootstrap_host::host_file_contents(text: Text) -> bootstrap_host::HostFileContents
+      block -> bootstrap_host::HostFileContents
+        result
+          construct bootstrap_host::HostFileContents : bootstrap_host::HostFileContents
+            init text [shorthand]
+              local text : Text
+  - public fn bootstrap_host::host_read_request(path: bootstrap_host::HostPath) -> bootstrap_host::HostReadRequest
+      block -> bootstrap_host::HostReadRequest
+        result
+          construct bootstrap_host::HostReadRequest : bootstrap_host::HostReadRequest
+            init path [shorthand]
+              local path : bootstrap_host::HostPath
+  - public fn bootstrap_host::host_write_request(path: bootstrap_host::HostPath, contents: bootstrap_host::HostFileContents) -> bootstrap_host::HostWriteRequest
+      block -> bootstrap_host::HostWriteRequest
+        result
+          construct bootstrap_host::HostWriteRequest : bootstrap_host::HostWriteRequest
+            init path [shorthand]
+              local path : bootstrap_host::HostPath
+            init contents [shorthand]
+              local contents : bootstrap_host::HostFileContents
+  - public fn bootstrap_host::host_tool_invocation(working_directory: bootstrap_host::HostPath, executable: bootstrap_host::HostPath, arguments: List<Text>) -> bootstrap_host::HostToolInvocation
+      block -> bootstrap_host::HostToolInvocation
+        result
+          construct bootstrap_host::HostToolInvocation : bootstrap_host::HostToolInvocation
+            init working_directory [shorthand]
+              local working_directory : bootstrap_host::HostPath
+            init executable [shorthand]
+              local executable : bootstrap_host::HostPath
+            init arguments [shorthand]
+              local arguments : List<Text>
+  - public fn bootstrap_host::bootstrap_host_surface() -> bootstrap_host::CompilerHostSurface
+      block -> bootstrap_host::CompilerHostSurface
+        let package_root: bootstrap_host::HostPath
+          call bootstrap_host::host_path -> bootstrap_host::HostPath
+            string "bootstrap/compiler" : Text
+        let manifest: bootstrap_host::HostPath
+          call bootstrap_host::host_path -> bootstrap_host::HostPath
+            string "bootstrap/compiler/evident.pkg" : Text
+        let source_root: bootstrap_host::HostPath
+          call bootstrap_host::host_path -> bootstrap_host::HostPath
+            string "bootstrap/compiler/src" : Text
+        let diagnostics_output: bootstrap_host::HostPath
+          call bootstrap_host::host_path -> bootstrap_host::HostPath
+            string "bootstrap/compiler/bootstrap-diagnostics.log" : Text
+        let stage_output: bootstrap_host::HostPath
+          call bootstrap_host::host_path -> bootstrap_host::HostPath
+            string "bootstrap/compiler/bootstrap-stage-output" : Text
+        let tool: bootstrap_host::HostToolInvocation
+          call bootstrap_host::host_tool_invocation -> bootstrap_host::HostToolInvocation
+            local package_root : bootstrap_host::HostPath
+            call bootstrap_host::host_path -> bootstrap_host::HostPath
+              string "bootstrap/compiler/evidc" : Text
+            call list_empty<Text> -> List<Text>
+        result
+          construct bootstrap_host::CompilerHostSurface : bootstrap_host::CompilerHostSurface
+            init package_root [shorthand]
+              local package_root : bootstrap_host::HostPath
+            init manifest [shorthand]
+              local manifest : bootstrap_host::HostPath
+            init source_root [shorthand]
+              local source_root : bootstrap_host::HostPath
+            init diagnostics_output [shorthand]
+              local diagnostics_output : bootstrap_host::HostPath
+            init stage_output [shorthand]
+              local stage_output : bootstrap_host::HostPath
+            init tool [shorthand]
+              local tool : bootstrap_host::HostToolInvocation
+  - public fn bootstrap_host::success_status() -> bootstrap_host::ExitStatus
+      block -> bootstrap_host::ExitStatus
+        result
+          construct bootstrap_host::ExitStatus : bootstrap_host::ExitStatus
+            init code
+              number 0 : Int
+  - public fn bootstrap_pipeline::outline(source: bootstrap_source::PackageSource) -> bootstrap_pipeline::CompilerPipeline::SourceOutlined [affine]
+      block -> bootstrap_pipeline::CompilerPipeline::SourceOutlined [affine]
+        let tokens: bootstrap_lexing::TokenStream
+          call bootstrap_lexing::seed_token_stream -> bootstrap_lexing::TokenStream
+        let syntax: bootstrap_parsing::PackageSyntax
+          call bootstrap_parsing::seed_package_syntax -> bootstrap_parsing::PackageSyntax
+            local tokens : bootstrap_lexing::TokenStream
+        result
+          construct bootstrap_pipeline::CompilerPipeline::SourceOutlined : bootstrap_pipeline::CompilerPipeline::SourceOutlined [affine]
+            init package_name
+              field-access .name : Text
+                field-access .identity : bootstrap_source::PackageIdentity
+                  local source : bootstrap_source::PackageSource
+            init outline
+              construct bootstrap_pipeline::PackageOutline : bootstrap_pipeline::PackageOutline
+                init source [shorthand]
+                  local source : bootstrap_source::PackageSource
+                init tokens [shorthand]
+                  local tokens : bootstrap_lexing::TokenStream
+                init syntax [shorthand]
+                  local syntax : bootstrap_parsing::PackageSyntax
+                init symbols
+                  call bootstrap_semantics::seed_symbol_catalog -> bootstrap_semantics::SymbolCatalog
+                    local syntax : bootstrap_parsing::PackageSyntax
+  - public fn bootstrap_pipeline::compile_with_seed(pipeline: bootstrap_pipeline::CompilerPipeline::SourceOutlined [affine]) -> bootstrap_pipeline::CompilerPipeline::SeedCompiled [affine]
+      block -> bootstrap_pipeline::CompilerPipeline::SeedCompiled [affine]
+        result
+          construct bootstrap_pipeline::CompilerPipeline::SeedCompiled : bootstrap_pipeline::CompilerPipeline::SeedCompiled [affine]
+            init package_name
+              field-access .package_name : Text
+                local pipeline : bootstrap_pipeline::CompilerPipeline::SourceOutlined [affine]
+            init outline
+              field-access .outline : bootstrap_pipeline::PackageOutline
+                local pipeline : bootstrap_pipeline::CompilerPipeline::SourceOutlined [affine]
+  - public fn bootstrap_pipeline::compile_stage_one(pipeline: bootstrap_pipeline::CompilerPipeline::SeedCompiled [affine]) -> bootstrap_pipeline::CompilerPipeline::StageOneCompiled [affine]
+      block -> bootstrap_pipeline::CompilerPipeline::StageOneCompiled [affine]
+        result
+          construct bootstrap_pipeline::CompilerPipeline::StageOneCompiled : bootstrap_pipeline::CompilerPipeline::StageOneCompiled [affine]
+            init package_name
+              field-access .package_name : Text
+                local pipeline : bootstrap_pipeline::CompilerPipeline::SeedCompiled [affine]
+            init outline
+              field-access .outline : bootstrap_pipeline::PackageOutline
+                local pipeline : bootstrap_pipeline::CompilerPipeline::SeedCompiled [affine]
+  - public fn bootstrap_pipeline::validate_stage_two(pipeline: bootstrap_pipeline::CompilerPipeline::StageOneCompiled [affine]) -> bootstrap_pipeline::CompilerPipeline::StageTwoValidated [affine]
+      block -> bootstrap_pipeline::CompilerPipeline::StageTwoValidated [affine]
+        result
+          construct bootstrap_pipeline::CompilerPipeline::StageTwoValidated : bootstrap_pipeline::CompilerPipeline::StageTwoValidated [affine]
+            init package_name
+              field-access .package_name : Text
+                local pipeline : bootstrap_pipeline::CompilerPipeline::StageOneCompiled [affine]
+            init outline
+              field-access .outline : bootstrap_pipeline::PackageOutline
+                local pipeline : bootstrap_pipeline::CompilerPipeline::StageOneCompiled [affine]
+  - public fn bootstrap_pipeline::record_outline(package_name: Text) -> bootstrap_pipeline::BootstrapOutlineRecorded [affine] proves bootstrap_pipeline::BootstrapOutlineRecorded
+      block -> bootstrap_pipeline::BootstrapOutlineRecorded [affine]
+        result
+          prove bootstrap_pipeline::BootstrapOutlineRecorded : bootstrap_pipeline::BootstrapOutlineRecorded [affine]
+            init package_name [shorthand]
+              local package_name : Text
+  - public fn bootstrap_pipeline::stage_receipt(stage_name: Text, compiler_name: Text, source_commit: Text, validation_summary: Text) -> bootstrap_pipeline::StageReceipt
+      block -> bootstrap_pipeline::StageReceipt
+        result
+          construct bootstrap_pipeline::StageReceipt : bootstrap_pipeline::StageReceipt
+            init stage_name [shorthand]
+              local stage_name : Text
+            init compiler_name [shorthand]
+              local compiler_name : Text
+            init source_commit [shorthand]
+              local source_commit : Text
+            init validation_summary [shorthand]
+              local validation_summary : Text
+  - public fn bootstrap_pipeline::bootstrap_equivalence() -> bootstrap_pipeline::BootstrapEquivalence
+      block -> bootstrap_pipeline::BootstrapEquivalence
+        result
+          construct bootstrap_pipeline::BootstrapEquivalence : bootstrap_pipeline::BootstrapEquivalence
+            init seed_to_stage_one
+              string "stable semantic outputs from seed to stage-1" : Text
+            init stage_one_to_stage_two
+              string "stable semantic outputs from stage-1 to stage-2" : Text
+            init semantic_outputs
+              string "semantic outputs match" : Text
+            init cli_behavior
+              string "CLI behavior matches" : Text
+            init diagnostics
+              string "diagnostic goldens match" : Text
+            init package_validation
+              string "release package validation matches" : Text
+  - public fn bootstrap_pipeline::bootstrap_evidence(seed: bootstrap_pipeline::StageReceipt, stage_one: bootstrap_pipeline::StageReceipt, stage_two: bootstrap_pipeline::StageReceipt, equivalence: bootstrap_pipeline::BootstrapEquivalence) -> bootstrap_pipeline::BootstrapEvidence
+      block -> bootstrap_pipeline::BootstrapEvidence
+        result
+          construct bootstrap_pipeline::BootstrapEvidence : bootstrap_pipeline::BootstrapEvidence
+            init seed [shorthand]
+              local seed : bootstrap_pipeline::StageReceipt
+            init stage_one [shorthand]
+              local stage_one : bootstrap_pipeline::StageReceipt
+            init stage_two [shorthand]
+              local stage_two : bootstrap_pipeline::StageReceipt
+            init equivalence [shorthand]
+              local equivalence : bootstrap_pipeline::BootstrapEquivalence
+  - public fn bootstrap_pipeline::seed_receipt() -> bootstrap_pipeline::StageReceipt
+      block -> bootstrap_pipeline::StageReceipt
+        result
+          call bootstrap_pipeline::stage_receipt -> bootstrap_pipeline::StageReceipt
+            string "seed" : Text
+            string "cxx-seed-evidc" : Text
+            string "source commit recorded in release evidence" : Text
+            string "builds the bootstrap scaffold from the C++ seed compiler" : Text
+  - public fn bootstrap_pipeline::stage_one_receipt() -> bootstrap_pipeline::StageReceipt
+      block -> bootstrap_pipeline::StageReceipt
+        result
+          call bootstrap_pipeline::stage_receipt -> bootstrap_pipeline::StageReceipt
+            string "stage-1" : Text
+            string "stage-1 evidc" : Text
+            string "source commit recorded in release evidence" : Text
+            string "rebuilds the same Evident compiler package" : Text
+  - public fn bootstrap_pipeline::stage_two_receipt() -> bootstrap_pipeline::StageReceipt
+      block -> bootstrap_pipeline::StageReceipt
+        result
+          call bootstrap_pipeline::stage_receipt -> bootstrap_pipeline::StageReceipt
+            string "stage-2" : Text
+            string "stage-2 evidc" : Text
+            string "source commit recorded in release evidence" : Text
+            string "passes conformance, diagnostics, native emission, package, and release-contract checks" : Text
+  - public fn bootstrap_compiler::build_status() -> bootstrap_compiler::BootstrapStatus [affine]
+      block -> bootstrap_compiler::BootstrapStatus [affine]
+        let host: bootstrap_host::CompilerHostSurface
+          call bootstrap_host::bootstrap_host_surface -> bootstrap_host::CompilerHostSurface
+        let exit_status: bootstrap_host::ExitStatus
+          call bootstrap_host::success_status -> bootstrap_host::ExitStatus
+        let source: bootstrap_source::PackageSource
+          call bootstrap_source::compiler_package -> bootstrap_source::PackageSource
+        let outlined: bootstrap_pipeline::CompilerPipeline::SourceOutlined [affine]
+          call bootstrap_pipeline::outline -> bootstrap_pipeline::CompilerPipeline::SourceOutlined [affine]
+            local source : bootstrap_source::PackageSource
+        let seed: bootstrap_pipeline::CompilerPipeline::SeedCompiled [affine]
+          call bootstrap_pipeline::compile_with_seed -> bootstrap_pipeline::CompilerPipeline::SeedCompiled [affine]
+            local outlined : bootstrap_pipeline::CompilerPipeline::SourceOutlined [affine]
+        let stage_one: bootstrap_pipeline::CompilerPipeline::StageOneCompiled [affine]
+          call bootstrap_pipeline::compile_stage_one -> bootstrap_pipeline::CompilerPipeline::StageOneCompiled [affine]
+            local seed : bootstrap_pipeline::CompilerPipeline::SeedCompiled [affine]
+        let stage_two: bootstrap_pipeline::CompilerPipeline::StageTwoValidated [affine]
+          call bootstrap_pipeline::validate_stage_two -> bootstrap_pipeline::CompilerPipeline::StageTwoValidated [affine]
+            local stage_one : bootstrap_pipeline::CompilerPipeline::StageOneCompiled [affine]
+        let seed_receipt: bootstrap_pipeline::StageReceipt
+          call bootstrap_pipeline::seed_receipt -> bootstrap_pipeline::StageReceipt
+        let stage_one_receipt: bootstrap_pipeline::StageReceipt
+          call bootstrap_pipeline::stage_one_receipt -> bootstrap_pipeline::StageReceipt
+        let stage_two_receipt: bootstrap_pipeline::StageReceipt
+          call bootstrap_pipeline::stage_two_receipt -> bootstrap_pipeline::StageReceipt
+        let equivalence: bootstrap_pipeline::BootstrapEquivalence
+          call bootstrap_pipeline::bootstrap_equivalence -> bootstrap_pipeline::BootstrapEquivalence
+        let evidence: bootstrap_pipeline::BootstrapEvidence
+          call bootstrap_pipeline::bootstrap_evidence -> bootstrap_pipeline::BootstrapEvidence
+            local seed_receipt : bootstrap_pipeline::StageReceipt
+            local stage_one_receipt : bootstrap_pipeline::StageReceipt
+            local stage_two_receipt : bootstrap_pipeline::StageReceipt
+            local equivalence : bootstrap_pipeline::BootstrapEquivalence
+        let outline: bootstrap_pipeline::BootstrapOutlineRecorded [affine]
+          call bootstrap_pipeline::record_outline -> bootstrap_pipeline::BootstrapOutlineRecorded [affine]
+            string "evident.compiler" : Text
+        result
+          construct bootstrap_compiler::BootstrapStatus : bootstrap_compiler::BootstrapStatus [affine]
+            init host [shorthand]
+              local host : bootstrap_host::CompilerHostSurface
+            init exit_status [shorthand]
+              local exit_status : bootstrap_host::ExitStatus
+            init pipeline
+              local stage_two : bootstrap_pipeline::CompilerPipeline::StageTwoValidated [affine]
+            init evidence [shorthand]
+              local evidence : bootstrap_pipeline::BootstrapEvidence
+            init outline [shorthand]
+              local outline : bootstrap_pipeline::BootstrapOutlineRecorded [affine]
+  - public fn bootstrap_compiler::bootstrap_stage_count() -> Int
+      block -> Int
+        result
+          number 2 : Int
+  - public fn bootstrap_compiler::main() -> Int
+      block -> Int
+        let status: bootstrap_compiler::BootstrapStatus [affine]
+          call bootstrap_compiler::build_status -> bootstrap_compiler::BootstrapStatus [affine]
+        result
+          call bootstrap_source::compiler_source_count -> Int

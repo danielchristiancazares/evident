@@ -1,22 +1,41 @@
+import bootstrap_host;
 import bootstrap_source;
 import bootstrap_pipeline;
 
 domain module bootstrap_compiler {
 public record BootstrapStatus {
+    public host: bootstrap_host::CompilerHostSurface,
+    public exit_status: bootstrap_host::ExitStatus,
     public pipeline: bootstrap_pipeline::CompilerPipeline::StageTwoValidated,
+    public evidence: bootstrap_pipeline::BootstrapEvidence,
     public outline: bootstrap_pipeline::BootstrapOutlineRecorded,
 }
 
 public fn build_status() -> BootstrapStatus {
+    let host = bootstrap_host::bootstrap_host_surface();
+    let exit_status = bootstrap_host::success_status();
     let source = bootstrap_source::compiler_package();
     let outlined = bootstrap_pipeline::outline(source);
     let seed = bootstrap_pipeline::compile_with_seed(outlined);
     let stage_one = bootstrap_pipeline::compile_stage_one(seed);
     let stage_two = bootstrap_pipeline::validate_stage_two(stage_one);
+    let seed_receipt = bootstrap_pipeline::seed_receipt();
+    let stage_one_receipt = bootstrap_pipeline::stage_one_receipt();
+    let stage_two_receipt = bootstrap_pipeline::stage_two_receipt();
+    let equivalence = bootstrap_pipeline::bootstrap_equivalence();
+    let evidence = bootstrap_pipeline::bootstrap_evidence(
+        seed_receipt,
+        stage_one_receipt,
+        stage_two_receipt,
+        equivalence,
+    );
     let outline = bootstrap_pipeline::record_outline("evident.compiler");
 
     BootstrapStatus {
+        host,
+        exit_status,
         pipeline: stage_two,
+        evidence,
         outline,
     }
 }

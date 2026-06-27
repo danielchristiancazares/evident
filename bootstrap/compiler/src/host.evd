@@ -3,11 +3,96 @@ public record HostPath {
     public text: Text,
 }
 
+public record HostFileContents {
+    public text: Text,
+}
+
+public record HostReadRequest {
+    public path: HostPath,
+}
+
+public record HostWriteRequest {
+    public path: HostPath,
+    public contents: HostFileContents,
+}
+
+public record HostToolInvocation {
+    public working_directory: HostPath,
+    public executable: HostPath,
+    public arguments: List<Text>,
+}
+
+public record CompilerHostSurface {
+    public package_root: HostPath,
+    public manifest: HostPath,
+    public source_root: HostPath,
+    public diagnostics_output: HostPath,
+    public stage_output: HostPath,
+    public tool: HostToolInvocation,
+}
+
 public record ExitStatus {
     public code: Int,
 }
 
+public foreign fn read_text_file(request: HostReadRequest) -> HostFileContents
+
+public foreign fn write_text_file(request: HostWriteRequest) -> CInt
+
+public foreign fn resolve_path(base: HostPath, relative: HostPath) -> HostPath
+
+public foreign fn spawn_tool(invocation: HostToolInvocation) -> CInt
+
 public foreign fn process_exit(code: CInt) -> CInt
+
+public fn host_path(text: Text) -> HostPath {
+    HostPath { text }
+}
+
+public fn host_file_contents(text: Text) -> HostFileContents {
+    HostFileContents { text }
+}
+
+public fn host_read_request(path: HostPath) -> HostReadRequest {
+    HostReadRequest { path }
+}
+
+public fn host_write_request(path: HostPath, contents: HostFileContents) -> HostWriteRequest {
+    HostWriteRequest {
+        path,
+        contents,
+    }
+}
+
+public fn host_tool_invocation(working_directory: HostPath, executable: HostPath, arguments: List<Text>) -> HostToolInvocation {
+    HostToolInvocation {
+        working_directory,
+        executable,
+        arguments,
+    }
+}
+
+public fn bootstrap_host_surface() -> CompilerHostSurface {
+    let package_root = host_path("bootstrap/compiler");
+    let manifest = host_path("bootstrap/compiler/evident.pkg");
+    let source_root = host_path("bootstrap/compiler/src");
+    let diagnostics_output = host_path("bootstrap/compiler/bootstrap-diagnostics.log");
+    let stage_output = host_path("bootstrap/compiler/bootstrap-stage-output");
+    let tool = host_tool_invocation(
+        package_root,
+        host_path("bootstrap/compiler/evidc"),
+        list_empty<Text>(),
+    );
+
+    CompilerHostSurface {
+        package_root,
+        manifest,
+        source_root,
+        diagnostics_output,
+        stage_output,
+        tool,
+    }
+}
 
 public fn success_status() -> ExitStatus {
     ExitStatus { code: 0 }

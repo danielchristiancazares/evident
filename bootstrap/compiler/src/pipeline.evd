@@ -32,6 +32,24 @@ public proof BootstrapOutlineRecorded {
 public record StageReceipt {
     public stage_name: Text,
     public compiler_name: Text,
+    public source_commit: Text,
+    public validation_summary: Text,
+}
+
+public record BootstrapEquivalence {
+    public seed_to_stage_one: Text,
+    public stage_one_to_stage_two: Text,
+    public semantic_outputs: Text,
+    public cli_behavior: Text,
+    public diagnostics: Text,
+    public package_validation: Text,
+}
+
+public record BootstrapEvidence {
+    public seed: StageReceipt,
+    public stage_one: StageReceipt,
+    public stage_two: StageReceipt,
+    public equivalence: BootstrapEquivalence,
 }
 
 public fn outline(source: bootstrap_source::PackageSource) -> CompilerPipeline::SourceOutlined {
@@ -76,10 +94,59 @@ public fn record_outline(package_name: Text) -> BootstrapOutlineRecorded proves 
     }
 }
 
-public fn seed_receipt() -> StageReceipt {
+public fn stage_receipt(stage_name: Text, compiler_name: Text, source_commit: Text, validation_summary: Text) -> StageReceipt {
     StageReceipt {
-        stage_name: "seed",
-        compiler_name: "cxx-seed-evidc",
+        stage_name,
+        compiler_name,
+        source_commit,
+        validation_summary,
     }
+}
+
+public fn bootstrap_equivalence() -> BootstrapEquivalence {
+    BootstrapEquivalence {
+        seed_to_stage_one: "stable semantic outputs from seed to stage-1",
+        stage_one_to_stage_two: "stable semantic outputs from stage-1 to stage-2",
+        semantic_outputs: "semantic outputs match",
+        cli_behavior: "CLI behavior matches",
+        diagnostics: "diagnostic goldens match",
+        package_validation: "release package validation matches",
+    }
+}
+
+public fn bootstrap_evidence(seed: StageReceipt, stage_one: StageReceipt, stage_two: StageReceipt, equivalence: BootstrapEquivalence) -> BootstrapEvidence {
+    BootstrapEvidence {
+        seed,
+        stage_one,
+        stage_two,
+        equivalence,
+    }
+}
+
+public fn seed_receipt() -> StageReceipt {
+    stage_receipt(
+        "seed",
+        "cxx-seed-evidc",
+        "source commit recorded in release evidence",
+        "builds the bootstrap scaffold from the C++ seed compiler",
+    )
+}
+
+public fn stage_one_receipt() -> StageReceipt {
+    stage_receipt(
+        "stage-1",
+        "stage-1 evidc",
+        "source commit recorded in release evidence",
+        "rebuilds the same Evident compiler package",
+    )
+}
+
+public fn stage_two_receipt() -> StageReceipt {
+    stage_receipt(
+        "stage-2",
+        "stage-2 evidc",
+        "source commit recorded in release evidence",
+        "passes conformance, diagnostics, native emission, package, and release-contract checks",
+    )
 }
 }
