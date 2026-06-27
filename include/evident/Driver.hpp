@@ -27,8 +27,15 @@ public:
     }
 
     [[nodiscard]] SourceRequestKind kind() const noexcept { return kind_; }
-    [[nodiscard]] const std::vector<std::string>& explicit_paths() const noexcept { return explicit_paths_; }
-    [[nodiscard]] const std::string& package_path() const noexcept { return package_path_; }
+
+    template <class ExplicitFilesHandler, class PackageDirectoryHandler>
+    [[nodiscard]] decltype(auto) match(ExplicitFilesHandler&& explicit_files_handler,
+                                       PackageDirectoryHandler&& package_directory_handler) const {
+        if (kind_ == SourceRequestKind::ExplicitFiles) {
+            return std::forward<ExplicitFilesHandler>(explicit_files_handler)(explicit_paths_);
+        }
+        return std::forward<PackageDirectoryHandler>(package_directory_handler)(package_path_);
+    }
 
 private:
     SourceRequestKind kind_;

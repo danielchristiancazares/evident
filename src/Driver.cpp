@@ -231,17 +231,18 @@ std::expected<std::vector<std::string>, std::string> discover_package_input_path
 }
 
 std::expected<SourceFile, std::string> load_package_source(const DriverOptions& options) {
-    std::vector<std::string> input_paths;
-    if (options.source_request.kind() == SourceRequestKind::PackageDirectory) {
-        std::expected<std::vector<std::string>, std::string> discovered =
-            discover_package_input_paths(options.source_request.package_path());
-        if (!discovered.has_value()) {
-            return std::unexpected(discovered.error());
-        }
-        input_paths = std::move(*discovered);
-    } else {
-        input_paths = options.source_request.explicit_paths();
+    std::expected<std::vector<std::string>, std::string> input_path_result = options.source_request.match(
+        [](const std::vector<std::string>& explicit_paths) -> std::expected<std::vector<std::string>, std::string> {
+            return explicit_paths;
+        },
+        [](const std::string& package_path) {
+            return discover_package_input_paths(package_path);
+        });
+    if (!input_path_result.has_value()) {
+        return std::unexpected(input_path_result.error());
     }
+
+    std::vector<std::string> input_paths = std::move(*input_path_result);
     if (input_paths.empty()) {
         return std::unexpected("no source input files were provided");
     }
