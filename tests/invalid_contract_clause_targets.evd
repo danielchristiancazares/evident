@@ -1,13 +1,53 @@
+foundation module support {
+public fn bad_generic_grants<T>() -> Unit grants T {
+}
+
+public fn bad_generic_proves<T>() -> Unit proves T {
+}
+}
+
 domain module test {
 public record Marker {
 }
 
 public permit Access
 
+public proof Receipt {
+    count: Int,
+}
+
+public phase Task {
+    fields {
+        public id: Int,
+    }
+
+    positions {
+        Draft,
+    }
+}
+
 public fn bad_grants() -> Unit grants Marker {
 }
 
 public fn bad_proves() -> Unit proves Marker {
+}
+
+public fn bad_builtin_grants() -> Unit grants Int {
+}
+
+public fn bad_builtin_proves() -> Unit proves Int {
+}
+
+public fn bad_collection_grants() -> Unit grants List<Access> {
+}
+
+public fn bad_collection_proves() -> Unit proves List<Receipt> {
+}
+
+public fn bad_phase_grants() -> Unit grants Task::Draft {
+}
+
+public fn bad_phase_proves() -> Unit proves Task::Draft {
 }
 
 public fn bad_grant_return() -> Int grants Access {

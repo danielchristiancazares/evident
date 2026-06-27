@@ -1328,6 +1328,87 @@ private:
         }
     }
 
+    void check_grants_clause_permit_type(const Scope& scope,
+                                         const std::vector<std::string>& generics,
+                                         const ast::TypeRef& permit_type) {
+        const TypeReferencePathRole path_role = type_reference_path_role(permit_type.path, generics);
+        if (path_role == TypeReferencePathRole::GenericParameter) {
+            diagnostics_.error(permit_type.span,
+                               "'grants' must reference a permit type, not generic parameter '"
+                                   + ast::format_type(permit_type) + "'");
+            return;
+        }
+
+        if (path_role == TypeReferencePathRole::BuiltinTypeName && permit_type.path.size() == 1) {
+            diagnostics_.error(permit_type.span,
+                               "'grants' must reference a permit type, not builtin type '"
+                                   + ast::format_type(permit_type) + "'");
+            return;
+        }
+
+        if (resolve_phase_position_type(scope, generics, permit_type.path).state
+            == PhasePositionResolutionState::PathNamesPhasePosition) {
+            diagnostics_.error(permit_type.span,
+                               "'grants' must reference a permit type, not concrete phase type '"
+                                   + ast::format_type(permit_type) + "'");
+            return;
+        }
+
+        if (const Symbol* symbol = resolve_symbol(scope, generics, permit_type.path); symbol != nullptr) {
+            if (symbol->kind != ast::DeclKind::Permit) {
+                diagnostics_.error(permit_type.span,
+                                   "'grants' must reference a permit type, not '"
+                                       + std::string(ast::decl_kind_name(symbol->kind)) + "'");
+            } else if (declaring_scope(symbol->decl) != &scope) {
+                diagnostics_.error(permit_type.span,
+                                   "functions may only declare 'grants' for permits from the same module");
+            }
+        }
+    }
+
+    void check_proves_clause_proof_type(const Scope& scope,
+                                        const std::vector<std::string>& generics,
+                                        const ast::TypeRef& proof_type,
+                                        std::unordered_set<const ast::Decl*>& seen_proves) {
+        const TypeReferencePathRole path_role = type_reference_path_role(proof_type.path, generics);
+        if (path_role == TypeReferencePathRole::GenericParameter) {
+            diagnostics_.error(proof_type.span,
+                               "'proves' must reference a proof type, not generic parameter '"
+                                   + ast::format_type(proof_type) + "'");
+            return;
+        }
+
+        if (path_role == TypeReferencePathRole::BuiltinTypeName && proof_type.path.size() == 1) {
+            diagnostics_.error(proof_type.span,
+                               "'proves' must reference a proof type, not builtin type '"
+                                   + ast::format_type(proof_type) + "'");
+            return;
+        }
+
+        if (resolve_phase_position_type(scope, generics, proof_type.path).state
+            == PhasePositionResolutionState::PathNamesPhasePosition) {
+            diagnostics_.error(proof_type.span,
+                               "'proves' must reference a proof type, not concrete phase type '"
+                                   + ast::format_type(proof_type) + "'");
+            return;
+        }
+
+        if (const Symbol* symbol = resolve_symbol(scope, generics, proof_type.path); symbol != nullptr) {
+            if (symbol->kind != ast::DeclKind::Proof) {
+                diagnostics_.error(proof_type.span,
+                                   "'proves' must reference a proof type, not '"
+                                       + std::string(ast::decl_kind_name(symbol->kind)) + "'");
+            } else if (declaring_scope(symbol->decl) != &scope) {
+                diagnostics_.error(proof_type.span,
+                                   "functions may only declare 'proves' for proofs from the same module");
+            } else if (!seen_proves.insert(symbol->decl).second) {
+                diagnostics_.error(proof_type.span,
+                                   "function signature repeats `proves` for proof type '"
+                                       + ast::format_type(proof_type) + "'");
+            }
+        }
+    }
+
     void check_type_ref_usage(const Scope& scope,
                               const std::vector<std::string>& generics,
                               const ast::TypeRef& type,
@@ -1520,16 +1601,7 @@ private:
                                      ReasonTypePolicy::RejectReasonTypes,
                                      PermitTypePolicy::AllowPermitTypes,
                                      "grant permit"});
-            if (const Symbol* symbol = resolve_symbol(scope, generics, signature.authority.permit_type().path); symbol != nullptr) {
-                if (symbol->kind != ast::DeclKind::Permit) {
-                    diagnostics_.error(signature.authority.permit_type().span,
-                                      "'grants' must reference a permit type, not '"
-                                          + std::string(ast::decl_kind_name(symbol->kind)) + "'");
-                } else if (declaring_scope(symbol->decl) != &scope) {
-                    diagnostics_.error(signature.authority.permit_type().span,
-                                      "functions may only declare 'grants' for permits from the same module");
-                }
-            }
+            check_grants_clause_permit_type(scope, generics, signature.authority.permit_type());
             const Type return_type = resolve_type(scope, generics, signature.return_type);
             if (type_equivalence(return_type, builtin_type("Unit")) == typesys::TypeEquivalence::Different) {
                 diagnostics_.error(signature.return_type.span, "granting functions must return 'Unit'");
@@ -1549,20 +1621,7 @@ private:
                                      ReasonTypePolicy::RejectReasonTypes,
                                      PermitTypePolicy::RejectPermitTypes,
                                      "proof authorization"});
-            if (const Symbol* symbol = resolve_symbol(scope, generics, proves_type.path); symbol != nullptr) {
-                if (symbol->kind != ast::DeclKind::Proof) {
-                    diagnostics_.error(proves_type.span,
-                                      "'proves' must reference a proof type, not '"
-                                          + std::string(ast::decl_kind_name(symbol->kind)) + "'");
-                } else if (declaring_scope(symbol->decl) != &scope) {
-                    diagnostics_.error(proves_type.span,
-                                      "functions may only declare 'proves' for proofs from the same module");
-                } else if (!seen_proves.insert(symbol->decl).second) {
-                    diagnostics_.error(proves_type.span,
-                                      "function signature repeats `proves` for proof type '"
-                                          + ast::format_type(proves_type) + "'");
-                }
-            }
+            check_proves_clause_proof_type(scope, generics, proves_type, seen_proves);
             if (implementation == ast::FunctionImplementation::ForeignImport) {
                 diagnostics_.error(proves_type.span, "foreign functions may not use 'proves'");
             }

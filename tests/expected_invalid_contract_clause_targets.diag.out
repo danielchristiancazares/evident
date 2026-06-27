@@ -1,9 +1,33 @@
-<input>:7:39: error: 'grants' must reference a permit type, not 'record'
+<input>:2:50: error: 'grants' must reference a permit type, not generic parameter 'T'
+    public fn bad_generic_grants<T>() -> Unit grants T {
+                                                     ^
+<input>:5:50: error: 'proves' must reference a proof type, not generic parameter 'T'
+    public fn bad_generic_proves<T>() -> Unit proves T {
+                                                     ^
+<input>:29:39: error: 'grants' must reference a permit type, not 'record'
     public fn bad_grants() -> Unit grants Marker {
                                           ^^^^^^
-<input>:10:39: error: 'proves' must reference a proof type, not 'record'
+<input>:32:39: error: 'proves' must reference a proof type, not 'record'
     public fn bad_proves() -> Unit proves Marker {
                                           ^^^^^^
-<input>:13:33: error: granting functions must return 'Unit'
+<input>:35:47: error: 'grants' must reference a permit type, not builtin type 'Int'
+    public fn bad_builtin_grants() -> Unit grants Int {
+                                                  ^^^
+<input>:38:47: error: 'proves' must reference a proof type, not builtin type 'Int'
+    public fn bad_builtin_proves() -> Unit proves Int {
+                                                  ^^^
+<input>:41:50: error: 'grants' must reference a permit type, not builtin type 'List<Access>'
+    public fn bad_collection_grants() -> Unit grants List<Access> {
+                                                     ^^^^^^^^^^^^
+<input>:44:50: error: 'proves' must reference a proof type, not builtin type 'List<Receipt>'
+    public fn bad_collection_proves() -> Unit proves List<Receipt> {
+                                                     ^^^^^^^^^^^^^
+<input>:47:45: error: 'grants' must reference a permit type, not concrete phase type 'Task::Draft'
+    public fn bad_phase_grants() -> Unit grants Task::Draft {
+                                                ^^^^^^^^^^^
+<input>:50:45: error: 'proves' must reference a proof type, not concrete phase type 'Task::Draft'
+    public fn bad_phase_proves() -> Unit proves Task::Draft {
+                                                ^^^^^^^^^^^
+<input>:53:33: error: granting functions must return 'Unit'
     public fn bad_grant_return() -> Int grants Access {
                                     ^^^
