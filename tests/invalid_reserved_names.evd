@@ -89,4 +89,23 @@ public state GenericLifecycleNames {
     Reported,
     NotReported,
 }
+
+record MapEntry {
+}
+
+reason ListCardinalityFailure {
+    ListHadNoElements,
+}
+
+state CollectionVariantNames {
+    MapHadNoEntries,
+}
+
+fn list_empty() -> Int {
+    0
+}
+
+fn map_lookup_copy() -> Int {
+    0
+}
 }

@@ -62,6 +62,78 @@ const std::unordered_set<std::string_view> kCanonicalMapKeyBuiltins = {
     "Bytes",
 };
 
+const std::unordered_set<std::string_view> kCompilerOwnedCollectionNames = {
+    "ListCardinalityFailure",
+    "MapCardinalityFailure",
+    "MapBindingFailure",
+    "MapMergeFailure",
+    "ListHadNoElements",
+    "MapHadNoEntries",
+    "RequestedKeyHadNoBinding",
+    "RequestedKeyAlreadyHadBinding",
+    "InputsHadSharedKey",
+    "ListFirstAndRest",
+    "MapEntry",
+    "MapFirstEntryAndRest",
+    "MapBoundValueAndRest",
+    "list_empty",
+    "list_single",
+    "list_prepend",
+    "list_append",
+    "list_concat",
+    "nonempty_list_concat_left",
+    "nonempty_list_concat_right",
+    "nonempty_list_concat",
+    "list_require_nonempty",
+    "nonempty_list_widen",
+    "list_count_copy",
+    "nonempty_list_count_copy",
+    "nonempty_list_first_copy",
+    "nonempty_list_consume_first",
+    "map_empty",
+    "map_single",
+    "map_require_nonempty",
+    "nonempty_map_widen",
+    "map_bind_new",
+    "nonempty_map_bind_new",
+    "map_replace_bound",
+    "nonempty_map_replace_bound",
+    "map_bind_or_replace",
+    "nonempty_map_bind_or_replace",
+    "map_remove_bound",
+    "nonempty_map_remove_bound",
+    "map_consume_bound_value",
+    "nonempty_map_consume_bound_value",
+    "map_count_copy",
+    "nonempty_map_count_copy",
+    "map_lookup_copy",
+    "nonempty_map_lookup_copy",
+    "nonempty_map_first_entry_copy",
+    "nonempty_map_consume_first_entry",
+    "map_entries_copy",
+    "nonempty_map_entries_copy",
+    "map_consume_entries",
+    "nonempty_map_consume_entries",
+    "map_merge_rejecting_shared_keys",
+    "map_merge_left_nonempty_rejecting_shared_keys",
+    "map_merge_right_nonempty_rejecting_shared_keys",
+    "nonempty_map_merge_rejecting_shared_keys",
+    "map_merge_using_left_bindings_for_shared_keys",
+    "map_merge_left_nonempty_using_left_bindings_for_shared_keys",
+    "map_merge_right_nonempty_using_left_bindings_for_shared_keys",
+    "nonempty_map_merge_using_left_bindings_for_shared_keys",
+    "map_merge_using_right_bindings_for_shared_keys",
+    "map_merge_left_nonempty_using_right_bindings_for_shared_keys",
+    "map_merge_right_nonempty_using_right_bindings_for_shared_keys",
+    "nonempty_map_merge_using_right_bindings_for_shared_keys",
+    "map_from_entries_rejecting_shared_keys",
+    "nonempty_map_from_entries_rejecting_shared_keys",
+    "map_from_entries_using_first_bindings",
+    "nonempty_map_from_entries_using_first_bindings",
+    "map_from_entries_using_last_bindings",
+    "nonempty_map_from_entries_using_last_bindings",
+};
+
 std::string final_path_segment_or_malformed_path(const std::vector<std::string>& path) {
     if (path.empty()) {
         return "<malformed path>";
@@ -104,6 +176,11 @@ enum class TypeReferencePathRole {
 enum class PublicNameReservation {
     AvailableForPublicUse,
     ReservedForPublicSurface,
+};
+
+enum class CompilerOwnedCollectionNameReservation {
+    UserDeclarationName,
+    ReservedCollectionSurfaceName,
 };
 
 enum class BuiltinNameState {
@@ -168,6 +245,12 @@ PublicNameReservation public_name_reservation(std::string_view name) {
     return name.size() == 1 || kReservedPublicNames.contains(name)
         ? PublicNameReservation::ReservedForPublicSurface
         : PublicNameReservation::AvailableForPublicUse;
+}
+
+CompilerOwnedCollectionNameReservation compiler_owned_collection_name_reservation(std::string_view name) {
+    return kCompilerOwnedCollectionNames.contains(name)
+        ? CompilerOwnedCollectionNameReservation::ReservedCollectionSurfaceName
+        : CompilerOwnedCollectionNameReservation::UserDeclarationName;
 }
 
 BuiltinNameState builtin_name_state(std::string_view name) {
@@ -1164,6 +1247,13 @@ private:
         }
     }
 
+    void check_compiler_owned_collection_name(const std::string& name, SourceSpan span) {
+        if (compiler_owned_collection_name_reservation(name)
+            == CompilerOwnedCollectionNameReservation::ReservedCollectionSurfaceName) {
+            diagnostics_.error(span, "compiler-owned collection name '" + name + "' is reserved");
+        }
+    }
+
     void check_name_under_public_policy(const std::string& name, SourceSpan span, PublicNamePolicy policy) {
         switch (policy) {
         case PublicNamePolicy::ExportedName:
@@ -1715,6 +1805,9 @@ private:
                 declaration_public_reachability(parent_reachability, decl.visibility);
 
             check_name_under_public_policy(decl.name, decl.span, declaration_name_policy);
+            if (decl.kind != ast::DeclKind::Module) {
+                check_compiler_owned_collection_name(decl.name, decl.span);
+            }
 
             switch (decl.kind) {
             case ast::DeclKind::Module: {
@@ -1771,6 +1864,7 @@ private:
                 }
                 check_duplicate_variants(state_decl.variants, "state");
                 for (const ast::Variant& variant : state_decl.variants) {
+                    check_compiler_owned_collection_name(variant.name, variant.span);
                     check_name_under_public_policy(variant.name, variant.span, variant_name_policy);
                     check_duplicate_fields(variant.fields, "state variant");
                     for (const ast::Field& field : variant.fields) {
@@ -1797,6 +1891,7 @@ private:
                 }
                 check_duplicate_variants(reason_decl.variants, "reason");
                 for (const ast::Variant& variant : reason_decl.variants) {
+                    check_compiler_owned_collection_name(variant.name, variant.span);
                     check_name_under_public_policy(variant.name, variant.span, variant_name_policy);
                     check_duplicate_fields(variant.fields, "reason variant");
                     for (const ast::Field& field : variant.fields) {

@@ -97,3 +97,21 @@
 <input>:90:5: error: public name 'NotReported' is reserved or too generic
         NotReported,
         ^^^^^^^^^^^
+<input>:93:1: error: compiler-owned collection name 'MapEntry' is reserved
+    record MapEntry {
+    ^^^^^^^^^^^^^^^^^
+<input>:96:1: error: compiler-owned collection name 'ListCardinalityFailure' is reserved
+    reason ListCardinalityFailure {
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<input>:97:5: error: compiler-owned collection name 'ListHadNoElements' is reserved
+        ListHadNoElements,
+        ^^^^^^^^^^^^^^^^^
+<input>:101:5: error: compiler-owned collection name 'MapHadNoEntries' is reserved
+        MapHadNoEntries,
+        ^^^^^^^^^^^^^^^
+<input>:104:1: error: compiler-owned collection name 'list_empty' is reserved
+    fn list_empty() -> Int {
+    ^^^^^^^^^^^^^^^^^^^^^^^^
+<input>:108:1: error: compiler-owned collection name 'map_lookup_copy' is reserved
+    fn map_lookup_copy() -> Int {
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
