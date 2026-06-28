@@ -118,7 +118,7 @@ if(BUILD_TESTING)
 
     add_dependencies(evidc bootstrap_compiler_generated_environment)
 
-set(EVIDENT_EXPECTED_CTEST_TOTAL 426)
+set(EVIDENT_EXPECTED_CTEST_TOTAL 428)
 
     add_test(NAME parse_valid_example
         COMMAND evidc --dump-hir ${CMAKE_CURRENT_SOURCE_DIR}/examples/feature_mode.evd)
@@ -1203,6 +1203,9 @@ set(EVIDENT_EXPECTED_CTEST_TOTAL 426)
     add_diagnostic_compare_test(diag_semantic_builtin_collection_arity
         invalid_builtin_collection_arity.evd
         expected_invalid_builtin_collection_arity.diag.out)
+    add_diagnostic_compare_test(diag_semantic_cstring_literal_nul
+        invalid_cstring_literal_nul.evd
+        expected_invalid_cstring_literal_nul.diag.out)
     add_diagnostic_compare_test(diag_semantic_float_literal_range
         invalid_float_literal_range.evd
         expected_invalid_float_literal_range.diag.out)
@@ -1694,6 +1697,7 @@ set(EVIDENT_EXPECTED_CTEST_TOTAL 426)
     add_reject_test(reject_lexer_string_literal_contracts invalid_lexer_string_literal_contracts.evd)
     add_reject_test(reject_module_kind_generics invalid_module_kind_generics.evd)
     add_reject_test(reject_builtin_collection_arity invalid_builtin_collection_arity.evd)
+    add_reject_test(reject_cstring_literal_nul invalid_cstring_literal_nul.evd)
     add_reject_test(reject_float_literal_range invalid_float_literal_range.evd)
     add_reject_test(reject_integer_literal_expected_types invalid_integer_literal_expected_types.evd)
     add_reject_test(reject_text_bytes_length_contracts invalid_text_bytes_length_contracts.evd)

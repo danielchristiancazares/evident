@@ -744,6 +744,54 @@ bool integer_literal_fits_byte(std::string_view lexeme) {
     return true;
 }
 
+bool is_hex_digit(char ch) {
+    return (ch >= '0' && ch <= '9') || (ch >= 'A' && ch <= 'F') || (ch >= 'a' && ch <= 'f');
+}
+
+unsigned hex_digit_value(char ch) {
+    if (ch >= '0' && ch <= '9') {
+        return static_cast<unsigned>(ch - '0');
+    }
+    if (ch >= 'a' && ch <= 'f') {
+        return 10U + static_cast<unsigned>(ch - 'a');
+    }
+    return 10U + static_cast<unsigned>(ch - 'A');
+}
+
+bool string_literal_contains_nul_scalar(std::string_view lexeme) {
+    if (lexeme.size() < 2 || lexeme.front() != '"' || lexeme.back() != '"') {
+        return false;
+    }
+    for (std::size_t index = 1; index + 1 < lexeme.size(); ++index) {
+        const char ch = lexeme[index];
+        if (ch == '\0') {
+            return true;
+        }
+        if (ch != '\\' || index + 1 >= lexeme.size() - 1) {
+            continue;
+        }
+
+        const char escaped = lexeme[++index];
+        if (escaped == '0') {
+            return true;
+        }
+        if (escaped != 'u' || index + 1 >= lexeme.size() - 1 || lexeme[index + 1] != '{') {
+            continue;
+        }
+
+        index += 2;
+        unsigned value = 0;
+        while (index < lexeme.size() - 1 && is_hex_digit(lexeme[index])) {
+            value = value * 16U + hex_digit_value(lexeme[index]);
+            ++index;
+        }
+        if (index < lexeme.size() - 1 && lexeme[index] == '}' && value == 0U) {
+            return true;
+        }
+    }
+    return false;
+}
+
 std::string format_path(const std::vector<std::string>& path) {
     std::ostringstream out;
     for (std::size_t index = 0; index < path.size(); ++index) {
@@ -4029,6 +4077,15 @@ private:
         case ast::ExprKind::StringLiteral:
             if (expected_type != nullptr
                 && string_literal_typing_state(*expected_type) == StringLiteralTypingState::AcceptsStringLiteral) {
+                const auto& literal = static_cast<const ast::StringLiteralExpr&>(expr);
+                if (expected_type->flavor == typesys::TypeFlavor::Builtin
+                    && expected_type->args.empty()
+                    && expected_type->name == "CString"
+                    && string_literal_contains_nul_scalar(literal.lexeme)) {
+                    diagnostics_.error(expr.span,
+                                       "string literal containing U+0000 cannot type as CString");
+                    return make_expr(error_type());
+                }
                 return make_expr(*expected_type);
             }
             return make_expr(builtin_type("Text"));

@@ -2583,6 +2583,11 @@ std::expected<FunctionEmitter::TypedValue, std::string> FunctionEmitter::make_st
     if (!global.has_value()) {
         return std::unexpected(global.error());
     }
+    if (type.identity().category() == ResolvedTypeCategory::BuiltinType
+        && type.identity().builtin_kind() == BuiltinKind::CString
+        && global->bytes.find('\0') != std::string::npos) {
+        return std::unexpected("backend received CString literal containing U+0000");
+    }
 
     const std::string ptr_value = next_temp("strptr");
     append_line(ptr_value + " = getelementptr inbounds ["

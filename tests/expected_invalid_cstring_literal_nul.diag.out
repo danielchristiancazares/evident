@@ -1,0 +1,9 @@
+<input>:11:5: error: string literal containing U+0000 cannot type as CString
+        "\0"
+        ^^^^
+<input>:15:12: error: string literal containing U+0000 cannot type as CString
+        accept("\u{0}")
+               ^^^^^^^
+<input>:19:25: error: string literal containing U+0000 cannot type as CString
+        CStringBox { value: "\0" }.value
+                            ^^^^

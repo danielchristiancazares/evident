@@ -1,0 +1,21 @@
+domain module test {
+public record CStringBox {
+    public value: CString,
+}
+
+public fn accept(value: CString) -> CString {
+    value
+}
+
+public fn return_nul_escape() -> CString {
+    "\0"
+}
+
+public fn argument_unicode_nul() -> CString {
+    accept("\u{0}")
+}
+
+public fn field_nul_escape() -> CString {
+    CStringBox { value: "\0" }.value
+}
+}
