@@ -3,6 +3,8 @@
 #include "evident/Source.hpp"
 
 #include <algorithm>
+#include <cmath>
+#include <cstdlib>
 #include <memory>
 #include <sstream>
 #include <string>
@@ -59,6 +61,7 @@ const std::unordered_set<std::string_view> kBuiltins = {
 const std::unordered_set<std::string_view> kCanonicalMapKeyBuiltins = {
     "Int",
     "Nat",
+    "Float",
     "Byte",
     "Char",
     "Text",
@@ -610,6 +613,11 @@ enum class BuiltinMapFamily {
     MapFamily,
 };
 
+enum class NumberLiteralKind {
+    Integer,
+    Float,
+};
+
 PublicNameReservation public_name_reservation(std::string_view name) {
     return name.size() == 1 || kReservedPublicNames.contains(name)
         ? PublicNameReservation::ReservedForPublicSurface
@@ -693,6 +701,18 @@ std::size_t expected_builtin_type_arg_count(BuiltinTypeArgumentArity arity) {
         return 2;
     }
     return 0;
+}
+
+NumberLiteralKind number_literal_kind(std::string_view lexeme) {
+    return lexeme.find_first_of(".eE") == std::string_view::npos ? NumberLiteralKind::Integer
+                                                                 : NumberLiteralKind::Float;
+}
+
+bool is_admitted_float_literal(std::string_view lexeme) {
+    const std::string text(lexeme);
+    char* end = nullptr;
+    const double value = std::strtod(text.c_str(), &end);
+    return end == text.c_str() + text.size() && std::isfinite(value);
 }
 
 std::string format_path(const std::vector<std::string>& path) {
@@ -2078,7 +2098,7 @@ private:
             == BuiltinMapKeyAdmission::UnsupportedKnownType) {
             diagnostics_.error(key_type.span,
                                "map key type '" + ast::format_type(key_type)
-                                   + "' must be one of Int, Nat, Byte, Char, Text, or Bytes");
+                                   + "' must be one of Int, Nat, Float, Byte, Char, Text, or Bytes");
         }
     }
 
@@ -3718,8 +3738,19 @@ private:
                        ValueEnv& env,
                        const Type* expected_type = nullptr) {
         switch (expr.kind) {
-        case ast::ExprKind::NumberLiteral:
+        case ast::ExprKind::NumberLiteral: {
+            const auto& literal = static_cast<const ast::NumberLiteralExpr&>(expr);
+            if (number_literal_kind(literal.lexeme) == NumberLiteralKind::Float) {
+                if (!is_admitted_float_literal(literal.lexeme)) {
+                    diagnostics_.error(expr.span,
+                                       "float literal '" + literal.lexeme
+                                           + "' is outside the finite Float range");
+                    return make_expr(error_type());
+                }
+                return make_expr(builtin_type("Float"));
+            }
             return make_expr(builtin_type("Int"));
+        }
         case ast::ExprKind::StringLiteral:
             if (expected_type != nullptr
                 && string_literal_typing_state(*expected_type) == StringLiteralTypingState::AcceptsStringLiteral) {

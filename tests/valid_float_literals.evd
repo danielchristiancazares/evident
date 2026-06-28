@@ -1,0 +1,25 @@
+domain module test {
+public record Measurement {
+    public value: Float,
+}
+
+public fn direct() -> Float {
+    1.0
+}
+
+public fn exponent() -> Float {
+    2e0
+}
+
+public fn underflow_zero() -> Float {
+    1e-4000
+}
+
+public fn keep_map(entries: Map<Float, Int>) -> Map<Float, Int> {
+    entries
+}
+
+public fn boxed() -> Measurement {
+    Measurement { value: 3.5 }
+}
+}

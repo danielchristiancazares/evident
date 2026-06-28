@@ -118,7 +118,7 @@ if(BUILD_TESTING)
 
     add_dependencies(evidc bootstrap_compiler_generated_environment)
 
-set(EVIDENT_EXPECTED_CTEST_TOTAL 407)
+set(EVIDENT_EXPECTED_CTEST_TOTAL 411)
 
     add_test(NAME parse_valid_example
         COMMAND evidc --dump-hir ${CMAKE_CURRENT_SOURCE_DIR}/examples/feature_mode.evd)
@@ -693,6 +693,9 @@ set(EVIDENT_EXPECTED_CTEST_TOTAL 407)
     add_hir_compare_test(compare_hir_builtin_list_values
         valid_builtin_list_values.evd
         expected_valid_builtin_list_values.hir.out)
+    add_hir_compare_test(compare_hir_float_literals
+        valid_float_literals.evd
+        expected_valid_float_literals.hir.out)
     add_hir_compare_test(compare_hir_collection_companion_records
         valid_collection_companion_records.evd
         expected_valid_collection_companion_records.hir.out)
@@ -829,6 +832,11 @@ set(EVIDENT_EXPECTED_CTEST_TOTAL 407)
         hygiene_valid_permit_proof_storage.ll
         "call i8 @evid$test$start_pass()"
         "%slot3 = alloca %evid.type.RenderPassActive")
+    add_emit_pattern_test(validate_llvm_float_literal
+        valid_float_literals.evd
+        validate_float_literals.ll
+        "store double 0x3FF0000000000000"
+        "")
 
     add_emit_exe_test(run_native_constant native_main_constant.evd 7 native_main_constant.exe)
     add_emit_exe_test(run_native_call_chain native_main_call_chain.evd 8 native_main_call_chain.exe)
@@ -1163,6 +1171,9 @@ set(EVIDENT_EXPECTED_CTEST_TOTAL 407)
     add_diagnostic_compare_test(diag_semantic_builtin_collection_arity
         invalid_builtin_collection_arity.evd
         expected_invalid_builtin_collection_arity.diag.out)
+    add_diagnostic_compare_test(diag_semantic_float_literal_range
+        invalid_float_literal_range.evd
+        expected_invalid_float_literal_range.diag.out)
     add_diagnostic_compare_test(diag_semantic_duplicate_phase_position
         invalid_duplicate_phase_position.evd
         expected_invalid_duplicate_phase_position.diag.out)
@@ -1640,6 +1651,7 @@ set(EVIDENT_EXPECTED_CTEST_TOTAL 407)
     add_reject_test(reject_generic_structural_blindness invalid_generic_structural_blindness.evd)
     add_reject_test(reject_module_kind_generics invalid_module_kind_generics.evd)
     add_reject_test(reject_builtin_collection_arity invalid_builtin_collection_arity.evd)
+    add_reject_test(reject_float_literal_range invalid_float_literal_range.evd)
     add_reject_test(reject_field_access_private invalid_field_access_private.evd)
     add_reject_test(reject_construct_private_field invalid_construct_private_field.evd)
     add_reject_test(reject_grant_direct_call invalid_grant_direct_call.evd)

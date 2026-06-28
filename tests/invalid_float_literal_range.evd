@@ -1,0 +1,5 @@
+domain module test {
+public fn too_large() -> Float {
+    1e309
+}
+}

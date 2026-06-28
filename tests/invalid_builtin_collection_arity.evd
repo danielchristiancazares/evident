@@ -44,7 +44,7 @@ public fn qualified_builtin(values: List::Thing) -> Int {
     0
 }
 
-public fn float_map_key(values: Map<Float, Int>) -> Int {
+public fn csize_map_key(values: Map<CSize, Int>) -> Int {
     0
 }
 
@@ -80,7 +80,7 @@ public fn too_many_bound(value: MapBoundValueAndRest<Text, Int, Int>) -> Int {
     0
 }
 
-public fn float_entry_key(value: MapEntry<Float, Int>) -> Int {
+public fn csize_entry_key(value: MapEntry<CSize, Int>) -> Int {
     0
 }
 

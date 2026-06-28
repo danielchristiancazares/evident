@@ -1,0 +1,26 @@
+types:
+  - public record test::Measurement
+      field value: Float
+functions:
+  - public fn test::direct() -> Float
+      block -> Float
+        result
+          number 1.0 : Float
+  - public fn test::exponent() -> Float
+      block -> Float
+        result
+          number 2e0 : Float
+  - public fn test::underflow_zero() -> Float
+      block -> Float
+        result
+          number 1e-4000 : Float
+  - public fn test::keep_map(entries: Map<Float, Int>) -> Map<Float, Int>
+      block -> Map<Float, Int>
+        result
+          local entries : Map<Float, Int>
+  - public fn test::boxed() -> test::Measurement
+      block -> test::Measurement
+        result
+          construct test::Measurement : test::Measurement
+            init value
+              number 3.5 : Float

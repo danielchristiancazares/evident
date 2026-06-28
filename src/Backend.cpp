@@ -1,13 +1,17 @@
 #include "evident/Backend.hpp"
 
 #include <array>
+#include <bit>
 #include <cerrno>
 #include <cctype>
 #include <chrono>
+#include <cmath>
 #include <cstdio>
+#include <cstdint>
 #include <cstdlib>
 #include <filesystem>
 #include <fstream>
+#include <iomanip>
 #include <sstream>
 #include <string_view>
 #include <system_error>
@@ -1030,6 +1034,55 @@ ResolvedType::ResolvedType(std::string source_name,
       materialization_(materialization),
       identity_(identity) {}
 
+bool is_float_literal_lexeme(std::string_view lexeme) {
+    return lexeme.find_first_of(".eE") != std::string_view::npos;
+}
+
+bool is_builtin_float_type(const ResolvedType& type) {
+    return type.identity().category() == ResolvedTypeCategory::BuiltinType
+        && type.identity().builtin_kind() == BuiltinKind::Float;
+}
+
+bool is_integer_literal_destination(const ResolvedType& type) {
+    return type.storage_shape() == RuntimeStorageShape::Scalar
+        && (type.llvm_type() == "i64" || type.llvm_type() == "i32" || type.llvm_type() == "i8");
+}
+
+std::expected<std::string, std::string> format_float_literal_for_llvm(std::string_view lexeme) {
+    const std::string text(lexeme);
+    char* end = nullptr;
+    const double value = std::strtod(text.c_str(), &end);
+    if (end != text.c_str() + text.size() || !std::isfinite(value)) {
+        return std::unexpected("backend received invalid Float literal '" + text + "'");
+    }
+    if (value == 0.0) {
+        return "0.000000e+00";
+    }
+    const std::uint64_t bits = std::bit_cast<std::uint64_t>(value);
+    std::ostringstream out;
+    out << "0x" << std::uppercase << std::hex << std::setw(16) << std::setfill('0') << bits;
+    return out.str();
+}
+
+std::expected<std::string, std::string> materialize_number_literal_text(std::string_view lexeme,
+                                                                        const ResolvedType& expected_type,
+                                                                        std::string_view context) {
+    if (is_float_literal_lexeme(lexeme)) {
+        if (!is_builtin_float_type(expected_type)) {
+            return std::unexpected("backend only supports float literals in Float destinations"
+                                   + std::string(context.empty() ? "" : " for ") + std::string(context)
+                                   + ", got '" + expected_type.source_name() + "'");
+        }
+        return format_float_literal_for_llvm(lexeme);
+    }
+    if (!is_integer_literal_destination(expected_type)) {
+        return std::unexpected("backend only supports integer literals in integer destinations"
+                               + std::string(context.empty() ? "" : " for ") + std::string(context)
+                               + ", got '" + expected_type.source_name() + "'");
+    }
+    return std::string(lexeme);
+}
+
 BackendModel::BackendModel(const hir::Package& package)
     : package_(package), visit_state_(package.types.size(), 0) {
     for (const hir::TypeDecl& type : package_.types) {
@@ -1755,12 +1808,11 @@ BackendStepResult validate_backend_package(BackendModel& model,
                     }
                     return BackendStepSucceeded{};
                 },
-                [&](mir::Operand::IntLiteralValue) -> BackendStepResult {
-                    if (expected_type.storage_shape() != RuntimeStorageShape::Scalar
-                        || (expected_type.llvm_type() != "i64" && expected_type.llvm_type() != "i32"
-                            && expected_type.llvm_type() != "i8")) {
-                        return std::unexpected("backend only supports integer literals in integer destinations for "
-                                               + context + ", got '" + expected_type.source_name() + "'");
+                [&](mir::Operand::IntLiteralValue literal) -> BackendStepResult {
+                    if (const std::expected<std::string, std::string> materialized =
+                            materialize_number_literal_text(literal.text, expected_type, context);
+                        !materialized.has_value()) {
+                        return std::unexpected(materialized.error());
                     }
                     return BackendStepSucceeded{};
                 },
@@ -2874,8 +2926,8 @@ std::expected<std::string, std::string> FunctionEmitter::emit_compiler_owned_fun
         case BuiltinKind::Char:
         case BuiltinKind::Text:
         case BuiltinKind::Bytes:
-            break;
         case BuiltinKind::Float:
+            break;
         case BuiltinKind::CInt:
         case BuiltinKind::CSize:
         case BuiltinKind::CString:
@@ -3044,6 +3096,9 @@ std::expected<std::string, std::string> FunctionEmitter::emit_compiler_owned_fun
             out << "  br i1 %key_equal0, label %found, label %not_match\n";
             break;
         case BuiltinKind::Float:
+            out << "  %key_equal0 = fcmp oeq " << key_type->llvm_type() << " %candidate_key0, %arg1\n";
+            out << "  br i1 %key_equal0, label %found, label %not_match\n";
+            break;
         case BuiltinKind::CInt:
         case BuiltinKind::CSize:
         case BuiltinKind::CString:
@@ -3129,8 +3184,8 @@ std::expected<std::string, std::string> FunctionEmitter::emit_compiler_owned_fun
         case BuiltinKind::Char:
         case BuiltinKind::Text:
         case BuiltinKind::Bytes:
-            break;
         case BuiltinKind::Float:
+            break;
         case BuiltinKind::CInt:
         case BuiltinKind::CSize:
         case BuiltinKind::CString:
@@ -3370,6 +3425,13 @@ std::expected<std::string, std::string> FunctionEmitter::emit_compiler_owned_fun
             out << "  br i1 %candidate_shorter0, label %scan_next, label %insert_before\n";
             break;
         case BuiltinKind::Float:
+            out << "  %key_equal0 = fcmp oeq " << key_type->llvm_type() << " %candidate_key0, %arg1\n";
+            out << "  br i1 %key_equal0, label %duplicate, label %key_not_equal\n";
+            out << "\n";
+            out << "key_not_equal:\n";
+            out << "  %candidate_less0 = fcmp olt " << key_type->llvm_type() << " %candidate_key0, %arg1\n";
+            out << "  br i1 %candidate_less0, label %scan_next, label %insert_before\n";
+            break;
         case BuiltinKind::CInt:
         case BuiltinKind::CSize:
         case BuiltinKind::CString:
@@ -3514,8 +3576,8 @@ std::expected<std::string, std::string> FunctionEmitter::emit_compiler_owned_fun
         case BuiltinKind::Char:
         case BuiltinKind::Text:
         case BuiltinKind::Bytes:
-            break;
         case BuiltinKind::Float:
+            break;
         case BuiltinKind::CInt:
         case BuiltinKind::CSize:
         case BuiltinKind::CString:
@@ -3693,6 +3755,9 @@ std::expected<std::string, std::string> FunctionEmitter::emit_compiler_owned_fun
             out << "  br i1 %key_equal0, label %found, label %not_match\n";
             break;
         case BuiltinKind::Float:
+            out << "  %key_equal0 = fcmp oeq " << key_type->llvm_type() << " %candidate_key0, %arg1\n";
+            out << "  br i1 %key_equal0, label %found, label %not_match\n";
+            break;
         case BuiltinKind::CInt:
         case BuiltinKind::CSize:
         case BuiltinKind::CString:
@@ -3789,8 +3854,8 @@ std::expected<std::string, std::string> FunctionEmitter::emit_compiler_owned_fun
         case BuiltinKind::Char:
         case BuiltinKind::Text:
         case BuiltinKind::Bytes:
-            break;
         case BuiltinKind::Float:
+            break;
         case BuiltinKind::CInt:
         case BuiltinKind::CSize:
         case BuiltinKind::CString:
@@ -4000,6 +4065,9 @@ std::expected<std::string, std::string> FunctionEmitter::emit_compiler_owned_fun
             out << "  br i1 %key_equal0, label %found, label %not_match\n";
             break;
         case BuiltinKind::Float:
+            out << "  %key_equal0 = fcmp oeq " << key_type->llvm_type() << " %candidate_key0, %arg1\n";
+            out << "  br i1 %key_equal0, label %found, label %not_match\n";
+            break;
         case BuiltinKind::CInt:
         case BuiltinKind::CSize:
         case BuiltinKind::CString:
@@ -4135,8 +4203,8 @@ std::expected<std::string, std::string> FunctionEmitter::emit_compiler_owned_fun
         case BuiltinKind::Char:
         case BuiltinKind::Text:
         case BuiltinKind::Bytes:
-            break;
         case BuiltinKind::Float:
+            break;
         case BuiltinKind::CInt:
         case BuiltinKind::CSize:
         case BuiltinKind::CString:
@@ -4422,6 +4490,13 @@ std::expected<std::string, std::string> FunctionEmitter::emit_compiler_owned_fun
             out << "  br i1 %left_key_shorter0, label %take_left, label %take_right\n";
             break;
         case BuiltinKind::Float:
+            out << "  %key_equal0 = fcmp oeq " << key_type->llvm_type() << " %left_key0, %right_key0\n";
+            out << "  br i1 %key_equal0, label %shared_key, label %key_not_equal\n";
+            out << "\n";
+            out << "key_not_equal:\n";
+            out << "  %left_key_less0 = fcmp olt " << key_type->llvm_type() << " %left_key0, %right_key0\n";
+            out << "  br i1 %left_key_less0, label %take_left, label %take_right\n";
+            break;
         case BuiltinKind::CInt:
         case BuiltinKind::CSize:
         case BuiltinKind::CString:
@@ -4552,8 +4627,8 @@ std::expected<std::string, std::string> FunctionEmitter::emit_compiler_owned_fun
         case BuiltinKind::Char:
         case BuiltinKind::Text:
         case BuiltinKind::Bytes:
-            break;
         case BuiltinKind::Float:
+            break;
         case BuiltinKind::CInt:
         case BuiltinKind::CSize:
         case BuiltinKind::CString:
@@ -4811,6 +4886,13 @@ std::expected<std::string, std::string> FunctionEmitter::emit_compiler_owned_fun
             out << "  br i1 %current_key_shorter0, label %insert_current, label %scan_next\n";
             break;
         case BuiltinKind::Float:
+            out << "  %key_equal0 = fcmp oeq " << key_type->llvm_type() << " %current_key0, %existing_key0\n";
+            out << "  br i1 %key_equal0, label %duplicate_key, label %key_not_equal\n";
+            out << "\n";
+            out << "key_not_equal:\n";
+            out << "  %current_key_less0 = fcmp olt " << key_type->llvm_type() << " %current_key0, %existing_key0\n";
+            out << "  br i1 %current_key_less0, label %insert_current, label %scan_next\n";
+            break;
         case BuiltinKind::CInt:
         case BuiltinKind::CSize:
         case BuiltinKind::CString:
@@ -5399,13 +5481,12 @@ std::expected<FunctionEmitter::TypedValue, std::string> FunctionEmitter::materia
             return TypedValue{expected_type, *loaded};
         },
         [&](mir::Operand::IntLiteralValue literal) -> std::expected<TypedValue, std::string> {
-            if (expected_type.storage_shape() != RuntimeStorageShape::Scalar
-                || (expected_type.llvm_type() != "i64" && expected_type.llvm_type() != "i32"
-                    && expected_type.llvm_type() != "i8")) {
-                return std::unexpected("backend only supports integer literals in integer destinations, got '"
-                                       + expected_type.source_name() + "'");
+            const std::expected<std::string, std::string> materialized =
+                materialize_number_literal_text(literal.text, expected_type, {});
+            if (!materialized.has_value()) {
+                return std::unexpected(materialized.error());
             }
-            return TypedValue{expected_type, literal.text};
+            return TypedValue{expected_type, *materialized};
         },
         [&](mir::Operand::StringLiteralValue literal) -> std::expected<TypedValue, std::string> {
             if (expected_type.identity().category() != ResolvedTypeCategory::BuiltinType

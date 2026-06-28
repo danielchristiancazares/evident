@@ -1,0 +1,3 @@
+<input>:3:5: error: float literal '1e309' is outside the finite Float range
+        1e309
+        ^^^^^

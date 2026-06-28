@@ -65,6 +65,10 @@ IdentifierContinuationRole identifier_continuation_role(char ch) {
     return IdentifierContinuationRole::EndsIdentifier;
 }
 
+bool is_decimal_digit(char ch) {
+    return std::isdigit(static_cast<unsigned char>(ch)) != 0;
+}
+
 } // namespace
 
 Lexer::Lexer(const SourceFile& source, DiagnosticSink& diagnostics)
@@ -227,9 +231,25 @@ Token Lexer::lex_identifier_or_keyword() {
 
 Token Lexer::lex_number() {
     const std::size_t begin = offset_;
-    while (source_cursor_state() == SourceCursorState::HasMoreSource
-           && std::isdigit(static_cast<unsigned char>(peek())) != 0) {
+    while (source_cursor_state() == SourceCursorState::HasMoreSource && is_decimal_digit(peek())) {
         advance();
+    }
+    if (peek() == '.' && peek(1) != '.' && is_decimal_digit(peek(1))) {
+        advance();
+        while (source_cursor_state() == SourceCursorState::HasMoreSource && is_decimal_digit(peek())) {
+            advance();
+        }
+    }
+    if ((peek() == 'e' || peek() == 'E')
+        && (is_decimal_digit(peek(1))
+            || ((peek(1) == '+' || peek(1) == '-') && is_decimal_digit(peek(2))))) {
+        advance();
+        if (peek() == '+' || peek() == '-') {
+            advance();
+        }
+        while (source_cursor_state() == SourceCursorState::HasMoreSource && is_decimal_digit(peek())) {
+            advance();
+        }
     }
     return make_token(TokenKind::Number, begin, offset_);
 }

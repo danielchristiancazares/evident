@@ -450,6 +450,11 @@ enum class StringLiteralTypingState {
     AcceptsStringLiteral,
 };
 
+enum class NumberLiteralKind {
+    Integer,
+    Float,
+};
+
 enum class TypeEquivalenceState {
     DifferentTypes,
     SameType,
@@ -471,6 +476,11 @@ CompilerOwnedTypeNameState compiler_owned_type_name_state(std::string_view name)
     return kBuiltins.contains(name) || kCompilerOwnedCollectionCompanionRecordNames.contains(name)
         ? CompilerOwnedTypeNameState::CompilerOwnedTypeName
         : CompilerOwnedTypeNameState::UserDeclaredTypeName;
+}
+
+NumberLiteralKind number_literal_kind(std::string_view lexeme) {
+    return lexeme.find_first_of(".eE") == std::string_view::npos ? NumberLiteralKind::Integer
+                                                                 : NumberLiteralKind::Float;
 }
 
 ArgumentLoweringMode argument_lowering_mode(const TypeRef* concrete_arg_type,
@@ -2357,9 +2367,12 @@ std::unique_ptr<Expr> Lowerer::lower_expr(const ast::Expr& expr,
                                           ValueEnv& env,
                                           const TypeRef* expected_type) {
     switch (expr.kind) {
-    case ast::ExprKind::NumberLiteral:
-        return std::make_unique<NumberLiteralExpr>(
-            static_cast<const ast::NumberLiteralExpr&>(expr).lexeme, builtin_type("Int"));
+    case ast::ExprKind::NumberLiteral: {
+        const auto& literal_expr = static_cast<const ast::NumberLiteralExpr&>(expr);
+        const char* type_name =
+            number_literal_kind(literal_expr.lexeme) == NumberLiteralKind::Float ? "Float" : "Int";
+        return std::make_unique<NumberLiteralExpr>(literal_expr.lexeme, builtin_type(type_name));
+    }
     case ast::ExprKind::StringLiteral: {
         const auto& literal_expr = static_cast<const ast::StringLiteralExpr&>(expr);
         if (expected_type != nullptr

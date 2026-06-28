@@ -19,19 +19,19 @@
 <input>:43:37: error: builtin type 'List' may not be used as a qualified type
     public fn qualified_builtin(values: List::Thing) -> Int {
                                         ^^^^^^^^^^^
-<input>:47:37: error: map key type 'Float' must be one of Int, Nat, Byte, Char, Text, or Bytes
-    public fn float_map_key(values: Map<Float, Int>) -> Int {
+<input>:47:37: error: map key type 'CSize' must be one of Int, Nat, Float, Byte, Char, Text, or Bytes
+    public fn csize_map_key(values: Map<CSize, Int>) -> Int {
                                         ^^^^^
-<input>:51:47: error: map key type 'CString' must be one of Int, Nat, Byte, Char, Text, or Bytes
+<input>:51:47: error: map key type 'CString' must be one of Int, Nat, Float, Byte, Char, Text, or Bytes
     public fn cstring_map_key(values: NonEmptyMap<CString, Int>) -> Int {
                                                   ^^^^^^^
-<input>:55:38: error: map key type 'KeyBox' must be one of Int, Nat, Byte, Char, Text, or Bytes
+<input>:55:38: error: map key type 'KeyBox' must be one of Int, Nat, Float, Byte, Char, Text, or Bytes
     public fn record_map_key(values: Map<KeyBox, Int>) -> Int {
                                          ^^^^^^
-<input>:59:45: error: map key type 'KeyMode' must be one of Int, Nat, Byte, Char, Text, or Bytes
+<input>:59:45: error: map key type 'KeyMode' must be one of Int, Nat, Float, Byte, Char, Text, or Bytes
     public fn state_map_key(values: NonEmptyMap<KeyMode, Int>) -> Int {
                                                 ^^^^^^^
-<input>:63:42: error: map key type 'List<Int>' must be one of Int, Nat, Byte, Char, Text, or Bytes
+<input>:63:42: error: map key type 'List<Int>' must be one of Int, Nat, Float, Byte, Char, Text, or Bytes
     public fn collection_map_key(values: Map<List<Int>, Int>) -> Int {
                                              ^^^^^^^^^
 <input>:67:29: error: compiler-owned collection companion type 'ListFirstAndRest' requires 1 type argument(s)
@@ -46,13 +46,13 @@
 <input>:79:33: error: compiler-owned collection companion type 'MapBoundValueAndRest' expects 2 type argument(s), got 3
     public fn too_many_bound(value: MapBoundValueAndRest<Text, Int, Int>) -> Int {
                                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-<input>:83:43: error: map key type 'Float' must be one of Int, Nat, Byte, Char, Text, or Bytes
-    public fn float_entry_key(value: MapEntry<Float, Int>) -> Int {
+<input>:83:43: error: map key type 'CSize' must be one of Int, Nat, Float, Byte, Char, Text, or Bytes
+    public fn csize_entry_key(value: MapEntry<CSize, Int>) -> Int {
                                               ^^^^^
-<input>:87:62: error: map key type 'KeyBox' must be one of Int, Nat, Byte, Char, Text, or Bytes
+<input>:87:62: error: map key type 'KeyBox' must be one of Int, Nat, Float, Byte, Char, Text, or Bytes
     public fn record_first_entry_key(value: MapFirstEntryAndRest<KeyBox, Int>) -> Int {
                                                                  ^^^^^^
-<input>:91:60: error: map key type 'List<Int>' must be one of Int, Nat, Byte, Char, Text, or Bytes
+<input>:91:60: error: map key type 'List<Int>' must be one of Int, Nat, Float, Byte, Char, Text, or Bytes
     public fn collection_bound_key(value: MapBoundValueAndRest<List<Int>, Int>) -> Int {
                                                                ^^^^^^^^^
 <input>:95:58: error: reason type 'LookupFailure' may not appear in function parameter
