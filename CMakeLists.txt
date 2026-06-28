@@ -118,7 +118,7 @@ if(BUILD_TESTING)
 
     add_dependencies(evidc bootstrap_compiler_generated_environment)
 
-set(EVIDENT_EXPECTED_CTEST_TOTAL 434)
+set(EVIDENT_EXPECTED_CTEST_TOTAL 435)
 
     add_test(NAME parse_valid_example
         COMMAND evidc --dump-hir ${CMAKE_CURRENT_SOURCE_DIR}/examples/feature_mode.evd)
@@ -1038,6 +1038,11 @@ set(EVIDENT_EXPECTED_CTEST_TOTAL 434)
             -DCOMMAND_PATH=$<TARGET_FILE:evidc>
             -DBUILD_DIR=${CMAKE_CURRENT_BINARY_DIR}
             -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/RunCliRejectsInvalidUtf8Source.cmake)
+    add_test(NAME cli_rejects_nul_source
+        COMMAND ${CMAKE_COMMAND}
+            -DCOMMAND_PATH=$<TARGET_FILE:evidc>
+            -DBUILD_DIR=${CMAKE_CURRENT_BINARY_DIR}
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/RunCliRejectsNulSource.cmake)
     add_cli_failure_compare_test(cli_package_missing_argument
         expected_cli_package_missing_argument.stderr.out
         --package)

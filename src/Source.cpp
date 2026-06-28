@@ -88,6 +88,10 @@ std::expected<SourceFile, std::string> SourceFile::load(std::string path) {
         return std::unexpected("source file is not well-formed UTF-8 at byte offset "
                                + std::to_string(utf8.error_offset) + ": " + path);
     }
+    if (const std::size_t nul_offset = text.find('\0'); nul_offset != std::string::npos) {
+        return std::unexpected("source file contains U+0000 at byte offset "
+                               + std::to_string(nul_offset) + ": " + path);
+    }
     return SourceFile(std::move(path), std::move(text));
 }
 
