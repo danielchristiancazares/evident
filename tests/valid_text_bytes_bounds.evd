@@ -1,0 +1,57 @@
+domain module test {
+fn text_char(text: Text, index: Nat) -> Char fails TextBoundsFailure {
+    try text_character_at(text, index)
+}
+
+fn bytes_byte(bytes: Bytes, index: Nat) -> Byte fails BytesBoundsFailure {
+    try bytes_byte_at(bytes, index)
+}
+
+fn text_part(text: Text, start: Nat, end: Nat) -> Text fails TextBoundsFailure {
+    try text_slice(text, start, end)
+}
+
+fn bytes_part(bytes: Bytes, start: Nat, end: Nat) -> Bytes fails BytesBoundsFailure {
+    try bytes_slice(bytes, start, end)
+}
+
+fn literal_text_part() -> Text fails TextBoundsFailure {
+    try text_slice("a\u{E9}\u{1F600}z", 1, 3)
+}
+
+fn literal_bytes_part() -> Bytes fails BytesBoundsFailure {
+    try bytes_slice("abcdef", 2, 5)
+}
+
+fn require_text(text: Text) -> NonEmptyText fails TextCardinalityFailure {
+    try text_require_nonempty(text)
+}
+
+fn require_bytes(bytes: Bytes) -> NonEmptyBytes fails BytesCardinalityFailure {
+    try bytes_require_nonempty(bytes)
+}
+
+fn widen_text(text: NonEmptyText) -> Text {
+    nonempty_text_widen(text)
+}
+
+fn widen_bytes(bytes: NonEmptyBytes) -> Bytes {
+    nonempty_bytes_widen(bytes)
+}
+
+fn nonempty_text_count(text: NonEmptyText) -> Nat {
+    nonempty_text_length(text)
+}
+
+fn nonempty_bytes_count(bytes: NonEmptyBytes) -> Nat {
+    nonempty_bytes_length(bytes)
+}
+
+fn nonempty_first_character(text: NonEmptyText) -> Char {
+    nonempty_text_first_character(text)
+}
+
+fn nonempty_first_byte(bytes: NonEmptyBytes) -> Byte {
+    nonempty_bytes_first_byte(bytes)
+}
+}

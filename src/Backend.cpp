@@ -509,6 +509,13 @@ enum class CompilerOwnedFunctionLowering {
     WidenCollection,
     CountCollection,
     SequenceLength,
+    TextCharacterAt,
+    BytesByteAt,
+    TextSlice,
+    BytesSlice,
+    RequireNonEmptySequence,
+    WidenSequence,
+    SequenceFirst,
     RequireNonEmptyCollection,
     ListSingle,
     MapSingle,
@@ -528,6 +535,8 @@ enum class CompilerOwnedFunctionLowering {
     ListPrepend,
     ListAppend,
     ListConcat,
+    ForeignIntegerConversion,
+    ForeignTextConversion,
 };
 
 enum class RequireNonEmptyCollectionFamily {
@@ -570,8 +579,30 @@ CompilerOwnedFunctionLowering compiler_owned_function_lowering(std::string_view 
         || base_name == "map_count_copy" || base_name == "nonempty_map_count_copy") {
         return CompilerOwnedFunctionLowering::CountCollection;
     }
-    if (base_name == "text_length" || base_name == "bytes_length") {
+    if (base_name == "text_length" || base_name == "bytes_length"
+        || base_name == "nonempty_text_length" || base_name == "nonempty_bytes_length") {
         return CompilerOwnedFunctionLowering::SequenceLength;
+    }
+    if (base_name == "text_character_at") {
+        return CompilerOwnedFunctionLowering::TextCharacterAt;
+    }
+    if (base_name == "bytes_byte_at") {
+        return CompilerOwnedFunctionLowering::BytesByteAt;
+    }
+    if (base_name == "text_slice") {
+        return CompilerOwnedFunctionLowering::TextSlice;
+    }
+    if (base_name == "bytes_slice") {
+        return CompilerOwnedFunctionLowering::BytesSlice;
+    }
+    if (base_name == "text_require_nonempty" || base_name == "bytes_require_nonempty") {
+        return CompilerOwnedFunctionLowering::RequireNonEmptySequence;
+    }
+    if (base_name == "nonempty_text_widen" || base_name == "nonempty_bytes_widen") {
+        return CompilerOwnedFunctionLowering::WidenSequence;
+    }
+    if (base_name == "nonempty_text_first_character" || base_name == "nonempty_bytes_first_byte") {
+        return CompilerOwnedFunctionLowering::SequenceFirst;
     }
     if (base_name == "list_require_nonempty" || base_name == "map_require_nonempty") {
         return CompilerOwnedFunctionLowering::RequireNonEmptyCollection;
@@ -647,6 +678,16 @@ CompilerOwnedFunctionLowering compiler_owned_function_lowering(std::string_view 
     if (base_name == "list_concat" || base_name == "nonempty_list_concat_left"
         || base_name == "nonempty_list_concat_right" || base_name == "nonempty_list_concat") {
         return CompilerOwnedFunctionLowering::ListConcat;
+    }
+    if (base_name == "cint_to_int" || base_name == "cint_require_nat"
+        || base_name == "csize_to_int" || base_name == "csize_to_nat"
+        || base_name == "int_to_cint" || base_name == "nat_to_cint"
+        || base_name == "int_to_csize" || base_name == "nat_to_csize") {
+        return CompilerOwnedFunctionLowering::ForeignIntegerConversion;
+    }
+    if (base_name == "cstring_payload_bytes" || base_name == "cstring_payload_text"
+        || base_name == "text_to_cstring" || base_name == "bytes_to_cstring") {
+        return CompilerOwnedFunctionLowering::ForeignTextConversion;
     }
     return CompilerOwnedFunctionLowering::Unsupported;
 }
@@ -887,6 +928,9 @@ enum class RuntimeHelper {
     Malloc,
     Memcpy,
     Memcmp,
+    Strlen,
+    Utf8,
+    Nat,
 };
 
 enum class BlockVisitState {
@@ -943,6 +987,9 @@ private:
                                                        const mir::Operand& operand);
     [[nodiscard]] std::expected<TypedValue, std::string> materialize_operand(const mir::Operand& operand,
                                                                              const ResolvedType& expected_type);
+    [[nodiscard]] std::expected<TypedValue, std::string> make_nat_literal_value(const ResolvedType& type,
+                                                                                std::string_view lexeme);
+    [[nodiscard]] std::expected<std::string, std::string> convert_nat_to_u64(const std::string& value);
     [[nodiscard]] std::expected<std::string, std::string> local_slot(mir::LocalId local_id) const;
     [[nodiscard]] std::expected<const ResolvedType*, std::string> local_type(mir::LocalId local_id) const;
     [[nodiscard]] std::expected<const TypeLayout*, std::string> user_layout_for_local(mir::LocalId local_id);
@@ -1007,6 +1054,7 @@ public:
 
     [[nodiscard]] std::expected<std::string, std::string> emit();
     [[nodiscard]] std::expected<StringGlobal, std::string> intern_string(const std::string& lexeme);
+    [[nodiscard]] StringGlobal intern_bytes(std::string bytes);
     void require_runtime_helper(RuntimeHelper helper);
 
 private:
@@ -1125,9 +1173,75 @@ bool is_builtin_float_type(const ResolvedType& type) {
         && type.identity().builtin_kind() == BuiltinKind::Float;
 }
 
+bool is_builtin_nat_type(const ResolvedType& type) {
+    return type.identity().category() == ResolvedTypeCategory::BuiltinType
+        && type.identity().builtin_kind() == BuiltinKind::Nat;
+}
+
 bool is_integer_literal_destination(const ResolvedType& type) {
+    if (is_builtin_nat_type(type)) {
+        return true;
+    }
     return type.storage_shape() == RuntimeStorageShape::Scalar
         && (type.llvm_type() == "i64" || type.llvm_type() == "i32" || type.llvm_type() == "i8");
+}
+
+enum class DecimalLiteralShape {
+    PlainDecimalDigits,
+    NotPlainDecimalDigits,
+};
+
+DecimalLiteralShape classify_decimal_literal_shape(std::string_view lexeme) {
+    if (lexeme.empty()) {
+        return DecimalLiteralShape::NotPlainDecimalDigits;
+    }
+    for (const char digit : lexeme) {
+        if (digit < '0' || digit > '9') {
+            return DecimalLiteralShape::NotPlainDecimalDigits;
+        }
+    }
+    return DecimalLiteralShape::PlainDecimalDigits;
+}
+
+enum class NativeIntegerLiteralFit {
+    WithinNativeCell,
+    ExceedsNativeCell,
+};
+
+// Largest non-negative decimal magnitude (inclusive) representable in the
+// destination's native integer cell without truncating any bits. The native
+// emission path lowers fixed-width integers into LLVM scalars, so a
+// literal wider than the cell cannot be materialized without silently dropping
+// high bits. `Nat` is represented separately as an arbitrary-precision runtime
+// carrier and is not limited by this table.
+std::string_view native_integer_cell_capacity(std::string_view llvm_type) {
+    if (llvm_type == "i8") {
+        return "255";
+    }
+    if (llvm_type == "i32") {
+        return "4294967295";
+    }
+    return "18446744073709551615";
+}
+
+NativeIntegerLiteralFit classify_native_integer_literal_fit(std::string_view decimal_digits,
+                                                            std::string_view cell_capacity) {
+    while (decimal_digits.size() > 1 && decimal_digits.front() == '0') {
+        decimal_digits.remove_prefix(1);
+    }
+    if (decimal_digits.size() != cell_capacity.size()) {
+        return decimal_digits.size() < cell_capacity.size() ? NativeIntegerLiteralFit::WithinNativeCell
+                                                            : NativeIntegerLiteralFit::ExceedsNativeCell;
+    }
+    return decimal_digits <= cell_capacity ? NativeIntegerLiteralFit::WithinNativeCell
+                                           : NativeIntegerLiteralFit::ExceedsNativeCell;
+}
+
+std::string canonical_nat_literal_text(std::string_view lexeme) {
+    while (lexeme.size() > 1 && lexeme.front() == '0') {
+        lexeme.remove_prefix(1);
+    }
+    return std::string(lexeme);
 }
 
 std::expected<std::string, std::string> format_float_literal_for_llvm(std::string_view lexeme) {
@@ -1161,6 +1275,18 @@ std::expected<std::string, std::string> materialize_number_literal_text(std::str
         return std::unexpected("backend only supports integer literals in integer destinations"
                                + std::string(context.empty() ? "" : " for ") + std::string(context)
                                + ", got '" + expected_type.source_name() + "'");
+    }
+    if (is_builtin_nat_type(expected_type)) {
+        if (classify_decimal_literal_shape(lexeme) != DecimalLiteralShape::PlainDecimalDigits) {
+            return std::unexpected("backend received invalid Nat literal '" + std::string(lexeme) + "'");
+        }
+        return std::string(lexeme);
+    }
+    if (classify_decimal_literal_shape(lexeme) == DecimalLiteralShape::PlainDecimalDigits
+        && classify_native_integer_literal_fit(lexeme, native_integer_cell_capacity(expected_type.llvm_type()))
+               == NativeIntegerLiteralFit::ExceedsNativeCell) {
+        return std::unexpected("backend integer literal '" + std::string(lexeme)
+                               + "' exceeds the native range of '" + expected_type.source_name() + "'");
     }
     return std::string(lexeme);
 }
@@ -1218,7 +1344,7 @@ std::expected<ResolvedType, std::string> BackendModel::resolve_type_name(const s
         return runtime_builtin("i64", 8, 8, RuntimeStorageShape::Scalar, BuiltinKind::Int);
     }
     if (name == "Nat") {
-        return runtime_builtin("i64", 8, 8, RuntimeStorageShape::Scalar, BuiltinKind::Nat);
+        return runtime_builtin("{ ptr, i64 }", 16, 8, RuntimeStorageShape::Aggregate, BuiltinKind::Nat);
     }
     if (name == "Float") {
         return runtime_builtin("double", 8, 8, RuntimeStorageShape::Scalar, BuiltinKind::Float);
@@ -2439,6 +2565,346 @@ BackendStepResult validate_backend_package(BackendModel& model,
     return BackendStepSucceeded{};
 }
 
+std::string emit_nat_runtime_helper_definitions() {
+    std::ostringstream out;
+    out << "define { ptr, i64 } @evid.nat.from.u64(i64 %value) {\n";
+    out << "entry:\n";
+    out << "  %buffer = call ptr @malloc(i64 20)\n";
+    out << "  %is.zero = icmp eq i64 %value, 0\n";
+    out << "  br i1 %is.zero, label %zero, label %loop\n";
+    out << "zero:\n";
+    out << "  store i8 48, ptr %buffer\n";
+    out << "  %zero.ptr = insertvalue { ptr, i64 } zeroinitializer, ptr %buffer, 0\n";
+    out << "  %zero.value = insertvalue { ptr, i64 } %zero.ptr, i64 1, 1\n";
+    out << "  ret { ptr, i64 } %zero.value\n";
+    out << "loop:\n";
+    out << "  %current = phi i64 [ %value, %entry ], [ %next.value, %loop ]\n";
+    out << "  %pos = phi i64 [ 20, %entry ], [ %next.pos, %loop ]\n";
+    out << "  %digit = urem i64 %current, 10\n";
+    out << "  %digit8 = trunc i64 %digit to i8\n";
+    out << "  %char = add i8 %digit8, 48\n";
+    out << "  %next.pos = sub i64 %pos, 1\n";
+    out << "  %slot = getelementptr i8, ptr %buffer, i64 %next.pos\n";
+    out << "  store i8 %char, ptr %slot\n";
+    out << "  %next.value = udiv i64 %current, 10\n";
+    out << "  %done = icmp eq i64 %next.value, 0\n";
+    out << "  br i1 %done, label %done.block, label %loop\n";
+    out << "done.block:\n";
+    out << "  %start.ptr = getelementptr i8, ptr %buffer, i64 %next.pos\n";
+    out << "  %length = sub i64 20, %next.pos\n";
+    out << "  %result.ptr = insertvalue { ptr, i64 } zeroinitializer, ptr %start.ptr, 0\n";
+    out << "  %result.value = insertvalue { ptr, i64 } %result.ptr, i64 %length, 1\n";
+    out << "  ret { ptr, i64 } %result.value\n";
+    out << "}\n\n";
+
+    out << "define i64 @evid.nat.to.u64({ ptr, i64 } %value) {\n";
+    out << "entry:\n";
+    out << "  %data = extractvalue { ptr, i64 } %value, 0\n";
+    out << "  %length = extractvalue { ptr, i64 } %value, 1\n";
+    out << "  %empty = icmp eq i64 %length, 0\n";
+    out << "  br i1 %empty, label %zero, label %loop\n";
+    out << "zero:\n";
+    out << "  ret i64 0\n";
+    out << "loop:\n";
+    out << "  %index = phi i64 [ 0, %entry ], [ %next.index, %advance ]\n";
+    out << "  %acc = phi i64 [ 0, %entry ], [ %next.acc, %advance ]\n";
+    out << "  %at.end = icmp eq i64 %index, %length\n";
+    out << "  br i1 %at.end, label %done, label %digit.block\n";
+    out << "digit.block:\n";
+    out << "  %digit.ptr = getelementptr i8, ptr %data, i64 %index\n";
+    out << "  %digit.char = load i8, ptr %digit.ptr\n";
+    out << "  %digit.raw = sub i8 %digit.char, 48\n";
+    out << "  %digit = zext i8 %digit.raw to i64\n";
+    out << "  %over.high = icmp ugt i64 %acc, 1844674407370955161\n";
+    out << "  %over.edge = icmp eq i64 %acc, 1844674407370955161\n";
+    out << "  %over.digit = icmp ugt i64 %digit, 5\n";
+    out << "  %over.edge.digit = and i1 %over.edge, %over.digit\n";
+    out << "  %overflow = or i1 %over.high, %over.edge.digit\n";
+    out << "  br i1 %overflow, label %saturated, label %advance\n";
+    out << "advance:\n";
+    out << "  %scaled = mul i64 %acc, 10\n";
+    out << "  %next.acc = add i64 %scaled, %digit\n";
+    out << "  %next.index = add i64 %index, 1\n";
+    out << "  br label %loop\n";
+    out << "saturated:\n";
+    out << "  ret i64 -1\n";
+    out << "done:\n";
+    out << "  ret i64 %acc\n";
+    out << "}\n\n";
+
+    out << "define i1 @evid.nat.fits.u64({ ptr, i64 } %value) {\n";
+    out << "entry:\n";
+    out << "  %data = extractvalue { ptr, i64 } %value, 0\n";
+    out << "  %length = extractvalue { ptr, i64 } %value, 1\n";
+    out << "  %empty = icmp eq i64 %length, 0\n";
+    out << "  br i1 %empty, label %fits, label %loop\n";
+    out << "loop:\n";
+    out << "  %index = phi i64 [ 0, %entry ], [ %next.index, %advance ]\n";
+    out << "  %acc = phi i64 [ 0, %entry ], [ %next.acc, %advance ]\n";
+    out << "  %at.end = icmp eq i64 %index, %length\n";
+    out << "  br i1 %at.end, label %fits, label %digit.block\n";
+    out << "digit.block:\n";
+    out << "  %digit.ptr = getelementptr i8, ptr %data, i64 %index\n";
+    out << "  %digit.char = load i8, ptr %digit.ptr\n";
+    out << "  %digit.raw = sub i8 %digit.char, 48\n";
+    out << "  %digit = zext i8 %digit.raw to i64\n";
+    out << "  %over.high = icmp ugt i64 %acc, 1844674407370955161\n";
+    out << "  %over.edge = icmp eq i64 %acc, 1844674407370955161\n";
+    out << "  %over.digit = icmp ugt i64 %digit, 5\n";
+    out << "  %over.edge.digit = and i1 %over.edge, %over.digit\n";
+    out << "  %overflow = or i1 %over.high, %over.edge.digit\n";
+    out << "  br i1 %overflow, label %too.large, label %advance\n";
+    out << "advance:\n";
+    out << "  %scaled = mul i64 %acc, 10\n";
+    out << "  %next.acc = add i64 %scaled, %digit\n";
+    out << "  %next.index = add i64 %index, 1\n";
+    out << "  br label %loop\n";
+    out << "too.large:\n";
+    out << "  ret i1 false\n";
+    out << "fits:\n";
+    out << "  ret i1 true\n";
+    out << "}\n\n";
+
+    out << "define { ptr, i64 } @evid.nat.add({ ptr, i64 } %lhs, { ptr, i64 } %rhs) {\n";
+    out << "entry:\n";
+    out << "  %lhs.data = extractvalue { ptr, i64 } %lhs, 0\n";
+    out << "  %lhs.length = extractvalue { ptr, i64 } %lhs, 1\n";
+    out << "  %rhs.data = extractvalue { ptr, i64 } %rhs, 0\n";
+    out << "  %rhs.length = extractvalue { ptr, i64 } %rhs, 1\n";
+    out << "  %lhs.last = sub i64 %lhs.length, 1\n";
+    out << "  %rhs.last = sub i64 %rhs.length, 1\n";
+    out << "  %lhs.longer = icmp ugt i64 %lhs.length, %rhs.length\n";
+    out << "  %max.length = select i1 %lhs.longer, i64 %lhs.length, i64 %rhs.length\n";
+    out << "  %raw.length = add i64 %max.length, 1\n";
+    out << "  %buffer = call ptr @malloc(i64 %raw.length)\n";
+    out << "  %out.last = sub i64 %raw.length, 1\n";
+    out << "  br label %loop\n";
+    out << "loop:\n";
+    out << "  %lhs.index = phi i64 [ %lhs.last, %entry ], [ %next.lhs.index, %store.digit ]\n";
+    out << "  %rhs.index = phi i64 [ %rhs.last, %entry ], [ %next.rhs.index, %store.digit ]\n";
+    out << "  %out.index = phi i64 [ %out.last, %entry ], [ %next.out.index, %store.digit ]\n";
+    out << "  %carry = phi i64 [ 0, %entry ], [ %next.carry, %store.digit ]\n";
+    out << "  %lhs.active = icmp sge i64 %lhs.index, 0\n";
+    out << "  br i1 %lhs.active, label %lhs.load, label %lhs.zero\n";
+    out << "lhs.load:\n";
+    out << "  %lhs.ptr = getelementptr i8, ptr %lhs.data, i64 %lhs.index\n";
+    out << "  %lhs.char = load i8, ptr %lhs.ptr\n";
+    out << "  %lhs.raw = sub i8 %lhs.char, 48\n";
+    out << "  %lhs.loaded = zext i8 %lhs.raw to i64\n";
+    out << "  br label %lhs.ready\n";
+    out << "lhs.zero:\n";
+    out << "  br label %lhs.ready\n";
+    out << "lhs.ready:\n";
+    out << "  %lhs.digit = phi i64 [ %lhs.loaded, %lhs.load ], [ 0, %lhs.zero ]\n";
+    out << "  %rhs.active = icmp sge i64 %rhs.index, 0\n";
+    out << "  br i1 %rhs.active, label %rhs.load, label %rhs.zero\n";
+    out << "rhs.load:\n";
+    out << "  %rhs.ptr = getelementptr i8, ptr %rhs.data, i64 %rhs.index\n";
+    out << "  %rhs.char = load i8, ptr %rhs.ptr\n";
+    out << "  %rhs.raw = sub i8 %rhs.char, 48\n";
+    out << "  %rhs.loaded = zext i8 %rhs.raw to i64\n";
+    out << "  br label %rhs.ready\n";
+    out << "rhs.zero:\n";
+    out << "  br label %rhs.ready\n";
+    out << "rhs.ready:\n";
+    out << "  %rhs.digit = phi i64 [ %rhs.loaded, %rhs.load ], [ 0, %rhs.zero ]\n";
+    out << "  %partial = add i64 %lhs.digit, %rhs.digit\n";
+    out << "  %total = add i64 %partial, %carry\n";
+    out << "  %digit = urem i64 %total, 10\n";
+    out << "  %next.carry = udiv i64 %total, 10\n";
+    out << "  %digit8 = trunc i64 %digit to i8\n";
+    out << "  %char = add i8 %digit8, 48\n";
+    out << "  %out.ptr = getelementptr i8, ptr %buffer, i64 %out.index\n";
+    out << "  store i8 %char, ptr %out.ptr\n";
+    out << "  %next.lhs.index = sub i64 %lhs.index, 1\n";
+    out << "  %next.rhs.index = sub i64 %rhs.index, 1\n";
+    out << "  %next.out.index = sub i64 %out.index, 1\n";
+    out << "  %lhs.more = icmp sge i64 %next.lhs.index, 0\n";
+    out << "  %rhs.more = icmp sge i64 %next.rhs.index, 0\n";
+    out << "  %digits.more = or i1 %lhs.more, %rhs.more\n";
+    out << "  %carry.more = icmp ne i64 %next.carry, 0\n";
+    out << "  %more = or i1 %digits.more, %carry.more\n";
+    out << "  br i1 %more, label %store.digit, label %done\n";
+    out << "store.digit:\n";
+    out << "  br label %loop\n";
+    out << "done:\n";
+    out << "  %result.ptr = getelementptr i8, ptr %buffer, i64 %out.index\n";
+    out << "  %result.length = sub i64 %raw.length, %out.index\n";
+    out << "  %with.ptr = insertvalue { ptr, i64 } zeroinitializer, ptr %result.ptr, 0\n";
+    out << "  %result = insertvalue { ptr, i64 } %with.ptr, i64 %result.length, 1\n";
+    out << "  ret { ptr, i64 } %result\n";
+    out << "}\n\n";
+
+    out << "define i32 @evid.nat.compare({ ptr, i64 } %lhs, { ptr, i64 } %rhs) {\n";
+    out << "entry:\n";
+    out << "  %lhs.data = extractvalue { ptr, i64 } %lhs, 0\n";
+    out << "  %lhs.length = extractvalue { ptr, i64 } %lhs, 1\n";
+    out << "  %rhs.data = extractvalue { ptr, i64 } %rhs, 0\n";
+    out << "  %rhs.length = extractvalue { ptr, i64 } %rhs, 1\n";
+    out << "  %lhs.shorter = icmp ult i64 %lhs.length, %rhs.length\n";
+    out << "  br i1 %lhs.shorter, label %less, label %check.longer\n";
+    out << "check.longer:\n";
+    out << "  %lhs.longer = icmp ugt i64 %lhs.length, %rhs.length\n";
+    out << "  br i1 %lhs.longer, label %greater, label %scan\n";
+    out << "scan:\n";
+    out << "  %index = phi i64 [ 0, %check.longer ], [ %next.index, %equal.byte ]\n";
+    out << "  %at.end = icmp eq i64 %index, %lhs.length\n";
+    out << "  br i1 %at.end, label %equal, label %compare.byte\n";
+    out << "compare.byte:\n";
+    out << "  %lhs.ptr = getelementptr i8, ptr %lhs.data, i64 %index\n";
+    out << "  %rhs.ptr = getelementptr i8, ptr %rhs.data, i64 %index\n";
+    out << "  %lhs.byte = load i8, ptr %lhs.ptr\n";
+    out << "  %rhs.byte = load i8, ptr %rhs.ptr\n";
+    out << "  %byte.equal = icmp eq i8 %lhs.byte, %rhs.byte\n";
+    out << "  br i1 %byte.equal, label %equal.byte, label %order.byte\n";
+    out << "equal.byte:\n";
+    out << "  %next.index = add i64 %index, 1\n";
+    out << "  br label %scan\n";
+    out << "order.byte:\n";
+    out << "  %byte.less = icmp ult i8 %lhs.byte, %rhs.byte\n";
+    out << "  br i1 %byte.less, label %less, label %greater\n";
+    out << "less:\n";
+    out << "  ret i32 -1\n";
+    out << "equal:\n";
+    out << "  ret i32 0\n";
+    out << "greater:\n";
+    out << "  ret i32 1\n";
+    out << "}\n";
+    return out.str();
+}
+
+std::string emit_utf8_runtime_helper_definitions() {
+    std::ostringstream out;
+    out << "define i1 @evid.utf8.is.valid(ptr %data, i64 %length) {\n";
+    out << "entry:\n";
+    out << "  br label %loop\n";
+    out << "loop:\n";
+    out << "  %index = phi i64 [ 0, %entry ], [ %next1, %advance1 ], [ %next2, %advance2 ], [ %next3, %advance3 ], [ %next4, %advance4 ]\n";
+    out << "  %at.end = icmp eq i64 %index, %length\n";
+    out << "  br i1 %at.end, label %valid, label %load\n";
+    out << "load:\n";
+    out << "  %ptr = getelementptr i8, ptr %data, i64 %index\n";
+    out << "  %lead = load i8, ptr %ptr\n";
+    out << "  %lead32 = zext i8 %lead to i32\n";
+    out << "  %ascii = icmp ult i32 %lead32, 128\n";
+    out << "  br i1 %ascii, label %advance1, label %class2\n";
+    out << "class2:\n";
+    out << "  %two.min = icmp uge i32 %lead32, 194\n";
+    out << "  %two.max = icmp ule i32 %lead32, 223\n";
+    out << "  %is.two = and i1 %two.min, %two.max\n";
+    out << "  br i1 %is.two, label %check2.bounds, label %class3\n";
+    out << "check2.bounds:\n";
+    out << "  %end2 = add i64 %index, 1\n";
+    out << "  %has2 = icmp ult i64 %end2, %length\n";
+    out << "  br i1 %has2, label %check2.byte, label %invalid\n";
+    out << "check2.byte:\n";
+    out << "  %b1.ptr = getelementptr i8, ptr %data, i64 %end2\n";
+    out << "  %b1 = load i8, ptr %b1.ptr\n";
+    out << "  %b1.32 = zext i8 %b1 to i32\n";
+    out << "  %b1.min = icmp uge i32 %b1.32, 128\n";
+    out << "  %b1.max = icmp ule i32 %b1.32, 191\n";
+    out << "  %b1.ok = and i1 %b1.min, %b1.max\n";
+    out << "  br i1 %b1.ok, label %advance2, label %invalid\n";
+    out << "class3:\n";
+    out << "  %three.min = icmp uge i32 %lead32, 224\n";
+    out << "  %three.max = icmp ule i32 %lead32, 239\n";
+    out << "  %is.three = and i1 %three.min, %three.max\n";
+    out << "  br i1 %is.three, label %check3.bounds, label %class4\n";
+    out << "check3.bounds:\n";
+    out << "  %end3 = add i64 %index, 2\n";
+    out << "  %has3 = icmp ult i64 %end3, %length\n";
+    out << "  br i1 %has3, label %check3.bytes, label %invalid\n";
+    out << "check3.bytes:\n";
+    out << "  %b31.index = add i64 %index, 1\n";
+    out << "  %b32.index = add i64 %index, 2\n";
+    out << "  %b31.ptr = getelementptr i8, ptr %data, i64 %b31.index\n";
+    out << "  %b32.ptr = getelementptr i8, ptr %data, i64 %b32.index\n";
+    out << "  %b31 = load i8, ptr %b31.ptr\n";
+    out << "  %b32 = load i8, ptr %b32.ptr\n";
+    out << "  %b31.32 = zext i8 %b31 to i32\n";
+    out << "  %b32.32 = zext i8 %b32 to i32\n";
+    out << "  %b31.cont.min = icmp uge i32 %b31.32, 128\n";
+    out << "  %b31.cont.max = icmp ule i32 %b31.32, 191\n";
+    out << "  %b31.cont = and i1 %b31.cont.min, %b31.cont.max\n";
+    out << "  %b32.cont.min = icmp uge i32 %b32.32, 128\n";
+    out << "  %b32.cont.max = icmp ule i32 %b32.32, 191\n";
+    out << "  %b32.cont = and i1 %b32.cont.min, %b32.cont.max\n";
+    out << "  %is.e0 = icmp eq i32 %lead32, 224\n";
+    out << "  %e0.second = icmp uge i32 %b31.32, 160\n";
+    out << "  %not.e0 = xor i1 %is.e0, true\n";
+    out << "  %e0.ok = or i1 %not.e0, %e0.second\n";
+    out << "  %is.ed = icmp eq i32 %lead32, 237\n";
+    out << "  %ed.second = icmp ule i32 %b31.32, 159\n";
+    out << "  %not.ed = xor i1 %is.ed, true\n";
+    out << "  %ed.ok = or i1 %not.ed, %ed.second\n";
+    out << "  %first3.ok0 = and i1 %b31.cont, %e0.ok\n";
+    out << "  %first3.ok = and i1 %first3.ok0, %ed.ok\n";
+    out << "  %three.ok = and i1 %first3.ok, %b32.cont\n";
+    out << "  br i1 %three.ok, label %advance3, label %invalid\n";
+    out << "class4:\n";
+    out << "  %four.min = icmp uge i32 %lead32, 240\n";
+    out << "  %four.max = icmp ule i32 %lead32, 244\n";
+    out << "  %is.four = and i1 %four.min, %four.max\n";
+    out << "  br i1 %is.four, label %check4.bounds, label %invalid\n";
+    out << "check4.bounds:\n";
+    out << "  %end4 = add i64 %index, 3\n";
+    out << "  %has4 = icmp ult i64 %end4, %length\n";
+    out << "  br i1 %has4, label %check4.bytes, label %invalid\n";
+    out << "check4.bytes:\n";
+    out << "  %b41.index = add i64 %index, 1\n";
+    out << "  %b42.index = add i64 %index, 2\n";
+    out << "  %b43.index = add i64 %index, 3\n";
+    out << "  %b41.ptr = getelementptr i8, ptr %data, i64 %b41.index\n";
+    out << "  %b42.ptr = getelementptr i8, ptr %data, i64 %b42.index\n";
+    out << "  %b43.ptr = getelementptr i8, ptr %data, i64 %b43.index\n";
+    out << "  %b41 = load i8, ptr %b41.ptr\n";
+    out << "  %b42 = load i8, ptr %b42.ptr\n";
+    out << "  %b43 = load i8, ptr %b43.ptr\n";
+    out << "  %b41.32 = zext i8 %b41 to i32\n";
+    out << "  %b42.32 = zext i8 %b42 to i32\n";
+    out << "  %b43.32 = zext i8 %b43 to i32\n";
+    out << "  %b41.cont.min = icmp uge i32 %b41.32, 128\n";
+    out << "  %b41.cont.max = icmp ule i32 %b41.32, 191\n";
+    out << "  %b41.cont = and i1 %b41.cont.min, %b41.cont.max\n";
+    out << "  %b42.cont.min = icmp uge i32 %b42.32, 128\n";
+    out << "  %b42.cont.max = icmp ule i32 %b42.32, 191\n";
+    out << "  %b42.cont = and i1 %b42.cont.min, %b42.cont.max\n";
+    out << "  %b43.cont.min = icmp uge i32 %b43.32, 128\n";
+    out << "  %b43.cont.max = icmp ule i32 %b43.32, 191\n";
+    out << "  %b43.cont = and i1 %b43.cont.min, %b43.cont.max\n";
+    out << "  %is.f0 = icmp eq i32 %lead32, 240\n";
+    out << "  %f0.second = icmp uge i32 %b41.32, 144\n";
+    out << "  %not.f0 = xor i1 %is.f0, true\n";
+    out << "  %f0.ok = or i1 %not.f0, %f0.second\n";
+    out << "  %is.f4 = icmp eq i32 %lead32, 244\n";
+    out << "  %f4.second = icmp ule i32 %b41.32, 143\n";
+    out << "  %not.f4 = xor i1 %is.f4, true\n";
+    out << "  %f4.ok = or i1 %not.f4, %f4.second\n";
+    out << "  %first4.ok0 = and i1 %b41.cont, %f0.ok\n";
+    out << "  %first4.ok = and i1 %first4.ok0, %f4.ok\n";
+    out << "  %tail4.ok0 = and i1 %b42.cont, %b43.cont\n";
+    out << "  %four.ok = and i1 %first4.ok, %tail4.ok0\n";
+    out << "  br i1 %four.ok, label %advance4, label %invalid\n";
+    out << "advance1:\n";
+    out << "  %next1 = add i64 %index, 1\n";
+    out << "  br label %loop\n";
+    out << "advance2:\n";
+    out << "  %next2 = add i64 %index, 2\n";
+    out << "  br label %loop\n";
+    out << "advance3:\n";
+    out << "  %next3 = add i64 %index, 3\n";
+    out << "  br label %loop\n";
+    out << "advance4:\n";
+    out << "  %next4 = add i64 %index, 4\n";
+    out << "  br label %loop\n";
+    out << "invalid:\n";
+    out << "  ret i1 false\n";
+    out << "valid:\n";
+    out << "  ret i1 true\n";
+    out << "}\n";
+    return out.str();
+}
+
 std::expected<std::string, std::string> ModuleEmitter::emit() {
     const hir::FunctionDecl* entry_main = nullptr;
     if (entry_point_emission_ == EntryPointEmission::IncludeExecutableEntryPoint) {
@@ -2508,6 +2974,15 @@ std::expected<std::string, std::string> ModuleEmitter::emit() {
         case RuntimeHelper::Memcmp:
             out << "declare i32 @memcmp(ptr, ptr, i64)\n";
             break;
+        case RuntimeHelper::Strlen:
+            out << "declare i64 @strlen(ptr)\n";
+            break;
+        case RuntimeHelper::Utf8:
+            out << emit_utf8_runtime_helper_definitions();
+            break;
+        case RuntimeHelper::Nat:
+            out << emit_nat_runtime_helper_definitions();
+            break;
         }
     }
     if (!runtime_helpers_.empty()) {
@@ -2533,17 +3008,24 @@ std::expected<StringGlobal, std::string> ModuleEmitter::intern_string(const std:
     if (!decoded.has_value()) {
         return std::unexpected(decoded.error());
     }
-    if (const auto it = string_indices_.find(*decoded); it != string_indices_.end()) {
+    return intern_bytes(*decoded);
+}
+
+StringGlobal ModuleEmitter::intern_bytes(std::string bytes) {
+    if (const auto it = string_indices_.find(bytes); it != string_indices_.end()) {
         return string_globals_.at(it->second);
     }
 
     const std::size_t index = string_globals_.size();
-    string_indices_.emplace(*decoded, index);
-    string_globals_.push_back(StringGlobal{"evid.str." + std::to_string(index), *decoded});
+    string_indices_.emplace(bytes, index);
+    string_globals_.push_back(StringGlobal{"evid.str." + std::to_string(index), std::move(bytes)});
     return string_globals_.back();
 }
 
 void ModuleEmitter::require_runtime_helper(RuntimeHelper helper) {
+    if (helper == RuntimeHelper::Nat) {
+        require_runtime_helper(RuntimeHelper::Malloc);
+    }
     if (std::find(runtime_helpers_.begin(), runtime_helpers_.end(), helper) != runtime_helpers_.end()) {
         return;
     }
@@ -2729,6 +3211,51 @@ std::expected<FunctionEmitter::TypedValue, std::string> FunctionEmitter::make_st
         return std::unexpected(with_len.error());
     }
     return TypedValue{type, *with_len};
+}
+
+std::expected<FunctionEmitter::TypedValue, std::string> FunctionEmitter::make_nat_literal_value(
+    const ResolvedType& type,
+    std::string_view lexeme) {
+    if (!is_builtin_nat_type(type)) {
+        return std::unexpected("backend expected Nat storage for Nat literal, got '" + type.source_name() + "'");
+    }
+    if (classify_decimal_literal_shape(lexeme) != DecimalLiteralShape::PlainDecimalDigits) {
+        return std::unexpected("backend received invalid Nat literal '" + std::string(lexeme) + "'");
+    }
+
+    module_.require_runtime_helper(RuntimeHelper::Nat);
+    const StringGlobal global = module_.intern_bytes(canonical_nat_literal_text(lexeme));
+    const std::string ptr_value = next_temp("natptr");
+    append_line(ptr_value + " = getelementptr inbounds ["
+                + std::to_string(global.bytes.size() + 1) + " x i8], ptr @" + global.name
+                + ", i64 0, i64 0");
+
+    const std::expected<std::string, std::string> with_ptr = insert_value(
+        type.llvm_type(),
+        "zeroinitializer",
+        "ptr",
+        ptr_value,
+        0);
+    if (!with_ptr.has_value()) {
+        return std::unexpected(with_ptr.error());
+    }
+    const std::expected<std::string, std::string> with_len = insert_value(
+        type.llvm_type(),
+        *with_ptr,
+        "i64",
+        std::to_string(global.bytes.size()),
+        1);
+    if (!with_len.has_value()) {
+        return std::unexpected(with_len.error());
+    }
+    return TypedValue{type, *with_len};
+}
+
+std::expected<std::string, std::string> FunctionEmitter::convert_nat_to_u64(const std::string& value) {
+    module_.require_runtime_helper(RuntimeHelper::Nat);
+    const std::string converted = next_temp("nat.u64");
+    append_line(converted + " = call i64 @evid.nat.to.u64({ ptr, i64 } " + value + ")");
+    return converted;
 }
 
 std::expected<std::string, std::string> FunctionEmitter::insert_value(const std::string& aggregate_type,
@@ -2921,11 +3448,13 @@ std::expected<std::string, std::string> FunctionEmitter::emit_compiler_owned_fun
                                    + hir_function_.qualified_name + "' has unsupported parameter type '"
                                    + param_types[0].source_name() + "'");
         }
+        module_.require_runtime_helper(RuntimeHelper::Nat);
         out << "define " << linkage << return_type.llvm_type() << " @"
             << model_.function_symbol(hir_function_.id) << "(" << param_types[0].llvm_type() << " %arg0) {\n";
         out << "entry:\n";
         out << "  %count0 = extractvalue " << param_types[0].llvm_type() << " %arg0, 1\n";
-        out << "  ret " << return_type.llvm_type() << " %count0\n";
+        out << "  %count1 = call " << return_type.llvm_type() << " @evid.nat.from.u64(i64 %count0)\n";
+        out << "  ret " << return_type.llvm_type() << " %count1\n";
         out << "}\n";
         return out.str();
 
@@ -2940,8 +3469,14 @@ std::expected<std::string, std::string> FunctionEmitter::emit_compiler_owned_fun
                                    + return_type.source_name() + "'");
         }
         const std::string_view base_name = function_base_name(hir_function_.qualified_name);
-        const BuiltinKind expected_kind = base_name == "text_length" ? BuiltinKind::Text : BuiltinKind::Bytes;
-        const std::string_view expected_name = base_name == "text_length" ? "Text" : "Bytes";
+        const BuiltinKind expected_kind = base_name == "text_length" ? BuiltinKind::Text
+            : base_name == "nonempty_text_length"                 ? BuiltinKind::NonEmptyText
+            : base_name == "nonempty_bytes_length"                ? BuiltinKind::NonEmptyBytes
+                                                                  : BuiltinKind::Bytes;
+        const std::string_view expected_name = base_name == "text_length" ? "Text"
+            : base_name == "nonempty_text_length"                  ? "NonEmptyText"
+            : base_name == "nonempty_bytes_length"                 ? "NonEmptyBytes"
+                                                                   : "Bytes";
         if (!has_builtin_kind(param_types[0], expected_kind)) {
             return std::unexpected("internal backend error: sequence length function '"
                                    + hir_function_.qualified_name + "' expected parameter type '"
@@ -2951,8 +3486,641 @@ std::expected<std::string, std::string> FunctionEmitter::emit_compiler_owned_fun
         out << "define " << linkage << return_type.llvm_type() << " @"
             << model_.function_symbol(hir_function_.id) << "(" << param_types[0].llvm_type() << " %arg0) {\n";
         out << "entry:\n";
+        module_.require_runtime_helper(RuntimeHelper::Nat);
+        out << "  %data0 = extractvalue " << param_types[0].llvm_type() << " %arg0, 0\n";
+        out << "  %byte_count0 = extractvalue " << param_types[0].llvm_type() << " %arg0, 1\n";
+        if (expected_kind == BuiltinKind::Bytes || expected_kind == BuiltinKind::NonEmptyBytes) {
+            out << "  %byte_count1 = call " << return_type.llvm_type() << " @evid.nat.from.u64(i64 %byte_count0)\n";
+            out << "  ret " << return_type.llvm_type() << " %byte_count1\n";
+            out << "}\n";
+            return out.str();
+        }
+        out << "  br label %scan\n";
+        out << "\n";
+        out << "scan:\n";
+        out << "  %byte_index0 = phi i64 [ 0, %entry ], [ %next_byte0, %advance ]\n";
+        out << "  %scalar_count0 = phi i64 [ 0, %entry ], [ %next_scalar0, %advance ]\n";
+        out << "  %at_end0 = icmp eq i64 %byte_index0, %byte_count0\n";
+        out << "  br i1 %at_end0, label %done, label %advance\n";
+        out << "\n";
+        out << "advance:\n";
+        out << "  %scalar_ptr0 = getelementptr i8, ptr %data0, i64 %byte_index0\n";
+        out << "  %lead0 = load i8, ptr %scalar_ptr0\n";
+        out << "  %lead32_0 = zext i8 %lead0 to i32\n";
+        out << "  %is_ascii0 = icmp ult i32 %lead32_0, 128\n";
+        out << "  %is_two0 = icmp ult i32 %lead32_0, 224\n";
+        out << "  %is_three0 = icmp ult i32 %lead32_0, 240\n";
+        out << "  %three_or_four0 = select i1 %is_three0, i64 3, i64 4\n";
+        out << "  %non_ascii_len0 = select i1 %is_two0, i64 2, i64 %three_or_four0\n";
+        out << "  %scalar_len0 = select i1 %is_ascii0, i64 1, i64 %non_ascii_len0\n";
+        out << "  %next_byte0 = add i64 %byte_index0, %scalar_len0\n";
+        out << "  %next_scalar0 = add i64 %scalar_count0, 1\n";
+        out << "  br label %scan\n";
+        out << "\n";
+        out << "done:\n";
+        out << "  %scalar_count1 = call " << return_type.llvm_type() << " @evid.nat.from.u64(i64 %scalar_count0)\n";
+        out << "  ret " << return_type.llvm_type() << " %scalar_count1\n";
+        out << "}\n";
+        return out.str();
+    }
+
+    case CompilerOwnedFunctionLowering::TextCharacterAt:
+    case CompilerOwnedFunctionLowering::BytesByteAt:
+    case CompilerOwnedFunctionLowering::TextSlice:
+    case CompilerOwnedFunctionLowering::BytesSlice: {
+        const std::string_view base_name = function_base_name(hir_function_.qualified_name);
+        const std::size_t expected_param_count =
+            (base_name == "text_slice" || base_name == "bytes_slice") ? 3 : 2;
+        if (param_types.size() != expected_param_count) {
+            return std::unexpected("internal backend error: sequence bounds function '"
+                                   + hir_function_.qualified_name + "' expected "
+                                   + std::to_string(expected_param_count) + " parameters");
+        }
+
+        const BuiltinKind expected_sequence_kind =
+            (base_name == "text_character_at" || base_name == "text_slice") ? BuiltinKind::Text : BuiltinKind::Bytes;
+        const std::string_view expected_sequence_name =
+            expected_sequence_kind == BuiltinKind::Text ? "Text" : "Bytes";
+        if (!has_builtin_kind(param_types[0], expected_sequence_kind)) {
+            return std::unexpected("internal backend error: sequence bounds function '"
+                                   + hir_function_.qualified_name + "' expected first parameter type '"
+                                   + std::string(expected_sequence_name) + "', got '"
+                                   + param_types[0].source_name() + "'");
+        }
+        for (std::size_t index = 1; index < param_types.size(); ++index) {
+            if (!has_builtin_kind(param_types[index], BuiltinKind::Nat)) {
+                return std::unexpected("internal backend error: sequence bounds function '"
+                                       + hir_function_.qualified_name + "' expected Nat parameter "
+                                       + std::to_string(index) + ", got '"
+                                       + param_types[index].source_name() + "'");
+            }
+        }
+        if (hir_function_.failure.behavior() != hir::FunctionFailureBehavior::YieldsReason) {
+            return std::unexpected("internal backend error: sequence bounds function '"
+                                   + hir_function_.qualified_name + "' does not declare fails");
+        }
+
+        const std::expected<ResolvedType, std::string> success_type =
+            model_.resolve_type_name(hir_function_.return_type.text);
+        if (!success_type.has_value()) {
+            return std::unexpected(success_type.error());
+        }
+        const BuiltinKind expected_success_kind =
+            base_name == "text_character_at" ? BuiltinKind::Char
+            : base_name == "bytes_byte_at"  ? BuiltinKind::Byte
+            : expected_sequence_kind;
+        if (!has_builtin_kind(*success_type, expected_success_kind)) {
+            return std::unexpected("internal backend error: sequence bounds function '"
+                                   + hir_function_.qualified_name + "' returns '"
+                                   + success_type->source_name() + "'");
+        }
+
+        const std::expected<const YieldLayout*, std::string> yield_layout_result =
+            model_.ensure_yield_layout(hir_function_.id);
+        if (!yield_layout_result.has_value()) {
+            return std::unexpected(yield_layout_result.error());
+        }
+        const YieldLayout& yield_layout = **yield_layout_result;
+        if (return_type.llvm_type() != yield_layout.llvm_type) {
+            return std::unexpected("internal backend error: sequence bounds function '"
+                                   + hir_function_.qualified_name + "' has mismatched yield return type");
+        }
+
+        const hir::TypeDecl& reason_decl = model_.type(hir_function_.failure.reason_type_id());
+        const std::string_view expected_reason_name =
+            expected_sequence_kind == BuiltinKind::Text ? "TextBoundsFailure" : "BytesBoundsFailure";
+        if (reason_decl.qualified_name != expected_reason_name) {
+            return std::unexpected("internal backend error: sequence bounds function '"
+                                   + hir_function_.qualified_name + "' fails with '"
+                                   + reason_decl.qualified_name + "'");
+        }
+        const std::expected<ResolvedType, std::string> failure_type =
+            model_.resolve_type_name(reason_decl.qualified_name);
+        if (!failure_type.has_value()) {
+            return std::unexpected(failure_type.error());
+        }
+        const std::expected<const TypeLayout*, std::string> failure_layout_result =
+            model_.ensure_type_layout(reason_decl.id);
+        if (!failure_layout_result.has_value()) {
+            return std::unexpected(failure_layout_result.error());
+        }
+        const TypeLayout& failure_layout = **failure_layout_result;
+        const std::string_view failure_variant_name =
+            base_name == "text_character_at" ? "RequestedCharacterIndexOutOfRange"
+            : base_name == "bytes_byte_at"  ? "RequestedByteIndexOutOfRange"
+            : base_name == "text_slice"     ? "RequestedTextSliceOutOfRange"
+                                             : "RequestedBytesSliceOutOfRange";
+        const std::expected<std::uint32_t, std::string> failure_variant_tag_result =
+            [&]() -> std::expected<std::uint32_t, std::string> {
+            for (const hir::VariantId variant_id : reason_decl.variants) {
+                const hir::VariantDecl& variant_decl = model_.variant(variant_id);
+                if (variant_decl.name != failure_variant_name) {
+                    continue;
+                }
+                const auto layout_it = failure_layout.variants.find(variant_id);
+                if (layout_it == failure_layout.variants.end()) {
+                    return std::unexpected("internal backend error: missing layout for failure variant '"
+                                           + variant_decl.qualified_name + "'");
+                }
+                return layout_it->second.tag_value;
+            }
+            return std::unexpected("internal backend error: sequence bounds function '"
+                                   + hir_function_.qualified_name + "' could not find failure variant '"
+                                   + std::string(failure_variant_name) + "'");
+        }();
+        if (!failure_variant_tag_result.has_value()) {
+            return std::unexpected(failure_variant_tag_result.error());
+        }
+        const std::uint32_t failure_variant_tag = *failure_variant_tag_result;
+
+        const auto emit_yield_return =
+            [&](std::string_view prefix,
+                std::string_view wrapper_tag,
+                const ResolvedType& payload_type,
+                const std::string& payload_value) {
+            out << "  %" << prefix << ".tag = insertvalue " << yield_layout.llvm_type
+                << " zeroinitializer, i8 " << wrapper_tag << ", 0\n";
+            if (yield_layout.payload_size == 0) {
+                out << "  ret " << yield_layout.llvm_type << " %" << prefix << ".tag\n";
+                return;
+            }
+            out << "  %" << prefix << ".pack.slot = alloca " << yield_layout.payload_storage_type << "\n";
+            out << "  store " << yield_layout.payload_storage_type << " zeroinitializer, ptr %"
+                << prefix << ".pack.slot\n";
+            out << "  store " << payload_type.llvm_type() << " " << payload_value << ", ptr %"
+                << prefix << ".pack.slot\n";
+            out << "  %" << prefix << ".pack = load " << yield_layout.payload_storage_type
+                << ", ptr %" << prefix << ".pack.slot\n";
+            out << "  %" << prefix << ".value = insertvalue " << yield_layout.llvm_type
+                << " %" << prefix << ".tag, " << yield_layout.payload_storage_type << " %"
+                << prefix << ".pack, " << yield_layout.payload_field_index << "\n";
+            out << "  ret " << yield_layout.llvm_type << " %" << prefix << ".value\n";
+        };
+        const auto emit_utf8_advance =
+            [&](std::string_view byte_index,
+                std::string_view byte_count,
+                std::string_view next_byte,
+                std::string_view next_scalar,
+                std::string_view prefix) {
+            out << "  %" << prefix << ".ptr = getelementptr i8, ptr %data0, i64 %" << byte_index << "\n";
+            out << "  %" << prefix << ".lead = load i8, ptr %" << prefix << ".ptr\n";
+            out << "  %" << prefix << ".lead32 = zext i8 %" << prefix << ".lead to i32\n";
+            out << "  %" << prefix << ".ascii = icmp ult i32 %" << prefix << ".lead32, 128\n";
+            out << "  %" << prefix << ".two = icmp ult i32 %" << prefix << ".lead32, 224\n";
+            out << "  %" << prefix << ".three = icmp ult i32 %" << prefix << ".lead32, 240\n";
+            out << "  %" << prefix << ".three_or_four = select i1 %" << prefix << ".three, i64 3, i64 4\n";
+            out << "  %" << prefix << ".non_ascii_len = select i1 %" << prefix << ".two, i64 2, i64 %"
+                << prefix << ".three_or_four\n";
+            out << "  %" << prefix << ".scalar_len = select i1 %" << prefix << ".ascii, i64 1, i64 %"
+                << prefix << ".non_ascii_len\n";
+            out << "  %" << next_byte << " = add i64 %" << byte_index << ", %" << prefix << ".scalar_len\n";
+            out << "  %" << next_scalar << " = add i64 %" << byte_count << ", 1\n";
+        };
+        const auto emit_failure_return = [&] {
+            out << "  %reason0 = insertvalue " << failure_type->llvm_type()
+                << " zeroinitializer, i32 " << failure_variant_tag << ", 0\n";
+            emit_yield_return("fail", "1", *failure_type, "%reason0");
+        };
+
+        module_.require_runtime_helper(RuntimeHelper::Nat);
+        out << "define " << linkage << yield_layout.llvm_type << " @"
+            << model_.function_symbol(hir_function_.id) << "(" << param_types[0].llvm_type()
+            << " %arg0, " << param_types[1].llvm_type() << " %arg1";
+        if (expected_param_count == 3) {
+            out << ", " << param_types[2].llvm_type() << " %arg2";
+        }
+        out << ") {\n";
+        out << "entry:\n";
+        out << "  %data0 = extractvalue " << param_types[0].llvm_type() << " %arg0, 0\n";
+        out << "  %byte_count0 = extractvalue " << param_types[0].llvm_type() << " %arg0, 1\n";
+        out << "  %index1_0 = call i64 @evid.nat.to.u64(" << param_types[1].llvm_type() << " %arg1)\n";
+        if (expected_param_count == 3) {
+            out << "  %index2_0 = call i64 @evid.nat.to.u64(" << param_types[2].llvm_type() << " %arg2)\n";
+        }
+
+        if (base_name == "bytes_byte_at") {
+            out << "  %in_bounds0 = icmp ult i64 %index1_0, %byte_count0\n";
+            out << "  br i1 %in_bounds0, label %found, label %bounds_failure\n";
+            out << "\n";
+            out << "found:\n";
+            out << "  %byte_ptr0 = getelementptr i8, ptr %data0, i64 %index1_0\n";
+            out << "  %byte0 = load i8, ptr %byte_ptr0\n";
+            emit_yield_return("ok", "0", *success_type, "%byte0");
+            out << "\n";
+            out << "bounds_failure:\n";
+            emit_failure_return();
+            out << "}\n";
+            return out.str();
+        }
+
+        if (base_name == "bytes_slice") {
+            out << "  %order_ok0 = icmp ule i64 %index1_0, %index2_0\n";
+            out << "  %end_ok0 = icmp ule i64 %index2_0, %byte_count0\n";
+            out << "  %bounds_ok0 = and i1 %order_ok0, %end_ok0\n";
+            out << "  br i1 %bounds_ok0, label %slice_ok, label %bounds_failure\n";
+            out << "\n";
+            out << "slice_ok:\n";
+            out << "  %slice_ptr0 = getelementptr i8, ptr %data0, i64 %index1_0\n";
+            out << "  %slice_len0 = sub i64 %index2_0, %index1_0\n";
+            out << "  %slice0 = insertvalue " << success_type->llvm_type()
+                << " zeroinitializer, ptr %slice_ptr0, 0\n";
+            out << "  %slice1 = insertvalue " << success_type->llvm_type()
+                << " %slice0, i64 %slice_len0, 1\n";
+            emit_yield_return("ok", "0", *success_type, "%slice1");
+            out << "\n";
+            out << "bounds_failure:\n";
+            emit_failure_return();
+            out << "}\n";
+            return out.str();
+        }
+
+        if (base_name == "text_character_at") {
+            out << "  br label %scan\n";
+            out << "\n";
+            out << "scan:\n";
+            out << "  %byte_index0 = phi i64 [ 0, %entry ], [ %next_byte0, %advance ]\n";
+            out << "  %scalar_index0 = phi i64 [ 0, %entry ], [ %next_scalar0, %advance ]\n";
+            out << "  %at_end0 = icmp eq i64 %byte_index0, %byte_count0\n";
+            out << "  br i1 %at_end0, label %bounds_failure, label %probe\n";
+            out << "\n";
+            out << "probe:\n";
+            out << "  %index_match0 = icmp eq i64 %scalar_index0, %index1_0\n";
+            out << "  br i1 %index_match0, label %decode, label %advance\n";
+            out << "\n";
+            out << "advance:\n";
+            emit_utf8_advance("byte_index0", "scalar_index0", "next_byte0", "next_scalar0", "advance0");
+            out << "  br label %scan\n";
+            out << "\n";
+            out << "decode:\n";
+            out << "  %decode_ptr0 = getelementptr i8, ptr %data0, i64 %byte_index0\n";
+            out << "  %decode_lead0 = load i8, ptr %decode_ptr0\n";
+            out << "  %decode_lead32_0 = zext i8 %decode_lead0 to i32\n";
+            out << "  %decode_ascii0 = icmp ult i32 %decode_lead32_0, 128\n";
+            out << "  br i1 %decode_ascii0, label %decode_one, label %decode_more\n";
+            out << "\n";
+            out << "decode_one:\n";
+            emit_yield_return("ok1", "0", *success_type, "%decode_lead32_0");
+            out << "\n";
+            out << "decode_more:\n";
+            out << "  %decode_two0 = icmp ult i32 %decode_lead32_0, 224\n";
+            out << "  br i1 %decode_two0, label %decode_two, label %decode_three_or_four\n";
+            out << "\n";
+            out << "decode_two:\n";
+            out << "  %byte1_index0 = add i64 %byte_index0, 1\n";
+            out << "  %byte1_ptr0 = getelementptr i8, ptr %data0, i64 %byte1_index0\n";
+            out << "  %byte1_0 = load i8, ptr %byte1_ptr0\n";
+            out << "  %byte1_32_0 = zext i8 %byte1_0 to i32\n";
+            out << "  %two_head0 = and i32 %decode_lead32_0, 31\n";
+            out << "  %two_high0 = shl i32 %two_head0, 6\n";
+            out << "  %two_low0 = and i32 %byte1_32_0, 63\n";
+            out << "  %scalar_two0 = or i32 %two_high0, %two_low0\n";
+            emit_yield_return("ok2", "0", *success_type, "%scalar_two0");
+            out << "\n";
+            out << "decode_three_or_four:\n";
+            out << "  %decode_three0 = icmp ult i32 %decode_lead32_0, 240\n";
+            out << "  br i1 %decode_three0, label %decode_three, label %decode_four\n";
+            out << "\n";
+            out << "decode_three:\n";
+            out << "  %three_b1_index0 = add i64 %byte_index0, 1\n";
+            out << "  %three_b2_index0 = add i64 %byte_index0, 2\n";
+            out << "  %three_b1_ptr0 = getelementptr i8, ptr %data0, i64 %three_b1_index0\n";
+            out << "  %three_b2_ptr0 = getelementptr i8, ptr %data0, i64 %three_b2_index0\n";
+            out << "  %three_b1_0 = load i8, ptr %three_b1_ptr0\n";
+            out << "  %three_b2_0 = load i8, ptr %three_b2_ptr0\n";
+            out << "  %three_b1_32_0 = zext i8 %three_b1_0 to i32\n";
+            out << "  %three_b2_32_0 = zext i8 %three_b2_0 to i32\n";
+            out << "  %three_head0 = and i32 %decode_lead32_0, 15\n";
+            out << "  %three_high0 = shl i32 %three_head0, 12\n";
+            out << "  %three_mid_raw0 = and i32 %three_b1_32_0, 63\n";
+            out << "  %three_mid0 = shl i32 %three_mid_raw0, 6\n";
+            out << "  %three_low0 = and i32 %three_b2_32_0, 63\n";
+            out << "  %three_join0 = or i32 %three_high0, %three_mid0\n";
+            out << "  %scalar_three0 = or i32 %three_join0, %three_low0\n";
+            emit_yield_return("ok3", "0", *success_type, "%scalar_three0");
+            out << "\n";
+            out << "decode_four:\n";
+            out << "  %four_b1_index0 = add i64 %byte_index0, 1\n";
+            out << "  %four_b2_index0 = add i64 %byte_index0, 2\n";
+            out << "  %four_b3_index0 = add i64 %byte_index0, 3\n";
+            out << "  %four_b1_ptr0 = getelementptr i8, ptr %data0, i64 %four_b1_index0\n";
+            out << "  %four_b2_ptr0 = getelementptr i8, ptr %data0, i64 %four_b2_index0\n";
+            out << "  %four_b3_ptr0 = getelementptr i8, ptr %data0, i64 %four_b3_index0\n";
+            out << "  %four_b1_0 = load i8, ptr %four_b1_ptr0\n";
+            out << "  %four_b2_0 = load i8, ptr %four_b2_ptr0\n";
+            out << "  %four_b3_0 = load i8, ptr %four_b3_ptr0\n";
+            out << "  %four_b1_32_0 = zext i8 %four_b1_0 to i32\n";
+            out << "  %four_b2_32_0 = zext i8 %four_b2_0 to i32\n";
+            out << "  %four_b3_32_0 = zext i8 %four_b3_0 to i32\n";
+            out << "  %four_head0 = and i32 %decode_lead32_0, 7\n";
+            out << "  %four_high0 = shl i32 %four_head0, 18\n";
+            out << "  %four_mid_high_raw0 = and i32 %four_b1_32_0, 63\n";
+            out << "  %four_mid_high0 = shl i32 %four_mid_high_raw0, 12\n";
+            out << "  %four_mid_low_raw0 = and i32 %four_b2_32_0, 63\n";
+            out << "  %four_mid_low0 = shl i32 %four_mid_low_raw0, 6\n";
+            out << "  %four_low0 = and i32 %four_b3_32_0, 63\n";
+            out << "  %four_join0 = or i32 %four_high0, %four_mid_high0\n";
+            out << "  %four_join1 = or i32 %four_join0, %four_mid_low0\n";
+            out << "  %scalar_four0 = or i32 %four_join1, %four_low0\n";
+            emit_yield_return("ok4", "0", *success_type, "%scalar_four0");
+            out << "\n";
+            out << "bounds_failure:\n";
+            emit_failure_return();
+            out << "}\n";
+            return out.str();
+        }
+
+        out << "  %order_ok0 = icmp ule i64 %index1_0, %index2_0\n";
+        out << "  br i1 %order_ok0, label %start_scan, label %bounds_failure\n";
+        out << "\n";
+        out << "start_scan:\n";
+        out << "  %start_byte_index0 = phi i64 [ 0, %entry ], [ %next_start_byte0, %start_advance ]\n";
+        out << "  %start_scalar_index0 = phi i64 [ 0, %entry ], [ %next_start_scalar0, %start_advance ]\n";
+        out << "  %start_match0 = icmp eq i64 %start_scalar_index0, %index1_0\n";
+        out << "  br i1 %start_match0, label %end_scan, label %start_check_end\n";
+        out << "\n";
+        out << "start_check_end:\n";
+        out << "  %start_at_end0 = icmp eq i64 %start_byte_index0, %byte_count0\n";
+        out << "  br i1 %start_at_end0, label %bounds_failure, label %start_advance\n";
+        out << "\n";
+        out << "start_advance:\n";
+        emit_utf8_advance("start_byte_index0",
+                          "start_scalar_index0",
+                          "next_start_byte0",
+                          "next_start_scalar0",
+                          "start0");
+        out << "  br label %start_scan\n";
+        out << "\n";
+        out << "end_scan:\n";
+        out << "  %end_byte_index0 = phi i64 [ %start_byte_index0, %start_scan ], [ %next_end_byte0, %end_advance ]\n";
+        out << "  %end_scalar_index0 = phi i64 [ %start_scalar_index0, %start_scan ], [ %next_end_scalar0, %end_advance ]\n";
+        out << "  %end_match0 = icmp eq i64 %end_scalar_index0, %index2_0\n";
+        out << "  br i1 %end_match0, label %slice_ok, label %end_check_end\n";
+        out << "\n";
+        out << "end_check_end:\n";
+        out << "  %end_at_end0 = icmp eq i64 %end_byte_index0, %byte_count0\n";
+        out << "  br i1 %end_at_end0, label %bounds_failure, label %end_advance\n";
+        out << "\n";
+        out << "end_advance:\n";
+        emit_utf8_advance("end_byte_index0",
+                          "end_scalar_index0",
+                          "next_end_byte0",
+                          "next_end_scalar0",
+                          "end0");
+        out << "  br label %end_scan\n";
+        out << "\n";
+        out << "slice_ok:\n";
+        out << "  %slice_ptr0 = getelementptr i8, ptr %data0, i64 %start_byte_index0\n";
+        out << "  %slice_len0 = sub i64 %end_byte_index0, %start_byte_index0\n";
+        out << "  %slice0 = insertvalue " << success_type->llvm_type()
+            << " zeroinitializer, ptr %slice_ptr0, 0\n";
+        out << "  %slice1 = insertvalue " << success_type->llvm_type()
+            << " %slice0, i64 %slice_len0, 1\n";
+        emit_yield_return("ok", "0", *success_type, "%slice1");
+        out << "\n";
+        out << "bounds_failure:\n";
+        emit_failure_return();
+        out << "}\n";
+        return out.str();
+    }
+
+    case CompilerOwnedFunctionLowering::RequireNonEmptySequence: {
+        if (param_types.size() != 1) {
+            return std::unexpected("internal backend error: sequence require-nonempty function '"
+                                   + hir_function_.qualified_name + "' expected one parameter");
+        }
+        if (hir_function_.failure.behavior() != hir::FunctionFailureBehavior::YieldsReason) {
+            return std::unexpected("internal backend error: sequence require-nonempty function '"
+                                   + hir_function_.qualified_name + "' does not declare fails");
+        }
+
+        const std::string_view base_name = function_base_name(hir_function_.qualified_name);
+        const BuiltinKind expected_param_kind = base_name == "text_require_nonempty"
+            ? BuiltinKind::Text
+            : BuiltinKind::Bytes;
+        const BuiltinKind expected_success_kind = expected_param_kind == BuiltinKind::Text
+            ? BuiltinKind::NonEmptyText
+            : BuiltinKind::NonEmptyBytes;
+        const std::string expected_reason_name = expected_param_kind == BuiltinKind::Text
+            ? "TextCardinalityFailure"
+            : "BytesCardinalityFailure";
+        const std::string expected_failure_variant_name = expected_param_kind == BuiltinKind::Text
+            ? "TextHadNoCharacters"
+            : "BytesHadNoBytes";
+        if (!has_builtin_kind(param_types[0], expected_param_kind)) {
+            return std::unexpected("internal backend error: sequence require-nonempty function '"
+                                   + hir_function_.qualified_name + "' has unsupported parameter type '"
+                                   + param_types[0].source_name() + "'");
+        }
+        const std::expected<ResolvedType, std::string> success_type =
+            model_.resolve_type_name(hir_function_.return_type.text);
+        if (!success_type.has_value()) {
+            return std::unexpected(success_type.error());
+        }
+        if (!has_builtin_kind(*success_type, expected_success_kind)) {
+            return std::unexpected("internal backend error: sequence require-nonempty function '"
+                                   + hir_function_.qualified_name + "' returns '"
+                                   + success_type->source_name() + "'");
+        }
+
+        const std::expected<const YieldLayout*, std::string> yield_layout_result =
+            model_.ensure_yield_layout(hir_function_.id);
+        if (!yield_layout_result.has_value()) {
+            return std::unexpected(yield_layout_result.error());
+        }
+        const YieldLayout& yield_layout = **yield_layout_result;
+        if (return_type.llvm_type() != yield_layout.llvm_type) {
+            return std::unexpected("internal backend error: sequence require-nonempty function '"
+                                   + hir_function_.qualified_name + "' has mismatched yield return type");
+        }
+
+        const hir::TypeDecl& reason_decl = model_.type(hir_function_.failure.reason_type_id());
+        if (reason_decl.qualified_name != expected_reason_name) {
+            return std::unexpected("internal backend error: sequence require-nonempty function '"
+                                   + hir_function_.qualified_name + "' fails with '"
+                                   + reason_decl.qualified_name + "'");
+        }
+        const std::expected<ResolvedType, std::string> failure_type =
+            model_.resolve_type_name(reason_decl.qualified_name);
+        if (!failure_type.has_value()) {
+            return std::unexpected(failure_type.error());
+        }
+        const std::expected<const TypeLayout*, std::string> failure_layout_result =
+            model_.ensure_type_layout(reason_decl.id);
+        if (!failure_layout_result.has_value()) {
+            return std::unexpected(failure_layout_result.error());
+        }
+        const TypeLayout& failure_layout = **failure_layout_result;
+        const std::expected<std::uint32_t, std::string> failure_variant_tag_result =
+            [&]() -> std::expected<std::uint32_t, std::string> {
+            for (const hir::VariantId variant_id : reason_decl.variants) {
+                const hir::VariantDecl& variant_decl = model_.variant(variant_id);
+                if (variant_decl.name != expected_failure_variant_name) {
+                    continue;
+                }
+                const auto layout_it = failure_layout.variants.find(variant_id);
+                if (layout_it == failure_layout.variants.end()) {
+                    return std::unexpected("internal backend error: missing layout for failure variant '"
+                                           + variant_decl.qualified_name + "'");
+                }
+                return layout_it->second.tag_value;
+            }
+            return std::unexpected("internal backend error: sequence require-nonempty function '"
+                                   + hir_function_.qualified_name + "' could not find failure variant '"
+                                   + expected_failure_variant_name + "'");
+        }();
+        if (!failure_variant_tag_result.has_value()) {
+            return std::unexpected(failure_variant_tag_result.error());
+        }
+
+        const auto emit_yield_return =
+            [&](std::string_view prefix,
+                std::string_view wrapper_tag,
+                const ResolvedType& payload_type,
+                const std::string& payload_value) {
+            out << "  %" << prefix << ".tag = insertvalue " << yield_layout.llvm_type
+                << " zeroinitializer, i8 " << wrapper_tag << ", 0\n";
+            if (yield_layout.payload_size == 0) {
+                out << "  ret " << yield_layout.llvm_type << " %" << prefix << ".tag\n";
+                return;
+            }
+            out << "  %" << prefix << ".pack.slot = alloca " << yield_layout.payload_storage_type << "\n";
+            out << "  store " << yield_layout.payload_storage_type << " zeroinitializer, ptr %"
+                << prefix << ".pack.slot\n";
+            out << "  store " << payload_type.llvm_type() << " " << payload_value << ", ptr %"
+                << prefix << ".pack.slot\n";
+            out << "  %" << prefix << ".pack = load " << yield_layout.payload_storage_type
+                << ", ptr %" << prefix << ".pack.slot\n";
+            out << "  %" << prefix << ".value = insertvalue " << yield_layout.llvm_type
+                << " %" << prefix << ".tag, " << yield_layout.payload_storage_type << " %"
+                << prefix << ".pack, " << yield_layout.payload_field_index << "\n";
+            out << "  ret " << yield_layout.llvm_type << " %" << prefix << ".value\n";
+        };
+
+        out << "define " << linkage << yield_layout.llvm_type << " @"
+            << model_.function_symbol(hir_function_.id) << "(" << param_types[0].llvm_type() << " %arg0) {\n";
+        out << "entry:\n";
         out << "  %count0 = extractvalue " << param_types[0].llvm_type() << " %arg0, 1\n";
-        out << "  ret " << return_type.llvm_type() << " %count0\n";
+        out << "  %is_empty0 = icmp eq i64 %count0, 0\n";
+        out << "  br i1 %is_empty0, label %empty, label %nonempty\n";
+        out << "\n";
+        out << "nonempty:\n";
+        emit_yield_return("ok", "0", *success_type, "%arg0");
+        out << "\n";
+        out << "empty:\n";
+        out << "  %reason0 = insertvalue " << failure_type->llvm_type()
+            << " zeroinitializer, i32 " << *failure_variant_tag_result << ", 0\n";
+        emit_yield_return("fail", "1", *failure_type, "%reason0");
+        out << "}\n";
+        return out.str();
+    }
+
+    case CompilerOwnedFunctionLowering::WidenSequence:
+        if (param_types.size() != 1) {
+            return std::unexpected("internal backend error: sequence widen function '"
+                                   + hir_function_.qualified_name + "' expected one parameter");
+        }
+        if (!((has_builtin_kind(return_type, BuiltinKind::Text)
+               && has_builtin_kind(param_types[0], BuiltinKind::NonEmptyText))
+              || (has_builtin_kind(return_type, BuiltinKind::Bytes)
+                  && has_builtin_kind(param_types[0], BuiltinKind::NonEmptyBytes)))) {
+            return std::unexpected("internal backend error: sequence widen function '"
+                                   + hir_function_.qualified_name + "' has unsupported signature");
+        }
+        out << "define " << linkage << return_type.llvm_type() << " @"
+            << model_.function_symbol(hir_function_.id) << "(" << param_types[0].llvm_type() << " %arg0) {\n";
+        out << "entry:\n";
+        out << "  ret " << return_type.llvm_type() << " %arg0\n";
+        out << "}\n";
+        return out.str();
+
+    case CompilerOwnedFunctionLowering::SequenceFirst: {
+        if (param_types.size() != 1) {
+            return std::unexpected("internal backend error: sequence first function '"
+                                   + hir_function_.qualified_name + "' expected one parameter");
+        }
+        const std::string_view base_name = function_base_name(hir_function_.qualified_name);
+        const BuiltinKind expected_param_kind = base_name == "nonempty_text_first_character"
+            ? BuiltinKind::NonEmptyText
+            : BuiltinKind::NonEmptyBytes;
+        const BuiltinKind expected_return_kind = expected_param_kind == BuiltinKind::NonEmptyText
+            ? BuiltinKind::Char
+            : BuiltinKind::Byte;
+        if (!has_builtin_kind(param_types[0], expected_param_kind) || !has_builtin_kind(return_type, expected_return_kind)) {
+            return std::unexpected("internal backend error: sequence first function '"
+                                   + hir_function_.qualified_name + "' has unsupported signature");
+        }
+        out << "define " << linkage << return_type.llvm_type() << " @"
+            << model_.function_symbol(hir_function_.id) << "(" << param_types[0].llvm_type() << " %arg0) {\n";
+        out << "entry:\n";
+        out << "  %data0 = extractvalue " << param_types[0].llvm_type() << " %arg0, 0\n";
+        out << "  %lead0 = load i8, ptr %data0\n";
+        if (expected_param_kind == BuiltinKind::NonEmptyBytes) {
+            out << "  ret " << return_type.llvm_type() << " %lead0\n";
+            out << "}\n";
+            return out.str();
+        }
+        out << "  %lead32_0 = zext i8 %lead0 to i32\n";
+        out << "  %is_ascii0 = icmp ult i32 %lead32_0, 128\n";
+        out << "  br i1 %is_ascii0, label %one, label %more\n";
+        out << "\n";
+        out << "one:\n";
+        out << "  ret " << return_type.llvm_type() << " %lead32_0\n";
+        out << "\n";
+        out << "more:\n";
+        out << "  %is_two0 = icmp ult i32 %lead32_0, 224\n";
+        out << "  br i1 %is_two0, label %two, label %three_or_four\n";
+        out << "\n";
+        out << "two:\n";
+        out << "  %byte1_ptr0 = getelementptr i8, ptr %data0, i64 1\n";
+        out << "  %byte1_0 = load i8, ptr %byte1_ptr0\n";
+        out << "  %byte1_32_0 = zext i8 %byte1_0 to i32\n";
+        out << "  %two_head0 = and i32 %lead32_0, 31\n";
+        out << "  %two_high0 = shl i32 %two_head0, 6\n";
+        out << "  %two_low0 = and i32 %byte1_32_0, 63\n";
+        out << "  %scalar_two0 = or i32 %two_high0, %two_low0\n";
+        out << "  ret " << return_type.llvm_type() << " %scalar_two0\n";
+        out << "\n";
+        out << "three_or_four:\n";
+        out << "  %is_three0 = icmp ult i32 %lead32_0, 240\n";
+        out << "  br i1 %is_three0, label %three, label %four\n";
+        out << "\n";
+        out << "three:\n";
+        out << "  %three_b1_ptr0 = getelementptr i8, ptr %data0, i64 1\n";
+        out << "  %three_b2_ptr0 = getelementptr i8, ptr %data0, i64 2\n";
+        out << "  %three_b1_0 = load i8, ptr %three_b1_ptr0\n";
+        out << "  %three_b2_0 = load i8, ptr %three_b2_ptr0\n";
+        out << "  %three_b1_32_0 = zext i8 %three_b1_0 to i32\n";
+        out << "  %three_b2_32_0 = zext i8 %three_b2_0 to i32\n";
+        out << "  %three_head0 = and i32 %lead32_0, 15\n";
+        out << "  %three_high0 = shl i32 %three_head0, 12\n";
+        out << "  %three_mid_raw0 = and i32 %three_b1_32_0, 63\n";
+        out << "  %three_mid0 = shl i32 %three_mid_raw0, 6\n";
+        out << "  %three_low0 = and i32 %three_b2_32_0, 63\n";
+        out << "  %three_join0 = or i32 %three_high0, %three_mid0\n";
+        out << "  %scalar_three0 = or i32 %three_join0, %three_low0\n";
+        out << "  ret " << return_type.llvm_type() << " %scalar_three0\n";
+        out << "\n";
+        out << "four:\n";
+        out << "  %four_b1_ptr0 = getelementptr i8, ptr %data0, i64 1\n";
+        out << "  %four_b2_ptr0 = getelementptr i8, ptr %data0, i64 2\n";
+        out << "  %four_b3_ptr0 = getelementptr i8, ptr %data0, i64 3\n";
+        out << "  %four_b1_0 = load i8, ptr %four_b1_ptr0\n";
+        out << "  %four_b2_0 = load i8, ptr %four_b2_ptr0\n";
+        out << "  %four_b3_0 = load i8, ptr %four_b3_ptr0\n";
+        out << "  %four_b1_32_0 = zext i8 %four_b1_0 to i32\n";
+        out << "  %four_b2_32_0 = zext i8 %four_b2_0 to i32\n";
+        out << "  %four_b3_32_0 = zext i8 %four_b3_0 to i32\n";
+        out << "  %four_head0 = and i32 %lead32_0, 7\n";
+        out << "  %four_high0 = shl i32 %four_head0, 18\n";
+        out << "  %four_mid_high_raw0 = and i32 %four_b1_32_0, 63\n";
+        out << "  %four_mid_high0 = shl i32 %four_mid_high_raw0, 12\n";
+        out << "  %four_mid_low_raw0 = and i32 %four_b2_32_0, 63\n";
+        out << "  %four_mid_low0 = shl i32 %four_mid_low_raw0, 6\n";
+        out << "  %four_low0 = and i32 %four_b3_32_0, 63\n";
+        out << "  %four_join0 = or i32 %four_high0, %four_mid_high0\n";
+        out << "  %four_join1 = or i32 %four_join0, %four_mid_low0\n";
+        out << "  %scalar_four0 = or i32 %four_join1, %four_low0\n";
+        out << "  ret " << return_type.llvm_type() << " %scalar_four0\n";
         out << "}\n";
         return out.str();
     }
@@ -3161,6 +4329,9 @@ std::expected<std::string, std::string> FunctionEmitter::emit_compiler_owned_fun
         if (key_kind == BuiltinKind::Text || key_kind == BuiltinKind::Bytes) {
             module_.require_runtime_helper(RuntimeHelper::Memcmp);
         }
+        if (key_kind == BuiltinKind::Nat) {
+            module_.require_runtime_helper(RuntimeHelper::Nat);
+        }
 
         const std::expected<ResolvedType, std::string> success_type =
             model_.resolve_type_name(hir_function_.return_type.text);
@@ -3291,10 +4462,15 @@ std::expected<std::string, std::string> FunctionEmitter::emit_compiler_owned_fun
             << " %entry0, " << key_field_it->second << "\n";
         switch (key_kind) {
         case BuiltinKind::Int:
-        case BuiltinKind::Nat:
         case BuiltinKind::Byte:
         case BuiltinKind::Char:
             out << "  %key_equal0 = icmp eq " << key_type->llvm_type() << " %candidate_key0, %arg1\n";
+            out << "  br i1 %key_equal0, label %found, label %not_match\n";
+            break;
+        case BuiltinKind::Nat:
+            out << "  %key_cmp0 = call i32 @evid.nat.compare(" << key_type->llvm_type()
+                << " %candidate_key0, " << key_type->llvm_type() << " %arg1)\n";
+            out << "  %key_equal0 = icmp eq i32 %key_cmp0, 0\n";
             out << "  br i1 %key_equal0, label %found, label %not_match\n";
             break;
         case BuiltinKind::Text:
@@ -5688,6 +6864,522 @@ std::expected<std::string, std::string> FunctionEmitter::emit_compiler_owned_fun
         return out.str();
     }
 
+    case CompilerOwnedFunctionLowering::ForeignTextConversion: {
+        if (param_types.size() != 1) {
+            return std::unexpected("internal backend error: foreign text conversion function '"
+                                   + hir_function_.qualified_name + "' expected one parameter");
+        }
+
+        const std::string_view base_name = function_base_name(hir_function_.qualified_name);
+        const std::expected<ResolvedType, std::string> success_type =
+            model_.resolve_type_name(hir_function_.return_type.text);
+        if (!success_type.has_value()) {
+            return std::unexpected(success_type.error());
+        }
+
+        if (base_name == "cstring_payload_bytes") {
+            if (!has_builtin_kind(param_types[0], BuiltinKind::CString)
+                || !has_builtin_kind(*success_type, BuiltinKind::Bytes)
+                || hir_function_.failure.behavior() == hir::FunctionFailureBehavior::YieldsReason) {
+                return std::unexpected("internal backend error: foreign text conversion function '"
+                                       + hir_function_.qualified_name + "' has unsupported signature");
+            }
+            module_.require_runtime_helper(RuntimeHelper::Strlen);
+            out << "define " << linkage << return_type.llvm_type() << " @"
+                << model_.function_symbol(hir_function_.id) << "(" << param_types[0].llvm_type() << " %arg0) {\n";
+            out << "entry:\n";
+            out << "  %len0 = call i64 @strlen(ptr %arg0)\n";
+            out << "  %bytes0 = insertvalue " << return_type.llvm_type() << " zeroinitializer, ptr %arg0, 0\n";
+            out << "  %bytes1 = insertvalue " << return_type.llvm_type() << " %bytes0, i64 %len0, 1\n";
+            out << "  ret " << return_type.llvm_type() << " %bytes1\n";
+            out << "}\n";
+            return out.str();
+        }
+
+        if (hir_function_.failure.behavior() != hir::FunctionFailureBehavior::YieldsReason) {
+            return std::unexpected("internal backend error: foreign text conversion function '"
+                                   + hir_function_.qualified_name + "' does not declare fails");
+        }
+
+        const std::expected<const YieldLayout*, std::string> yield_layout_result =
+            model_.ensure_yield_layout(hir_function_.id);
+        if (!yield_layout_result.has_value()) {
+            return std::unexpected(yield_layout_result.error());
+        }
+        const YieldLayout& yield_layout = **yield_layout_result;
+        if (return_type.llvm_type() != yield_layout.llvm_type) {
+            return std::unexpected("internal backend error: foreign text conversion function '"
+                                   + hir_function_.qualified_name + "' has mismatched yield return type");
+        }
+
+        const hir::TypeDecl& reason_decl = model_.type(hir_function_.failure.reason_type_id());
+        if (reason_decl.qualified_name != "ForeignAbiTextFailure") {
+            return std::unexpected("internal backend error: foreign text conversion function '"
+                                   + hir_function_.qualified_name + "' fails with '"
+                                   + reason_decl.qualified_name + "'");
+        }
+        const std::expected<ResolvedType, std::string> failure_type =
+            model_.resolve_type_name(reason_decl.qualified_name);
+        if (!failure_type.has_value()) {
+            return std::unexpected(failure_type.error());
+        }
+        const std::expected<const TypeLayout*, std::string> failure_layout_result =
+            model_.ensure_type_layout(reason_decl.id);
+        if (!failure_layout_result.has_value()) {
+            return std::unexpected(failure_layout_result.error());
+        }
+        const TypeLayout& failure_layout = **failure_layout_result;
+
+        const auto failure_variant_tag =
+            [&](std::string_view variant_name) -> std::expected<std::uint32_t, std::string> {
+            for (const hir::VariantId variant_id : reason_decl.variants) {
+                const hir::VariantDecl& variant_decl = model_.variant(variant_id);
+                if (variant_decl.name != variant_name) {
+                    continue;
+                }
+                const auto layout_it = failure_layout.variants.find(variant_id);
+                if (layout_it == failure_layout.variants.end()) {
+                    return std::unexpected("internal backend error: missing layout for failure variant '"
+                                           + variant_decl.qualified_name + "'");
+                }
+                return layout_it->second.tag_value;
+            }
+            return std::unexpected("internal backend error: foreign text conversion function '"
+                                   + hir_function_.qualified_name + "' could not find failure variant '"
+                                   + std::string(variant_name) + "'");
+        };
+
+        const auto emit_yield_return =
+            [&](std::string_view prefix,
+                std::string_view wrapper_tag,
+                const ResolvedType& payload_type,
+                const std::string& payload_value) {
+            out << "  %" << prefix << ".tag = insertvalue " << yield_layout.llvm_type
+                << " zeroinitializer, i8 " << wrapper_tag << ", 0\n";
+            if (yield_layout.payload_size == 0) {
+                out << "  ret " << yield_layout.llvm_type << " %" << prefix << ".tag\n";
+                return;
+            }
+            out << "  %" << prefix << ".pack.slot = alloca " << yield_layout.payload_storage_type << "\n";
+            out << "  store " << yield_layout.payload_storage_type << " zeroinitializer, ptr %"
+                << prefix << ".pack.slot\n";
+            out << "  store " << payload_type.llvm_type() << " " << payload_value << ", ptr %"
+                << prefix << ".pack.slot\n";
+            out << "  %" << prefix << ".pack = load " << yield_layout.payload_storage_type
+                << ", ptr %" << prefix << ".pack.slot\n";
+            out << "  %" << prefix << ".value = insertvalue " << yield_layout.llvm_type
+                << " %" << prefix << ".tag, " << yield_layout.payload_storage_type << " %"
+                << prefix << ".pack, " << yield_layout.payload_field_index << "\n";
+            out << "  ret " << yield_layout.llvm_type << " %" << prefix << ".value\n";
+        };
+        const auto emit_failure_return =
+            [&](std::string_view prefix,
+                std::string_view variant_name) -> std::expected<BackendStepSucceeded, std::string> {
+            const std::expected<std::uint32_t, std::string> tag = failure_variant_tag(variant_name);
+            if (!tag.has_value()) {
+                return std::unexpected(tag.error());
+            }
+            out << "  %" << prefix << ".reason0 = insertvalue " << failure_type->llvm_type()
+                << " zeroinitializer, i32 " << *tag << ", 0\n";
+            emit_yield_return(prefix, "1", *failure_type, "%" + std::string(prefix) + ".reason0");
+            return BackendStepSucceeded{};
+        };
+
+        if (base_name == "cstring_payload_text") {
+            if (!has_builtin_kind(param_types[0], BuiltinKind::CString)
+                || !has_builtin_kind(*success_type, BuiltinKind::Text)) {
+                return std::unexpected("internal backend error: foreign text conversion function '"
+                                       + hir_function_.qualified_name + "' has unsupported signature");
+            }
+            module_.require_runtime_helper(RuntimeHelper::Strlen);
+            module_.require_runtime_helper(RuntimeHelper::Utf8);
+            out << "define " << linkage << yield_layout.llvm_type << " @"
+                << model_.function_symbol(hir_function_.id) << "(" << param_types[0].llvm_type() << " %arg0) {\n";
+            out << "entry:\n";
+            out << "  %len0 = call i64 @strlen(ptr %arg0)\n";
+            out << "  %utf8.ok0 = call i1 @evid.utf8.is.valid(ptr %arg0, i64 %len0)\n";
+            out << "  br i1 %utf8.ok0, label %ok, label %fail\n";
+            out << "\n";
+            out << "ok:\n";
+            out << "  %text0 = insertvalue " << success_type->llvm_type() << " zeroinitializer, ptr %arg0, 0\n";
+            out << "  %text1 = insertvalue " << success_type->llvm_type() << " %text0, i64 %len0, 1\n";
+            emit_yield_return("ok", "0", *success_type, "%text1");
+            out << "\n";
+            out << "fail:\n";
+            const std::expected<BackendStepSucceeded, std::string> failure =
+                emit_failure_return("fail", "CStringPayloadWasNotUtf8");
+            if (!failure.has_value()) {
+                return std::unexpected(failure.error());
+            }
+            out << "}\n";
+            return out.str();
+        }
+
+        if (base_name == "text_to_cstring" || base_name == "bytes_to_cstring") {
+            const BuiltinKind expected_input_kind =
+                base_name == "text_to_cstring" ? BuiltinKind::Text : BuiltinKind::Bytes;
+            if (!has_builtin_kind(param_types[0], expected_input_kind)
+                || !has_builtin_kind(*success_type, BuiltinKind::CString)) {
+                return std::unexpected("internal backend error: foreign text conversion function '"
+                                       + hir_function_.qualified_name + "' has unsupported signature");
+            }
+            module_.require_runtime_helper(RuntimeHelper::Malloc);
+            module_.require_runtime_helper(RuntimeHelper::Memcpy);
+            if (expected_input_kind == BuiltinKind::Bytes) {
+                module_.require_runtime_helper(RuntimeHelper::Utf8);
+            }
+            out << "define " << linkage << yield_layout.llvm_type << " @"
+                << model_.function_symbol(hir_function_.id) << "(" << param_types[0].llvm_type() << " %arg0) {\n";
+            out << "entry:\n";
+            out << "  %data0 = extractvalue " << param_types[0].llvm_type() << " %arg0, 0\n";
+            out << "  %len0 = extractvalue " << param_types[0].llvm_type() << " %arg0, 1\n";
+            if (expected_input_kind == BuiltinKind::Bytes) {
+                out << "  %utf8.ok0 = call i1 @evid.utf8.is.valid(ptr %data0, i64 %len0)\n";
+                out << "  br i1 %utf8.ok0, label %scan, label %fail_utf8\n";
+            } else {
+                out << "  br label %scan\n";
+            }
+            out << "\n";
+            out << "scan:\n";
+            out << "  %index0 = phi i64 [ 0, %entry ], [ %next_index0, %advance ]\n";
+            out << "  %at_end0 = icmp eq i64 %index0, %len0\n";
+            out << "  br i1 %at_end0, label %copy, label %probe\n";
+            out << "probe:\n";
+            out << "  %byte_ptr0 = getelementptr i8, ptr %data0, i64 %index0\n";
+            out << "  %byte0 = load i8, ptr %byte_ptr0\n";
+            out << "  %is_nul0 = icmp eq i8 %byte0, 0\n";
+            out << "  br i1 %is_nul0, label %fail_nul, label %advance\n";
+            out << "advance:\n";
+            out << "  %next_index0 = add i64 %index0, 1\n";
+            out << "  br label %scan\n";
+            out << "\n";
+            out << "copy:\n";
+            out << "  %alloc_len0 = add i64 %len0, 1\n";
+            out << "  %copy0 = call ptr @malloc(i64 %alloc_len0)\n";
+            out << "  call void @llvm.memcpy.p0.p0.i64(ptr %copy0, ptr %data0, i64 %len0, i1 false)\n";
+            out << "  %nul_ptr0 = getelementptr i8, ptr %copy0, i64 %len0\n";
+            out << "  store i8 0, ptr %nul_ptr0\n";
+            emit_yield_return("ok", "0", *success_type, "%copy0");
+            out << "\n";
+            if (expected_input_kind == BuiltinKind::Bytes) {
+                out << "fail_utf8:\n";
+                const std::expected<BackendStepSucceeded, std::string> utf8_failure =
+                    emit_failure_return("fail_utf8", "CStringPayloadWasNotUtf8");
+                if (!utf8_failure.has_value()) {
+                    return std::unexpected(utf8_failure.error());
+                }
+                out << "\n";
+            }
+            out << "fail_nul:\n";
+            const std::expected<BackendStepSucceeded, std::string> nul_failure =
+                emit_failure_return("fail_nul", "CStringPayloadContainedNul");
+            if (!nul_failure.has_value()) {
+                return std::unexpected(nul_failure.error());
+            }
+            out << "}\n";
+            return out.str();
+        }
+
+        return std::unexpected("backend does not yet support compiler-owned function '"
+                               + hir_function_.qualified_name + "'");
+    }
+
+    case CompilerOwnedFunctionLowering::ForeignIntegerConversion: {
+        if (param_types.size() != 1) {
+            return std::unexpected("internal backend error: foreign integer conversion function '"
+                                   + hir_function_.qualified_name + "' expected one parameter");
+        }
+
+        const std::string_view base_name = function_base_name(hir_function_.qualified_name);
+        const std::expected<ResolvedType, std::string> success_type =
+            model_.resolve_type_name(hir_function_.return_type.text);
+        if (!success_type.has_value()) {
+            return std::unexpected(success_type.error());
+        }
+
+        if (base_name == "csize_to_nat") {
+            if (!has_builtin_kind(param_types[0], BuiltinKind::CSize)
+                || !has_builtin_kind(*success_type, BuiltinKind::Nat)
+                || hir_function_.failure.behavior() == hir::FunctionFailureBehavior::YieldsReason) {
+                return std::unexpected("internal backend error: foreign integer conversion function '"
+                                       + hir_function_.qualified_name + "' has unsupported signature");
+            }
+            module_.require_runtime_helper(RuntimeHelper::Nat);
+            out << "define " << linkage << return_type.llvm_type() << " @"
+                << model_.function_symbol(hir_function_.id) << "(" << param_types[0].llvm_type() << " %arg0) {\n";
+            out << "entry:\n";
+            out << "  %nat0 = call " << return_type.llvm_type() << " @evid.nat.from.u64(i64 %arg0)\n";
+            out << "  ret " << return_type.llvm_type() << " %nat0\n";
+            out << "}\n";
+            return out.str();
+        }
+
+        if (hir_function_.failure.behavior() != hir::FunctionFailureBehavior::YieldsReason) {
+            return std::unexpected("internal backend error: foreign integer conversion function '"
+                                   + hir_function_.qualified_name + "' does not declare fails");
+        }
+
+        const std::expected<const YieldLayout*, std::string> yield_layout_result =
+            model_.ensure_yield_layout(hir_function_.id);
+        if (!yield_layout_result.has_value()) {
+            return std::unexpected(yield_layout_result.error());
+        }
+        const YieldLayout& yield_layout = **yield_layout_result;
+        if (return_type.llvm_type() != yield_layout.llvm_type) {
+            return std::unexpected("internal backend error: foreign integer conversion function '"
+                                   + hir_function_.qualified_name + "' has mismatched yield return type");
+        }
+
+        const hir::TypeDecl& reason_decl = model_.type(hir_function_.failure.reason_type_id());
+        if (reason_decl.qualified_name != "ForeignAbiIntegerFailure") {
+            return std::unexpected("internal backend error: foreign integer conversion function '"
+                                   + hir_function_.qualified_name + "' fails with '"
+                                   + reason_decl.qualified_name + "'");
+        }
+        const std::expected<ResolvedType, std::string> failure_type =
+            model_.resolve_type_name(reason_decl.qualified_name);
+        if (!failure_type.has_value()) {
+            return std::unexpected(failure_type.error());
+        }
+        const std::expected<const TypeLayout*, std::string> failure_layout_result =
+            model_.ensure_type_layout(reason_decl.id);
+        if (!failure_layout_result.has_value()) {
+            return std::unexpected(failure_layout_result.error());
+        }
+        const TypeLayout& failure_layout = **failure_layout_result;
+
+        const auto failure_variant_tag =
+            [&](std::string_view variant_name) -> std::expected<std::uint32_t, std::string> {
+            for (const hir::VariantId variant_id : reason_decl.variants) {
+                const hir::VariantDecl& variant_decl = model_.variant(variant_id);
+                if (variant_decl.name != variant_name) {
+                    continue;
+                }
+                const auto layout_it = failure_layout.variants.find(variant_id);
+                if (layout_it == failure_layout.variants.end()) {
+                    return std::unexpected("internal backend error: missing layout for failure variant '"
+                                           + variant_decl.qualified_name + "'");
+                }
+                return layout_it->second.tag_value;
+            }
+            return std::unexpected("internal backend error: foreign integer conversion function '"
+                                   + hir_function_.qualified_name + "' could not find failure variant '"
+                                   + std::string(variant_name) + "'");
+        };
+
+        const auto emit_yield_return =
+            [&](std::string_view prefix,
+                std::string_view wrapper_tag,
+                const ResolvedType& payload_type,
+                const std::string& payload_value) {
+            out << "  %" << prefix << ".tag = insertvalue " << yield_layout.llvm_type
+                << " zeroinitializer, i8 " << wrapper_tag << ", 0\n";
+            if (yield_layout.payload_size == 0) {
+                out << "  ret " << yield_layout.llvm_type << " %" << prefix << ".tag\n";
+                return;
+            }
+            out << "  %" << prefix << ".pack.slot = alloca " << yield_layout.payload_storage_type << "\n";
+            out << "  store " << yield_layout.payload_storage_type << " zeroinitializer, ptr %"
+                << prefix << ".pack.slot\n";
+            out << "  store " << payload_type.llvm_type() << " " << payload_value << ", ptr %"
+                << prefix << ".pack.slot\n";
+            out << "  %" << prefix << ".pack = load " << yield_layout.payload_storage_type
+                << ", ptr %" << prefix << ".pack.slot\n";
+            out << "  %" << prefix << ".value = insertvalue " << yield_layout.llvm_type
+                << " %" << prefix << ".tag, " << yield_layout.payload_storage_type << " %"
+                << prefix << ".pack, " << yield_layout.payload_field_index << "\n";
+            out << "  ret " << yield_layout.llvm_type << " %" << prefix << ".value\n";
+        };
+        const auto emit_failure_return =
+            [&](std::string_view variant_name) -> std::expected<BackendStepSucceeded, std::string> {
+            const std::expected<std::uint32_t, std::string> tag = failure_variant_tag(variant_name);
+            if (!tag.has_value()) {
+                return std::unexpected(tag.error());
+            }
+            out << "  %reason0 = insertvalue " << failure_type->llvm_type()
+                << " zeroinitializer, i32 " << *tag << ", 0\n";
+            emit_yield_return("fail", "1", *failure_type, "%reason0");
+            return BackendStepSucceeded{};
+        };
+
+        if (base_name == "cint_to_int") {
+            if (!has_builtin_kind(param_types[0], BuiltinKind::CInt)
+                || !has_builtin_kind(*success_type, BuiltinKind::Int)) {
+                return std::unexpected("internal backend error: foreign integer conversion function '"
+                                       + hir_function_.qualified_name + "' has unsupported signature");
+            }
+            out << "define " << linkage << yield_layout.llvm_type << " @"
+                << model_.function_symbol(hir_function_.id) << "(" << param_types[0].llvm_type() << " %arg0) {\n";
+            out << "entry:\n";
+            out << "  %wide0 = sext i32 %arg0 to i64\n";
+            emit_yield_return("ok", "0", *success_type, "%wide0");
+            out << "}\n";
+            return out.str();
+        }
+
+        if (base_name == "cint_require_nat") {
+            if (!has_builtin_kind(param_types[0], BuiltinKind::CInt)
+                || !has_builtin_kind(*success_type, BuiltinKind::Nat)) {
+                return std::unexpected("internal backend error: foreign integer conversion function '"
+                                       + hir_function_.qualified_name + "' has unsupported signature");
+            }
+            module_.require_runtime_helper(RuntimeHelper::Nat);
+            out << "define " << linkage << yield_layout.llvm_type << " @"
+                << model_.function_symbol(hir_function_.id) << "(" << param_types[0].llvm_type() << " %arg0) {\n";
+            out << "entry:\n";
+            out << "  %nonnegative0 = icmp sge i32 %arg0, 0\n";
+            out << "  br i1 %nonnegative0, label %ok, label %fail\n";
+            out << "\n";
+            out << "ok:\n";
+            out << "  %wide0 = zext i32 %arg0 to i64\n";
+            out << "  %nat0 = call " << success_type->llvm_type() << " @evid.nat.from.u64(i64 %wide0)\n";
+            emit_yield_return("ok", "0", *success_type, "%nat0");
+            out << "\n";
+            out << "fail:\n";
+            const std::expected<BackendStepSucceeded, std::string> failure = emit_failure_return("ForeignIntegerWasNegative");
+            if (!failure.has_value()) {
+                return std::unexpected(failure.error());
+            }
+            out << "}\n";
+            return out.str();
+        }
+
+        if (base_name == "csize_to_int") {
+            if (!has_builtin_kind(param_types[0], BuiltinKind::CSize)
+                || !has_builtin_kind(*success_type, BuiltinKind::Int)) {
+                return std::unexpected("internal backend error: foreign integer conversion function '"
+                                       + hir_function_.qualified_name + "' has unsupported signature");
+            }
+            out << "define " << linkage << yield_layout.llvm_type << " @"
+                << model_.function_symbol(hir_function_.id) << "(" << param_types[0].llvm_type() << " %arg0) {\n";
+            out << "entry:\n";
+            out << "  %fits0 = icmp ule i64 %arg0, 9223372036854775807\n";
+            out << "  br i1 %fits0, label %ok, label %fail\n";
+            out << "\n";
+            out << "ok:\n";
+            emit_yield_return("ok", "0", *success_type, "%arg0");
+            out << "\n";
+            out << "fail:\n";
+            const std::expected<BackendStepSucceeded, std::string> failure = emit_failure_return("ForeignIntegerExceededIntRange");
+            if (!failure.has_value()) {
+                return std::unexpected(failure.error());
+            }
+            out << "}\n";
+            return out.str();
+        }
+
+        if (base_name == "int_to_cint") {
+            if (!has_builtin_kind(param_types[0], BuiltinKind::Int)
+                || !has_builtin_kind(*success_type, BuiltinKind::CInt)) {
+                return std::unexpected("internal backend error: foreign integer conversion function '"
+                                       + hir_function_.qualified_name + "' has unsupported signature");
+            }
+            out << "define " << linkage << yield_layout.llvm_type << " @"
+                << model_.function_symbol(hir_function_.id) << "(" << param_types[0].llvm_type() << " %arg0) {\n";
+            out << "entry:\n";
+            out << "  %lower0 = icmp sge i64 %arg0, -2147483648\n";
+            out << "  %upper0 = icmp sle i64 %arg0, 2147483647\n";
+            out << "  %fits0 = and i1 %lower0, %upper0\n";
+            out << "  br i1 %fits0, label %ok, label %fail\n";
+            out << "\n";
+            out << "ok:\n";
+            out << "  %narrow0 = trunc i64 %arg0 to i32\n";
+            emit_yield_return("ok", "0", *success_type, "%narrow0");
+            out << "\n";
+            out << "fail:\n";
+            const std::expected<BackendStepSucceeded, std::string> failure = emit_failure_return("CoreIntegerExceededCIntRange");
+            if (!failure.has_value()) {
+                return std::unexpected(failure.error());
+            }
+            out << "}\n";
+            return out.str();
+        }
+
+        if (base_name == "nat_to_cint") {
+            if (!has_builtin_kind(param_types[0], BuiltinKind::Nat)
+                || !has_builtin_kind(*success_type, BuiltinKind::CInt)) {
+                return std::unexpected("internal backend error: foreign integer conversion function '"
+                                       + hir_function_.qualified_name + "' has unsupported signature");
+            }
+            module_.require_runtime_helper(RuntimeHelper::Nat);
+            out << "define " << linkage << yield_layout.llvm_type << " @"
+                << model_.function_symbol(hir_function_.id) << "(" << param_types[0].llvm_type() << " %arg0) {\n";
+            out << "entry:\n";
+            out << "  %fits.u64_0 = call i1 @evid.nat.fits.u64(" << param_types[0].llvm_type() << " %arg0)\n";
+            out << "  br i1 %fits.u64_0, label %range, label %fail\n";
+            out << "\n";
+            out << "range:\n";
+            out << "  %wide0 = call i64 @evid.nat.to.u64(" << param_types[0].llvm_type() << " %arg0)\n";
+            out << "  %fits.cint0 = icmp ule i64 %wide0, 2147483647\n";
+            out << "  br i1 %fits.cint0, label %ok, label %fail\n";
+            out << "\n";
+            out << "ok:\n";
+            out << "  %narrow0 = trunc i64 %wide0 to i32\n";
+            emit_yield_return("ok", "0", *success_type, "%narrow0");
+            out << "\n";
+            out << "fail:\n";
+            const std::expected<BackendStepSucceeded, std::string> failure = emit_failure_return("CoreIntegerExceededCIntRange");
+            if (!failure.has_value()) {
+                return std::unexpected(failure.error());
+            }
+            out << "}\n";
+            return out.str();
+        }
+
+        if (base_name == "int_to_csize") {
+            if (!has_builtin_kind(param_types[0], BuiltinKind::Int)
+                || !has_builtin_kind(*success_type, BuiltinKind::CSize)) {
+                return std::unexpected("internal backend error: foreign integer conversion function '"
+                                       + hir_function_.qualified_name + "' has unsupported signature");
+            }
+            out << "define " << linkage << yield_layout.llvm_type << " @"
+                << model_.function_symbol(hir_function_.id) << "(" << param_types[0].llvm_type() << " %arg0) {\n";
+            out << "entry:\n";
+            out << "  %nonnegative0 = icmp sge i64 %arg0, 0\n";
+            out << "  br i1 %nonnegative0, label %ok, label %fail\n";
+            out << "\n";
+            out << "ok:\n";
+            emit_yield_return("ok", "0", *success_type, "%arg0");
+            out << "\n";
+            out << "fail:\n";
+            const std::expected<BackendStepSucceeded, std::string> failure = emit_failure_return("CoreIntegerWasNegative");
+            if (!failure.has_value()) {
+                return std::unexpected(failure.error());
+            }
+            out << "}\n";
+            return out.str();
+        }
+
+        if (base_name == "nat_to_csize") {
+            if (!has_builtin_kind(param_types[0], BuiltinKind::Nat)
+                || !has_builtin_kind(*success_type, BuiltinKind::CSize)) {
+                return std::unexpected("internal backend error: foreign integer conversion function '"
+                                       + hir_function_.qualified_name + "' has unsupported signature");
+            }
+            module_.require_runtime_helper(RuntimeHelper::Nat);
+            out << "define " << linkage << yield_layout.llvm_type << " @"
+                << model_.function_symbol(hir_function_.id) << "(" << param_types[0].llvm_type() << " %arg0) {\n";
+            out << "entry:\n";
+            out << "  %fits0 = call i1 @evid.nat.fits.u64(" << param_types[0].llvm_type() << " %arg0)\n";
+            out << "  br i1 %fits0, label %ok, label %fail\n";
+            out << "\n";
+            out << "ok:\n";
+            out << "  %wide0 = call i64 @evid.nat.to.u64(" << param_types[0].llvm_type() << " %arg0)\n";
+            emit_yield_return("ok", "0", *success_type, "%wide0");
+            out << "\n";
+            out << "fail:\n";
+            const std::expected<BackendStepSucceeded, std::string> failure = emit_failure_return("CoreIntegerExceededCSizeRange");
+            if (!failure.has_value()) {
+                return std::unexpected(failure.error());
+            }
+            out << "}\n";
+            return out.str();
+        }
+
+        return std::unexpected("backend does not yet support compiler-owned function '"
+                               + hir_function_.qualified_name + "'");
+    }
+
     case CompilerOwnedFunctionLowering::Unsupported:
         break;
     }
@@ -5719,6 +7411,9 @@ std::expected<FunctionEmitter::TypedValue, std::string> FunctionEmitter::materia
             return TypedValue{expected_type, *loaded};
         },
         [&](mir::Operand::IntLiteralValue literal) -> std::expected<TypedValue, std::string> {
+            if (is_builtin_nat_type(expected_type)) {
+                return make_nat_literal_value(expected_type, literal.text);
+            }
             const std::expected<std::string, std::string> materialized =
                 materialize_number_literal_text(literal.text, expected_type, {});
             if (!materialized.has_value()) {
@@ -6202,6 +7897,10 @@ BackendStepResult FunctionEmitter::emit_assign_project_list_element(
     if (!index_value.has_value()) {
         return std::unexpected(index_value.error());
     }
+    const std::expected<std::string, std::string> index_u64 = convert_nat_to_u64(*index_value);
+    if (!index_u64.has_value()) {
+        return std::unexpected(index_u64.error());
+    }
     const std::expected<std::string, std::string> data_value =
         extract_value((*list_type)->llvm_type(), *list_value, 0);
     if (!data_value.has_value()) {
@@ -6210,7 +7909,7 @@ BackendStepResult FunctionEmitter::emit_assign_project_list_element(
 
     const std::size_t stride = element_storage_stride_for((*dest_type)->size(), (*dest_type)->align());
     const std::string offset = next_temp("list.offset");
-    append_line(offset + " = mul i64 " + *index_value + ", " + std::to_string(stride));
+    append_line(offset + " = mul i64 " + *index_u64 + ", " + std::to_string(stride));
     const std::string element_ptr = next_temp("list.element");
     append_line(element_ptr + " = getelementptr i8, ptr " + *data_value + ", i64 " + offset);
     const std::string element_value = next_temp("list.load");
@@ -6241,8 +7940,10 @@ BackendStepResult FunctionEmitter::emit_assign_add_nat(mir::LocalId dest,
     if (!rhs.has_value()) {
         return std::unexpected(rhs.error());
     }
+    module_.require_runtime_helper(RuntimeHelper::Nat);
     const std::string sum = next_temp("nat.add");
-    append_line(sum + " = add i64 " + lhs->value + ", " + rhs->value);
+    append_line(sum + " = call { ptr, i64 } @evid.nat.add({ ptr, i64 } " + lhs->value
+                + ", { ptr, i64 } " + rhs->value + ")");
     return store_typed_value(*dest_slot, *(*dest_type), sum);
 }
 
@@ -6434,13 +8135,17 @@ BackendStepResult FunctionEmitter::emit_branch_list_element(
     if (!index_value.has_value()) {
         return std::unexpected(index_value.error());
     }
+    const std::expected<std::string, std::string> index_u64 = convert_nat_to_u64(*index_value);
+    if (!index_u64.has_value()) {
+        return std::unexpected(index_u64.error());
+    }
     const std::expected<std::string, std::string> count_value =
         extract_value((*list_type)->llvm_type(), *list_value, 1);
     if (!count_value.has_value()) {
         return std::unexpected(count_value.error());
     }
     const std::string has_element = next_temp("list.has");
-    append_line(has_element + " = icmp ult i64 " + *index_value + ", " + *count_value);
+    append_line(has_element + " = icmp ult i64 " + *index_u64 + ", " + *count_value);
     append_line("br i1 " + has_element
                 + ", label %" + block_name(terminator.element_block)
                 + ", label %" + block_name(terminator.empty_block));

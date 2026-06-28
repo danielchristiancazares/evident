@@ -1,0 +1,13 @@
+domain module test {
+public fn large_nat() -> Nat {
+    18446744073709551616
+}
+
+public fn main() -> Int {
+    match nonempty_map_lookup_copy<Nat, Int>(map_single<Nat, Int>(large_nat(), 11), 18446744073709551616) {
+        succeeded(value) => value,
+        failed(RequestedKeyHadNoBinding) => 1,
+        failed(RequestedKeyAlreadyHadBinding) => 2,
+    }
+}
+}

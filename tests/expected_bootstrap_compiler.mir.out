@@ -492,7 +492,7 @@ functions:
       locals:
         %0[working_directory] : CString
         %1[executable] : CString
-        %2[arguments] : List<Text>
+        %2[arguments] : CString
       blocks: <none>
   - public foreign-fn bootstrap_host::process_exit -> CInt
       locals:
@@ -544,18 +544,20 @@ functions:
       locals:
         %0[invocation] : bootstrap_host::HostToolInvocation
         %1[$return] : CInt
-        %2[tmp] : CString
-        %3[tmp] : bootstrap_host::HostPath
-        %4[tmp] : CString
-        %5[tmp] : bootstrap_host::HostPath
-        %6[tmp] : List<Text>
+        %2[arguments] : bootstrap_host::HostPath
+        %3[tmp] : CString
+        %4[tmp] : bootstrap_host::HostPath
+        %5[tmp] : CString
+        %6[tmp] : bootstrap_host::HostPath
+        %7[tmp] : CString
       block %0
-        %3[tmp] = %0[invocation].working_directory
-        %2[tmp] = %3[tmp].text
-        %5[tmp] = %0[invocation].executable
-        %4[tmp] = %5[tmp].text
-        %6[tmp] = %0[invocation].arguments
-        %1[$return] = call bootstrap_host::spawn_tool_text(%2[tmp], %4[tmp], %6[tmp])
+        %2[arguments] = call bootstrap_host::host_path("")
+        %4[tmp] = %0[invocation].working_directory
+        %3[tmp] = %4[tmp].text
+        %6[tmp] = %0[invocation].executable
+        %5[tmp] = %6[tmp].text
+        %7[tmp] = %2[arguments].text
+        %1[$return] = call bootstrap_host::spawn_tool_text(%3[tmp], %5[tmp], %7[tmp])
         return %1[$return]
   - public fn bootstrap_host::host_path -> bootstrap_host::HostPath
       locals:
@@ -623,8 +625,6 @@ functions:
       block %0
         %0[$return] = construct bootstrap_host::ExitStatus {code: 0}
         return %0[$return]
-  - public foreign-fn bootstrap_environment::current_environment -> bootstrap_environment::CompilerEnvironment
-      blocks: <none>
   - public fn bootstrap_environment::bootstrap_environment_surface -> bootstrap_environment::CompilerEnvironment
       locals:
         %0[$return] : bootstrap_environment::CompilerEnvironment

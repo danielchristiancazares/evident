@@ -12,10 +12,18 @@ functions:
       block -> NonEmptyText
         result
           string "\0" : NonEmptyText
+  - public fn nonempty_literals::nonempty_text_unicode_escape() -> NonEmptyText
+      block -> NonEmptyText
+        result
+          string "\u{1F600}" : NonEmptyText
   - public fn nonempty_literals::nonempty_bytes_literal() -> NonEmptyBytes
       block -> NonEmptyBytes
         result
           string "bytes" : NonEmptyBytes
+  - public fn nonempty_literals::nonempty_bytes_unicode_escape() -> NonEmptyBytes
+      block -> NonEmptyBytes
+        result
+          string "\u{E9}" : NonEmptyBytes
   - public fn nonempty_literals::accept_text(value: NonEmptyText) -> NonEmptyText
       block -> NonEmptyText
         result

@@ -48,6 +48,209 @@ target triple = "x86_64-pc-windows-msvc"
 @evid.str.3 = private unnamed_addr constant [4 x i8] c"\74\77\6F\00", align 1
 
 declare ptr @malloc(i64)
+define { ptr, i64 } @evid.nat.from.u64(i64 %value) {
+entry:
+  %buffer = call ptr @malloc(i64 20)
+  %is.zero = icmp eq i64 %value, 0
+  br i1 %is.zero, label %zero, label %loop
+zero:
+  store i8 48, ptr %buffer
+  %zero.ptr = insertvalue { ptr, i64 } zeroinitializer, ptr %buffer, 0
+  %zero.value = insertvalue { ptr, i64 } %zero.ptr, i64 1, 1
+  ret { ptr, i64 } %zero.value
+loop:
+  %current = phi i64 [ %value, %entry ], [ %next.value, %loop ]
+  %pos = phi i64 [ 20, %entry ], [ %next.pos, %loop ]
+  %digit = urem i64 %current, 10
+  %digit8 = trunc i64 %digit to i8
+  %char = add i8 %digit8, 48
+  %next.pos = sub i64 %pos, 1
+  %slot = getelementptr i8, ptr %buffer, i64 %next.pos
+  store i8 %char, ptr %slot
+  %next.value = udiv i64 %current, 10
+  %done = icmp eq i64 %next.value, 0
+  br i1 %done, label %done.block, label %loop
+done.block:
+  %start.ptr = getelementptr i8, ptr %buffer, i64 %next.pos
+  %length = sub i64 20, %next.pos
+  %result.ptr = insertvalue { ptr, i64 } zeroinitializer, ptr %start.ptr, 0
+  %result.value = insertvalue { ptr, i64 } %result.ptr, i64 %length, 1
+  ret { ptr, i64 } %result.value
+}
+
+define i64 @evid.nat.to.u64({ ptr, i64 } %value) {
+entry:
+  %data = extractvalue { ptr, i64 } %value, 0
+  %length = extractvalue { ptr, i64 } %value, 1
+  %empty = icmp eq i64 %length, 0
+  br i1 %empty, label %zero, label %loop
+zero:
+  ret i64 0
+loop:
+  %index = phi i64 [ 0, %entry ], [ %next.index, %advance ]
+  %acc = phi i64 [ 0, %entry ], [ %next.acc, %advance ]
+  %at.end = icmp eq i64 %index, %length
+  br i1 %at.end, label %done, label %digit.block
+digit.block:
+  %digit.ptr = getelementptr i8, ptr %data, i64 %index
+  %digit.char = load i8, ptr %digit.ptr
+  %digit.raw = sub i8 %digit.char, 48
+  %digit = zext i8 %digit.raw to i64
+  %over.high = icmp ugt i64 %acc, 1844674407370955161
+  %over.edge = icmp eq i64 %acc, 1844674407370955161
+  %over.digit = icmp ugt i64 %digit, 5
+  %over.edge.digit = and i1 %over.edge, %over.digit
+  %overflow = or i1 %over.high, %over.edge.digit
+  br i1 %overflow, label %saturated, label %advance
+advance:
+  %scaled = mul i64 %acc, 10
+  %next.acc = add i64 %scaled, %digit
+  %next.index = add i64 %index, 1
+  br label %loop
+saturated:
+  ret i64 -1
+done:
+  ret i64 %acc
+}
+
+define i1 @evid.nat.fits.u64({ ptr, i64 } %value) {
+entry:
+  %data = extractvalue { ptr, i64 } %value, 0
+  %length = extractvalue { ptr, i64 } %value, 1
+  %empty = icmp eq i64 %length, 0
+  br i1 %empty, label %fits, label %loop
+loop:
+  %index = phi i64 [ 0, %entry ], [ %next.index, %advance ]
+  %acc = phi i64 [ 0, %entry ], [ %next.acc, %advance ]
+  %at.end = icmp eq i64 %index, %length
+  br i1 %at.end, label %fits, label %digit.block
+digit.block:
+  %digit.ptr = getelementptr i8, ptr %data, i64 %index
+  %digit.char = load i8, ptr %digit.ptr
+  %digit.raw = sub i8 %digit.char, 48
+  %digit = zext i8 %digit.raw to i64
+  %over.high = icmp ugt i64 %acc, 1844674407370955161
+  %over.edge = icmp eq i64 %acc, 1844674407370955161
+  %over.digit = icmp ugt i64 %digit, 5
+  %over.edge.digit = and i1 %over.edge, %over.digit
+  %overflow = or i1 %over.high, %over.edge.digit
+  br i1 %overflow, label %too.large, label %advance
+advance:
+  %scaled = mul i64 %acc, 10
+  %next.acc = add i64 %scaled, %digit
+  %next.index = add i64 %index, 1
+  br label %loop
+too.large:
+  ret i1 false
+fits:
+  ret i1 true
+}
+
+define { ptr, i64 } @evid.nat.add({ ptr, i64 } %lhs, { ptr, i64 } %rhs) {
+entry:
+  %lhs.data = extractvalue { ptr, i64 } %lhs, 0
+  %lhs.length = extractvalue { ptr, i64 } %lhs, 1
+  %rhs.data = extractvalue { ptr, i64 } %rhs, 0
+  %rhs.length = extractvalue { ptr, i64 } %rhs, 1
+  %lhs.last = sub i64 %lhs.length, 1
+  %rhs.last = sub i64 %rhs.length, 1
+  %lhs.longer = icmp ugt i64 %lhs.length, %rhs.length
+  %max.length = select i1 %lhs.longer, i64 %lhs.length, i64 %rhs.length
+  %raw.length = add i64 %max.length, 1
+  %buffer = call ptr @malloc(i64 %raw.length)
+  %out.last = sub i64 %raw.length, 1
+  br label %loop
+loop:
+  %lhs.index = phi i64 [ %lhs.last, %entry ], [ %next.lhs.index, %store.digit ]
+  %rhs.index = phi i64 [ %rhs.last, %entry ], [ %next.rhs.index, %store.digit ]
+  %out.index = phi i64 [ %out.last, %entry ], [ %next.out.index, %store.digit ]
+  %carry = phi i64 [ 0, %entry ], [ %next.carry, %store.digit ]
+  %lhs.active = icmp sge i64 %lhs.index, 0
+  br i1 %lhs.active, label %lhs.load, label %lhs.zero
+lhs.load:
+  %lhs.ptr = getelementptr i8, ptr %lhs.data, i64 %lhs.index
+  %lhs.char = load i8, ptr %lhs.ptr
+  %lhs.raw = sub i8 %lhs.char, 48
+  %lhs.loaded = zext i8 %lhs.raw to i64
+  br label %lhs.ready
+lhs.zero:
+  br label %lhs.ready
+lhs.ready:
+  %lhs.digit = phi i64 [ %lhs.loaded, %lhs.load ], [ 0, %lhs.zero ]
+  %rhs.active = icmp sge i64 %rhs.index, 0
+  br i1 %rhs.active, label %rhs.load, label %rhs.zero
+rhs.load:
+  %rhs.ptr = getelementptr i8, ptr %rhs.data, i64 %rhs.index
+  %rhs.char = load i8, ptr %rhs.ptr
+  %rhs.raw = sub i8 %rhs.char, 48
+  %rhs.loaded = zext i8 %rhs.raw to i64
+  br label %rhs.ready
+rhs.zero:
+  br label %rhs.ready
+rhs.ready:
+  %rhs.digit = phi i64 [ %rhs.loaded, %rhs.load ], [ 0, %rhs.zero ]
+  %partial = add i64 %lhs.digit, %rhs.digit
+  %total = add i64 %partial, %carry
+  %digit = urem i64 %total, 10
+  %next.carry = udiv i64 %total, 10
+  %digit8 = trunc i64 %digit to i8
+  %char = add i8 %digit8, 48
+  %out.ptr = getelementptr i8, ptr %buffer, i64 %out.index
+  store i8 %char, ptr %out.ptr
+  %next.lhs.index = sub i64 %lhs.index, 1
+  %next.rhs.index = sub i64 %rhs.index, 1
+  %next.out.index = sub i64 %out.index, 1
+  %lhs.more = icmp sge i64 %next.lhs.index, 0
+  %rhs.more = icmp sge i64 %next.rhs.index, 0
+  %digits.more = or i1 %lhs.more, %rhs.more
+  %carry.more = icmp ne i64 %next.carry, 0
+  %more = or i1 %digits.more, %carry.more
+  br i1 %more, label %store.digit, label %done
+store.digit:
+  br label %loop
+done:
+  %result.ptr = getelementptr i8, ptr %buffer, i64 %out.index
+  %result.length = sub i64 %raw.length, %out.index
+  %with.ptr = insertvalue { ptr, i64 } zeroinitializer, ptr %result.ptr, 0
+  %result = insertvalue { ptr, i64 } %with.ptr, i64 %result.length, 1
+  ret { ptr, i64 } %result
+}
+
+define i32 @evid.nat.compare({ ptr, i64 } %lhs, { ptr, i64 } %rhs) {
+entry:
+  %lhs.data = extractvalue { ptr, i64 } %lhs, 0
+  %lhs.length = extractvalue { ptr, i64 } %lhs, 1
+  %rhs.data = extractvalue { ptr, i64 } %rhs, 0
+  %rhs.length = extractvalue { ptr, i64 } %rhs, 1
+  %lhs.shorter = icmp ult i64 %lhs.length, %rhs.length
+  br i1 %lhs.shorter, label %less, label %check.longer
+check.longer:
+  %lhs.longer = icmp ugt i64 %lhs.length, %rhs.length
+  br i1 %lhs.longer, label %greater, label %scan
+scan:
+  %index = phi i64 [ 0, %check.longer ], [ %next.index, %equal.byte ]
+  %at.end = icmp eq i64 %index, %lhs.length
+  br i1 %at.end, label %equal, label %compare.byte
+compare.byte:
+  %lhs.ptr = getelementptr i8, ptr %lhs.data, i64 %index
+  %rhs.ptr = getelementptr i8, ptr %rhs.data, i64 %index
+  %lhs.byte = load i8, ptr %lhs.ptr
+  %rhs.byte = load i8, ptr %rhs.ptr
+  %byte.equal = icmp eq i8 %lhs.byte, %rhs.byte
+  br i1 %byte.equal, label %equal.byte, label %order.byte
+equal.byte:
+  %next.index = add i64 %index, 1
+  br label %scan
+order.byte:
+  %byte.less = icmp ult i8 %lhs.byte, %rhs.byte
+  br i1 %byte.less, label %less, label %greater
+less:
+  ret i32 -1
+equal:
+  ret i32 0
+greater:
+  ret i32 1
+}
 declare void @llvm.memcpy.p0.p0.i64(ptr, ptr, i64, i1 immarg)
 declare i32 @memcmp(ptr, ptr, i64)
 
@@ -199,67 +402,67 @@ bb0:
 
 }
 
-define i64 @evid$test$list_count({ ptr, i64 } %arg0) {
+define { ptr, i64 } @evid$test$list_count({ ptr, i64 } %arg0) {
 entry:
   %slot0 = alloca { ptr, i64 }
-  %slot1 = alloca i64
+  %slot1 = alloca { ptr, i64 }
   store { ptr, i64 } %arg0, ptr %slot0
   br label %bb0
 
 bb0:
   %load0 = load { ptr, i64 }, ptr %slot0
-  %call1 = call i64 @evid$list_count_copy$Int({ ptr, i64 } %load0)
-  store i64 %call1, ptr %slot1
-  %load2 = load i64, ptr %slot1
-  ret i64 %load2
+  %call1 = call { ptr, i64 } @evid$list_count_copy$Int({ ptr, i64 } %load0)
+  store { ptr, i64 } %call1, ptr %slot1
+  %load2 = load { ptr, i64 }, ptr %slot1
+  ret { ptr, i64 } %load2
 
 }
 
-define i64 @evid$test$nonempty_list_count({ ptr, i64 } %arg0) {
+define { ptr, i64 } @evid$test$nonempty_list_count({ ptr, i64 } %arg0) {
 entry:
   %slot0 = alloca { ptr, i64 }
-  %slot1 = alloca i64
+  %slot1 = alloca { ptr, i64 }
   store { ptr, i64 } %arg0, ptr %slot0
   br label %bb0
 
 bb0:
   %load0 = load { ptr, i64 }, ptr %slot0
-  %call1 = call i64 @evid$nonempty_list_count_copy$Int({ ptr, i64 } %load0)
-  store i64 %call1, ptr %slot1
-  %load2 = load i64, ptr %slot1
-  ret i64 %load2
+  %call1 = call { ptr, i64 } @evid$nonempty_list_count_copy$Int({ ptr, i64 } %load0)
+  store { ptr, i64 } %call1, ptr %slot1
+  %load2 = load { ptr, i64 }, ptr %slot1
+  ret { ptr, i64 } %load2
 
 }
 
-define i64 @evid$test$map_count({ ptr, i64 } %arg0) {
+define { ptr, i64 } @evid$test$map_count({ ptr, i64 } %arg0) {
 entry:
   %slot0 = alloca { ptr, i64 }
-  %slot1 = alloca i64
+  %slot1 = alloca { ptr, i64 }
   store { ptr, i64 } %arg0, ptr %slot0
   br label %bb0
 
 bb0:
   %load0 = load { ptr, i64 }, ptr %slot0
-  %call1 = call i64 @evid$map_count_copy$Text$Int({ ptr, i64 } %load0)
-  store i64 %call1, ptr %slot1
-  %load2 = load i64, ptr %slot1
-  ret i64 %load2
+  %call1 = call { ptr, i64 } @evid$map_count_copy$Text$Int({ ptr, i64 } %load0)
+  store { ptr, i64 } %call1, ptr %slot1
+  %load2 = load { ptr, i64 }, ptr %slot1
+  ret { ptr, i64 } %load2
 
 }
 
-define i64 @evid$test$nonempty_map_count({ ptr, i64 } %arg0) {
+define { ptr, i64 } @evid$test$nonempty_map_count({ ptr, i64 } %arg0) {
 entry:
   %slot0 = alloca { ptr, i64 }
-  %slot1 = alloca i64
+  %slot1 = alloca { ptr, i64 }
   store { ptr, i64 } %arg0, ptr %slot0
   br label %bb0
 
 bb0:
   %load0 = load { ptr, i64 }, ptr %slot0
-  %call1 = call i64 @evid$nonempty_map_count_copy$Text$Int({ ptr, i64 } %load0)
-  store i64 %call1, ptr %slot1
-  %load2 = load i64, ptr %slot1
-  ret i64 %load2
+  %call1 = call { ptr, i64 } @evid$nonempty_map_count_copy$Text$Int({ ptr, i64 } %load0)
+  store { ptr, i64 } %call1, ptr %slot1
+  %load2 = load { ptr, i64 }, ptr %slot1
+  ret { ptr, i64 } %load2
 
 }
 
@@ -406,8 +609,8 @@ entry:
   %slot0 = alloca i64
   %slot1 = alloca { ptr, i64 }
   %slot2 = alloca { ptr, i64 }
-  %slot3 = alloca i64
-  %slot4 = alloca i64
+  %slot3 = alloca { ptr, i64 }
+  %slot4 = alloca { ptr, i64 }
   %slot5 = alloca { ptr, i64 }
   %slot6 = alloca %evid.type.ListCardinalityFailure
   %slot7 = alloca { ptr, i64 }
@@ -420,11 +623,11 @@ bb0:
   %call1 = call { ptr, i64 } @evid$test$empty_map()
   store { ptr, i64 } %call1, ptr %slot2
   %load2 = load { ptr, i64 }, ptr %slot1
-  %call3 = call i64 @evid$test$list_count({ ptr, i64 } %load2)
-  store i64 %call3, ptr %slot3
+  %call3 = call { ptr, i64 } @evid$test$list_count({ ptr, i64 } %load2)
+  store { ptr, i64 } %call3, ptr %slot3
   %load4 = load { ptr, i64 }, ptr %slot2
-  %call5 = call i64 @evid$test$map_count({ ptr, i64 } %load4)
-  store i64 %call5, ptr %slot4
+  %call5 = call { ptr, i64 } @evid$test$map_count({ ptr, i64 } %load4)
+  store { ptr, i64 } %call5, ptr %slot4
   %load6 = load { ptr, i64 }, ptr %slot1
   %invoke7 = call %evid.yield.list_require_nonempty$Int @evid$list_require_nonempty$Int({ ptr, i64 } %load6)
   %ext8 = extractvalue %evid.yield.list_require_nonempty$Int %invoke7, 0
@@ -482,9 +685,9 @@ bb.trap.3:
 
 }
 
-define i64 @evid$test$require_single_map() {
+define { ptr, i64 } @evid$test$require_single_map() {
 entry:
-  %slot0 = alloca i64
+  %slot0 = alloca { ptr, i64 }
   %slot1 = alloca { ptr, i64 }
   %slot2 = alloca { ptr, i64 }
   br label %bb0
@@ -496,10 +699,10 @@ bb0:
   %call2 = call { ptr, i64 } @evid$test$widened_map({ ptr, i64 } %load1)
   store { ptr, i64 } %call2, ptr %slot2
   %load3 = load { ptr, i64 }, ptr %slot2
-  %call4 = call i64 @evid$test$map_count({ ptr, i64 } %load3)
-  store i64 %call4, ptr %slot0
-  %load5 = load i64, ptr %slot0
-  ret i64 %load5
+  %call4 = call { ptr, i64 } @evid$test$map_count({ ptr, i64 } %load3)
+  store { ptr, i64 } %call4, ptr %slot0
+  %load5 = load { ptr, i64 }, ptr %slot0
+  ret { ptr, i64 } %load5
 
 }
 
@@ -4302,9 +4505,9 @@ bb0:
 
 }
 
-define i64 @evid$test$from_empty_entries_count() {
+define { ptr, i64 } @evid$test$from_empty_entries_count() {
 entry:
-  %slot0 = alloca i64
+  %slot0 = alloca { ptr, i64 }
   %slot1 = alloca { ptr, i64 }
   %slot2 = alloca { ptr, i64 }
   br label %bb0
@@ -4316,10 +4519,10 @@ bb0:
   %call2 = call { ptr, i64 } @evid$map_from_entries_using_first_bindings$Text$Int({ ptr, i64 } %load1)
   store { ptr, i64 } %call2, ptr %slot1
   %load3 = load { ptr, i64 }, ptr %slot1
-  %call4 = call i64 @evid$map_count_copy$Text$Int({ ptr, i64 } %load3)
-  store i64 %call4, ptr %slot0
-  %load5 = load i64, ptr %slot0
-  ret i64 %load5
+  %call4 = call { ptr, i64 } @evid$map_count_copy$Text$Int({ ptr, i64 } %load3)
+  store { ptr, i64 } %call4, ptr %slot0
+  %load5 = load { ptr, i64 }, ptr %slot0
+  ret { ptr, i64 } %load5
 
 }
 
@@ -4899,9 +5102,9 @@ bb.trap.3:
 
 }
 
-define i64 @evid$test$copied_empty_map_entries_count() {
+define { ptr, i64 } @evid$test$copied_empty_map_entries_count() {
 entry:
-  %slot0 = alloca i64
+  %slot0 = alloca { ptr, i64 }
   %slot1 = alloca { ptr, i64 }
   %slot2 = alloca { ptr, i64 }
   br label %bb0
@@ -4913,10 +5116,10 @@ bb0:
   %call2 = call { ptr, i64 } @evid$map_entries_copy$Text$Int({ ptr, i64 } %load1)
   store { ptr, i64 } %call2, ptr %slot1
   %load3 = load { ptr, i64 }, ptr %slot1
-  %call4 = call i64 @evid$list_count_copy$MapEntry_Text__Int_({ ptr, i64 } %load3)
-  store i64 %call4, ptr %slot0
-  %load5 = load i64, ptr %slot0
-  ret i64 %load5
+  %call4 = call { ptr, i64 } @evid$list_count_copy$MapEntry_Text__Int_({ ptr, i64 } %load3)
+  store { ptr, i64 } %call4, ptr %slot0
+  %load5 = load { ptr, i64 }, ptr %slot0
+  ret { ptr, i64 } %load5
 
 }
 
@@ -5124,7 +5327,7 @@ entry:
   %slot0 = alloca i64
   %slot1 = alloca { ptr, i64 }
   %slot2 = alloca { ptr, i64 }
-  %slot3 = alloca i64
+  %slot3 = alloca { ptr, i64 }
   %slot4 = alloca { ptr, i64 }
   %slot5 = alloca { ptr, i64 }
   %slot6 = alloca %evid.type.ListCardinalityFailure
@@ -5138,8 +5341,8 @@ bb0:
   %call2 = call { ptr, i64 } @evid$test$widened_list({ ptr, i64 } %load1)
   store { ptr, i64 } %call2, ptr %slot2
   %load3 = load { ptr, i64 }, ptr %slot2
-  %call4 = call i64 @evid$test$list_count({ ptr, i64 } %load3)
-  store i64 %call4, ptr %slot3
+  %call4 = call { ptr, i64 } @evid$test$list_count({ ptr, i64 } %load3)
+  store { ptr, i64 } %call4, ptr %slot3
   %load5 = load { ptr, i64 }, ptr %slot2
   %invoke6 = call %evid.yield.list_require_nonempty$Int @evid$list_require_nonempty$Int({ ptr, i64 } %load5)
   %ext7 = extractvalue %evid.yield.list_require_nonempty$Int %invoke6, 0
@@ -5201,11 +5404,11 @@ define i64 @evid$test$require_constructed_lists() {
 entry:
   %slot0 = alloca i64
   %slot1 = alloca { ptr, i64 }
-  %slot2 = alloca i64
+  %slot2 = alloca { ptr, i64 }
   %slot3 = alloca { ptr, i64 }
-  %slot4 = alloca i64
+  %slot4 = alloca { ptr, i64 }
   %slot5 = alloca { ptr, i64 }
-  %slot6 = alloca i64
+  %slot6 = alloca { ptr, i64 }
   %slot7 = alloca { ptr, i64 }
   %slot8 = alloca { ptr, i64 }
   %slot9 = alloca { ptr, i64 }
@@ -5231,20 +5434,20 @@ bb0:
   %call0 = call { ptr, i64 } @evid$test$prepended_list()
   store { ptr, i64 } %call0, ptr %slot1
   %load1 = load { ptr, i64 }, ptr %slot1
-  %call2 = call i64 @evid$test$nonempty_list_count({ ptr, i64 } %load1)
-  store i64 %call2, ptr %slot2
+  %call2 = call { ptr, i64 } @evid$test$nonempty_list_count({ ptr, i64 } %load1)
+  store { ptr, i64 } %call2, ptr %slot2
   %call3 = call { ptr, i64 } @evid$test$appended_list()
   store { ptr, i64 } %call3, ptr %slot3
   %load4 = load { ptr, i64 }, ptr %slot3
-  %call5 = call i64 @evid$test$nonempty_list_count({ ptr, i64 } %load4)
-  store i64 %call5, ptr %slot4
+  %call5 = call { ptr, i64 } @evid$test$nonempty_list_count({ ptr, i64 } %load4)
+  store { ptr, i64 } %call5, ptr %slot4
   %load6 = load { ptr, i64 }, ptr %slot3
   %load7 = load { ptr, i64 }, ptr %slot1
   %call8 = call { ptr, i64 } @evid$nonempty_list_concat$Int({ ptr, i64 } %load6, { ptr, i64 } %load7)
   store { ptr, i64 } %call8, ptr %slot5
   %load9 = load { ptr, i64 }, ptr %slot5
-  %call10 = call i64 @evid$test$nonempty_list_count({ ptr, i64 } %load9)
-  store i64 %call10, ptr %slot6
+  %call10 = call { ptr, i64 } @evid$test$nonempty_list_count({ ptr, i64 } %load9)
+  store { ptr, i64 } %call10, ptr %slot6
   %call11 = call { ptr, i64 } @evid$test$empty_list()
   store { ptr, i64 } %call11, ptr %slot8
   %load12 = load { ptr, i64 }, ptr %slot1
@@ -5388,12 +5591,12 @@ define i64 @evid$test$main() {
 entry:
   %slot0 = alloca i64
   %slot1 = alloca i64
-  %slot2 = alloca i64
+  %slot2 = alloca { ptr, i64 }
   %slot3 = alloca i64
   %slot4 = alloca i64
   %slot5 = alloca i64
   %slot6 = alloca i64
-  %slot7 = alloca i64
+  %slot7 = alloca { ptr, i64 }
   %slot8 = alloca i64
   %slot9 = alloca i64
   %slot10 = alloca i64
@@ -5432,7 +5635,7 @@ entry:
   %slot43 = alloca i64
   %slot44 = alloca i64
   %slot45 = alloca i64
-  %slot46 = alloca i64
+  %slot46 = alloca { ptr, i64 }
   %slot47 = alloca i64
   %slot48 = alloca i64
   %slot49 = alloca i64
@@ -5444,8 +5647,8 @@ entry:
 bb0:
   %call0 = call i64 @evid$test$require_empty_collections()
   store i64 %call0, ptr %slot1
-  %call1 = call i64 @evid$test$require_single_map()
-  store i64 %call1, ptr %slot2
+  %call1 = call { ptr, i64 } @evid$test$require_single_map()
+  store { ptr, i64 } %call1, ptr %slot2
   %call2 = call i64 @evid$test$require_single_list()
   store i64 %call2, ptr %slot3
   %call3 = call i64 @evid$test$require_constructed_lists()
@@ -5454,8 +5657,8 @@ bb0:
   store i64 %call4, ptr %slot5
   %call5 = call i64 @evid$test$consume_single_map_entry_value()
   store i64 %call5, ptr %slot6
-  %call6 = call i64 @evid$test$copied_empty_map_entries_count()
-  store i64 %call6, ptr %slot7
+  %call6 = call { ptr, i64 } @evid$test$copied_empty_map_entries_count()
+  store { ptr, i64 } %call6, ptr %slot7
   %call7 = call i64 @evid$test$copied_single_map_entries_value()
   store i64 %call7, ptr %slot8
   %call8 = call i64 @evid$test$consumed_widened_map_entries_value()
@@ -5532,8 +5735,8 @@ bb0:
   store i64 %call43, ptr %slot44
   %call44 = call i64 @evid$test$merge_int_right_policy_value()
   store i64 %call44, ptr %slot45
-  %call45 = call i64 @evid$test$from_empty_entries_count()
-  store i64 %call45, ptr %slot46
+  %call45 = call { ptr, i64 } @evid$test$from_empty_entries_count()
+  store { ptr, i64 } %call45, ptr %slot46
   %call46 = call i64 @evid$test$from_entries_reject_disjoint_first_value()
   store i64 %call46, ptr %slot47
   %call47 = call i64 @evid$test$from_entries_reject_duplicate_value()
@@ -5600,28 +5803,32 @@ entry:
   ret { ptr, i64 } %arg0
 }
 
-define i64 @evid$list_count_copy$Int({ ptr, i64 } %arg0) {
+define { ptr, i64 } @evid$list_count_copy$Int({ ptr, i64 } %arg0) {
 entry:
   %count0 = extractvalue { ptr, i64 } %arg0, 1
-  ret i64 %count0
+  %count1 = call { ptr, i64 } @evid.nat.from.u64(i64 %count0)
+  ret { ptr, i64 } %count1
 }
 
-define i64 @evid$nonempty_list_count_copy$Int({ ptr, i64 } %arg0) {
+define { ptr, i64 } @evid$nonempty_list_count_copy$Int({ ptr, i64 } %arg0) {
 entry:
   %count0 = extractvalue { ptr, i64 } %arg0, 1
-  ret i64 %count0
+  %count1 = call { ptr, i64 } @evid.nat.from.u64(i64 %count0)
+  ret { ptr, i64 } %count1
 }
 
-define i64 @evid$map_count_copy$Text$Int({ ptr, i64 } %arg0) {
+define { ptr, i64 } @evid$map_count_copy$Text$Int({ ptr, i64 } %arg0) {
 entry:
   %count0 = extractvalue { ptr, i64 } %arg0, 1
-  ret i64 %count0
+  %count1 = call { ptr, i64 } @evid.nat.from.u64(i64 %count0)
+  ret { ptr, i64 } %count1
 }
 
-define i64 @evid$nonempty_map_count_copy$Text$Int({ ptr, i64 } %arg0) {
+define { ptr, i64 } @evid$nonempty_map_count_copy$Text$Int({ ptr, i64 } %arg0) {
 entry:
   %count0 = extractvalue { ptr, i64 } %arg0, 1
-  ret i64 %count0
+  %count1 = call { ptr, i64 } @evid.nat.from.u64(i64 %count0)
+  ret { ptr, i64 } %count1
 }
 
 define { ptr, i64 } @evid$list_single$Int(i64 %arg0) {
@@ -9812,10 +10019,11 @@ entry:
   ret { ptr, i64 } %arg0
 }
 
-define i64 @evid$list_count_copy$MapEntry_Text__Int_({ ptr, i64 } %arg0) {
+define { ptr, i64 } @evid$list_count_copy$MapEntry_Text__Int_({ ptr, i64 } %arg0) {
 entry:
   %count0 = extractvalue { ptr, i64 } %arg0, 1
-  ret i64 %count0
+  %count1 = call { ptr, i64 } @evid.nat.from.u64(i64 %count0)
+  ret { ptr, i64 } %count1
 }
 
 define %evid.type.MapEntry_Text__Int_ @evid$nonempty_list_first_copy$MapEntry_Text__Int_({ ptr, i64 } %arg0) {

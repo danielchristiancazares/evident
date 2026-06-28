@@ -1,0 +1,27 @@
+<input>:12:34: error: public domain/foundation API cannot expose raw adapter type expression 'Map<Text, Int>'
+    public fn text_keyed_map(values: Map<Text, Int>) -> Int {
+                                     ^^^^^^^^^^^^^^
+<input>:16:35: error: public domain/foundation API cannot expose raw adapter type expression 'NonEmptyMap<Bytes, Int>'
+    public fn bytes_keyed_map(values: NonEmptyMap<Bytes, Int>) -> Int {
+                                      ^^^^^^^^^^^^^^^^^^^^^^^
+<input>:20:33: error: public domain/foundation API cannot expose raw adapter type expression 'List<Byte>'
+    public fn byte_sequence(values: List<Byte>) -> Int {
+                                    ^^^^^^^^^^
+<input>:24:33: error: public domain/foundation API cannot expose raw adapter type expression 'NonEmptyList<Char>'
+    public fn char_sequence(values: NonEmptyList<Char>) -> Int {
+                                    ^^^^^^^^^^^^^^^^^^
+<input>:28:28: error: public domain/foundation API cannot expose raw adapter type expression 'MapEntry<Text, Int>'
+    public fn map_entry(entry: MapEntry<Text, Int>) -> Int {
+                               ^^^^^^^^^^^^^^^^^^^
+<input>:32:35: error: public domain/foundation API cannot expose raw adapter type expression 'raw_bridge::RawCStringBox'
+    public fn boundary_raw_box(value: raw_bridge::RawCStringBox) -> Int {
+                                      ^^^^^^^^^^^^^^^^^^^^^^^^^
+<input>:37:15: error: domain module may not reference raw-adapter export 'raw_cstring'
+        let raw = raw_bridge::raw_cstring();
+                  ^^^^^^^^^^^^^^^^^^^^^^^
+<input>:46:5: error: string literal cannot type as CString outside a boundary or hazard module
+        "domain literal"
+        ^^^^^^^^^^^^^^^^
+<input>:51:29: error: public domain/foundation API cannot expose raw adapter type expression 'Map<Bytes, Int>'
+    public fn bytes_map(values: Map<Bytes, Int>) -> Int {
+                                ^^^^^^^^^^^^^^^

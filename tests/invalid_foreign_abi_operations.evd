@@ -1,0 +1,25 @@
+domain module domain_foreign_abi {
+public fn text_to_host(text: Text) -> CString fails ForeignAbiTextFailure {
+    try text_to_cstring(text)
+}
+
+public fn int_to_host(value: Int) -> CInt fails ForeignAbiIntegerFailure {
+    try int_to_cint(value)
+}
+}
+
+foundation module foundation_foreign_abi {
+public fn size_to_nat(value: CSize) -> Nat {
+    csize_to_nat(value)
+}
+}
+
+boundary module boundary_bad_foreign_signatures {
+public foreign fn text_parameter(value: Text) -> Unit
+
+public foreign fn bytes_parameter(value: Bytes) -> Unit
+
+public foreign fn int_return(value: CInt) -> Int
+
+public foreign fn list_parameter(values: List<Byte>) -> Unit
+}

@@ -41,7 +41,7 @@ public foreign fn write_text_file_text(path: CString, contents: CString) -> CInt
 
 public foreign fn resolve_path_text(base: CString, relative: CString) -> CString
 
-public foreign fn spawn_tool_text(working_directory: CString, executable: CString, arguments: List<Text>) -> CInt
+public foreign fn spawn_tool_text(working_directory: CString, executable: CString, arguments: CString) -> CInt
 
 public foreign fn process_exit(code: CInt) -> CInt
 
@@ -58,7 +58,8 @@ public fn resolve_path(base: HostPath, relative: HostPath) -> HostPath {
 }
 
 public fn spawn_tool(invocation: HostToolInvocation) -> CInt {
-    spawn_tool_text(invocation.working_directory.text, invocation.executable.text, invocation.arguments)
+    let arguments = host_path("");
+    spawn_tool_text(invocation.working_directory.text, invocation.executable.text, arguments.text)
 }
 
 public fn host_path(text: CString) -> HostPath {

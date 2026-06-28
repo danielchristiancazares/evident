@@ -3,4 +3,4 @@
         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 <input>:10:62: error: function 'make_receipt' returns 'test::LeftReceipt' but signature requires 'test::RightReceipt'
     public fn make_receipt() -> RightReceipt proves RightReceipt {
-                                                                 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+                                                                 ^

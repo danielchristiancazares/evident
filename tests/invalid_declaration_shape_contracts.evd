@@ -50,7 +50,7 @@ phase PhaseShape {
 }
 
 boundary module ffi {
-foreign fn duplicate_params(value: Int, value: Int) -> Int
+foreign fn duplicate_params(value: CInt, value: CInt) -> CInt
 
 fn duplicate_value_params(value: Int, value: Int) -> Int {
     value

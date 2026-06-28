@@ -16,7 +16,13 @@
 <input>:43:31: error: reason type 'BridgeFailure' may not appear in function parameter
     public foreign fn pass(value: BridgeFailure) -> BridgeFailure
                                   ^^^^^^^^^^^^^
+<input>:43:31: error: foreign function parameter type 'BridgeFailure' is not foreign-ABI-admissible
+    public foreign fn pass(value: BridgeFailure) -> BridgeFailure
+                                  ^^^^^^^^^^^^^
 <input>:43:49: error: reason type 'BridgeFailure' may not appear in function return type
+    public foreign fn pass(value: BridgeFailure) -> BridgeFailure
+                                                    ^^^^^^^^^^^^^
+<input>:43:49: error: foreign function return type 'BridgeFailure' is not foreign-ABI-admissible
     public foreign fn pass(value: BridgeFailure) -> BridgeFailure
                                                     ^^^^^^^^^^^^^
 <input>:46:24: error: reason type 'BridgeFailure' may not appear in record field

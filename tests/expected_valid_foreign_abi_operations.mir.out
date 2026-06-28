@@ -1,0 +1,180 @@
+functions:
+  - public fn cstring_payload_bytes -> Bytes
+      locals:
+        %0[value] : CString
+      blocks: <none>
+  - public fn cstring_payload_text -> Text fails ForeignAbiTextFailure
+      locals:
+        %0[value] : CString
+      blocks: <none>
+  - public fn text_to_cstring -> CString fails ForeignAbiTextFailure
+      locals:
+        %0[text] : Text
+      blocks: <none>
+  - public fn bytes_to_cstring -> CString fails ForeignAbiTextFailure
+      locals:
+        %0[bytes] : Bytes
+      blocks: <none>
+  - public fn cint_to_int -> Int fails ForeignAbiIntegerFailure
+      locals:
+        %0[value] : CInt
+      blocks: <none>
+  - public fn cint_require_nat -> Nat fails ForeignAbiIntegerFailure
+      locals:
+        %0[value] : CInt
+      blocks: <none>
+  - public fn csize_to_int -> Int fails ForeignAbiIntegerFailure
+      locals:
+        %0[value] : CSize
+      blocks: <none>
+  - public fn csize_to_nat -> Nat
+      locals:
+        %0[value] : CSize
+      blocks: <none>
+  - public fn int_to_cint -> CInt fails ForeignAbiIntegerFailure
+      locals:
+        %0[value] : Int
+      blocks: <none>
+  - public fn nat_to_cint -> CInt fails ForeignAbiIntegerFailure
+      locals:
+        %0[value] : Nat
+      blocks: <none>
+  - public fn int_to_csize -> CSize fails ForeignAbiIntegerFailure
+      locals:
+        %0[value] : Int
+      blocks: <none>
+  - public fn nat_to_csize -> CSize fails ForeignAbiIntegerFailure
+      locals:
+        %0[value] : Nat
+      blocks: <none>
+  - public fn boundary_foreign_abi::cstring_payload -> Bytes
+      locals:
+        %0[value] : CString
+        %1[$return] : Bytes
+      block %0
+        %1[$return] = call cstring_payload_bytes(%0[value])
+        return %1[$return]
+  - private fn boundary_foreign_abi::text_payload -> Text fails ForeignAbiTextFailure
+      locals:
+        %0[value] : CString
+        %1[$return] : Text
+        %2[failure] : ForeignAbiTextFailure
+      block %0
+        invoke cstring_payload_text(%0[value]) ok %1[$return] -> %1 fail %2[failure] -> %2
+      block %1
+        return %1[$return]
+      block %2
+        fail %2[failure]
+  - private fn boundary_foreign_abi::text_to_host -> CString fails ForeignAbiTextFailure
+      locals:
+        %0[text] : Text
+        %1[$return] : CString
+        %2[failure] : ForeignAbiTextFailure
+      block %0
+        invoke text_to_cstring(%0[text]) ok %1[$return] -> %1 fail %2[failure] -> %2
+      block %1
+        return %1[$return]
+      block %2
+        fail %2[failure]
+  - private fn boundary_foreign_abi::bytes_to_host -> CString fails ForeignAbiTextFailure
+      locals:
+        %0[bytes] : Bytes
+        %1[$return] : CString
+        %2[failure] : ForeignAbiTextFailure
+      block %0
+        invoke bytes_to_cstring(%0[bytes]) ok %1[$return] -> %1 fail %2[failure] -> %2
+      block %1
+        return %1[$return]
+      block %2
+        fail %2[failure]
+  - private fn boundary_foreign_abi::c_int -> Int fails ForeignAbiIntegerFailure
+      locals:
+        %0[value] : CInt
+        %1[$return] : Int
+        %2[failure] : ForeignAbiIntegerFailure
+      block %0
+        invoke cint_to_int(%0[value]) ok %1[$return] -> %1 fail %2[failure] -> %2
+      block %1
+        return %1[$return]
+      block %2
+        fail %2[failure]
+  - private fn boundary_foreign_abi::c_nat -> Nat fails ForeignAbiIntegerFailure
+      locals:
+        %0[value] : CInt
+        %1[$return] : Nat
+        %2[failure] : ForeignAbiIntegerFailure
+      block %0
+        invoke cint_require_nat(%0[value]) ok %1[$return] -> %1 fail %2[failure] -> %2
+      block %1
+        return %1[$return]
+      block %2
+        fail %2[failure]
+  - private fn boundary_foreign_abi::size_int -> Int fails ForeignAbiIntegerFailure
+      locals:
+        %0[value] : CSize
+        %1[$return] : Int
+        %2[failure] : ForeignAbiIntegerFailure
+      block %0
+        invoke csize_to_int(%0[value]) ok %1[$return] -> %1 fail %2[failure] -> %2
+      block %1
+        return %1[$return]
+      block %2
+        fail %2[failure]
+  - private fn boundary_foreign_abi::size_nat -> Nat
+      locals:
+        %0[value] : CSize
+        %1[$return] : Nat
+      block %0
+        %1[$return] = call csize_to_nat(%0[value])
+        return %1[$return]
+  - private fn boundary_foreign_abi::int_c -> CInt fails ForeignAbiIntegerFailure
+      locals:
+        %0[value] : Int
+        %1[$return] : CInt
+        %2[failure] : ForeignAbiIntegerFailure
+      block %0
+        invoke int_to_cint(%0[value]) ok %1[$return] -> %1 fail %2[failure] -> %2
+      block %1
+        return %1[$return]
+      block %2
+        fail %2[failure]
+  - private fn boundary_foreign_abi::nat_c -> CInt fails ForeignAbiIntegerFailure
+      locals:
+        %0[value] : Nat
+        %1[$return] : CInt
+        %2[failure] : ForeignAbiIntegerFailure
+      block %0
+        invoke nat_to_cint(%0[value]) ok %1[$return] -> %1 fail %2[failure] -> %2
+      block %1
+        return %1[$return]
+      block %2
+        fail %2[failure]
+  - private fn boundary_foreign_abi::int_size -> CSize fails ForeignAbiIntegerFailure
+      locals:
+        %0[value] : Int
+        %1[$return] : CSize
+        %2[failure] : ForeignAbiIntegerFailure
+      block %0
+        invoke int_to_csize(%0[value]) ok %1[$return] -> %1 fail %2[failure] -> %2
+      block %1
+        return %1[$return]
+      block %2
+        fail %2[failure]
+  - private fn boundary_foreign_abi::nat_size -> CSize fails ForeignAbiIntegerFailure
+      locals:
+        %0[value] : Nat
+        %1[$return] : CSize
+        %2[failure] : ForeignAbiIntegerFailure
+      block %0
+        invoke nat_to_csize(%0[value]) ok %1[$return] -> %1 fail %2[failure] -> %2
+      block %1
+        return %1[$return]
+      block %2
+        fail %2[failure]
+  - private fn hazard_foreign_abi::hazard_payload -> Bytes
+      locals:
+        %0[value] : CString
+        %1[$return] : Bytes
+      block %0
+        %1[$return] = call cstring_payload_bytes(%0[value])
+        return %1[$return]

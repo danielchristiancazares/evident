@@ -1,0 +1,55 @@
+boundary module boundary_foreign_abi {
+public fn cstring_payload(value: CString) -> Bytes {
+    cstring_payload_bytes(value)
+}
+
+fn text_payload(value: CString) -> Text fails ForeignAbiTextFailure {
+    try cstring_payload_text(value)
+}
+
+fn text_to_host(text: Text) -> CString fails ForeignAbiTextFailure {
+    try text_to_cstring(text)
+}
+
+fn bytes_to_host(bytes: Bytes) -> CString fails ForeignAbiTextFailure {
+    try bytes_to_cstring(bytes)
+}
+
+fn c_int(value: CInt) -> Int fails ForeignAbiIntegerFailure {
+    try cint_to_int(value)
+}
+
+fn c_nat(value: CInt) -> Nat fails ForeignAbiIntegerFailure {
+    try cint_require_nat(value)
+}
+
+fn size_int(value: CSize) -> Int fails ForeignAbiIntegerFailure {
+    try csize_to_int(value)
+}
+
+fn size_nat(value: CSize) -> Nat {
+    csize_to_nat(value)
+}
+
+fn int_c(value: Int) -> CInt fails ForeignAbiIntegerFailure {
+    try int_to_cint(value)
+}
+
+fn nat_c(value: Nat) -> CInt fails ForeignAbiIntegerFailure {
+    try nat_to_cint(value)
+}
+
+fn int_size(value: Int) -> CSize fails ForeignAbiIntegerFailure {
+    try int_to_csize(value)
+}
+
+fn nat_size(value: Nat) -> CSize fails ForeignAbiIntegerFailure {
+    try nat_to_csize(value)
+}
+}
+
+hazard module hazard_foreign_abi {
+fn hazard_payload(value: CString) -> Bytes {
+    cstring_payload_bytes(value)
+}
+}

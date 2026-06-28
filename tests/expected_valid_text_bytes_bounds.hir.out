@@ -1,0 +1,112 @@
+types:
+  - public reason TextBoundsFailure
+      variant RequestedCharacterIndexOutOfRange
+      variant RequestedTextSliceOutOfRange
+  - public reason BytesBoundsFailure
+      variant RequestedByteIndexOutOfRange
+      variant RequestedBytesSliceOutOfRange
+  - public reason TextCardinalityFailure
+      variant TextHadNoCharacters
+  - public reason BytesCardinalityFailure
+      variant BytesHadNoBytes
+functions:
+  - public fn text_character_at(text: Text, index: Nat) -> Char fails TextBoundsFailure
+  - public fn bytes_byte_at(bytes: Bytes, index: Nat) -> Byte fails BytesBoundsFailure
+  - public fn text_slice(text: Text, start: Nat, end: Nat) -> Text fails TextBoundsFailure
+  - public fn bytes_slice(bytes: Bytes, start: Nat, end: Nat) -> Bytes fails BytesBoundsFailure
+  - public fn text_require_nonempty(text: Text) -> NonEmptyText fails TextCardinalityFailure
+  - public fn bytes_require_nonempty(bytes: Bytes) -> NonEmptyBytes fails BytesCardinalityFailure
+  - public fn nonempty_text_widen(text: NonEmptyText) -> Text
+  - public fn nonempty_bytes_widen(bytes: NonEmptyBytes) -> Bytes
+  - public fn nonempty_text_length(text: NonEmptyText) -> Nat
+  - public fn nonempty_bytes_length(bytes: NonEmptyBytes) -> Nat
+  - public fn nonempty_text_first_character(text: NonEmptyText) -> Char
+  - public fn nonempty_bytes_first_byte(bytes: NonEmptyBytes) -> Byte
+  - private fn test::text_char(text: Text, index: Nat) -> Char fails TextBoundsFailure
+      block -> Char
+        result
+          try
+            call text_character_at -> Char fails
+              local text : Text
+              local index : Nat
+  - private fn test::bytes_byte(bytes: Bytes, index: Nat) -> Byte fails BytesBoundsFailure
+      block -> Byte
+        result
+          try
+            call bytes_byte_at -> Byte fails
+              local bytes : Bytes
+              local index : Nat
+  - private fn test::text_part(text: Text, start: Nat, end: Nat) -> Text fails TextBoundsFailure
+      block -> Text
+        result
+          try
+            call text_slice -> Text fails
+              local text : Text
+              local start : Nat
+              local end : Nat
+  - private fn test::bytes_part(bytes: Bytes, start: Nat, end: Nat) -> Bytes fails BytesBoundsFailure
+      block -> Bytes
+        result
+          try
+            call bytes_slice -> Bytes fails
+              local bytes : Bytes
+              local start : Nat
+              local end : Nat
+  - private fn test::literal_text_part() -> Text fails TextBoundsFailure
+      block -> Text
+        result
+          try
+            call text_slice -> Text fails
+              string "a\u{E9}\u{1F600}z" : Text
+              number 1 : Nat
+              number 3 : Nat
+  - private fn test::literal_bytes_part() -> Bytes fails BytesBoundsFailure
+      block -> Bytes
+        result
+          try
+            call bytes_slice -> Bytes fails
+              string "abcdef" : Bytes
+              number 2 : Nat
+              number 5 : Nat
+  - private fn test::require_text(text: Text) -> NonEmptyText fails TextCardinalityFailure
+      block -> NonEmptyText
+        result
+          try
+            call text_require_nonempty -> NonEmptyText fails
+              local text : Text
+  - private fn test::require_bytes(bytes: Bytes) -> NonEmptyBytes fails BytesCardinalityFailure
+      block -> NonEmptyBytes
+        result
+          try
+            call bytes_require_nonempty -> NonEmptyBytes fails
+              local bytes : Bytes
+  - private fn test::widen_text(text: NonEmptyText) -> Text
+      block -> Text
+        result
+          call nonempty_text_widen -> Text
+            local text : NonEmptyText
+  - private fn test::widen_bytes(bytes: NonEmptyBytes) -> Bytes
+      block -> Bytes
+        result
+          call nonempty_bytes_widen -> Bytes
+            local bytes : NonEmptyBytes
+  - private fn test::nonempty_text_count(text: NonEmptyText) -> Nat
+      block -> Nat
+        result
+          call nonempty_text_length -> Nat
+            local text : NonEmptyText
+  - private fn test::nonempty_bytes_count(bytes: NonEmptyBytes) -> Nat
+      block -> Nat
+        result
+          call nonempty_bytes_length -> Nat
+            local bytes : NonEmptyBytes
+  - private fn test::nonempty_first_character(text: NonEmptyText) -> Char
+      block -> Char
+        result
+          call nonempty_text_first_character -> Char
+            local text : NonEmptyText
+  - private fn test::nonempty_first_byte(bytes: NonEmptyBytes) -> Byte
+      block -> Byte
+        result
+          call nonempty_bytes_first_byte -> Byte
+            local bytes : NonEmptyBytes

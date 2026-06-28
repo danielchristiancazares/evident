@@ -1,7 +1,7 @@
 import bootstrap_layout;
 import bootstrap_source;
 
-domain module bootstrap_manifest {
+boundary module bootstrap_manifest {
 public record BootstrapPackageManifestEntry {
     public module_name: Text,
     public source: bootstrap_source::SourcePath,

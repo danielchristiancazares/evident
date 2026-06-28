@@ -1,4 +1,4 @@
-domain module test {
+boundary module test {
 public record CollectionCompanions {
     public first_int: ListFirstAndRest<Int>,
     public text_entry: MapEntry<Text, Int>,

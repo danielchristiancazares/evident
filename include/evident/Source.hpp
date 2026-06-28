@@ -15,23 +15,29 @@ struct SourceSpan {
 
 class SourceLocation final {
 public:
-    [[nodiscard]] static SourceLocation at(std::size_t offset, std::size_t line, std::size_t column) {
-        return SourceLocation(offset, line, column);
+    [[nodiscard]] static SourceLocation at(std::size_t offset,
+                                           std::size_t line,
+                                           std::size_t column,
+                                           std::size_t line_start_offset) {
+        return SourceLocation(offset, line, column, line_start_offset);
     }
 
     [[nodiscard]] std::size_t offset() const noexcept { return offset_; }
     [[nodiscard]] std::size_t line() const noexcept { return line_; }
     [[nodiscard]] std::size_t column() const noexcept { return column_; }
+    [[nodiscard]] std::size_t line_start_offset() const noexcept { return line_start_offset_; }
 
 private:
     std::size_t offset_;
     std::size_t line_;
     std::size_t column_;
+    std::size_t line_start_offset_;
 
-    SourceLocation(std::size_t offset, std::size_t line, std::size_t column)
+    SourceLocation(std::size_t offset, std::size_t line, std::size_t column, std::size_t line_start_offset)
         : offset_(offset),
           line_(line),
-          column_(column) {}
+          column_(column),
+          line_start_offset_(line_start_offset) {}
 };
 
 class SourceFile {
@@ -46,6 +52,7 @@ public:
     [[nodiscard]] const std::string& text() const noexcept;
     [[nodiscard]] std::string_view slice(SourceSpan span) const;
     [[nodiscard]] SourceLocation locate(std::size_t offset) const;
+    [[nodiscard]] std::size_t scalar_count(SourceSpan span) const;
 
 private:
     struct Segment {

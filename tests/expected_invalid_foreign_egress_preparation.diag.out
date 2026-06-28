@@ -1,0 +1,12 @@
+<input>:12:15: error: foreign egress argument to 'send_text' must be a direct compiler-owned conversion or raw ABI terminal field path
+        send_text(label)
+                  ^^^^^
+<input>:16:15: error: foreign egress argument to 'send_text' must be a direct compiler-owned conversion or raw ABI terminal field path
+        send_text(try label_helper(text))
+                  ^^^^^^^^^^^^^^^^^^^^^^
+<input>:20:15: error: foreign egress argument to 'send_text' must be a direct compiler-owned conversion or raw ABI terminal field path
+        send_text("raw")
+                  ^^^^^
+<input>:24:16: error: foreign egress argument to 'send_count' must be a direct compiler-owned conversion or raw ABI terminal field path
+        send_count(7)
+                   ^

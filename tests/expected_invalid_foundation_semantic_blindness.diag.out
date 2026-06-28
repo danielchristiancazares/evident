@@ -1,0 +1,15 @@
+<input>:2:5: error: foundation declaration-surface name 'SafeWrapper' must be semantically blind
+        record SafeWrapper {
+        ^^^^^^^^^^^^^^^^^^^^
+<input>:6:16: error: foundation declaration-surface name 'EncodedPayload' must be semantically blind
+        record Box<EncodedPayload> {
+                   ^^^^^^^^^^^^^^
+<input>:11:9: error: foundation declaration-surface name 'statusCode' must be semantically blind
+            statusCode: Text,
+            ^^^^^^^^^^^^^^^^
+<input>:14:5: error: foundation declaration-surface name 'normalize' must be semantically blind
+        fn normalize(input: Text) -> Text {
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<input>:18:14: error: foundation declaration-surface name 'trustedPayload' must be semantically blind
+        fn carry(trustedPayload: Text) -> Text {
+                 ^^^^^^^^^^^^^^^^^^^^

@@ -87,7 +87,7 @@
            ^^^^^^^^
 <input>:84:8: error: public name 'Default' is reserved or too generic
     public domain module Default {
-           ^^^^^^^^^^^^^^^^^^^^^^^^^
+           ^^^^^^^^^^^^^^^^^^^^^^^
 <input>:88:5: error: public name 'Known' is reserved or too generic
         Known,
         ^^^^^

@@ -1,6 +1,6 @@
 import bootstrap_source;
 
-domain module bootstrap_layout {
+boundary module bootstrap_layout {
 public record BootstrapPackageModule {
     public name: Text,
     public source: bootstrap_source::SourcePath,

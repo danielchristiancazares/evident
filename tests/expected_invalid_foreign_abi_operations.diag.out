@@ -1,0 +1,42 @@
+<input>:2:39: error: public domain/foundation API cannot expose raw adapter type expression 'CString'
+    public fn text_to_host(text: Text) -> CString fails ForeignAbiTextFailure {
+                                          ^^^^^^^
+<input>:2:53: error: public domain/foundation API cannot expose raw adapter type expression 'ForeignAbiTextFailure'
+    public fn text_to_host(text: Text) -> CString fails ForeignAbiTextFailure {
+                                                        ^^^^^^^^^^^^^^^^^^^^^
+<input>:2:53: error: foreign ABI reason 'ForeignAbiTextFailure' may only be mentioned inside a boundary or hazard module
+    public fn text_to_host(text: Text) -> CString fails ForeignAbiTextFailure {
+                                                        ^^^^^^^^^^^^^^^^^^^^^
+<input>:3:9: error: foreign ABI conversion operation 'text_to_cstring' may only be called inside a boundary or hazard module
+        try text_to_cstring(text)
+            ^^^^^^^^^^^^^^^^^^^^^
+<input>:6:38: error: public domain/foundation API cannot expose raw adapter type expression 'CInt'
+    public fn int_to_host(value: Int) -> CInt fails ForeignAbiIntegerFailure {
+                                         ^^^^
+<input>:6:49: error: public domain/foundation API cannot expose raw adapter type expression 'ForeignAbiIntegerFailure'
+    public fn int_to_host(value: Int) -> CInt fails ForeignAbiIntegerFailure {
+                                                    ^^^^^^^^^^^^^^^^^^^^^^^^
+<input>:6:49: error: foreign ABI reason 'ForeignAbiIntegerFailure' may only be mentioned inside a boundary or hazard module
+    public fn int_to_host(value: Int) -> CInt fails ForeignAbiIntegerFailure {
+                                                    ^^^^^^^^^^^^^^^^^^^^^^^^
+<input>:7:9: error: foreign ABI conversion operation 'int_to_cint' may only be called inside a boundary or hazard module
+        try int_to_cint(value)
+            ^^^^^^^^^^^^^^^^^^
+<input>:12:30: error: public domain/foundation API cannot expose raw adapter type expression 'CSize'
+    public fn size_to_nat(value: CSize) -> Nat {
+                                 ^^^^^
+<input>:13:5: error: foreign ABI conversion operation 'csize_to_nat' may only be called inside a boundary or hazard module
+        csize_to_nat(value)
+        ^^^^^^^^^^^^^^^^^^^
+<input>:18:41: error: foreign function parameter type 'Text' is not foreign-ABI-admissible
+    public foreign fn text_parameter(value: Text) -> Unit
+                                            ^^^^
+<input>:20:42: error: foreign function parameter type 'Bytes' is not foreign-ABI-admissible
+    public foreign fn bytes_parameter(value: Bytes) -> Unit
+                                             ^^^^^
+<input>:22:46: error: foreign function return type 'Int' is not foreign-ABI-admissible
+    public foreign fn int_return(value: CInt) -> Int
+                                                 ^^^
+<input>:24:42: error: foreign function parameter type 'List<Byte>' is not foreign-ABI-admissible
+    public foreign fn list_parameter(values: List<Byte>) -> Unit
+                                             ^^^^^^^^^^

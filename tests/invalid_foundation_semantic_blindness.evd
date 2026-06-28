@@ -1,0 +1,21 @@
+foundation module structural_plumbing {
+    record SafeWrapper {
+        value: Text,
+    }
+
+    record Box<EncodedPayload> {
+        payload: EncodedPayload,
+    }
+
+    record Carrier {
+        statusCode: Text,
+    }
+
+    fn normalize(input: Text) -> Text {
+        input
+    }
+
+    fn carry(trustedPayload: Text) -> Text {
+        trustedPayload
+    }
+}

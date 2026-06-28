@@ -15,8 +15,16 @@ public fn nonempty_text_nul_escape() -> NonEmptyText {
     "\0"
 }
 
+public fn nonempty_text_unicode_escape() -> NonEmptyText {
+    "\u{1F600}"
+}
+
 public fn nonempty_bytes_literal() -> NonEmptyBytes {
     "bytes"
+}
+
+public fn nonempty_bytes_unicode_escape() -> NonEmptyBytes {
+    "\u{E9}"
 }
 
 public fn accept_text(value: NonEmptyText) -> NonEmptyText {

@@ -54,7 +54,9 @@ check_forbidden_pattern("std::nullptr_t([^A-Za-z0-9_]|$)" "std::nullptr_t")
 check_forbidden_pattern("std::expected[ \t\r\n]*<[ \t\r\n]*void[ \t\r\n]*," "std::expected<void, E>")
 check_forbidden_pattern("std::expected[ \t\r\n]*<[^>]*,[^>]*Missing[^>]*>" "std::expected<T, Missing>")
 check_forbidden_pattern("std::expected[ \t\r\n]*<[^>]*,[^>]*NotFound[^>]*>" "std::expected<T, NotFound>")
-check_forbidden_pattern("(^|[^A-Za-z0-9_])bool([^A-Za-z0-9_]|$)" "bare bool")
+# Bare bool is enforced by the AST-based clang-query gate (cmake/AssertClangTidyBareBooleans.cmake),
+# which distinguishes repo-defined surfaces from internal-linkage implementation helpers. A flat
+# text scan cannot make that distinction, so it is intentionally not performed here.
 check_forbidden_pattern("std::vector[ \t\r\n]*<[ \t\r\n]*bool[ \t\r\n]*>" "std::vector<bool>")
 check_forbidden_pattern("std::monostate([^A-Za-z0-9_]|$)" "std::monostate")
 check_forbidden_pattern("std::shared_mutex([^A-Za-z0-9_]|$)" "std::shared_mutex")

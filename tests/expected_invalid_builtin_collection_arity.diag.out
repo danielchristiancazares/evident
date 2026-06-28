@@ -22,7 +22,13 @@
 <input>:47:37: error: map key type 'CSize' must be one of Int, Nat, Float, Byte, Char, Text, or Bytes
     public fn csize_map_key(values: Map<CSize, Int>) -> Int {
                                         ^^^^^
+<input>:47:37: error: public domain/foundation API cannot expose raw adapter type expression 'CSize'
+    public fn csize_map_key(values: Map<CSize, Int>) -> Int {
+                                        ^^^^^
 <input>:51:47: error: map key type 'CString' must be one of Int, Nat, Float, Byte, Char, Text, or Bytes
+    public fn cstring_map_key(values: NonEmptyMap<CString, Int>) -> Int {
+                                                  ^^^^^^^
+<input>:51:47: error: public domain/foundation API cannot expose raw adapter type expression 'CString'
     public fn cstring_map_key(values: NonEmptyMap<CString, Int>) -> Int {
                                                   ^^^^^^^
 <input>:55:38: error: map key type 'KeyBox' must be one of Int, Nat, Float, Byte, Char, Text, or Bytes
@@ -49,6 +55,9 @@
 <input>:83:43: error: map key type 'CSize' must be one of Int, Nat, Float, Byte, Char, Text, or Bytes
     public fn csize_entry_key(value: MapEntry<CSize, Int>) -> Int {
                                               ^^^^^
+<input>:83:43: error: public domain/foundation API cannot expose raw adapter type expression 'CSize'
+    public fn csize_entry_key(value: MapEntry<CSize, Int>) -> Int {
+                                              ^^^^^
 <input>:87:62: error: map key type 'KeyBox' must be one of Int, Nat, Float, Byte, Char, Text, or Bytes
     public fn record_first_entry_key(value: MapFirstEntryAndRest<KeyBox, Int>) -> Int {
                                                                  ^^^^^^
@@ -58,6 +67,9 @@
 <input>:95:58: error: reason type 'LookupFailure' may not appear in function parameter
     public fn reason_companion_value(value: ListFirstAndRest<LookupFailure>) -> Int {
                                                              ^^^^^^^^^^^^^
+<input>:99:41: error: public domain/foundation API cannot expose raw adapter type expression 'MapEntry<Text, Access>'
+    public fn permit_companion_value(value: MapEntry<Text, Access>) -> Int {
+                                            ^^^^^^^^^^^^^^^^^^^^^^
 <input>:99:56: error: permit type 'Access' may not appear in function parameter
     public fn permit_companion_value(value: MapEntry<Text, Access>) -> Int {
                                                            ^^^^^^

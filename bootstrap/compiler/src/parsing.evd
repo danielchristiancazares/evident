@@ -1,7 +1,7 @@
 import bootstrap_source;
 import bootstrap_lexing;
 
-domain module bootstrap_parsing {
+boundary module bootstrap_parsing {
 public record ModulePath {
     public text: Text,
 }

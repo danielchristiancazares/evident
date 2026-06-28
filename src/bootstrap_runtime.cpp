@@ -23,11 +23,6 @@ struct EvidText final {
     std::int64_t size;
 };
 
-struct EvidTextList final {
-    const EvidText* data;
-    std::int64_t size;
-};
-
 struct EvidHostPath final {
     const char* text;
 };
@@ -60,13 +55,6 @@ const char* retain_cstring(std::string text) {
     retained_texts.push_back(std::move(text));
     const std::string& stored = retained_texts.back();
     return stored.c_str();
-}
-
-std::string text_to_string(EvidText text) {
-    if (text.data == nullptr || text.size <= 0) {
-        return {};
-    }
-    return std::string(text.data, text.data + text.size);
 }
 
 std::string cstring_to_string(const char* text) {
@@ -104,37 +92,6 @@ std::wstring widen_utf8(std::string_view text) {
     const int size = MultiByteToWideChar(CP_UTF8, 0, text.data(), static_cast<int>(text.size()), nullptr, 0);
     std::wstring out(size, L'\0');
     MultiByteToWideChar(CP_UTF8, 0, text.data(), static_cast<int>(text.size()), out.data(), size);
-    return out;
-}
-
-std::wstring quote_windows_arg(std::string_view arg) {
-    if (arg.empty()) {
-        return L"\"\"";
-    }
-    if (arg.find_first_of(" \t\n\v\"") == std::string_view::npos) {
-        return widen_utf8(arg);
-    }
-
-    std::wstring out;
-    out.push_back(L'"');
-    std::size_t backslashes = 0;
-    for (char ch : arg) {
-        if (ch == '\\') {
-            ++backslashes;
-            continue;
-        }
-        if (ch == '"') {
-            out.append(backslashes * 2 + 1, L'\\');
-            out.push_back(L'"');
-            backslashes = 0;
-            continue;
-        }
-        out.append(backslashes, L'\\');
-        backslashes = 0;
-        out.push_back(static_cast<wchar_t>(static_cast<unsigned char>(ch)));
-    }
-    out.append(backslashes * 2, L'\\');
-    out.push_back(L'"');
     return out;
 }
 
@@ -207,16 +164,10 @@ extern "C" std::int32_t evid$bootstrap_host$write_text_file_text(const char* pat
 
 extern "C" std::int32_t evid$bootstrap_host$spawn_tool_text(const char* working_directory_text,
                                                              const char* executable_text,
-                                                             EvidTextList arguments) {
+                                                             const char* arguments_text) {
 #ifdef _WIN32
     const std::wstring executable_wide = widen_utf8(cstring_to_string(executable_text));
-    std::wstring command_line;
-    for (std::int64_t index = 0; index < arguments.size; ++index) {
-        if (index > 0) {
-            command_line.push_back(L' ');
-        }
-        command_line += quote_windows_arg(text_to_string(arguments.data[index]));
-    }
+    const std::wstring command_line = widen_utf8(cstring_to_string(arguments_text));
 
     std::vector<wchar_t> mutable_command(command_line.begin(), command_line.end());
     mutable_command.push_back(L'\0');

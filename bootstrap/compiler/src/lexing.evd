@@ -1,6 +1,6 @@
 import bootstrap_source;
 
-domain module bootstrap_lexing {
+boundary module bootstrap_lexing {
 public record SourceOffset {
     public byte_index: Int,
 }

@@ -52,6 +52,106 @@ const std::unordered_set<std::string_view> kSemanticGenericNames = {
     "proof",         "permit",
 };
 
+const std::unordered_set<std::string_view> kSemanticClaimMarkerWords = {
+    "valid",
+    "validated",
+    "validate",
+    "validation",
+    "validity",
+    "validator",
+    "verify",
+    "verification",
+    "curated",
+    "curate",
+    "curation",
+    "accepted",
+    "acceptance",
+    "canonical",
+    "canonicalized",
+    "canonicalize",
+    "canonicalization",
+    "syntax",
+    "syntactic",
+    "safe",
+    "safety",
+    "secure",
+    "security",
+    "trusted",
+    "trust",
+    "sanitized",
+    "sanitize",
+    "escaped",
+    "escape",
+    "encoded",
+    "encode",
+    "decoded",
+    "decode",
+    "normalized",
+    "normalize",
+    "authenticated",
+    "authenticate",
+    "attested",
+    "attest",
+    "signed",
+    "signature",
+    "protocol",
+    "schema",
+    "status",
+    "state",
+    "mode",
+    "tag",
+    "discriminator",
+    "sentinel",
+    "code",
+    "reported",
+    "unavailable",
+    "policy",
+    "authority",
+    "authorized",
+    "authorize",
+    "authorization",
+    "grant",
+    "granted",
+    "token",
+    "capability",
+    "credential",
+    "permit",
+    "permitted",
+    "permission",
+    "access",
+    "id",
+    "identifier",
+    "identity",
+    "role",
+    "ticket",
+    "receipt",
+    "proof",
+    "proven",
+    "witness",
+    "verified",
+    "handle",
+    "resident",
+    "residency",
+    "open",
+    "opened",
+    "closed",
+    "released",
+    "connected",
+    "disconnected",
+    "lifecycle",
+    "phase",
+    "transition",
+    "draft",
+    "submitted",
+    "sealed",
+    "ready",
+    "live",
+    "initialized",
+    "initialize",
+    "load",
+    "loaded",
+};
+
 const std::unordered_set<std::string_view> kBuiltins = {
     "Int",         "Nat",           "Float",        "Char",
     "Text",        "NonEmptyText",  "Bytes",        "NonEmptyBytes",
@@ -84,6 +184,25 @@ const std::unordered_set<std::string_view> kCompilerOwnedCollectionNames = {
     "MapEntry",
     "MapFirstEntryAndRest",
     "MapBoundValueAndRest",
+    "TextBoundsFailure",
+    "BytesBoundsFailure",
+    "TextCardinalityFailure",
+    "BytesCardinalityFailure",
+    "ForeignAbiTextFailure",
+    "ForeignAbiIntegerFailure",
+    "RequestedCharacterIndexOutOfRange",
+    "RequestedTextSliceOutOfRange",
+    "RequestedByteIndexOutOfRange",
+    "RequestedBytesSliceOutOfRange",
+    "TextHadNoCharacters",
+    "BytesHadNoBytes",
+    "CStringPayloadWasNotUtf8",
+    "CStringPayloadContainedNul",
+    "ForeignIntegerExceededIntRange",
+    "ForeignIntegerWasNegative",
+    "CoreIntegerExceededCIntRange",
+    "CoreIntegerWasNegative",
+    "CoreIntegerExceededCSizeRange",
     "list_empty",
     "list_single",
     "list_prepend",
@@ -142,6 +261,54 @@ const std::unordered_set<std::string_view> kCompilerOwnedCollectionNames = {
     "nonempty_map_from_entries_using_last_bindings",
     "text_length",
     "bytes_length",
+    "text_character_at",
+    "bytes_byte_at",
+    "text_slice",
+    "bytes_slice",
+    "text_require_nonempty",
+    "bytes_require_nonempty",
+    "nonempty_text_widen",
+    "nonempty_bytes_widen",
+    "nonempty_text_length",
+    "nonempty_bytes_length",
+    "nonempty_text_first_character",
+    "nonempty_bytes_first_byte",
+    "cstring_payload_bytes",
+    "cstring_payload_text",
+    "text_to_cstring",
+    "bytes_to_cstring",
+    "cint_to_int",
+    "cint_require_nat",
+    "csize_to_int",
+    "csize_to_nat",
+    "int_to_cint",
+    "nat_to_cint",
+    "int_to_csize",
+    "nat_to_csize",
+};
+
+const std::unordered_set<std::string_view> kCompilerOwnedForeignAbiOperationNames = {
+    "cstring_payload_bytes",
+    "cstring_payload_text",
+    "text_to_cstring",
+    "bytes_to_cstring",
+    "cint_to_int",
+    "cint_require_nat",
+    "csize_to_int",
+    "csize_to_nat",
+    "int_to_cint",
+    "nat_to_cint",
+    "int_to_csize",
+    "nat_to_csize",
+};
+
+const std::unordered_set<std::string_view> kCompilerOwnedForeignEgressOperationNames = {
+    "text_to_cstring",
+    "bytes_to_cstring",
+    "int_to_cint",
+    "nat_to_cint",
+    "int_to_csize",
+    "nat_to_csize",
 };
 
 const std::unordered_set<std::string_view> kCompilerOwnedCollectionCompanionRecordNames = {
@@ -156,15 +323,43 @@ const std::unordered_map<std::string_view, std::vector<std::string_view>> kCompi
     {"MapCardinalityFailure", {"MapHadNoEntries"}},
     {"MapBindingFailure", {"RequestedKeyHadNoBinding", "RequestedKeyAlreadyHadBinding"}},
     {"MapMergeFailure", {"InputsHadSharedKey"}},
+    {"TextBoundsFailure", {"RequestedCharacterIndexOutOfRange", "RequestedTextSliceOutOfRange"}},
+    {"BytesBoundsFailure", {"RequestedByteIndexOutOfRange", "RequestedBytesSliceOutOfRange"}},
+    {"TextCardinalityFailure", {"TextHadNoCharacters"}},
+    {"BytesCardinalityFailure", {"BytesHadNoBytes"}},
+    {"ForeignAbiTextFailure", {"CStringPayloadWasNotUtf8", "CStringPayloadContainedNul"}},
+    {"ForeignAbiIntegerFailure",
+     {"ForeignIntegerExceededIntRange",
+      "ForeignIntegerWasNegative",
+      "CoreIntegerExceededCIntRange",
+      "CoreIntegerWasNegative",
+      "CoreIntegerExceededCSizeRange"}},
+};
+
+const std::unordered_set<std::string_view> kSubstrateLocalReasonNames = {
+    "TextBoundsFailure",
+    "BytesBoundsFailure",
+    "TextCardinalityFailure",
+    "BytesCardinalityFailure",
+    "ForeignAbiTextFailure",
+    "ForeignAbiIntegerFailure",
 };
 
 enum class CollectionTypeTemplate {
     GenericT,
     GenericK,
     GenericV,
+    Int,
     Nat,
+    Char,
+    Byte,
     Text,
+    NonEmptyText,
     Bytes,
+    NonEmptyBytes,
+    CString,
+    CInt,
+    CSize,
     ListT,
     NonEmptyListT,
     ListFirstAndRestT,
@@ -246,6 +441,130 @@ const std::vector<CollectionFunctionSpec> kCompilerOwnedCollectionFunctionSpecs 
      {}},
     {"text_length", {}, {{"text", CollectionTypeTemplate::Text}}, CollectionTypeTemplate::Nat, {}},
     {"bytes_length", {}, {{"bytes", CollectionTypeTemplate::Bytes}}, CollectionTypeTemplate::Nat, {}},
+    {"text_character_at",
+     {},
+     {{"text", CollectionTypeTemplate::Text}, {"index", CollectionTypeTemplate::Nat}},
+     CollectionTypeTemplate::Char,
+     "TextBoundsFailure"},
+    {"bytes_byte_at",
+     {},
+     {{"bytes", CollectionTypeTemplate::Bytes}, {"index", CollectionTypeTemplate::Nat}},
+     CollectionTypeTemplate::Byte,
+     "BytesBoundsFailure"},
+    {"text_slice",
+     {},
+     {{"text", CollectionTypeTemplate::Text},
+      {"start", CollectionTypeTemplate::Nat},
+      {"end", CollectionTypeTemplate::Nat}},
+     CollectionTypeTemplate::Text,
+     "TextBoundsFailure"},
+    {"bytes_slice",
+     {},
+     {{"bytes", CollectionTypeTemplate::Bytes},
+      {"start", CollectionTypeTemplate::Nat},
+      {"end", CollectionTypeTemplate::Nat}},
+     CollectionTypeTemplate::Bytes,
+     "BytesBoundsFailure"},
+    {"text_require_nonempty",
+     {},
+     {{"text", CollectionTypeTemplate::Text}},
+     CollectionTypeTemplate::NonEmptyText,
+     "TextCardinalityFailure"},
+    {"bytes_require_nonempty",
+     {},
+     {{"bytes", CollectionTypeTemplate::Bytes}},
+     CollectionTypeTemplate::NonEmptyBytes,
+     "BytesCardinalityFailure"},
+    {"nonempty_text_widen",
+     {},
+     {{"text", CollectionTypeTemplate::NonEmptyText}},
+     CollectionTypeTemplate::Text,
+     {}},
+    {"nonempty_bytes_widen",
+     {},
+     {{"bytes", CollectionTypeTemplate::NonEmptyBytes}},
+     CollectionTypeTemplate::Bytes,
+     {}},
+    {"nonempty_text_length",
+     {},
+     {{"text", CollectionTypeTemplate::NonEmptyText}},
+     CollectionTypeTemplate::Nat,
+     {}},
+    {"nonempty_bytes_length",
+     {},
+     {{"bytes", CollectionTypeTemplate::NonEmptyBytes}},
+     CollectionTypeTemplate::Nat,
+     {}},
+    {"nonempty_text_first_character",
+     {},
+     {{"text", CollectionTypeTemplate::NonEmptyText}},
+     CollectionTypeTemplate::Char,
+     {}},
+    {"nonempty_bytes_first_byte",
+     {},
+     {{"bytes", CollectionTypeTemplate::NonEmptyBytes}},
+     CollectionTypeTemplate::Byte,
+     {}},
+    {"cstring_payload_bytes",
+     {},
+     {{"value", CollectionTypeTemplate::CString}},
+     CollectionTypeTemplate::Bytes,
+     {}},
+    {"cstring_payload_text",
+     {},
+     {{"value", CollectionTypeTemplate::CString}},
+     CollectionTypeTemplate::Text,
+     "ForeignAbiTextFailure"},
+    {"text_to_cstring",
+     {},
+     {{"text", CollectionTypeTemplate::Text}},
+     CollectionTypeTemplate::CString,
+     "ForeignAbiTextFailure"},
+    {"bytes_to_cstring",
+     {},
+     {{"bytes", CollectionTypeTemplate::Bytes}},
+     CollectionTypeTemplate::CString,
+     "ForeignAbiTextFailure"},
+    {"cint_to_int",
+     {},
+     {{"value", CollectionTypeTemplate::CInt}},
+     CollectionTypeTemplate::Int,
+     "ForeignAbiIntegerFailure"},
+    {"cint_require_nat",
+     {},
+     {{"value", CollectionTypeTemplate::CInt}},
+     CollectionTypeTemplate::Nat,
+     "ForeignAbiIntegerFailure"},
+    {"csize_to_int",
+     {},
+     {{"value", CollectionTypeTemplate::CSize}},
+     CollectionTypeTemplate::Int,
+     "ForeignAbiIntegerFailure"},
+    {"csize_to_nat",
+     {},
+     {{"value", CollectionTypeTemplate::CSize}},
+     CollectionTypeTemplate::Nat,
+     {}},
+    {"int_to_cint",
+     {},
+     {{"value", CollectionTypeTemplate::Int}},
+     CollectionTypeTemplate::CInt,
+     "ForeignAbiIntegerFailure"},
+    {"nat_to_cint",
+     {},
+     {{"value", CollectionTypeTemplate::Nat}},
+     CollectionTypeTemplate::CInt,
+     "ForeignAbiIntegerFailure"},
+    {"int_to_csize",
+     {},
+     {{"value", CollectionTypeTemplate::Int}},
+     CollectionTypeTemplate::CSize,
+     "ForeignAbiIntegerFailure"},
+    {"nat_to_csize",
+     {},
+     {{"value", CollectionTypeTemplate::Nat}},
+     CollectionTypeTemplate::CSize,
+     "ForeignAbiIntegerFailure"},
     {"nonempty_list_first_copy",
      {"T"},
      {{"values", CollectionTypeTemplate::NonEmptyListT}},
@@ -573,6 +892,11 @@ enum class TypeDeclarationRole {
     IntroducesType,
 };
 
+enum class ForeignFnTypeAdmission {
+    Admitted,
+    Rejected,
+};
+
 enum class ScopeContainment {
     SeparateScopeBranch,
     AncestorOrSameScope,
@@ -633,6 +957,89 @@ enum class NumberLiteralKind {
     Integer,
     Float,
 };
+
+bool is_ascii_lower(char ch) {
+    return ch >= 'a' && ch <= 'z';
+}
+
+bool is_ascii_upper(char ch) {
+    return ch >= 'A' && ch <= 'Z';
+}
+
+bool is_ascii_letter(char ch) {
+    return is_ascii_lower(ch) || is_ascii_upper(ch);
+}
+
+bool is_ascii_digit(char ch) {
+    return ch >= '0' && ch <= '9';
+}
+
+char ascii_lowercase(char ch) {
+    return is_ascii_upper(ch) ? static_cast<char>(ch - 'A' + 'a') : ch;
+}
+
+std::vector<std::string> normalized_identifier_words(std::string_view name) {
+    std::vector<std::string> words;
+    std::string current;
+
+    auto flush_word = [&]() {
+        if (!current.empty()) {
+            words.push_back(std::move(current));
+            current.clear();
+        }
+    };
+
+    for (std::size_t index = 0; index < name.size(); ++index) {
+        const char ch = name[index];
+        if (ch == '_' || is_ascii_digit(ch)) {
+            flush_word();
+            continue;
+        }
+        if (!is_ascii_letter(ch)) {
+            flush_word();
+            continue;
+        }
+
+        if (!current.empty()) {
+            const char previous = name[index - 1];
+            const char next = index + 1 < name.size() ? name[index + 1] : '\0';
+            const bool lower_to_upper = is_ascii_lower(previous) && is_ascii_upper(ch);
+            const bool acronym_to_mixed_case =
+                is_ascii_upper(previous) && is_ascii_upper(ch) && is_ascii_lower(next);
+            if (lower_to_upper || acronym_to_mixed_case) {
+                flush_word();
+            }
+        }
+        current.push_back(ascii_lowercase(ch));
+    }
+    flush_word();
+    return words;
+}
+
+bool contains_foundation_semantic_claim_marker(std::string_view name) {
+    if (kSemanticGenericNames.contains(name)) {
+        return false;
+    }
+    for (const std::string& word : normalized_identifier_words(name)) {
+        if (word == "id" || word == "identity" || word == "token") {
+            continue;
+        }
+        if (kSemanticClaimMarkerWords.contains(word)) {
+            return true;
+        }
+    }
+    return false;
+}
+
+bool contains_validation_claim_marker(std::string_view name) {
+    for (const std::string& word : normalized_identifier_words(name)) {
+        if (word == "valid" || word == "validated" || word == "validate"
+            || word == "validation" || word == "validity" || word == "validator") {
+            return true;
+        }
+    }
+    return false;
+}
 
 PublicNameReservation public_name_reservation(std::string_view name) {
     return name.size() == 1 || kReservedPublicNames.contains(name)
@@ -774,8 +1181,15 @@ bool integer_literal_fits_csize(std::string_view lexeme) {
     return decimal_integer_literal_at_most(lexeme, "18446744073709551615");
 }
 
-bool module_allows_foreign_abi_integer_literals(ast::ModuleKind module_kind) {
-    return module_kind == ast::ModuleKind::Boundary || module_kind == ast::ModuleKind::Hazard;
+enum class ForeignAbiLiteralPlacement {
+    AdapterLocalLiteral,
+    NonAdapterLiteral,
+};
+
+ForeignAbiLiteralPlacement foreign_abi_literal_placement(ast::ModuleKind module_kind) {
+    return module_kind == ast::ModuleKind::Boundary || module_kind == ast::ModuleKind::Hazard
+        ? ForeignAbiLiteralPlacement::AdapterLocalLiteral
+        : ForeignAbiLiteralPlacement::NonAdapterLiteral;
 }
 
 bool is_hex_digit(char ch) {
@@ -826,8 +1240,45 @@ bool string_literal_contains_nul_scalar(std::string_view lexeme) {
     return false;
 }
 
+bool is_utf8_continuation_byte(char ch) {
+    const unsigned char byte = static_cast<unsigned char>(ch);
+    return byte >= 0x80U && byte <= 0xBFU;
+}
+
+std::size_t decoded_string_literal_scalar_count(std::string_view lexeme) {
+    if (lexeme.size() < 2 || lexeme.front() != '"' || lexeme.back() != '"') {
+        return 0;
+    }
+
+    std::size_t count = 0;
+    for (std::size_t index = 1; index + 1 < lexeme.size(); ++index) {
+        const char ch = lexeme[index];
+        if (ch != '\\') {
+            if (!is_utf8_continuation_byte(ch)) {
+                ++count;
+            }
+            continue;
+        }
+
+        ++count;
+        if (index + 1 >= lexeme.size() - 1) {
+            continue;
+        }
+        const char escaped = lexeme[++index];
+        if (escaped != 'u' || index + 1 >= lexeme.size() - 1 || lexeme[index + 1] != '{') {
+            continue;
+        }
+
+        index += 2;
+        while (index < lexeme.size() - 1 && lexeme[index] != '}') {
+            ++index;
+        }
+    }
+    return count;
+}
+
 bool string_literal_is_empty(std::string_view lexeme) {
-    return lexeme == "\"\"";
+    return decoded_string_literal_scalar_count(lexeme) == 0;
 }
 
 std::string format_path(const std::vector<std::string>& path) {
@@ -860,6 +1311,21 @@ enum class ReasonTypePolicy {
 enum class PermitTypePolicy {
     RejectPermitTypes,
     AllowPermitTypes,
+};
+
+enum class RawAbiTypePolicy {
+    AllowRawAbiTypes,
+    RejectRawAdapterTypesInPublicApi,
+};
+
+enum class RawAdapterExposureState {
+    NotRawAdapterExposing,
+    RawAdapterExposing,
+};
+
+enum class AdapterLocalReasonPolicy {
+    AllowAdapterLocalReasons,
+    RejectForeignAbiReasonsOutsideAdapters,
 };
 
 ParameterTypeAuthority parameter_type_authority(const Symbol* symbol) {
@@ -908,6 +1374,9 @@ struct TypeUseRules {
     ReasonTypePolicy reason = ReasonTypePolicy::RejectReasonTypes;
     PermitTypePolicy permit = PermitTypePolicy::RejectPermitTypes;
     std::string_view context;
+    RawAbiTypePolicy raw_abi = RawAbiTypePolicy::AllowRawAbiTypes;
+    AdapterLocalReasonPolicy adapter_local_reason =
+        AdapterLocalReasonPolicy::AllowAdapterLocalReasons;
 };
 
 TypePrivacyPolicy type_privacy_policy(ast::Visibility visibility) {
@@ -920,6 +1389,33 @@ TypePrivacyPolicy field_type_privacy_policy(ast::Visibility owner_visibility, as
     return owner_visibility == ast::Visibility::Public && field_visibility == ast::Visibility::Public
         ? TypePrivacyPolicy::PublicApiRequiresPublicTypes
         : TypePrivacyPolicy::PrivateReferencesAllowed;
+}
+
+RawAbiTypePolicy raw_abi_type_policy(ast::ModuleKind module_kind, TypePrivacyPolicy privacy) {
+    if (privacy != TypePrivacyPolicy::PublicApiRequiresPublicTypes) {
+        return RawAbiTypePolicy::AllowRawAbiTypes;
+    }
+    return module_kind == ast::ModuleKind::Domain || module_kind == ast::ModuleKind::Foundation
+        ? RawAbiTypePolicy::RejectRawAdapterTypesInPublicApi
+        : RawAbiTypePolicy::AllowRawAbiTypes;
+}
+
+bool is_foreign_abi_substrate_type_name(std::string_view name) {
+    return name == "CString" || name == "CInt" || name == "CSize";
+}
+
+bool is_foreign_abi_reason_name(std::string_view name) {
+    return name == "ForeignAbiTextFailure" || name == "ForeignAbiIntegerFailure";
+}
+
+bool is_substrate_local_reason_name(std::string_view name) {
+    return kSubstrateLocalReasonNames.contains(name);
+}
+
+AdapterLocalReasonPolicy adapter_local_reason_policy(ast::ModuleKind module_kind) {
+    return module_kind == ast::ModuleKind::Boundary || module_kind == ast::ModuleKind::Hazard
+        ? AdapterLocalReasonPolicy::AllowAdapterLocalReasons
+        : AdapterLocalReasonPolicy::RejectForeignAbiReasonsOutsideAdapters;
 }
 
 class Analyzer {
@@ -977,6 +1473,14 @@ private:
     struct ModuleBodyDeclarationContext {
         ast::ModuleKind module_kind = ast::ModuleKind::Domain;
     };
+
+    ast::ModuleKind active_module_kind(const PackageRootDeclarationContext&) const {
+        return ast::ModuleKind::Domain;
+    }
+
+    ast::ModuleKind active_module_kind(const ModuleBodyDeclarationContext& context) const {
+        return context.module_kind;
+    }
 
     struct ExprType {
         Type value;
@@ -1233,12 +1737,28 @@ private:
             return named_type("K");
         case CollectionTypeTemplate::GenericV:
             return named_type("V");
+        case CollectionTypeTemplate::Int:
+            return named_type("Int");
         case CollectionTypeTemplate::Nat:
             return named_type("Nat");
+        case CollectionTypeTemplate::Char:
+            return named_type("Char");
+        case CollectionTypeTemplate::Byte:
+            return named_type("Byte");
         case CollectionTypeTemplate::Text:
             return named_type("Text");
+        case CollectionTypeTemplate::NonEmptyText:
+            return named_type("NonEmptyText");
         case CollectionTypeTemplate::Bytes:
             return named_type("Bytes");
+        case CollectionTypeTemplate::NonEmptyBytes:
+            return named_type("NonEmptyBytes");
+        case CollectionTypeTemplate::CString:
+            return named_type("CString");
+        case CollectionTypeTemplate::CInt:
+            return named_type("CInt");
+        case CollectionTypeTemplate::CSize:
+            return named_type("CSize");
         case CollectionTypeTemplate::ListT:
             return list_arg_type("List");
         case CollectionTypeTemplate::NonEmptyListT:
@@ -1752,6 +2272,29 @@ private:
         return IntegerLiteralTypingState::RequiresIntDefault;
     }
 
+    ForeignFnTypeAdmission foreign_fn_parameter_type_admission(const Type& type) const {
+        if (type_error_state(type) == typesys::TypeErrorState::SuppressesFollowupDiagnostics) {
+            return ForeignFnTypeAdmission::Admitted;
+        }
+        if (type.flavor == typesys::TypeFlavor::Builtin && type.args.empty()
+            && (type.name == "CString" || type.name == "CInt" || type.name == "CSize")) {
+            return ForeignFnTypeAdmission::Admitted;
+        }
+        return ForeignFnTypeAdmission::Rejected;
+    }
+
+    ForeignFnTypeAdmission foreign_fn_return_type_admission(const Type& type) const {
+        if (type_error_state(type) == typesys::TypeErrorState::SuppressesFollowupDiagnostics) {
+            return ForeignFnTypeAdmission::Admitted;
+        }
+        if (type.flavor == typesys::TypeFlavor::Builtin && type.args.empty()
+            && (type.name == "CString" || type.name == "CInt" || type.name == "CSize"
+                || type.name == "Unit")) {
+            return ForeignFnTypeAdmission::Admitted;
+        }
+        return ForeignFnTypeAdmission::Rejected;
+    }
+
     ast::ModuleKind declaration_module_kind(const ast::Decl& decl) const {
         const auto it = module_kinds_.find(&decl);
         return it != module_kinds_.end() ? it->second : ast::ModuleKind::Domain;
@@ -1771,6 +2314,45 @@ private:
 
     const ast::CallExpr* call_expr(const ast::Expr& expr) const {
         return expr.kind == ast::ExprKind::Call ? &static_cast<const ast::CallExpr&>(expr) : nullptr;
+    }
+
+    bool is_foreign_abi_substrate_value_type(const Type& type) const {
+        return type.flavor == typesys::TypeFlavor::Builtin && type.args.empty()
+            && is_foreign_abi_substrate_type_name(type.name);
+    }
+
+    bool is_direct_raw_abi_terminal_path(const ast::Expr& expr) const {
+        if (expr.kind != ast::ExprKind::FieldAccess) {
+            return false;
+        }
+        const auto& field_access = static_cast<const ast::FieldAccessExpr&>(expr);
+        if (field_access.object == nullptr) {
+            return false;
+        }
+        return field_access.object->kind == ast::ExprKind::Path
+            || is_direct_raw_abi_terminal_path(*field_access.object);
+    }
+
+    bool is_direct_foreign_egress_argument(const ast::Expr& expr) const {
+        if (is_direct_raw_abi_terminal_path(expr)) {
+            return true;
+        }
+        const ast::Expr* candidate = &expr;
+        if (expr.kind == ast::ExprKind::Try) {
+            const auto& try_expr = static_cast<const ast::TryExpr&>(expr);
+            candidate = try_expr.operand.get();
+        }
+        if (candidate == nullptr) {
+            return false;
+        }
+        const ast::CallExpr* conversion_call = call_expr(*candidate);
+        if (conversion_call == nullptr) {
+            return false;
+        }
+        const ast::PathExpr* conversion_path = path_expr(*conversion_call->callee);
+        return conversion_path != nullptr
+            && conversion_path->path.size() == 1
+            && kCompilerOwnedForeignEgressOperationNames.contains(conversion_path->path.front());
     }
 
     const std::vector<ast::GenericParam>* generic_params_for(const ast::Decl* decl) const {
@@ -2185,6 +2767,21 @@ private:
                 + type_name(*payload_type) + "'");
     }
 
+    void check_foreign_abi_operation_availability(const ast::FunctionDecl& function,
+                                                  const ast::CallExpr& call,
+                                                  const FunctionContext& context) {
+        if (!kCompilerOwnedForeignAbiOperationNames.contains(std::string_view(function.name))) {
+            return;
+        }
+        if (context.module_kind == ast::ModuleKind::Boundary
+            || context.module_kind == ast::ModuleKind::Hazard) {
+            return;
+        }
+        diagnostics_.error(call.span,
+                           "foreign ABI conversion operation '" + function.name
+                               + "' may only be called inside a boundary or hazard module");
+    }
+
     TypeArgumentPreparation prepare_record_constructor_type_args(const ast::RecordDecl& record,
                                                                 const ast::ConstructExpr& construct,
                                                                 const FunctionContext& context,
@@ -2370,6 +2967,162 @@ private:
                                std::string(context) + " '" + name
                                    + "' is not structurally blind; lifecycle, authority, proof, or domain facts "
                                      "must use first-class language constructs");
+        }
+    }
+
+    void check_foundation_semantic_surface_name(const std::string& name,
+                                                SourceSpan span,
+                                                ast::ModuleKind module_kind) {
+        if (module_kind != ast::ModuleKind::Foundation) {
+            return;
+        }
+        if (contains_foundation_semantic_claim_marker(name)) {
+            diagnostics_.error(span,
+                               "foundation declaration-surface name '" + name
+                                   + "' must be semantically blind");
+        }
+    }
+
+    void check_foundation_generic_parameters(const std::vector<ast::GenericParam>& generics,
+                                             ast::ModuleKind module_kind) {
+        for (const ast::GenericParam& generic : generics) {
+            check_foundation_semantic_surface_name(generic.name, generic.span, module_kind);
+        }
+    }
+
+    static bool is_direct_core_primitive_or_sequence_type_ref(const ast::TypeRef& type) {
+        if (type.path.size() != 1) {
+            return false;
+        }
+        const std::string& name = type.path.front();
+        return name == "Int" || name == "Nat" || name == "Float" || name == "Char"
+            || name == "Byte" || name == "Text" || name == "Bytes" || name == "NonEmptyText"
+            || name == "NonEmptyBytes" || name == "Unit" || name == "List"
+            || name == "NonEmptyList" || name == "Map" || name == "NonEmptyMap"
+            || name == "ListFirstAndRest" || name == "MapEntry"
+            || name == "MapFirstEntryAndRest" || name == "MapBoundValueAndRest";
+    }
+
+    bool consequence_surface_contains_validation_claim_marker(const Type& type) const {
+        if (contains_validation_claim_marker(type.name)) {
+            return true;
+        }
+        if (type.decl == nullptr) {
+            return false;
+        }
+        if (contains_validation_claim_marker(type.decl->name)) {
+            return true;
+        }
+        switch (type.decl->kind) {
+        case ast::DeclKind::State: {
+            const auto& state_decl = static_cast<const ast::StateDecl&>(*type.decl);
+            for (const ast::Variant& variant : state_decl.variants) {
+                if (contains_validation_claim_marker(variant.name)) {
+                    return true;
+                }
+                for (const ast::Field& field : variant.fields) {
+                    if (contains_validation_claim_marker(field.name)) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+        case ast::DeclKind::Reason: {
+            const auto& reason_decl = static_cast<const ast::ReasonDecl&>(*type.decl);
+            for (const ast::Variant& variant : reason_decl.variants) {
+                if (contains_validation_claim_marker(variant.name)) {
+                    return true;
+                }
+                for (const ast::Field& field : variant.fields) {
+                    if (contains_validation_claim_marker(field.name)) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+        case ast::DeclKind::Proof: {
+            const auto& proof_decl = static_cast<const ast::ProofDecl&>(*type.decl);
+            for (const ast::Field& field : proof_decl.fields) {
+                if (contains_validation_claim_marker(field.name)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        case ast::DeclKind::Permit:
+            return false;
+        case ast::DeclKind::Phase: {
+            const auto& phase_decl = static_cast<const ast::PhaseDecl&>(*type.decl);
+            for (const std::string& position : phase_decl.positions) {
+                if (contains_validation_claim_marker(position)) {
+                    return true;
+                }
+            }
+            for (const ast::Field& field : phase_decl.fields) {
+                if (contains_validation_claim_marker(field.name)) {
+                    return true;
+                }
+            }
+            return false;
+        }
+        case ast::DeclKind::Record:
+        case ast::DeclKind::Module:
+        case ast::DeclKind::Function:
+        case ast::DeclKind::ForeignFunction:
+            return false;
+        }
+        return false;
+    }
+
+    void check_exported_function_semantic_claim_surface(const ast::FunctionDecl& function,
+                                                        const Scope& scope,
+                                                        ast::ModuleKind module_kind) {
+        if (module_kind == ast::ModuleKind::Foundation
+            || function.visibility != ast::Visibility::Public
+            || function.implementation() != ast::FunctionImplementation::EvidentBody) {
+            return;
+        }
+
+        for (const ast::Parameter& param : function.signature.params) {
+            if (module_kind == ast::ModuleKind::Domain
+                && param.authority == ast::ParameterAuthority::OrdinaryValue
+                && contains_validation_claim_marker(param.name)
+                && is_direct_core_primitive_or_sequence_type_ref(param.type)) {
+                diagnostics_.error(param.type.span,
+                                   "semantic-claim parameter '" + param.name
+                                       + "' must use a consequence-carrying type");
+            }
+        }
+
+        if (!contains_validation_claim_marker(function.name)) {
+            return;
+        }
+        if (function.signature.authority.effect()
+            == ast::FunctionAuthorityEffect::GrantsScopedPermit) {
+            return;
+        }
+        if (!function.signature.proves_types.empty()) {
+            return;
+        }
+        if (is_direct_core_primitive_or_sequence_type_ref(function.signature.return_type)) {
+            diagnostics_.error(function.signature.return_type.span,
+                               "exported semantic-claim function '" + function.name
+                                   + "' must expose a consequence-carrying success surface");
+            return;
+        }
+        const Type return_type = resolve_type(scope,
+                                             generic_names_for(function.signature.generic_params),
+                                             {},
+                                             function.signature.return_type);
+        if (type_error_state(return_type) == typesys::TypeErrorState::SuppressesFollowupDiagnostics) {
+            return;
+        }
+        if (!consequence_surface_contains_validation_claim_marker(return_type)) {
+            diagnostics_.error(function.signature.return_type.span,
+                               "exported semantic-claim function '" + function.name
+                                   + "' must expose validation-family coverage in its success surface");
         }
     }
 
@@ -2602,11 +3355,231 @@ private:
         }
     }
 
+    static RawAdapterExposureState merge_raw_adapter_exposure(RawAdapterExposureState lhs,
+                                                              RawAdapterExposureState rhs) {
+        return lhs == RawAdapterExposureState::RawAdapterExposing
+                || rhs == RawAdapterExposureState::RawAdapterExposing
+            ? RawAdapterExposureState::RawAdapterExposing
+            : RawAdapterExposureState::NotRawAdapterExposing;
+    }
+
+    static RawAdapterExposureState builtin_raw_sequence_surface_state(const ast::TypeRef& type) {
+        if (type.path.size() != 1) {
+            return RawAdapterExposureState::NotRawAdapterExposing;
+        }
+        const std::string& name = type.path.front();
+        if (is_foreign_abi_substrate_type_name(name)) {
+            return RawAdapterExposureState::RawAdapterExposing;
+        }
+        if ((name == "List" || name == "NonEmptyList") && type.args.size() == 1
+            && type.args.front().path.size() == 1
+            && (type.args.front().path.front() == "Byte" || type.args.front().path.front() == "Char")) {
+            return RawAdapterExposureState::RawAdapterExposing;
+        }
+        if ((name == "Map" || name == "NonEmptyMap") && type.args.size() == 2
+            && type.args.front().path.size() == 1
+            && (type.args.front().path.front() == "Text" || type.args.front().path.front() == "Bytes")) {
+            return RawAdapterExposureState::RawAdapterExposing;
+        }
+        if (name == "ListFirstAndRest" && type.args.size() == 1
+            && type.args.front().path.size() == 1
+            && (type.args.front().path.front() == "Byte" || type.args.front().path.front() == "Char")) {
+            return RawAdapterExposureState::RawAdapterExposing;
+        }
+        if ((name == "MapEntry" || name == "MapFirstEntryAndRest" || name == "MapBoundValueAndRest")
+            && type.args.size() == 2 && type.args.front().path.size() == 1
+            && (type.args.front().path.front() == "Text" || type.args.front().path.front() == "Bytes")) {
+            return RawAdapterExposureState::RawAdapterExposing;
+        }
+        return RawAdapterExposureState::NotRawAdapterExposing;
+    }
+
+    RawAdapterExposureState raw_adapter_export_state(const ast::Decl* decl,
+                                                     std::unordered_set<const ast::Decl*>& active_exports) {
+        if (decl == nullptr || decl->visibility != ast::Visibility::Public) {
+            return RawAdapterExposureState::NotRawAdapterExposing;
+        }
+        const ast::ModuleKind module_kind = declaration_module_kind(*decl);
+        if (module_kind != ast::ModuleKind::Boundary && module_kind != ast::ModuleKind::Hazard) {
+            return RawAdapterExposureState::NotRawAdapterExposing;
+        }
+        if (decl->kind == ast::DeclKind::ForeignFunction) {
+            return RawAdapterExposureState::RawAdapterExposing;
+        }
+        if (!active_exports.insert(decl).second) {
+            return RawAdapterExposureState::NotRawAdapterExposing;
+        }
+
+        RawAdapterExposureState state = RawAdapterExposureState::NotRawAdapterExposing;
+        const Scope* const decl_scope = declaring_scope(decl);
+        if (decl_scope == nullptr) {
+            active_exports.erase(decl);
+            return state;
+        }
+
+        auto merge_type = [&](const ast::TypeRef& type_ref,
+                              const std::vector<std::string>& generics) {
+            state = merge_raw_adapter_exposure(
+                state, raw_adapter_exposure_state(*decl_scope, generics, type_ref, active_exports));
+        };
+
+        switch (decl->kind) {
+        case ast::DeclKind::Record: {
+            const auto& record_decl = static_cast<const ast::RecordDecl&>(*decl);
+            std::vector<std::string> generics;
+            for (const ast::GenericParam& generic : record_decl.generic_params) {
+                generics.push_back(generic.name);
+            }
+            for (const ast::Field& field : record_decl.fields) {
+                if (field.visibility == ast::Visibility::Public) {
+                    merge_type(field.type, generics);
+                }
+            }
+            break;
+        }
+        case ast::DeclKind::State: {
+            const auto& state_decl = static_cast<const ast::StateDecl&>(*decl);
+            for (const ast::Variant& variant : state_decl.variants) {
+                for (const ast::Field& field : variant.fields) {
+                    merge_type(field.type, {});
+                }
+            }
+            break;
+        }
+        case ast::DeclKind::Reason: {
+            const auto& reason_decl = static_cast<const ast::ReasonDecl&>(*decl);
+            for (const ast::Variant& variant : reason_decl.variants) {
+                for (const ast::Field& field : variant.fields) {
+                    merge_type(field.type, {});
+                }
+            }
+            break;
+        }
+        case ast::DeclKind::Proof: {
+            const auto& proof_decl = static_cast<const ast::ProofDecl&>(*decl);
+            for (const ast::Field& field : proof_decl.fields) {
+                if (field.visibility == ast::Visibility::Public) {
+                    merge_type(field.type, {});
+                }
+            }
+            break;
+        }
+        case ast::DeclKind::Phase: {
+            const auto& phase_decl = static_cast<const ast::PhaseDecl&>(*decl);
+            for (const ast::Field& field : phase_decl.fields) {
+                if (field.visibility == ast::Visibility::Public) {
+                    merge_type(field.type, {});
+                }
+            }
+            break;
+        }
+        case ast::DeclKind::Function: {
+            const auto& function_decl = static_cast<const ast::FunctionDecl&>(*decl);
+            std::vector<std::string> generics;
+            for (const ast::GenericParam& generic : function_decl.signature.generic_params) {
+                generics.push_back(generic.name);
+            }
+            for (const ast::Parameter& param : function_decl.signature.params) {
+                merge_type(param.type, generics);
+            }
+            merge_type(function_decl.signature.return_type, generics);
+            if (function_decl.signature.failure.behavior() == ast::FunctionFailureBehavior::YieldsReason) {
+                merge_type(function_decl.signature.failure.reason_type(), generics);
+            }
+            if (function_decl.signature.authority.effect() == ast::FunctionAuthorityEffect::GrantsScopedPermit) {
+                merge_type(function_decl.signature.authority.permit_type(), generics);
+            }
+            for (const ast::TypeRef& proves_type : function_decl.signature.proves_types) {
+                merge_type(proves_type, generics);
+            }
+            break;
+        }
+        case ast::DeclKind::Module:
+        case ast::DeclKind::Permit:
+        case ast::DeclKind::ForeignFunction:
+            break;
+        }
+
+        active_exports.erase(decl);
+        return state;
+    }
+
+    RawAdapterExposureState raw_adapter_exposure_state(
+        const Scope& scope,
+        const std::vector<std::string>& generics,
+        const ast::TypeRef& type,
+        std::unordered_set<const ast::Decl*>& active_exports) {
+        RawAdapterExposureState state = builtin_raw_sequence_surface_state(type);
+        for (const ast::TypeRef& arg : type.args) {
+            state = merge_raw_adapter_exposure(
+                state, raw_adapter_exposure_state(scope, generics, arg, active_exports));
+        }
+
+        const TypeReferencePathRole path_role = type_reference_path_role(type.path, generics);
+        if (path_role == TypeReferencePathRole::NamedTypePath) {
+            if (const Symbol* symbol = resolve_symbol(scope, generics, type.path); symbol != nullptr) {
+                if (symbol->kind == ast::DeclKind::Reason
+                    && is_substrate_local_reason_name(symbol->decl->name)) {
+                    state = RawAdapterExposureState::RawAdapterExposing;
+                }
+                state = merge_raw_adapter_exposure(state,
+                                                   raw_adapter_export_state(symbol->decl, active_exports));
+            }
+        }
+        return state;
+    }
+
+    RawAdapterExposureState direct_raw_adapter_exposure_state(
+        const Scope& scope,
+        const std::vector<std::string>& generics,
+        const ast::TypeRef& type,
+        std::unordered_set<const ast::Decl*>& active_exports) {
+        RawAdapterExposureState state = builtin_raw_sequence_surface_state(type);
+        const TypeReferencePathRole path_role = type_reference_path_role(type.path, generics);
+        if (path_role == TypeReferencePathRole::NamedTypePath) {
+            if (const Symbol* symbol = resolve_symbol(scope, generics, type.path); symbol != nullptr) {
+                if (symbol->kind == ast::DeclKind::Reason
+                    && is_substrate_local_reason_name(symbol->decl->name)) {
+                    state = RawAdapterExposureState::RawAdapterExposing;
+                }
+                state = merge_raw_adapter_exposure(state,
+                                                   raw_adapter_export_state(symbol->decl, active_exports));
+            }
+        }
+        return state;
+    }
+
+    void check_raw_adapter_export_reference(const ast::Decl& decl,
+                                            SourceSpan span,
+                                            ast::ModuleKind referencing_module_kind) {
+        if (referencing_module_kind != ast::ModuleKind::Domain
+            && referencing_module_kind != ast::ModuleKind::Foundation) {
+            return;
+        }
+        std::unordered_set<const ast::Decl*> active_exports;
+        if (raw_adapter_export_state(&decl, active_exports)
+            == RawAdapterExposureState::RawAdapterExposing) {
+            diagnostics_.error(span,
+                               std::string(ast::module_kind_name(referencing_module_kind))
+                                   + " module may not reference raw-adapter export '" + decl.name + "'");
+        }
+    }
+
     void check_type_ref_usage(const Scope& scope,
                               const std::vector<std::string>& generics,
                               const ast::TypeRef& type,
                               const TypeUseRules& rules) {
         const TypeReferencePathRole path_role = type_reference_path_role(type.path, generics);
+
+        if (rules.raw_abi == RawAbiTypePolicy::RejectRawAdapterTypesInPublicApi) {
+            std::unordered_set<const ast::Decl*> active_exports;
+            if (direct_raw_adapter_exposure_state(scope, generics, type, active_exports)
+                == RawAdapterExposureState::RawAdapterExposing) {
+                diagnostics_.error(type.span,
+                                   "public domain/foundation API cannot expose raw adapter type expression '"
+                                       + ast::format_type(type) + "'");
+            }
+        }
 
         if (path_role == TypeReferencePathRole::BuiltinTypeName && type.path.size() != 1) {
             diagnostics_.error(type.span,
@@ -2668,6 +3641,14 @@ private:
                         diagnostics_.error(type.span,
                                           "public API cannot reference private type '" + ast::format_type(type) + "'");
                     }
+                    if (rules.adapter_local_reason
+                            == AdapterLocalReasonPolicy::RejectForeignAbiReasonsOutsideAdapters
+                        && symbol->kind == ast::DeclKind::Reason
+                        && is_foreign_abi_reason_name(symbol->decl->name)) {
+                        diagnostics_.error(type.span,
+                                          "foreign ABI reason '" + ast::format_type(type)
+                                              + "' may only be mentioned inside a boundary or hazard module");
+                    }
                     if (rules.reason == ReasonTypePolicy::RejectReasonTypes
                         && symbol->kind == ast::DeclKind::Reason) {
                         diagnostics_.error(type.span,
@@ -2728,6 +3709,7 @@ private:
     void check_function_signature(const Scope& scope,
                                   const ast::FunctionSignature& signature,
                                   TypePrivacyPolicy type_privacy,
+                                  ast::ModuleKind module_kind,
                                   ast::FunctionImplementation implementation,
                                   const std::vector<std::string>& outer_generics) {
         std::vector<std::string> generics = outer_generics;
@@ -2735,9 +3717,12 @@ private:
         for (const ast::GenericParam& generic : signature.generic_params) {
             generics.push_back(generic.name);
         }
+        const RawAbiTypePolicy raw_abi_policy = raw_abi_type_policy(module_kind, type_privacy);
+        const AdapterLocalReasonPolicy adapter_reason_policy = adapter_local_reason_policy(module_kind);
 
         std::unordered_set<std::string> param_names;
         for (const ast::Parameter& param : signature.params) {
+            check_foundation_semantic_surface_name(param.name, param.span, module_kind);
             if (!param_names.insert(param.name).second) {
                 diagnostics_.error(param.span, "duplicate parameter '" + param.name + "'");
             }
@@ -2750,7 +3735,20 @@ private:
                                      type_privacy,
                                      ReasonTypePolicy::RejectReasonTypes,
                                      permit_type_policy_for_parameter(param.authority, parameter_type),
-                                     "function parameter"});
+                                     "function parameter",
+                                     raw_abi_policy,
+                                     adapter_reason_policy});
+            if (implementation == ast::FunctionImplementation::ForeignImport) {
+                if (param.authority != ast::ParameterAuthority::OrdinaryValue) {
+                    diagnostics_.error(param.span, "foreign function parameters must be ordinary value parameters");
+                }
+                const Type param_type = resolve_type(scope, generics, param.type);
+                if (foreign_fn_parameter_type_admission(param_type) == ForeignFnTypeAdmission::Rejected) {
+                    diagnostics_.error(param.type.span,
+                                       "foreign function parameter type '" + ast::format_type(param.type)
+                                           + "' is not foreign-ABI-admissible");
+                }
+            }
             if (param.authority == ast::ParameterAuthority::PermitBinding) {
                 if (parameter_type != ParameterTypeAuthority::PermitType) {
                     diagnostics_.error(param.type.span,
@@ -2770,7 +3768,17 @@ private:
                                  type_privacy,
                                  ReasonTypePolicy::RejectReasonTypes,
                                  PermitTypePolicy::RejectPermitTypes,
-                                 "function return type"});
+                                 "function return type",
+                                 raw_abi_policy,
+                                 adapter_reason_policy});
+        if (implementation == ast::FunctionImplementation::ForeignImport) {
+            const Type return_type = resolve_type(scope, generics, signature.return_type);
+            if (foreign_fn_return_type_admission(return_type) == ForeignFnTypeAdmission::Rejected) {
+                diagnostics_.error(signature.return_type.span,
+                                   "foreign function return type '" + ast::format_type(signature.return_type)
+                                       + "' is not foreign-ABI-admissible");
+            }
+        }
 
         if (signature.failure.behavior() == ast::FunctionFailureBehavior::YieldsReason) {
             check_type_ref_usage(scope,
@@ -2780,7 +3788,9 @@ private:
                                      type_privacy,
                                      ReasonTypePolicy::AllowReasonTypes,
                                      PermitTypePolicy::RejectPermitTypes,
-                                     "fails clause"});
+                                     "fails clause",
+                                     raw_abi_policy,
+                                     adapter_reason_policy});
             check_fails_clause_reason_type(scope, generics, signature.failure.reason_type());
             if (implementation == ast::FunctionImplementation::ForeignImport) {
                 diagnostics_.error(signature.failure.reason_type().span, "foreign functions may not use 'fails'");
@@ -2795,7 +3805,9 @@ private:
                                      type_privacy,
                                      ReasonTypePolicy::RejectReasonTypes,
                                      PermitTypePolicy::AllowPermitTypes,
-                                     "grant permit"});
+                                     "grant permit",
+                                     raw_abi_policy,
+                                     adapter_reason_policy});
             check_grants_clause_permit_type(scope, generics, signature.authority.permit_type());
             const Type return_type = resolve_type(scope, generics, signature.return_type);
             if (type_equivalence(return_type, builtin_type("Unit")) == typesys::TypeEquivalence::Different) {
@@ -2815,7 +3827,9 @@ private:
                                      type_privacy,
                                      ReasonTypePolicy::RejectReasonTypes,
                                      PermitTypePolicy::RejectPermitTypes,
-                                     "proof authorization"});
+                                     "proof authorization",
+                                     raw_abi_policy,
+                                     adapter_reason_policy});
             check_proves_clause_proof_type(scope, generics, proves_type, seen_proves);
             if (implementation == ast::FunctionImplementation::ForeignImport) {
                 diagnostics_.error(proves_type.span, "foreign functions may not use 'proves'");
@@ -2896,6 +3910,10 @@ private:
 
     DeclarationAdmission declaration_admission(const ModuleBodyDeclarationContext& context, const ast::Decl& decl) {
         enforce_module_kind(context.module_kind, decl);
+        if (context.module_kind == ast::ModuleKind::Foundation
+            && decl.kind != ast::DeclKind::Record && decl.kind != ast::DeclKind::Function) {
+            return DeclarationAdmission::SkipDeclaration;
+        }
         return DeclarationAdmission::AnalyzeDeclaration;
     }
 
@@ -2912,7 +3930,9 @@ private:
             const PublicNamePolicy declaration_name_policy = public_name_policy(decl.visibility);
             const PublicReachability declaration_reachability =
                 declaration_public_reachability(parent_reachability, decl.visibility);
+            const ast::ModuleKind current_module_kind = active_module_kind(context);
 
+            check_foundation_semantic_surface_name(decl.name, decl.span, current_module_kind);
             check_name_under_public_policy(decl.name, decl.span, declaration_name_policy);
             check_builtin_type_declaration_name(decl.name, decl.span);
             if (decl.kind != ast::DeclKind::Module) {
@@ -2936,6 +3956,7 @@ private:
                 if (!record_decl.generic_params.empty()) {
                     check_generic_structural_name("generic record", record_decl.name, record_decl.span);
                 }
+                check_foundation_generic_parameters(record_decl.generic_params, current_module_kind);
                 check_generic_parameters(record_decl.generic_params, "record");
                 check_duplicate_fields(record_decl.fields, "record");
                 std::vector<std::string> generics;
@@ -2943,6 +3964,7 @@ private:
                     generics.push_back(generic.name);
                 }
                 for (const ast::Field& field : record_decl.fields) {
+                    check_foundation_semantic_surface_name(field.name, field.span, current_module_kind);
                     check_name_under_public_policy(field.name,
                                                    field.span,
                                                    field_name_policy(record_decl.visibility, field.visibility));
@@ -2953,7 +3975,11 @@ private:
                                              field_type_privacy_policy(record_decl.visibility, field.visibility),
                                              ReasonTypePolicy::RejectReasonTypes,
                                              PermitTypePolicy::RejectPermitTypes,
-                                             "record field"});
+                                            "record field",
+                                            raw_abi_type_policy(
+                                                current_module_kind,
+                                                field_type_privacy_policy(record_decl.visibility, field.visibility)),
+                                            adapter_local_reason_policy(current_module_kind)});
                 }
                 break;
             }
@@ -2974,10 +4000,12 @@ private:
                 }
                 check_duplicate_variants(state_decl.variants, "state");
                 for (const ast::Variant& variant : state_decl.variants) {
+                    check_foundation_semantic_surface_name(variant.name, variant.span, current_module_kind);
                     check_compiler_owned_collection_name(variant.name, variant.span);
                     check_name_under_public_policy(variant.name, variant.span, variant_name_policy);
                     check_duplicate_fields(variant.fields, "state variant");
                     for (const ast::Field& field : variant.fields) {
+                        check_foundation_semantic_surface_name(field.name, field.span, current_module_kind);
                         check_name_under_public_policy(field.name,
                                                        field.span,
                                                        public_name_policy(state_decl.visibility));
@@ -2988,7 +4016,10 @@ private:
                                                  type_privacy_policy(state_decl.visibility),
                                                  ReasonTypePolicy::RejectReasonTypes,
                                                  PermitTypePolicy::RejectPermitTypes,
-                                                 "state variant payload"});
+                                                "state variant payload",
+                                                raw_abi_type_policy(current_module_kind,
+                                                                    type_privacy_policy(state_decl.visibility)),
+                                                adapter_local_reason_policy(current_module_kind)});
                     }
                 }
                 break;
@@ -3001,10 +4032,12 @@ private:
                 }
                 check_duplicate_variants(reason_decl.variants, "reason");
                 for (const ast::Variant& variant : reason_decl.variants) {
+                    check_foundation_semantic_surface_name(variant.name, variant.span, current_module_kind);
                     check_compiler_owned_collection_name(variant.name, variant.span);
                     check_name_under_public_policy(variant.name, variant.span, variant_name_policy);
                     check_duplicate_fields(variant.fields, "reason variant");
                     for (const ast::Field& field : variant.fields) {
+                        check_foundation_semantic_surface_name(field.name, field.span, current_module_kind);
                         check_name_under_public_policy(field.name,
                                                        field.span,
                                                        public_name_policy(reason_decl.visibility));
@@ -3015,7 +4048,10 @@ private:
                                                  type_privacy_policy(reason_decl.visibility),
                                                  ReasonTypePolicy::RejectReasonTypes,
                                                  PermitTypePolicy::RejectPermitTypes,
-                                                 "reason payload"});
+                                                "reason payload",
+                                                raw_abi_type_policy(current_module_kind,
+                                                                    type_privacy_policy(reason_decl.visibility)),
+                                                adapter_local_reason_policy(current_module_kind)});
                     }
                 }
                 break;
@@ -3024,6 +4060,7 @@ private:
                 const auto& proof_decl = static_cast<const ast::ProofDecl&>(decl);
                 check_duplicate_fields(proof_decl.fields, "proof");
                 for (const ast::Field& field : proof_decl.fields) {
+                    check_foundation_semantic_surface_name(field.name, field.span, current_module_kind);
                     check_name_under_public_policy(field.name,
                                                    field.span,
                                                    field_name_policy(proof_decl.visibility, field.visibility));
@@ -3034,7 +4071,11 @@ private:
                                              field_type_privacy_policy(proof_decl.visibility, field.visibility),
                                              ReasonTypePolicy::RejectReasonTypes,
                                              PermitTypePolicy::RejectPermitTypes,
-                                             "proof field"});
+                                            "proof field",
+                                            raw_abi_type_policy(
+                                                current_module_kind,
+                                                field_type_privacy_policy(proof_decl.visibility, field.visibility)),
+                                            adapter_local_reason_policy(current_module_kind)});
                 }
                 break;
             }
@@ -3053,12 +4094,14 @@ private:
                     const SourceSpan position_span = index < phase_decl.position_spans.size()
                         ? phase_decl.position_spans[index]
                         : phase_decl.span;
+                    check_foundation_semantic_surface_name(pos, position_span, current_module_kind);
                     check_name_under_public_policy(pos, position_span, position_name_policy);
                     if (!seen_positions.insert(pos).second) {
                         diagnostics_.error(position_span, "duplicate phase position '" + pos + "'");
                     }
                 }
                 for (const ast::Field& field : phase_decl.fields) {
+                    check_foundation_semantic_surface_name(field.name, field.span, current_module_kind);
                     check_name_under_public_policy(field.name,
                                                    field.span,
                                                    field_name_policy(phase_decl.visibility, field.visibility));
@@ -3069,7 +4112,11 @@ private:
                                              field_type_privacy_policy(phase_decl.visibility, field.visibility),
                                              ReasonTypePolicy::RejectReasonTypes,
                                              PermitTypePolicy::RejectPermitTypes,
-                                             "phase field"});
+                                            "phase field",
+                                            raw_abi_type_policy(
+                                                current_module_kind,
+                                                field_type_privacy_policy(phase_decl.visibility, field.visibility)),
+                                            adapter_local_reason_policy(current_module_kind)});
                 }
                 break;
             }
@@ -3082,11 +4129,14 @@ private:
                 if (!function_decl.signature.generic_params.empty()) {
                     check_generic_structural_name("generic function", function_decl.name, function_decl.span);
                 }
+                check_foundation_generic_parameters(function_decl.signature.generic_params, current_module_kind);
                 check_function_signature(scope,
                                          function_decl.signature,
                                          type_privacy_policy(function_decl.visibility),
+                                         current_module_kind,
                                          implementation,
                                          {});
+                check_exported_function_semantic_claim_surface(function_decl, scope, current_module_kind);
                 if (implementation == ast::FunctionImplementation::ForeignImport) {
                     check_foreign_link_name(function_decl);
                 }
@@ -3145,6 +4195,13 @@ private:
                                                  callee_generics,
                                                  substitutions,
                                                  function.signature.params[index].type);
+            if (function.implementation() == ast::FunctionImplementation::ForeignImport
+                && is_foreign_abi_substrate_value_type(param_type)
+                && !is_direct_foreign_egress_argument(*args[index])) {
+                diagnostics_.error(args[index]->span,
+                                   "foreign egress argument to '" + function.name
+                                       + "' must be a direct compiler-owned conversion or raw ABI terminal field path");
+            }
             if (permit_type_state(param_type) == PermitTypeState::PermitValueType) {
                 const ast::PathExpr* path_arg = path_expr(*args[index]);
                 if (path_arg == nullptr
@@ -3377,6 +4434,7 @@ private:
             == CrossModuleReferenceAccess::MatchingImportRequired) {
             return make_expr(error_type());
         }
+        check_raw_adapter_export_reference(*function, callee_path->span, context.module_kind);
         if (function->signature.authority.effect() == ast::FunctionAuthorityEffect::GrantsScopedPermit) {
             diagnostics_.error(expr.span, "function '" + function->name + "' grants a permit and must be used with 'grant'");
             return make_expr(error_type());
@@ -3392,6 +4450,7 @@ private:
         }
         const std::vector<std::string> callee_generics = generic_names_for(function->signature.generic_params);
         check_collection_operation_availability(*function, expr, substitutions);
+        check_foreign_abi_operation_availability(*function, expr, context);
         check_call_arguments(*function, expr.args, context, env, *callee_scope, callee_generics, substitutions, expr.span);
         check_generic_function_instantiation(*function, *callee_scope, substitutions);
 
@@ -4243,7 +5302,8 @@ private:
                     }
                     return make_expr(*expected_type);
                 case IntegerLiteralTypingState::AcceptsCIntLiteral:
-                    if (!module_allows_foreign_abi_integer_literals(context.module_kind)) {
+                    if (foreign_abi_literal_placement(context.module_kind)
+                        == ForeignAbiLiteralPlacement::NonAdapterLiteral) {
                         diagnostics_.error(expr.span,
                                            "integer literal cannot type as CInt outside a boundary or hazard module");
                         return make_expr(error_type());
@@ -4256,7 +5316,8 @@ private:
                     }
                     return make_expr(*expected_type);
                 case IntegerLiteralTypingState::AcceptsCSizeLiteral:
-                    if (!module_allows_foreign_abi_integer_literals(context.module_kind)) {
+                    if (foreign_abi_literal_placement(context.module_kind)
+                        == ForeignAbiLiteralPlacement::NonAdapterLiteral) {
                         diagnostics_.error(expr.span,
                                            "integer literal cannot type as CSize outside a boundary or hazard module");
                         return make_expr(error_type());
@@ -4284,6 +5345,15 @@ private:
                     && string_literal_is_empty(literal.lexeme)) {
                     diagnostics_.error(expr.span,
                                        "empty string literal cannot type as " + expected_type->name);
+                    return make_expr(error_type());
+                }
+                if (expected_type->flavor == typesys::TypeFlavor::Builtin
+                    && expected_type->args.empty()
+                    && expected_type->name == "CString"
+                    && foreign_abi_literal_placement(context.module_kind)
+                        == ForeignAbiLiteralPlacement::NonAdapterLiteral) {
+                    diagnostics_.error(expr.span,
+                                       "string literal cannot type as CString outside a boundary or hazard module");
                     return make_expr(error_type());
                 }
                 if (expected_type->flavor == typesys::TypeFlavor::Builtin

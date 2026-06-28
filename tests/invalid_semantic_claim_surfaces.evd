@@ -1,0 +1,26 @@
+domain module semantic_claims {
+public fn validate_text(text: Text) -> Text {
+    text
+}
+
+public fn forward(validatedText: Text) -> Text {
+    validatedText
+}
+
+public state ValidationResult {
+    RejectedText,
+    AcceptedText { value: Text },
+}
+
+public fn validate_state(text: Text) -> ValidationResult {
+    RejectedText
+}
+
+public state TokenResult {
+    Carried,
+}
+
+public fn validate_token(text: Text) -> TokenResult {
+    Carried
+}
+}

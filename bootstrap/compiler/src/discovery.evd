@@ -2,7 +2,7 @@ import bootstrap_environment;
 import bootstrap_diagnostics;
 import bootstrap_source;
 
-domain module bootstrap_discovery {
+boundary module bootstrap_discovery {
 public record SourceManifestEntry {
     public path: bootstrap_source::SourcePath,
     public summary: Text,

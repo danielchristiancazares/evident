@@ -9,7 +9,7 @@
                                                                    ^^^^^
 <input>:25:66: error: traverse body result must have type 'Int', got 'Text'
         traverse copying values as item: Int carrying total: Int = 0 {
-                                                                     ^^^^^^^^^^^^^^^^^^^^^
+                                                                     ^
 <input>:31:41: error: traverse copying requires copyable element type, got affine-bearing 'test::Receipt'
         traverse copying values as receipt: Receipt carrying total: Int = 0 {
                                             ^^^^^^^

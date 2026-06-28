@@ -1,6 +1,6 @@
 import bootstrap_environment;
 
-domain module bootstrap_source {
+boundary module bootstrap_source {
 public record SourcePath {
     public text: CString,
 }

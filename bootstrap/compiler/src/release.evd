@@ -9,7 +9,7 @@ import bootstrap_parsing;
 import bootstrap_source;
 import bootstrap_semantics;
 
-domain module bootstrap_release {
+boundary module bootstrap_release {
 public record BootstrapPackageValidation {
     public package: bootstrap_source::PackageSource,
     public layout: bootstrap_layout::BootstrapPackageLayout,

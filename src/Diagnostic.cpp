@@ -75,7 +75,7 @@ void DiagnosticSink::print(const SourceFile& source, std::ostream& out) const {
         out << source.path_at(span.begin) << ':' << location.line() << ':' << location.column() << ": "
             << severity_name(diagnostic.severity()) << ": " << diagnostic.message() << '\n';
 
-        const std::size_t line_start = location.offset() - (location.column() - 1);
+        const std::size_t line_start = location.line_start_offset();
         std::size_t line_end = line_start;
         while (line_end < source.text().size() && source.text()[line_end] != '\n') {
             ++line_end;
@@ -90,10 +90,8 @@ void DiagnosticSink::print(const SourceFile& source, std::ostream& out) const {
 
         std::size_t highlight_width = 1;
         if (span.end > span.begin) {
-            highlight_width = span.end - span.begin;
-            if (line_start + highlight_width > line_end) {
-                highlight_width = std::max<std::size_t>(1, line_end - span.begin);
-            }
+            const std::size_t highlight_end = std::min(span.end, line_end);
+            highlight_width = std::max<std::size_t>(1, source.scalar_count(SourceSpan{span.begin, highlight_end}));
         }
         for (std::size_t i = 0; i < highlight_width; ++i) {
             out << '^';

@@ -35,6 +35,7 @@ if(DEFINED EMIT_MODE)
         RESULT_VARIABLE command_result
         OUTPUT_VARIABLE command_stdout
         ERROR_VARIABLE command_stderr
+        ENCODING UTF-8
     )
 else()
     execute_process(
@@ -42,6 +43,7 @@ else()
         RESULT_VARIABLE command_result
         OUTPUT_VARIABLE command_stdout
         ERROR_VARIABLE command_stderr
+        ENCODING UTF-8
     )
 endif()
 

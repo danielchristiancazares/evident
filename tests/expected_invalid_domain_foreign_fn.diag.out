@@ -1,3 +1,9 @@
 <input>:2:8: error: foreign functions may only appear in `boundary` or `hazard` modules
     public foreign fn getenv(name: CString) -> CString
            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<input>:2:32: error: public domain/foundation API cannot expose raw adapter type expression 'CString'
+    public foreign fn getenv(name: CString) -> CString
+                                   ^^^^^^^
+<input>:2:44: error: public domain/foundation API cannot expose raw adapter type expression 'CString'
+    public foreign fn getenv(name: CString) -> CString
+                                               ^^^^^^^

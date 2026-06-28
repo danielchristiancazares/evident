@@ -1,0 +1,89 @@
+boundary module test {
+fn expect_int(actual: Int, expected: Int, next: Int, missing: Int, duplicate: Int) -> Int {
+    match nonempty_map_lookup_copy<Int, Int>(map_single<Int, Int>(expected, next), actual) {
+        succeeded(value) => value,
+        failed(RequestedKeyHadNoBinding) => missing,
+        failed(RequestedKeyAlreadyHadBinding) => duplicate,
+    }
+}
+
+fn expect_nat(actual: Nat, expected: Nat, next: Int, missing: Int, duplicate: Int) -> Int {
+    match nonempty_map_lookup_copy<Nat, Int>(map_single<Nat, Int>(expected, next), actual) {
+        succeeded(value) => value,
+        failed(RequestedKeyHadNoBinding) => missing,
+        failed(RequestedKeyAlreadyHadBinding) => duplicate,
+    }
+}
+
+fn successful_roundtrip() -> Int fails ForeignAbiIntegerFailure {
+    let c_value = try int_to_cint(7)
+    let c_back = try cint_to_int(c_value)
+    let checked_c = expect_int(c_back, 7, 11, 1, 2)
+
+    let c_nat = try cint_require_nat(c_value)
+    let checked_c_nat = expect_nat(c_nat, 7, checked_c, 3, 4)
+
+    let c_from_nat = try nat_to_cint(c_nat)
+    let c_from_nat_back = try cint_to_int(c_from_nat)
+    let checked_c_from_nat = expect_int(c_from_nat_back, 7, checked_c_nat, 5, 6)
+
+    let size_value = try int_to_csize(9)
+    let size_nat = csize_to_nat(size_value)
+    let checked_size = expect_nat(size_nat, 9, checked_c_from_nat, 7, 8)
+
+    let size_from_nat = try nat_to_csize(12)
+    let size_from_nat_value = csize_to_nat(size_from_nat)
+    expect_nat(size_from_nat_value, 12, checked_size, 9, 10)
+}
+
+fn success_result() -> Int {
+    match successful_roundtrip() {
+        succeeded(value) => value,
+        failed(ForeignIntegerExceededIntRange) => 12,
+        failed(ForeignIntegerWasNegative) => 13,
+        failed(CoreIntegerExceededCIntRange) => 14,
+        failed(CoreIntegerWasNegative) => 15,
+        failed(CoreIntegerExceededCSizeRange) => 16,
+    }
+}
+
+fn csize_to_int_overflow_result() -> Int {
+    match csize_to_int(9223372036854775808) {
+        succeeded(value) => value,
+        failed(ForeignIntegerExceededIntRange) => 19,
+        failed(ForeignIntegerWasNegative) => 20,
+        failed(CoreIntegerExceededCIntRange) => 21,
+        failed(CoreIntegerWasNegative) => 22,
+        failed(CoreIntegerExceededCSizeRange) => 23,
+    }
+}
+
+fn nat_to_cint_overflow_result() -> Int {
+    match nat_to_cint(2147483648) {
+        succeeded(value) => 24,
+        failed(ForeignIntegerExceededIntRange) => 25,
+        failed(ForeignIntegerWasNegative) => 26,
+        failed(CoreIntegerExceededCIntRange) => 29,
+        failed(CoreIntegerWasNegative) => 27,
+        failed(CoreIntegerExceededCSizeRange) => 28,
+    }
+}
+
+fn nat_to_csize_overflow_result() -> Int {
+    match nat_to_csize(18446744073709551616) {
+        succeeded(value) => 30,
+        failed(ForeignIntegerExceededIntRange) => 31,
+        failed(ForeignIntegerWasNegative) => 32,
+        failed(CoreIntegerExceededCIntRange) => 33,
+        failed(CoreIntegerWasNegative) => 34,
+        failed(CoreIntegerExceededCSizeRange) => 39,
+    }
+}
+
+public fn main() -> Int {
+    let expected_success = expect_int(success_result(), 11, 19, 35, 36)
+    let expected_csize_overflow = expect_int(csize_to_int_overflow_result(), expected_success, 29, 37, 38)
+    let expected_cint_overflow = expect_int(nat_to_cint_overflow_result(), expected_csize_overflow, 39, 40, 41)
+    expect_int(nat_to_csize_overflow_result(), expected_cint_overflow, 43, 42, 44)
+}
+}

@@ -1,14 +1,15 @@
 import bootstrap_host;
 
-domain module bootstrap_host_runtime_probe {
+boundary module bootstrap_host_runtime_probe {
 public fn main() -> Int {
     let working_directory = bootstrap_host::host_path(".");
     let probe_directory = bootstrap_host::resolve_path(working_directory, bootstrap_host::host_path("bootstrap-host-runtime-probe"));
-    let ignored = bootstrap_host::write_text_file_text("bootstrap-host-runtime-probe.txt", "bootstrap-host-runtime-probe");
-    let exit_argument = nonempty_list_widen<Text>(list_append<Text>(list_empty<Text>(), "/c"));
-    let exit_argument_more = nonempty_list_widen<Text>(list_append<Text>(exit_argument, "exit"));
-    let exit_arguments = nonempty_list_widen<Text>(list_append<Text>(exit_argument_more, "0"));
-    let ignored_exit = bootstrap_host::spawn_tool_text(".", "C:/Windows/System32/cmd.exe", exit_arguments);
+    let probe_file = bootstrap_host::host_path("bootstrap-host-runtime-probe.txt");
+    let probe_contents = bootstrap_host::host_file_contents("bootstrap-host-runtime-probe");
+    let ignored = bootstrap_host::write_text_file_text(probe_file.text, probe_contents.text);
+    let executable = bootstrap_host::host_path("C:/Windows/System32/cmd.exe");
+    let arguments = bootstrap_host::host_path("/c exit 0");
+    let ignored_exit = bootstrap_host::spawn_tool_text(working_directory.text, executable.text, arguments.text);
     0
 }
 }

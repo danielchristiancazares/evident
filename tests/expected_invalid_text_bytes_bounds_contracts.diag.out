@@ -1,0 +1,54 @@
+<input>:2:70: error: public domain/foundation API cannot expose raw adapter type expression 'TextBoundsFailure'
+    public fn exported_text_bounds(text: Text, index: Nat) -> Char fails TextBoundsFailure {
+                                                                         ^^^^^^^^^^^^^^^^^
+<input>:6:73: error: public domain/foundation API cannot expose raw adapter type expression 'BytesBoundsFailure'
+    public fn exported_bytes_bounds(bytes: Bytes, index: Nat) -> Byte fails BytesBoundsFailure {
+                                                                            ^^^^^^^^^^^^^^^^^^
+<input>:10:71: error: public domain/foundation API cannot expose raw adapter type expression 'TextCardinalityFailure'
+    public fn exported_text_cardinality(text: Text) -> NonEmptyText fails TextCardinalityFailure {
+                                                                          ^^^^^^^^^^^^^^^^^^^^^^
+<input>:14:75: error: public domain/foundation API cannot expose raw adapter type expression 'BytesCardinalityFailure'
+    public fn exported_bytes_cardinality(bytes: Bytes) -> NonEmptyBytes fails BytesCardinalityFailure {
+                                                                              ^^^^^^^^^^^^^^^^^^^^^^^
+<input>:19:9: error: function 'text_character_at' is not generic but was called with type arguments
+        try text_character_at<Int>(text, 0)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<input>:19:5: error: `try` requires an operand that may fail (a call to a function with `fails`)
+        try text_character_at<Int>(text, 0)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<input>:23:27: error: argument 1 to 'text_character_at' has type 'Int', expected 'Text'
+        try text_character_at(7, 0)
+                              ^
+<input>:27:33: error: argument 2 to 'text_character_at' has type 'Text', expected 'Nat'
+        try text_character_at(text, "zero")
+                                    ^^^^^^
+<input>:31:23: error: argument 1 to 'bytes_byte_at' has type 'Int', expected 'Bytes'
+        try bytes_byte_at(7, 0)
+                          ^
+<input>:35:29: error: argument 3 to 'text_slice' has type 'Text', expected 'Nat'
+        try text_slice(text, 0, "end")
+                                ^^^^^
+<input>:39:28: error: argument 2 to 'bytes_slice' has type 'Text', expected 'Nat'
+        try bytes_slice(bytes, "start", 1)
+                               ^^^^^^^
+<input>:43:9: error: function 'text_require_nonempty' is not generic but was called with type arguments
+        try text_require_nonempty<Int>(text)
+            ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<input>:43:5: error: `try` requires an operand that may fail (a call to a function with `fails`)
+        try text_require_nonempty<Int>(text)
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<input>:47:31: error: argument 1 to 'text_require_nonempty' has type 'Int', expected 'Text'
+        try text_require_nonempty(7)
+                                  ^
+<input>:51:25: error: argument 1 to 'nonempty_text_widen' has type 'Int', expected 'NonEmptyText'
+        nonempty_text_widen(7)
+                            ^
+<input>:55:27: error: argument 1 to 'nonempty_bytes_length' has type 'Int', expected 'NonEmptyBytes'
+        nonempty_bytes_length(7)
+                              ^
+<input>:59:35: error: argument 1 to 'nonempty_text_first_character' has type 'Int', expected 'NonEmptyText'
+        nonempty_text_first_character(7)
+                                      ^
+<input>:62:56: error: failing expression must be handled with `try` or `match`
+    public fn unhandled_text_character(text: Text) -> Char {
+                                                           ^

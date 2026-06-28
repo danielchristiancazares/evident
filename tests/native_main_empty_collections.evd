@@ -1,4 +1,4 @@
-domain module test {
+boundary module test {
 public fn empty_list() -> List<Int> {
     list_empty<Int>()
 }

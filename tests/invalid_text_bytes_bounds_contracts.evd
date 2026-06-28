@@ -1,0 +1,65 @@
+domain module test {
+public fn exported_text_bounds(text: Text, index: Nat) -> Char fails TextBoundsFailure {
+    try text_character_at(text, index)
+}
+
+public fn exported_bytes_bounds(bytes: Bytes, index: Nat) -> Byte fails BytesBoundsFailure {
+    try bytes_byte_at(bytes, index)
+}
+
+public fn exported_text_cardinality(text: Text) -> NonEmptyText fails TextCardinalityFailure {
+    try text_require_nonempty(text)
+}
+
+public fn exported_bytes_cardinality(bytes: Bytes) -> NonEmptyBytes fails BytesCardinalityFailure {
+    try bytes_require_nonempty(bytes)
+}
+
+fn text_character_with_type_arg(text: Text) -> Char fails TextBoundsFailure {
+    try text_character_at<Int>(text, 0)
+}
+
+fn text_character_wrong_text() -> Char fails TextBoundsFailure {
+    try text_character_at(7, 0)
+}
+
+fn text_character_wrong_index(text: Text) -> Char fails TextBoundsFailure {
+    try text_character_at(text, "zero")
+}
+
+fn bytes_byte_wrong_bytes() -> Byte fails BytesBoundsFailure {
+    try bytes_byte_at(7, 0)
+}
+
+fn text_slice_wrong_end(text: Text) -> Text fails TextBoundsFailure {
+    try text_slice(text, 0, "end")
+}
+
+fn bytes_slice_wrong_start(bytes: Bytes) -> Bytes fails BytesBoundsFailure {
+    try bytes_slice(bytes, "start", 1)
+}
+
+fn text_require_nonempty_with_type_arg(text: Text) -> NonEmptyText fails TextCardinalityFailure {
+    try text_require_nonempty<Int>(text)
+}
+
+fn text_require_nonempty_wrong_text() -> NonEmptyText fails TextCardinalityFailure {
+    try text_require_nonempty(7)
+}
+
+fn nonempty_text_widen_wrong_arg() -> Text {
+    nonempty_text_widen(7)
+}
+
+fn nonempty_bytes_length_wrong_arg() -> Nat {
+    nonempty_bytes_length(7)
+}
+
+fn nonempty_text_first_wrong_arg() -> Char {
+    nonempty_text_first_character(7)
+}
+
+public fn unhandled_text_character(text: Text) -> Char {
+    text_character_at(text, 0)
+}
+}

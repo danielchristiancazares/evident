@@ -6,9 +6,9 @@ import bootstrap_pipeline;
 import bootstrap_release;
 import bootstrap_source;
 
-domain module bootstrap_environment_probe {
+boundary module bootstrap_environment_probe {
 public fn build_release() -> bootstrap_release::BootstrapReleaseEvidence fails MapBindingFailure {
-    let environment = bootstrap_environment::current_environment();
+    let environment = bootstrap_environment::bootstrap_environment_surface();
     let discovery = bootstrap_discovery::compiler_source_discovery(environment);
     let source = bootstrap_source::compiler_package(environment, discovery.graph);
     let layout = bootstrap_layout::bootstrap_package_layout(source);

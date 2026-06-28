@@ -1,0 +1,9 @@
+<input>:2:40: error: exported semantic-claim function 'validate_text' must expose a consequence-carrying success surface
+    public fn validate_text(text: Text) -> Text {
+                                           ^^^^
+<input>:6:34: error: semantic-claim parameter 'validatedText' must use a consequence-carrying type
+    public fn forward(validatedText: Text) -> Text {
+                                     ^^^^
+<input>:23:40: error: exported semantic-claim function 'validate_token' must expose validation-family coverage in its success surface
+    public fn validate_token(text: Text) -> TokenResult {
+                                           ^^^^^^^^^^^

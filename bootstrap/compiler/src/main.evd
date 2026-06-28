@@ -7,7 +7,7 @@ import bootstrap_release;
 import bootstrap_source;
 import bootstrap_pipeline;
 
-domain module bootstrap_compiler {
+boundary module bootstrap_compiler {
 public record BootstrapStatus {
     public host: bootstrap_host::CompilerHostSurface,
     public environment: bootstrap_environment::CompilerEnvironment,

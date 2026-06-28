@@ -1,0 +1,26 @@
+boundary module foreign_egress {
+foreign fn send_text(label: CString) -> Unit
+
+foreign fn send_count(count: CInt) -> Unit
+
+fn label_helper(text: Text) -> CString fails ForeignAbiTextFailure {
+    try text_to_cstring(text)
+}
+
+public fn local_relay(text: Text) -> Unit fails ForeignAbiTextFailure {
+    let label = try text_to_cstring(text);
+    send_text(label)
+}
+
+public fn helper_relay(text: Text) -> Unit fails ForeignAbiTextFailure {
+    send_text(try label_helper(text))
+}
+
+public fn literal_relay() -> Unit {
+    send_text("raw")
+}
+
+public fn integer_literal_relay() -> Unit {
+    send_count(7)
+}
+}

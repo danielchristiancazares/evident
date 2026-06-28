@@ -865,7 +865,7 @@ functions:
   - public foreign-fn bootstrap_host::read_text_file_text(path: CString) -> CString
   - public foreign-fn bootstrap_host::write_text_file_text(path: CString, contents: CString) -> CInt
   - public foreign-fn bootstrap_host::resolve_path_text(base: CString, relative: CString) -> CString
-  - public foreign-fn bootstrap_host::spawn_tool_text(working_directory: CString, executable: CString, arguments: List<Text>) -> CInt
+  - public foreign-fn bootstrap_host::spawn_tool_text(working_directory: CString, executable: CString, arguments: CString) -> CInt
   - public foreign-fn bootstrap_host::process_exit(code: CInt) -> CInt
   - public fn bootstrap_host::read_text_file(request: bootstrap_host::HostReadRequest) -> bootstrap_host::HostFileContents
       block -> bootstrap_host::HostFileContents
@@ -896,6 +896,9 @@ functions:
                 local relative : bootstrap_host::HostPath
   - public fn bootstrap_host::spawn_tool(invocation: bootstrap_host::HostToolInvocation) -> CInt
       block -> CInt
+        let arguments: bootstrap_host::HostPath
+          call bootstrap_host::host_path -> bootstrap_host::HostPath
+            string "" : CString
         result
           call bootstrap_host::spawn_tool_text -> CInt
             field-access .text : CString
@@ -904,8 +907,8 @@ functions:
             field-access .text : CString
               field-access .executable : bootstrap_host::HostPath
                 local invocation : bootstrap_host::HostToolInvocation
-            field-access .arguments : List<Text>
-              local invocation : bootstrap_host::HostToolInvocation
+            field-access .text : CString
+              local arguments : bootstrap_host::HostPath
   - public fn bootstrap_host::host_path(text: CString) -> bootstrap_host::HostPath
       block -> bootstrap_host::HostPath
         result
@@ -985,7 +988,6 @@ functions:
           construct bootstrap_host::ExitStatus : bootstrap_host::ExitStatus
             init code
               number 0 : Int
-  - public foreign-fn bootstrap_environment::current_environment() -> bootstrap_environment::CompilerEnvironment
   - public fn bootstrap_environment::bootstrap_environment_surface() -> bootstrap_environment::CompilerEnvironment
       block -> bootstrap_environment::CompilerEnvironment
         result

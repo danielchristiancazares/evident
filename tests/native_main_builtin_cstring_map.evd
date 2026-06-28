@@ -2,7 +2,7 @@ boundary module ffi {
 public foreign fn observe(name: CString) -> CInt
 }
 
-domain module test {
+boundary module test {
 public record NativeHandles {
     public label: CString,
     public counts: Map<Int, Int>,
@@ -40,6 +40,59 @@ public fn literal_bytes() -> Bytes {
     "bytes"
 }
 
+fn expect_int(actual: Int, expected: Int, next: Int, missing: Int, duplicate: Int) -> Int {
+    match nonempty_map_lookup_copy<Int, Int>(map_single<Int, Int>(expected, next), actual) {
+        succeeded(value) => value,
+        failed(RequestedKeyHadNoBinding) => missing,
+        failed(RequestedKeyAlreadyHadBinding) => duplicate,
+    }
+}
+
+fn expect_text(actual: Text, expected: Text, next: Int, missing: Int, duplicate: Int) -> Int {
+    match nonempty_map_lookup_copy<Text, Int>(map_single<Text, Int>(expected, next), actual) {
+        succeeded(value) => value,
+        failed(RequestedKeyHadNoBinding) => missing,
+        failed(RequestedKeyAlreadyHadBinding) => duplicate,
+    }
+}
+
+fn expect_bytes(actual: Bytes, expected: Bytes, next: Int, missing: Int, duplicate: Int) -> Int {
+    match nonempty_map_lookup_copy<Bytes, Int>(map_single<Bytes, Int>(expected, next), actual) {
+        succeeded(value) => value,
+        failed(RequestedKeyHadNoBinding) => missing,
+        failed(RequestedKeyAlreadyHadBinding) => duplicate,
+    }
+}
+
+fn cstring_roundtrip() -> Int fails ForeignAbiTextFailure {
+    let host_text = try text_to_cstring("abc")
+    let payload_text = try cstring_payload_text(host_text)
+    let checked_text = expect_text(payload_text, "abc", 11, 1, 2)
+
+    let payload_bytes = cstring_payload_bytes(host_text)
+    let checked_bytes = expect_bytes(payload_bytes, "abc", checked_text, 3, 4)
+
+    let host_bytes = try bytes_to_cstring("xy")
+    let bytes_text = try cstring_payload_text(host_bytes)
+    expect_text(bytes_text, "xy", checked_bytes, 5, 6)
+}
+
+fn cstring_roundtrip_result() -> Int {
+    match cstring_roundtrip() {
+        succeeded(value) => value,
+        failed(CStringPayloadWasNotUtf8) => 7,
+        failed(CStringPayloadContainedNul) => 8,
+    }
+}
+
+fn cstring_nul_rejection_result() -> Int {
+    match text_to_cstring("\0") {
+        succeeded(value) => 9,
+        failed(CStringPayloadWasNotUtf8) => 10,
+        failed(CStringPayloadContainedNul) => 19,
+    }
+}
+
 public fn keep_counts(counts: Map<Int, Int>) -> Map<Int, Int> {
     counts
 }
@@ -49,6 +102,7 @@ public fn keep_labels(labels: NonEmptyMap<Text, CString>) -> NonEmptyMap<Text, C
 }
 
 public fn main() -> Int {
-    7
+    let expected_roundtrip = expect_int(cstring_roundtrip_result(), 11, 19, 12, 13)
+    expect_int(cstring_nul_rejection_result(), expected_roundtrip, 31, 14, 15)
 }
 }

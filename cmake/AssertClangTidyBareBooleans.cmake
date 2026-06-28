@@ -38,13 +38,20 @@ endforeach()
 list(REMOVE_DUPLICATES source_files)
 list(SORT source_files)
 
+# docs/CPP_DESIGN.md Section B forbids bare bool on repo-defined surfaces, not on
+# internal-linkage implementation details. The following are implementation helpers and are
+# exempt: declarations inside an anonymous namespace (internal linkage), function-local bool
+# variables, and anything inside a lambda closure (call-operator return, captured fields,
+# parameters). Bare bool on an externally reachable surface (free functions, parameters,
+# record fields, namespace-scope variables, type aliases) and any `operator bool` conversion
+# remain forbidden.
 set(matchers
-    "functionDecl(isExpansionInMainFile(), returns(booleanType())).bind(\"evident-bare-bool-return\")"
-    "parmVarDecl(isExpansionInMainFile(), hasType(booleanType())).bind(\"evident-bare-bool-parameter\")"
-    "fieldDecl(isExpansionInMainFile(), hasType(booleanType())).bind(\"evident-bare-bool-field\")"
-    "varDecl(isExpansionInMainFile(), unless(parmVarDecl()), hasType(booleanType())).bind(\"evident-bare-bool-variable\")"
-    "typeAliasDecl(isExpansionInMainFile(), hasType(booleanType())).bind(\"evident-bare-bool-alias\")"
-    "typedefDecl(isExpansionInMainFile(), hasType(booleanType())).bind(\"evident-bare-bool-typedef\")"
+    "functionDecl(isExpansionInMainFile(), unless(hasAncestor(namespaceDecl(isAnonymous()))), unless(hasAncestor(cxxRecordDecl(isLambda()))), returns(booleanType())).bind(\"evident-bare-bool-return\")"
+    "parmVarDecl(isExpansionInMainFile(), unless(hasAncestor(namespaceDecl(isAnonymous()))), unless(hasAncestor(cxxRecordDecl(isLambda()))), hasType(booleanType())).bind(\"evident-bare-bool-parameter\")"
+    "fieldDecl(isExpansionInMainFile(), unless(hasAncestor(namespaceDecl(isAnonymous()))), unless(hasAncestor(cxxRecordDecl(isLambda()))), hasType(booleanType())).bind(\"evident-bare-bool-field\")"
+    "varDecl(isExpansionInMainFile(), unless(parmVarDecl()), unless(hasAncestor(namespaceDecl(isAnonymous()))), hasGlobalStorage(), hasType(booleanType())).bind(\"evident-bare-bool-variable\")"
+    "typeAliasDecl(isExpansionInMainFile(), unless(hasAncestor(namespaceDecl(isAnonymous()))), hasType(booleanType())).bind(\"evident-bare-bool-alias\")"
+    "typedefDecl(isExpansionInMainFile(), unless(hasAncestor(namespaceDecl(isAnonymous()))), hasType(booleanType())).bind(\"evident-bare-bool-typedef\")"
     "cxxConversionDecl(isExpansionInMainFile(), returns(booleanType())).bind(\"evident-bare-bool-conversion\")"
 )
 

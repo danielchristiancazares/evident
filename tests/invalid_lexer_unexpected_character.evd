@@ -1,5 +1,5 @@
 domain module lexer_diagnostics {
     public fn value() -> Int {
-        1 @ 2
+        "é" @ 2
     }
 }

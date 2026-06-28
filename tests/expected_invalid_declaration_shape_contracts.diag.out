@@ -25,9 +25,9 @@
 <input>:43:9: error: duplicate field 'id' in phase
             id: Text,
             ^^^^^^^^
-<input>:53:41: error: duplicate parameter 'value'
-    foreign fn duplicate_params(value: Int, value: Int) -> Int
-                                            ^^^^^^^^^^
+<input>:53:42: error: duplicate parameter 'value'
+    foreign fn duplicate_params(value: CInt, value: CInt) -> CInt
+                                             ^^^^^^^^^^^
 <input>:55:39: error: duplicate parameter 'value'
     fn duplicate_value_params(value: Int, value: Int) -> Int {
                                           ^^^^^^^^^^

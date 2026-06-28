@@ -1,0 +1,183 @@
+domain module test {
+fn char_payload_value() -> Int {
+    match text_character_at("a\u{E9}\u{1F600}z", 2) {
+        succeeded(actual) => match text_character_at("\u{1F600}", 0) {
+            succeeded(expected) => {
+                let by_character = map_single<Char, Int>(expected, 41)
+                match nonempty_map_lookup_copy<Char, Int>(by_character, actual) {
+                    succeeded(value) => value,
+                    failed(RequestedKeyHadNoBinding) => 1,
+                    failed(RequestedKeyAlreadyHadBinding) => 2,
+                }
+            },
+            failed(RequestedCharacterIndexOutOfRange) => 3,
+            failed(RequestedTextSliceOutOfRange) => 4,
+        },
+        failed(RequestedCharacterIndexOutOfRange) => 5,
+        failed(RequestedTextSliceOutOfRange) => 6,
+    }
+}
+
+fn text_slice_payload_value() -> Int {
+    match text_slice("a\u{E9}\u{1F600}z", 1, 3) {
+        succeeded(actual) => {
+            let by_text = map_single<Text, Int>("\u{E9}\u{1F600}", 43)
+            match nonempty_map_lookup_copy<Text, Int>(by_text, actual) {
+                succeeded(value) => value,
+                failed(RequestedKeyHadNoBinding) => 7,
+                failed(RequestedKeyAlreadyHadBinding) => 8,
+            }
+        },
+        failed(RequestedCharacterIndexOutOfRange) => 9,
+        failed(RequestedTextSliceOutOfRange) => 10,
+    }
+}
+
+fn bytes_byte_payload_value() -> Int {
+    match bytes_byte_at("abc", 1) {
+        succeeded(actual) => match bytes_byte_at("b", 0) {
+            succeeded(expected) => {
+                let by_byte = map_single<Byte, Int>(expected, 53)
+                match nonempty_map_lookup_copy<Byte, Int>(by_byte, actual) {
+                    succeeded(value) => value,
+                    failed(RequestedKeyHadNoBinding) => 11,
+                    failed(RequestedKeyAlreadyHadBinding) => 12,
+                }
+            },
+            failed(RequestedByteIndexOutOfRange) => 13,
+            failed(RequestedBytesSliceOutOfRange) => 14,
+        },
+        failed(RequestedByteIndexOutOfRange) => 15,
+        failed(RequestedBytesSliceOutOfRange) => 16,
+    }
+}
+
+fn bytes_slice_payload_value() -> Int {
+    match bytes_slice("abcd", 1, 3) {
+        succeeded(actual) => {
+            let by_bytes = map_single<Bytes, Int>("bc", 59)
+            match nonempty_map_lookup_copy<Bytes, Int>(by_bytes, actual) {
+                succeeded(value) => value,
+                failed(RequestedKeyHadNoBinding) => 17,
+                failed(RequestedKeyAlreadyHadBinding) => 18,
+            }
+        },
+        failed(RequestedByteIndexOutOfRange) => 19,
+        failed(RequestedBytesSliceOutOfRange) => 20,
+    }
+}
+
+fn text_length_counts_scalars() -> Int {
+    match text_character_at("xy", text_length("\u{E9}")) {
+        succeeded(character) => 61,
+        failed(RequestedCharacterIndexOutOfRange) => 21,
+        failed(RequestedTextSliceOutOfRange) => 22,
+    }
+}
+
+fn failure_routing_value() -> Int {
+    match text_character_at("", 0) {
+        succeeded(unexpected_character) => 23,
+        failed(RequestedCharacterIndexOutOfRange) => match text_slice("abc", 2, 1) {
+            succeeded(unexpected_text) => 24,
+            failed(RequestedCharacterIndexOutOfRange) => 25,
+            failed(RequestedTextSliceOutOfRange) => match bytes_byte_at("", 0) {
+                succeeded(unexpected_byte) => 26,
+                failed(RequestedByteIndexOutOfRange) => match bytes_slice("abc", 2, 4) {
+                    succeeded(unexpected_bytes) => 27,
+                    failed(RequestedByteIndexOutOfRange) => 28,
+                    failed(RequestedBytesSliceOutOfRange) => 37,
+                },
+                failed(RequestedBytesSliceOutOfRange) => 29,
+            },
+        },
+        failed(RequestedTextSliceOutOfRange) => 30,
+    }
+}
+
+fn nonempty_text_payload_value() -> Int {
+    match text_require_nonempty("\u{E9}x") {
+        succeeded(nonempty_text) => match text_character_at("\u{E9}", 0) {
+            succeeded(expected_first) => {
+                let by_character = map_single<Char, Int>(expected_first, 71)
+                match nonempty_map_lookup_copy<Char, Int>(by_character, nonempty_text_first_character(nonempty_text)) {
+                    succeeded(first_value) => {
+                        let length_value = expect_nat(nonempty_text_length(nonempty_text), 2, first_value, 68, 69)
+                        expect_nat(text_length(nonempty_text_widen(nonempty_text)), 2, length_value, 66, 67)
+                    },
+                    failed(RequestedKeyHadNoBinding) => 70,
+                    failed(RequestedKeyAlreadyHadBinding) => 72,
+                }
+            },
+            failed(RequestedCharacterIndexOutOfRange) => 73,
+            failed(RequestedTextSliceOutOfRange) => 74,
+        },
+        failed(TextHadNoCharacters) => 75,
+    }
+}
+
+fn nonempty_bytes_payload_value() -> Int {
+    match bytes_require_nonempty("xy") {
+        succeeded(nonempty_bytes) => match bytes_byte_at("x", 0) {
+            succeeded(expected_first) => {
+                let by_byte = map_single<Byte, Int>(expected_first, 79)
+                match nonempty_map_lookup_copy<Byte, Int>(by_byte, nonempty_bytes_first_byte(nonempty_bytes)) {
+                    succeeded(first_value) => {
+                        let length_value = expect_nat(nonempty_bytes_length(nonempty_bytes), 2, first_value, 76, 77)
+                        expect_nat(bytes_length(nonempty_bytes_widen(nonempty_bytes)), 2, length_value, 78, 80)
+                    },
+                    failed(RequestedKeyHadNoBinding) => 81,
+                    failed(RequestedKeyAlreadyHadBinding) => 82,
+                }
+            },
+            failed(RequestedByteIndexOutOfRange) => 83,
+            failed(RequestedBytesSliceOutOfRange) => 84,
+        },
+        failed(BytesHadNoBytes) => 85,
+    }
+}
+
+fn nonempty_failure_routing_value() -> Int {
+    match text_require_nonempty("") {
+        succeeded(unexpected_text) => 86,
+        failed(TextHadNoCharacters) => match bytes_require_nonempty("") {
+            succeeded(unexpected_bytes) => 87,
+            failed(BytesHadNoBytes) => 89,
+        },
+    }
+}
+
+fn direct_source_unicode_payload_value() -> Int {
+    let scalar_count = expect_nat(text_length("é😀"), 2, 99, 90, 91)
+    expect_nat(bytes_length("é😀"), 6, scalar_count, 92, 93)
+}
+
+fn expect_int(actual: Int, expected: Int, next: Int, missing: Int, duplicate: Int) -> Int {
+    match nonempty_map_lookup_copy<Int, Int>(map_single<Int, Int>(expected, next), actual) {
+        succeeded(value) => value,
+        failed(RequestedKeyHadNoBinding) => missing,
+        failed(RequestedKeyAlreadyHadBinding) => duplicate,
+    }
+}
+
+fn expect_nat(actual: Nat, expected: Nat, next: Int, missing: Int, duplicate: Int) -> Int {
+    match nonempty_map_lookup_copy<Nat, Int>(map_single<Nat, Int>(expected, next), actual) {
+        succeeded(value) => value,
+        failed(RequestedKeyHadNoBinding) => missing,
+        failed(RequestedKeyAlreadyHadBinding) => duplicate,
+    }
+}
+
+public fn main() -> Int {
+    let expected_text_slice = expect_int(char_payload_value(), 41, 43, 44, 45)
+    let expected_byte = expect_int(text_slice_payload_value(), expected_text_slice, 53, 40, 42)
+    let expected_bytes_slice = expect_int(bytes_byte_payload_value(), expected_byte, 59, 38, 39)
+    let expected_length = expect_int(bytes_slice_payload_value(), expected_bytes_slice, 61, 35, 36)
+    let expected_failure = expect_int(text_length_counts_scalars(), expected_length, 37, 33, 34)
+    let expected_nonempty_text = expect_int(failure_routing_value(), expected_failure, 71, 31, 32)
+    let expected_nonempty_bytes = expect_int(nonempty_text_payload_value(), expected_nonempty_text, 79, 63, 64)
+    let expected_nonempty_failure = expect_int(nonempty_bytes_payload_value(), expected_nonempty_bytes, 89, 65, 66)
+    let expected_direct_unicode = expect_int(nonempty_failure_routing_value(), expected_nonempty_failure, 99, 67, 68)
+    expect_int(direct_source_unicode_payload_value(), expected_direct_unicode, 101, 95, 96)
+}
+}

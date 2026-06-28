@@ -118,7 +118,7 @@ if(BUILD_TESTING)
 
     add_dependencies(evidc bootstrap_compiler_generated_environment)
 
-set(EVIDENT_EXPECTED_CTEST_TOTAL 445)
+set(EVIDENT_EXPECTED_CTEST_TOTAL 462)
 
     add_test(NAME parse_valid_example
         COMMAND evidc --dump-hir ${CMAKE_CURRENT_SOURCE_DIR}/examples/feature_mode.evd)
@@ -230,6 +230,7 @@ set(EVIDENT_EXPECTED_CTEST_TOTAL 445)
     add_test(NAME validate_clang_tidy_bare_booleans
         COMMAND ${CMAKE_COMMAND}
             -DBUILD_DIR=${CMAKE_CURRENT_BINARY_DIR}
+            -DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}
             -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/RunClangTidyBareBooleansAndAssert.cmake)
 
     add_test(NAME validate_invalid_corpus_registered
@@ -684,6 +685,12 @@ set(EVIDENT_EXPECTED_CTEST_TOTAL 445)
     add_mir_compare_test(compare_mir_traverse
         valid_traverse.evd
         expected_valid_traverse.mir.out)
+    add_mir_compare_test(compare_mir_text_bytes_bounds
+        valid_text_bytes_bounds.evd
+        expected_valid_text_bytes_bounds.mir.out)
+    add_mir_compare_test(compare_mir_foreign_abi_operations
+        valid_foreign_abi_operations.evd
+        expected_valid_foreign_abi_operations.mir.out)
     add_hir_compare_test(compare_hir_affine_wrapper valid_affine_wrapper.evd expected_valid_affine_wrapper.hir.out)
     add_hir_compare_test(compare_hir_affine_generic_wrapper valid_affine_generic_wrapper.evd expected_valid_affine_generic_wrapper.hir.out)
     add_hir_compare_test(compare_hir_generic_function_call
@@ -713,6 +720,9 @@ set(EVIDENT_EXPECTED_CTEST_TOTAL 445)
     add_hir_compare_test(compare_hir_foreign_integer_literals
         valid_foreign_integer_literals.evd
         expected_valid_foreign_integer_literals.hir.out)
+    add_hir_compare_test(compare_hir_foreign_abi_operations
+        valid_foreign_abi_operations.evd
+        expected_valid_foreign_abi_operations.hir.out)
     add_hir_compare_test(compare_hir_string_literal_escapes
         valid_string_literal_escapes.evd
         expected_valid_string_literal_escapes.hir.out)
@@ -722,6 +732,9 @@ set(EVIDENT_EXPECTED_CTEST_TOTAL 445)
     add_hir_compare_test(compare_hir_text_bytes_length
         valid_text_bytes_length.evd
         expected_valid_text_bytes_length.hir.out)
+    add_hir_compare_test(compare_hir_text_bytes_bounds
+        valid_text_bytes_bounds.evd
+        expected_valid_text_bytes_bounds.hir.out)
     add_hir_compare_test(compare_hir_collection_companion_records
         valid_collection_companion_records.evd
         expected_valid_collection_companion_records.hir.out)
@@ -790,6 +803,8 @@ set(EVIDENT_EXPECTED_CTEST_TOTAL 445)
         COMMAND evidc ${CMAKE_CURRENT_SOURCE_DIR}/tests/valid_phase_transition.evd)
     add_test(NAME parse_valid_multiple_proves_clauses
         COMMAND evidc ${CMAKE_CURRENT_SOURCE_DIR}/tests/valid_multiple_proves_clauses.evd)
+    add_test(NAME parse_valid_foreign_abi_operations
+        COMMAND evidc ${CMAKE_CURRENT_SOURCE_DIR}/tests/valid_foreign_abi_operations.evd)
 
     add_emit_compare_test(compare_llvm_plain_call --emit-llvm valid_plain_call.evd expected_valid_plain_call.llvm.txt compare_valid_plain_call.ll)
     add_emit_compare_test(compare_llvm_state_match --emit-llvm valid_state_match.evd expected_valid_state_match.llvm.txt compare_valid_state_match.ll)
@@ -886,14 +901,23 @@ set(EVIDENT_EXPECTED_CTEST_TOTAL 445)
     add_emit_pattern_test(validate_llvm_text_bytes_length
         valid_text_bytes_length.evd
         validate_text_bytes_length.ll
-        "define i64 @evid$text_length"
+        "define { ptr, i64 } @evid$text_length"
         "")
+    add_emit_pattern_test(validate_llvm_text_bytes_bounds
+        valid_text_bytes_bounds.evd
+        validate_text_bytes_bounds.ll
+        "define %evid.yield.text_character_at @evid$text_character_at"
+        "backend does not yet support")
 
     add_emit_exe_test(run_native_constant native_main_constant.evd 7 native_main_constant.exe)
     add_emit_exe_test(run_native_call_chain native_main_call_chain.evd 8 native_main_call_chain.exe)
     add_emit_exe_test(run_native_state_match native_main_state_match.evd 4 native_main_state_match.exe)
     add_emit_exe_test(run_native_try native_main_try.evd 11 native_main_try.exe)
     add_emit_exe_test(run_native_yield_match native_main_yield_match.evd 3 native_main_yield_match.exe)
+    add_emit_exe_test(run_native_text_bytes_bounds
+        native_main_text_bytes_bounds.evd
+        101
+        native_text_bytes_bounds.exe)
     add_emit_exe_test(run_native_failing_match_discard_success
         native_main_failing_match_discard_success.evd
         5
@@ -1248,15 +1272,33 @@ set(EVIDENT_EXPECTED_CTEST_TOTAL 445)
     add_diagnostic_compare_test(diag_semantic_foreign_integer_literals
         invalid_foreign_integer_literals.evd
         expected_invalid_foreign_integer_literals.diag.out)
+    add_diagnostic_compare_test(diag_semantic_foreign_abi_operations
+        invalid_foreign_abi_operations.evd
+        expected_invalid_foreign_abi_operations.diag.out)
+    add_diagnostic_compare_test(diag_semantic_foreign_egress_preparation
+        invalid_foreign_egress_preparation.evd
+        expected_invalid_foreign_egress_preparation.diag.out)
+    add_diagnostic_compare_test(diag_semantic_raw_adapter_exposure
+        invalid_raw_adapter_exposure.evd
+        expected_invalid_raw_adapter_exposure.diag.out)
     add_diagnostic_compare_test(diag_semantic_foreign_link_names
         invalid_foreign_link_names.evd
         expected_invalid_foreign_link_names.diag.out)
+    add_diagnostic_compare_test(diag_semantic_foundation_semantic_blindness
+        invalid_foundation_semantic_blindness.evd
+        expected_invalid_foundation_semantic_blindness.diag.out)
+    add_diagnostic_compare_test(diag_semantic_claim_surfaces
+        invalid_semantic_claim_surfaces.evd
+        expected_invalid_semantic_claim_surfaces.diag.out)
     add_diagnostic_compare_test(diag_semantic_nonempty_string_literals
         invalid_nonempty_string_literals.evd
         expected_invalid_nonempty_string_literals.diag.out)
     add_diagnostic_compare_test(diag_semantic_text_bytes_length_contracts
         invalid_text_bytes_length_contracts.evd
         expected_invalid_text_bytes_length_contracts.diag.out)
+    add_diagnostic_compare_test(diag_semantic_text_bytes_bounds_contracts
+        invalid_text_bytes_bounds_contracts.evd
+        expected_invalid_text_bytes_bounds_contracts.diag.out)
     add_diagnostic_compare_test(diag_semantic_traverse_contracts
         invalid_traverse_contracts.evd
         expected_invalid_traverse_contracts.diag.out)
@@ -1746,9 +1788,11 @@ set(EVIDENT_EXPECTED_CTEST_TOTAL 445)
     add_reject_test(reject_float_literal_range invalid_float_literal_range.evd)
     add_reject_test(reject_integer_literal_expected_types invalid_integer_literal_expected_types.evd)
     add_reject_test(reject_foreign_integer_literals invalid_foreign_integer_literals.evd)
+    add_reject_test(reject_foreign_abi_operations invalid_foreign_abi_operations.evd)
     add_reject_test(reject_foreign_link_names invalid_foreign_link_names.evd)
     add_reject_test(reject_nonempty_string_literals invalid_nonempty_string_literals.evd)
     add_reject_test(reject_text_bytes_length_contracts invalid_text_bytes_length_contracts.evd)
+    add_reject_test(reject_text_bytes_bounds_contracts invalid_text_bytes_bounds_contracts.evd)
     add_reject_test(reject_traverse_contracts invalid_traverse_contracts.evd)
     add_reject_test(reject_field_access_private invalid_field_access_private.evd)
     add_reject_test(reject_construct_private_field invalid_construct_private_field.evd)
@@ -1808,6 +1852,11 @@ set(EVIDENT_EXPECTED_CTEST_TOTAL 445)
         --emit-obj
         validate_toolchain_missing_clang_cleans_temps.obj
         ${CMAKE_CURRENT_BINARY_DIR}/evident-missing-clang-for-cleanup-test.exe)
+    add_emit_exe_test(run_native_large_nat_literal native_large_nat_literal.evd 11 native_large_nat_literal.exe)
     add_emit_exe_test(run_native_empty_collections native_main_empty_collections.evd 7 native_empty_collections.exe)
-    add_emit_exe_test(run_native_builtin_cstring_map native_main_builtin_cstring_map.evd 7 native_builtin_cstring_map.exe)
+    add_emit_exe_test(run_native_builtin_cstring_map native_main_builtin_cstring_map.evd 31 native_builtin_cstring_map.exe)
+    add_emit_exe_test(run_native_foreign_integer_conversions
+        native_main_foreign_integer_conversions.evd
+        43
+        native_foreign_integer_conversions.exe)
 endif()

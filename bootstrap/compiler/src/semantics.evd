@@ -2,7 +2,7 @@ import bootstrap_source;
 import bootstrap_lexing;
 import bootstrap_parsing;
 
-domain module bootstrap_semantics {
+boundary module bootstrap_semantics {
 public record SymbolName {
     public text: Text,
 }

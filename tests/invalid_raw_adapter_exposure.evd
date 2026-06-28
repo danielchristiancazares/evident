@@ -1,0 +1,54 @@
+boundary module raw_bridge {
+public record RawCStringBox {
+    public value: CString,
+}
+
+public fn raw_cstring() -> CString {
+    "bridge"
+}
+}
+
+domain module raw_domain {
+public fn text_keyed_map(values: Map<Text, Int>) -> Int {
+    0
+}
+
+public fn bytes_keyed_map(values: NonEmptyMap<Bytes, Int>) -> Int {
+    0
+}
+
+public fn byte_sequence(values: List<Byte>) -> Int {
+    0
+}
+
+public fn char_sequence(values: NonEmptyList<Char>) -> Int {
+    0
+}
+
+public fn map_entry(entry: MapEntry<Text, Int>) -> Int {
+    0
+}
+
+public fn boundary_raw_box(value: raw_bridge::RawCStringBox) -> Int {
+    0
+}
+
+public fn call_boundary_raw_export() -> Int {
+    let raw = raw_bridge::raw_cstring();
+    0
+}
+
+record PrivateCStringBox {
+    value: CString,
+}
+
+fn private_cstring_literal() -> CString {
+    "domain literal"
+}
+}
+
+foundation module raw_foundation {
+public fn bytes_map(values: Map<Bytes, Int>) -> Int {
+    0
+}
+}

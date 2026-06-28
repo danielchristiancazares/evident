@@ -18,6 +18,19 @@ bool is_utf8_continuation(unsigned char byte) {
     return byte >= 0x80U && byte <= 0xBFU;
 }
 
+std::size_t utf8_scalar_width(unsigned char lead) {
+    if (lead <= 0x7FU) {
+        return 1;
+    }
+    if (lead >= 0xC2U && lead <= 0xDFU) {
+        return 2;
+    }
+    if (lead >= 0xE0U && lead <= 0xEFU) {
+        return 3;
+    }
+    return 4;
+}
+
 Utf8ValidationResult validate_utf8(std::string_view text) {
     std::size_t index = 0;
     while (index < text.size()) {
@@ -154,6 +167,21 @@ std::string_view SourceFile::slice(SourceSpan span) const {
     return std::string_view(text_).substr(safe_begin, safe_end - safe_begin);
 }
 
+std::size_t SourceFile::scalar_count(SourceSpan span) const {
+    const std::size_t safe_begin = std::min(span.begin, text_.size());
+    const std::size_t safe_end = std::min(span.end, text_.size());
+    if (safe_end <= safe_begin) {
+        return 0;
+    }
+
+    std::size_t count = 0;
+    for (std::size_t index = safe_begin; index < safe_end;) {
+        index += utf8_scalar_width(static_cast<unsigned char>(text_[index]));
+        ++count;
+    }
+    return count;
+}
+
 SourceLocation SourceFile::locate(std::size_t offset) const {
     const std::size_t clamped_offset = std::min(offset, text_.size());
     const Segment* segment = find_segment(clamped_offset);
@@ -168,17 +196,20 @@ SourceLocation SourceFile::locate(std::size_t offset) const {
             ? 0
             : static_cast<std::size_t>((it - segment->line_starts.begin()) - 1);
         const std::size_t line_start = segment->line_starts[line_index];
-        return SourceLocation::at(clamped_offset, line_index + 1, local_offset - line_start + 1);
+        const std::size_t source_line_start = segment->begin + line_start;
+        const std::size_t column = scalar_count(SourceSpan{source_line_start, clamped_offset}) + 1;
+        return SourceLocation::at(clamped_offset, line_index + 1, column, source_line_start);
     }
 
     if (line_starts_.empty()) {
-        return SourceLocation::at(offset, 1, offset + 1);
+        return SourceLocation::at(offset, 1, scalar_count(SourceSpan{0, offset}) + 1, 0);
     }
 
     const auto it = std::upper_bound(line_starts_.begin(), line_starts_.end(), clamped_offset);
     const std::size_t line_index = (it == line_starts_.begin()) ? 0 : static_cast<std::size_t>((it - line_starts_.begin()) - 1);
     const std::size_t line_start = line_starts_[line_index];
-    return SourceLocation::at(clamped_offset, line_index + 1, clamped_offset - line_start + 1);
+    const std::size_t column = scalar_count(SourceSpan{line_start, clamped_offset}) + 1;
+    return SourceLocation::at(clamped_offset, line_index + 1, column, line_start);
 }
 
 void SourceFile::build_line_index() {

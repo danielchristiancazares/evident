@@ -4,7 +4,7 @@ public fn identity<T>(value: T) -> T {
 }
 }
 
-domain module app {
+boundary module app {
 public fn main() -> Int {
     support::identity(7)
 }

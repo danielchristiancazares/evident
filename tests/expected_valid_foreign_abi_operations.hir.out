@@ -1,0 +1,98 @@
+types:
+  - public reason ForeignAbiTextFailure
+      variant CStringPayloadWasNotUtf8
+      variant CStringPayloadContainedNul
+  - public reason ForeignAbiIntegerFailure
+      variant ForeignIntegerExceededIntRange
+      variant ForeignIntegerWasNegative
+      variant CoreIntegerExceededCIntRange
+      variant CoreIntegerWasNegative
+      variant CoreIntegerExceededCSizeRange
+functions:
+  - public fn cstring_payload_bytes(value: CString) -> Bytes
+  - public fn cstring_payload_text(value: CString) -> Text fails ForeignAbiTextFailure
+  - public fn text_to_cstring(text: Text) -> CString fails ForeignAbiTextFailure
+  - public fn bytes_to_cstring(bytes: Bytes) -> CString fails ForeignAbiTextFailure
+  - public fn cint_to_int(value: CInt) -> Int fails ForeignAbiIntegerFailure
+  - public fn cint_require_nat(value: CInt) -> Nat fails ForeignAbiIntegerFailure
+  - public fn csize_to_int(value: CSize) -> Int fails ForeignAbiIntegerFailure
+  - public fn csize_to_nat(value: CSize) -> Nat
+  - public fn int_to_cint(value: Int) -> CInt fails ForeignAbiIntegerFailure
+  - public fn nat_to_cint(value: Nat) -> CInt fails ForeignAbiIntegerFailure
+  - public fn int_to_csize(value: Int) -> CSize fails ForeignAbiIntegerFailure
+  - public fn nat_to_csize(value: Nat) -> CSize fails ForeignAbiIntegerFailure
+  - public fn boundary_foreign_abi::cstring_payload(value: CString) -> Bytes
+      block -> Bytes
+        result
+          call cstring_payload_bytes -> Bytes
+            local value : CString
+  - private fn boundary_foreign_abi::text_payload(value: CString) -> Text fails ForeignAbiTextFailure
+      block -> Text
+        result
+          try
+            call cstring_payload_text -> Text fails
+              local value : CString
+  - private fn boundary_foreign_abi::text_to_host(text: Text) -> CString fails ForeignAbiTextFailure
+      block -> CString
+        result
+          try
+            call text_to_cstring -> CString fails
+              local text : Text
+  - private fn boundary_foreign_abi::bytes_to_host(bytes: Bytes) -> CString fails ForeignAbiTextFailure
+      block -> CString
+        result
+          try
+            call bytes_to_cstring -> CString fails
+              local bytes : Bytes
+  - private fn boundary_foreign_abi::c_int(value: CInt) -> Int fails ForeignAbiIntegerFailure
+      block -> Int
+        result
+          try
+            call cint_to_int -> Int fails
+              local value : CInt
+  - private fn boundary_foreign_abi::c_nat(value: CInt) -> Nat fails ForeignAbiIntegerFailure
+      block -> Nat
+        result
+          try
+            call cint_require_nat -> Nat fails
+              local value : CInt
+  - private fn boundary_foreign_abi::size_int(value: CSize) -> Int fails ForeignAbiIntegerFailure
+      block -> Int
+        result
+          try
+            call csize_to_int -> Int fails
+              local value : CSize
+  - private fn boundary_foreign_abi::size_nat(value: CSize) -> Nat
+      block -> Nat
+        result
+          call csize_to_nat -> Nat
+            local value : CSize
+  - private fn boundary_foreign_abi::int_c(value: Int) -> CInt fails ForeignAbiIntegerFailure
+      block -> CInt
+        result
+          try
+            call int_to_cint -> CInt fails
+              local value : Int
+  - private fn boundary_foreign_abi::nat_c(value: Nat) -> CInt fails ForeignAbiIntegerFailure
+      block -> CInt
+        result
+          try
+            call nat_to_cint -> CInt fails
+              local value : Nat
+  - private fn boundary_foreign_abi::int_size(value: Int) -> CSize fails ForeignAbiIntegerFailure
+      block -> CSize
+        result
+          try
+            call int_to_csize -> CSize fails
+              local value : Int
+  - private fn boundary_foreign_abi::nat_size(value: Nat) -> CSize fails ForeignAbiIntegerFailure
+      block -> CSize
+        result
+          try
+            call nat_to_csize -> CSize fails
+              local value : Nat
+  - private fn hazard_foreign_abi::hazard_payload(value: CString) -> Bytes
+      block -> Bytes
+        result
+          call cstring_payload_bytes -> Bytes
+            local value : CString

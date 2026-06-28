@@ -13,8 +13,6 @@ public record CompilerEnvironment {
     public source_commit: Text,
 }
 
-public foreign fn current_environment() -> CompilerEnvironment
-
 public fn bootstrap_environment_surface() -> CompilerEnvironment {
     CompilerEnvironment {
         workspace_root: bootstrap_host::host_path("."),
