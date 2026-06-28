@@ -87,7 +87,7 @@ value, raw-adapter export, or raw-adapter-exposing value is not an inhabited int
 
 **Arithmetic operation** means a compiler-owned numeric operation from Section 9.10. Arithmetic operations are ordinary calls, never symbolic operators.
 
-**Relation operation** means a compiler-owned or user-authored operation whose result is a classifier expression used to classify value identity, order, prefix relation, bit presence, or other immediate branch-only fact.
+**Relation operation** means a compiler-owned operation whose result is a classifier expression used to classify value identity, order, prefix relation, bit presence, or another immediate branch-only fact.
 
 **Canonical decimal text** means ASCII decimal notation with no locale, no grouping separator, no leading plus sign, and no hidden formatting policy.
 
@@ -1359,8 +1359,8 @@ classifier BitPresence {
 
 The names of compiler-owned classifier types and classifier variants are reserved.
 
-A classifier declaration is not user-authored syntax in this draft. User code MAY define ordinary `state` types for
-domain-specific stable alternatives, but it MUST NOT define classifier types.
+The `classifier` blocks shown in this section are specification notation for compiler-owned closed classifier types. They
+are not declaration syntax. User code MUST NOT declare classifier types.
 
 A classifier expression may be the subject of `match`:
 
@@ -1432,8 +1432,10 @@ needs identity for a domain type, that module MUST define a consequence-named op
 * a compiler-owned classifier expression when the result is used only for immediate branching and the operation is
   private same-module plumbing.
 
-A user-authored exported function MUST NOT return a classifier type. A user-authored function MUST NOT expose a classifier
-type in any parameter, return, field, payload, proof, phase, collection, generic, `fails`, `grants`, or `proves` position.
+User-authored functions MUST NOT return classifier types in this draft, and MUST NOT expose a classifier type in any
+parameter, field, payload, proof, phase, collection, generic, `fails`, `grants`, or `proves` position. A module that needs
+stable domain identity, ordering, or relation information for a domain type MUST define an ordinary same-module `state`
+whose variants name the domain consequences.
 
 ### 9.12 Text and Bytes Construction
 
@@ -1770,6 +1772,10 @@ operations above.
 Host interaction is a runtime hazard. A host operation may appear only in a `hazard module`. A `domain`, `boundary`, or
 `foundation` module MUST NOT call a host operation directly.
 
+Every operation declared in Section 9.15 is a host operation unless this section explicitly says otherwise. This includes
+host constructors, host accessors, process-exit-code operations, file-path operations, receipt accessors,
+program-invocation operations, file operations, and terminal operations.
+
 A conforming implementation MUST provide these compiler-owned host permits:
 
 ```evd
@@ -1782,9 +1788,15 @@ public permit FileSystemReadPermit
 public permit FileSystemWritePermit
 ```
 
-These permits are root permits. They may be introduced only as the permit parameters of an `entry fn` (Section 14.6). A
-user-authored function MUST NOT declare `grants` for a root host permit; a function obtains host authority only by
-receiving a root host permit as a permit parameter forwarded from the `entry fn`.
+These permits are root permits. A user-authored function MUST NOT declare `grants` for a root host permit. A root host
+permit type MAY appear only as:
+
+* a permit parameter of an `entry fn`, or
+* a permit parameter of a `hazard module` function.
+
+A root host permit type MUST NOT appear in a `domain`, `boundary`, or `foundation` module declaration. A non-entry
+`hazard module` function that receives a root host permit MUST NOT re-export that permit as an authority abstraction; it
+may only use or forward the permit as explicit hazard orchestration.
 
 A conforming implementation MUST provide these compiler-owned host types: `ProgramInvocation`, `ProgramArgument`,
 `ProcessExitCode`, `FilePath`, `FileReadReceipt`, `FileWriteReceipt`, and `TerminalWriteReceipt`. Each is a non-generic
@@ -1792,6 +1804,11 @@ nominal type with private, compiler-owned representation. Direct construction is
 only by the compiler-owned operations in this section. A host type therefore cannot be forged, and an effect receipt is
 evidence that the named effect completed. Each host type exposes its data only through the accessor operations below,
 never through public fields.
+
+The compiler-owned host types `ProgramInvocation`, `ProgramArgument`, `ProcessExitCode`, `FilePath`, `FileReadReceipt`,
+`FileWriteReceipt`, and `TerminalWriteReceipt` are hazard-confined data types. They MUST NOT appear in a `domain`,
+`boundary`, or `foundation` module declaration surface. They MAY appear in an `entry fn` signature and in private or
+public `hazard module` declarations subject to the raw-runtime collapse rules in Section 10.5.
 
 A conforming implementation MUST provide these host reasons:
 
@@ -1832,6 +1849,7 @@ A conforming implementation MUST provide these program invocation operations:
 
 ```evd
 program_arguments(invocation: ProgramInvocation, as permit: ProgramInvocationPermit) -> List<ProgramArgument>
+    fails ProgramInvocationFailure
 
 program_argument_text(argument: ProgramArgument, as permit: ProgramInvocationPermit) -> Text
 ```
