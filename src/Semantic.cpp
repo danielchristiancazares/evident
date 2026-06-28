@@ -601,6 +601,12 @@ enum class StringLiteralTypingState {
     AcceptsStringLiteral,
 };
 
+enum class IntegerLiteralTypingState {
+    RequiresIntDefault,
+    AcceptsNatLiteral,
+    AcceptsByteLiteral,
+};
+
 enum class BuiltinTypeArgumentArity {
     UserDeclaredTypeName,
     NoTypeArguments,
@@ -719,6 +725,23 @@ bool is_admitted_float_literal(std::string_view lexeme) {
     char* end = nullptr;
     const double value = std::strtod(text.c_str(), &end);
     return end == text.c_str() + text.size() && std::isfinite(value);
+}
+
+bool integer_literal_fits_byte(std::string_view lexeme) {
+    if (lexeme.empty()) {
+        return false;
+    }
+    unsigned value = 0;
+    for (const char ch : lexeme) {
+        if (ch < '0' || ch > '9') {
+            return false;
+        }
+        value = value * 10U + static_cast<unsigned>(ch - '0');
+        if (value > 255U) {
+            return false;
+        }
+    }
+    return true;
 }
 
 std::string format_path(const std::vector<std::string>& path) {
@@ -1604,6 +1627,19 @@ private:
             return StringLiteralTypingState::AcceptsStringLiteral;
         }
         return StringLiteralTypingState::RequiresTextDefault;
+    }
+
+    IntegerLiteralTypingState integer_literal_typing_state(const Type& type) const {
+        if (type.flavor != typesys::TypeFlavor::Builtin || !type.args.empty()) {
+            return IntegerLiteralTypingState::RequiresIntDefault;
+        }
+        if (type.name == "Nat") {
+            return IntegerLiteralTypingState::AcceptsNatLiteral;
+        }
+        if (type.name == "Byte") {
+            return IntegerLiteralTypingState::AcceptsByteLiteral;
+        }
+        return IntegerLiteralTypingState::RequiresIntDefault;
     }
 
     const ast::PathExpr* path_expr(const ast::Expr& expr) const {
@@ -3971,6 +4007,22 @@ private:
                     return make_expr(error_type());
                 }
                 return make_expr(builtin_type("Float"));
+            }
+            if (expected_type != nullptr) {
+                switch (integer_literal_typing_state(*expected_type)) {
+                case IntegerLiteralTypingState::AcceptsNatLiteral:
+                    return make_expr(*expected_type);
+                case IntegerLiteralTypingState::AcceptsByteLiteral:
+                    if (!integer_literal_fits_byte(literal.lexeme)) {
+                        diagnostics_.error(expr.span,
+                                           "integer literal '" + literal.lexeme
+                                               + "' is outside the Byte range");
+                        return make_expr(error_type());
+                    }
+                    return make_expr(*expected_type);
+                case IntegerLiteralTypingState::RequiresIntDefault:
+                    break;
+                }
             }
             return make_expr(builtin_type("Int"));
         }

@@ -1,0 +1,21 @@
+domain module test {
+public record ByteBox {
+    public value: Byte,
+}
+
+public fn accept_byte(value: Byte) -> Byte {
+    value
+}
+
+public fn byte_return_too_large() -> Byte {
+    256
+}
+
+public fn byte_argument_too_large() -> Byte {
+    accept_byte(300)
+}
+
+public fn byte_field_too_large() -> Byte {
+    ByteBox { value: 999 }.value
+}
+}

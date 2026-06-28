@@ -454,6 +454,12 @@ enum class StringLiteralTypingState {
     AcceptsStringLiteral,
 };
 
+enum class IntegerLiteralTypingState {
+    RequiresIntDefault,
+    AcceptsNatLiteral,
+    AcceptsByteLiteral,
+};
+
 enum class NumberLiteralKind {
     Integer,
     Float,
@@ -1781,6 +1787,21 @@ StringLiteralTypingState Lowerer::string_literal_typing_state(const TypeRef& typ
     return StringLiteralTypingState::RequiresTextDefault;
 }
 
+IntegerLiteralTypingState integer_literal_typing_state(const TypeRef& type) {
+    if (type.flavor != typesys::TypeFlavor::Builtin
+        || type.identity.source() != TypeIdentitySource::TypeFlavor
+        || !type.args.empty()) {
+        return IntegerLiteralTypingState::RequiresIntDefault;
+    }
+    if (type.text == "Nat") {
+        return IntegerLiteralTypingState::AcceptsNatLiteral;
+    }
+    if (type.text == "Byte") {
+        return IntegerLiteralTypingState::AcceptsByteLiteral;
+    }
+    return IntegerLiteralTypingState::RequiresIntDefault;
+}
+
 const ast::PathExpr* Lowerer::path_expr(const ast::Expr& expr) const {
     return expr.kind == ast::ExprKind::Path ? &static_cast<const ast::PathExpr&>(expr) : nullptr;
 }
@@ -2377,9 +2398,19 @@ std::unique_ptr<Expr> Lowerer::lower_expr(const ast::Expr& expr,
     switch (expr.kind) {
     case ast::ExprKind::NumberLiteral: {
         const auto& literal_expr = static_cast<const ast::NumberLiteralExpr&>(expr);
-        const char* type_name =
-            number_literal_kind(literal_expr.lexeme) == NumberLiteralKind::Float ? "Float" : "Int";
-        return std::make_unique<NumberLiteralExpr>(literal_expr.lexeme, builtin_type(type_name));
+        if (number_literal_kind(literal_expr.lexeme) == NumberLiteralKind::Float) {
+            return std::make_unique<NumberLiteralExpr>(literal_expr.lexeme, builtin_type("Float"));
+        }
+        if (expected_type != nullptr) {
+            switch (integer_literal_typing_state(*expected_type)) {
+            case IntegerLiteralTypingState::AcceptsNatLiteral:
+            case IntegerLiteralTypingState::AcceptsByteLiteral:
+                return std::make_unique<NumberLiteralExpr>(literal_expr.lexeme, *expected_type);
+            case IntegerLiteralTypingState::RequiresIntDefault:
+                break;
+            }
+        }
+        return std::make_unique<NumberLiteralExpr>(literal_expr.lexeme, builtin_type("Int"));
     }
     case ast::ExprKind::StringLiteral: {
         const auto& literal_expr = static_cast<const ast::StringLiteralExpr&>(expr);

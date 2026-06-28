@@ -1,0 +1,49 @@
+domain module test {
+public record ByteBox {
+    public value: Byte,
+}
+
+public record NatBox {
+    public value: Nat,
+}
+
+public fn byte_zero() -> Byte {
+    0
+}
+
+public fn byte_max() -> Byte {
+    255
+}
+
+public fn byte_field() -> Byte {
+    ByteBox { value: 7 }.value
+}
+
+public fn accept_byte(value: Byte) -> Byte {
+    value
+}
+
+public fn byte_argument() -> Byte {
+    accept_byte(8)
+}
+
+public fn nat_zero() -> Nat {
+    0
+}
+
+public fn nat_field() -> Nat {
+    NatBox { value: 42 }.value
+}
+
+public fn accept_nat(value: Nat) -> Nat {
+    value
+}
+
+public fn nat_argument() -> Nat {
+    accept_nat(9)
+}
+
+public fn default_int() -> Int {
+    5
+}
+}

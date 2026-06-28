@@ -1,0 +1,9 @@
+<input>:11:5: error: integer literal '256' is outside the Byte range
+        256
+        ^^^
+<input>:15:17: error: integer literal '300' is outside the Byte range
+        accept_byte(300)
+                    ^^^
+<input>:19:22: error: integer literal '999' is outside the Byte range
+        ByteBox { value: 999 }.value
+                         ^^^

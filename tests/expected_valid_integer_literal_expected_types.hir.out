@@ -1,0 +1,54 @@
+types:
+  - public record test::ByteBox
+      field value: Byte
+  - public record test::NatBox
+      field value: Nat
+functions:
+  - public fn test::byte_zero() -> Byte
+      block -> Byte
+        result
+          number 0 : Byte
+  - public fn test::byte_max() -> Byte
+      block -> Byte
+        result
+          number 255 : Byte
+  - public fn test::byte_field() -> Byte
+      block -> Byte
+        result
+          field-access .value : Byte
+            construct test::ByteBox : test::ByteBox
+              init value
+                number 7 : Byte
+  - public fn test::accept_byte(value: Byte) -> Byte
+      block -> Byte
+        result
+          local value : Byte
+  - public fn test::byte_argument() -> Byte
+      block -> Byte
+        result
+          call test::accept_byte -> Byte
+            number 8 : Byte
+  - public fn test::nat_zero() -> Nat
+      block -> Nat
+        result
+          number 0 : Nat
+  - public fn test::nat_field() -> Nat
+      block -> Nat
+        result
+          field-access .value : Nat
+            construct test::NatBox : test::NatBox
+              init value
+                number 42 : Nat
+  - public fn test::accept_nat(value: Nat) -> Nat
+      block -> Nat
+        result
+          local value : Nat
+  - public fn test::nat_argument() -> Nat
+      block -> Nat
+        result
+          call test::accept_nat -> Nat
+            number 9 : Nat
+  - public fn test::default_int() -> Int
+      block -> Int
+        result
+          number 5 : Int

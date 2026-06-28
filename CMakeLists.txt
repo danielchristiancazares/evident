@@ -118,7 +118,7 @@ if(BUILD_TESTING)
 
     add_dependencies(evidc bootstrap_compiler_generated_environment)
 
-set(EVIDENT_EXPECTED_CTEST_TOTAL 417)
+set(EVIDENT_EXPECTED_CTEST_TOTAL 421)
 
     add_test(NAME parse_valid_example
         COMMAND evidc --dump-hir ${CMAKE_CURRENT_SOURCE_DIR}/examples/feature_mode.evd)
@@ -696,6 +696,9 @@ set(EVIDENT_EXPECTED_CTEST_TOTAL 417)
     add_hir_compare_test(compare_hir_float_literals
         valid_float_literals.evd
         expected_valid_float_literals.hir.out)
+    add_hir_compare_test(compare_hir_integer_literal_expected_types
+        valid_integer_literal_expected_types.evd
+        expected_valid_integer_literal_expected_types.hir.out)
     add_hir_compare_test(compare_hir_text_bytes_length
         valid_text_bytes_length.evd
         expected_valid_text_bytes_length.hir.out)
@@ -839,6 +842,11 @@ set(EVIDENT_EXPECTED_CTEST_TOTAL 417)
         valid_float_literals.evd
         validate_float_literals.ll
         "store double 0x3FF0000000000000"
+        "")
+    add_emit_pattern_test(validate_llvm_integer_literal_expected_types
+        valid_integer_literal_expected_types.evd
+        validate_integer_literal_expected_types.ll
+        "store i8 255, ptr"
         "")
     add_emit_pattern_test(validate_llvm_text_bytes_length
         valid_text_bytes_length.evd
@@ -1182,6 +1190,9 @@ set(EVIDENT_EXPECTED_CTEST_TOTAL 417)
     add_diagnostic_compare_test(diag_semantic_float_literal_range
         invalid_float_literal_range.evd
         expected_invalid_float_literal_range.diag.out)
+    add_diagnostic_compare_test(diag_semantic_integer_literal_expected_types
+        invalid_integer_literal_expected_types.evd
+        expected_invalid_integer_literal_expected_types.diag.out)
     add_diagnostic_compare_test(diag_semantic_text_bytes_length_contracts
         invalid_text_bytes_length_contracts.evd
         expected_invalid_text_bytes_length_contracts.diag.out)
@@ -1667,6 +1678,7 @@ set(EVIDENT_EXPECTED_CTEST_TOTAL 417)
     add_reject_test(reject_module_kind_generics invalid_module_kind_generics.evd)
     add_reject_test(reject_builtin_collection_arity invalid_builtin_collection_arity.evd)
     add_reject_test(reject_float_literal_range invalid_float_literal_range.evd)
+    add_reject_test(reject_integer_literal_expected_types invalid_integer_literal_expected_types.evd)
     add_reject_test(reject_text_bytes_length_contracts invalid_text_bytes_length_contracts.evd)
     add_reject_test(reject_field_access_private invalid_field_access_private.evd)
     add_reject_test(reject_construct_private_field invalid_construct_private_field.evd)
