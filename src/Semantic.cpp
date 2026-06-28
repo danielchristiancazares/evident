@@ -1105,6 +1105,7 @@ private:
     std::unordered_map<const ast::Decl*, std::string> qualified_names_;
     std::unordered_map<const ast::Decl*, const Scope*> decl_scopes_;
     std::unordered_map<const ast::Decl*, ast::ModuleKind> module_kinds_;
+    std::unordered_map<std::string, SourceSpan> foreign_link_names_;
     std::unordered_map<std::string, std::vector<std::vector<std::string>>> imported_module_paths_by_file_;
     std::unordered_set<std::string> checked_generic_function_instantiations_;
     std::unordered_set<std::string> active_generic_function_instantiations_;
@@ -1739,6 +1740,14 @@ private:
     ast::ModuleKind declaration_module_kind(const ast::Decl& decl) const {
         const auto it = module_kinds_.find(&decl);
         return it != module_kinds_.end() ? it->second : ast::ModuleKind::Domain;
+    }
+
+    void check_foreign_link_name(const ast::FunctionDecl& function_decl) {
+        auto [it, inserted] = foreign_link_names_.try_emplace(function_decl.name, function_decl.span);
+        if (!inserted) {
+            diagnostics_.error(function_decl.span,
+                               "duplicate foreign function link name '" + function_decl.name + "'");
+        }
     }
 
     const ast::PathExpr* path_expr(const ast::Expr& expr) const {
@@ -3063,6 +3072,9 @@ private:
                                          type_privacy_policy(function_decl.visibility),
                                          implementation,
                                          {});
+                if (implementation == ast::FunctionImplementation::ForeignImport) {
+                    check_foreign_link_name(function_decl);
+                }
                 if (implementation == ast::FunctionImplementation::ForeignImport && function_decl.body != nullptr) {
                     diagnostics_.error(function_decl.body->span, "foreign functions may not define a body");
                 }

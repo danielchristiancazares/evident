@@ -1,0 +1,11 @@
+boundary module host_one {
+public foreign fn read(path: CString) -> CString
+}
+
+boundary module host_two {
+public foreign fn read(path: CString) -> CString
+}
+
+hazard module host_three {
+foreign fn read(path: CString) -> CString
+}

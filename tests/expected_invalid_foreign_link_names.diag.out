@@ -1,0 +1,6 @@
+<input>:6:8: error: duplicate foreign function link name 'read'
+    public foreign fn read(path: CString) -> CString
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<input>:10:1: error: duplicate foreign function link name 'read'
+    foreign fn read(path: CString) -> CString
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

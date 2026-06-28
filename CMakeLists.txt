@@ -118,7 +118,7 @@ if(BUILD_TESTING)
 
     add_dependencies(evidc bootstrap_compiler_generated_environment)
 
-set(EVIDENT_EXPECTED_CTEST_TOTAL 432)
+set(EVIDENT_EXPECTED_CTEST_TOTAL 434)
 
     add_test(NAME parse_valid_example
         COMMAND evidc --dump-hir ${CMAKE_CURRENT_SOURCE_DIR}/examples/feature_mode.evd)
@@ -1223,6 +1223,9 @@ set(EVIDENT_EXPECTED_CTEST_TOTAL 432)
     add_diagnostic_compare_test(diag_semantic_foreign_integer_literals
         invalid_foreign_integer_literals.evd
         expected_invalid_foreign_integer_literals.diag.out)
+    add_diagnostic_compare_test(diag_semantic_foreign_link_names
+        invalid_foreign_link_names.evd
+        expected_invalid_foreign_link_names.diag.out)
     add_diagnostic_compare_test(diag_semantic_text_bytes_length_contracts
         invalid_text_bytes_length_contracts.evd
         expected_invalid_text_bytes_length_contracts.diag.out)
@@ -1712,6 +1715,7 @@ set(EVIDENT_EXPECTED_CTEST_TOTAL 432)
     add_reject_test(reject_float_literal_range invalid_float_literal_range.evd)
     add_reject_test(reject_integer_literal_expected_types invalid_integer_literal_expected_types.evd)
     add_reject_test(reject_foreign_integer_literals invalid_foreign_integer_literals.evd)
+    add_reject_test(reject_foreign_link_names invalid_foreign_link_names.evd)
     add_reject_test(reject_text_bytes_length_contracts invalid_text_bytes_length_contracts.evd)
     add_reject_test(reject_field_access_private invalid_field_access_private.evd)
     add_reject_test(reject_construct_private_field invalid_construct_private_field.evd)
