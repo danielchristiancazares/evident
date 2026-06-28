@@ -1,0 +1,13 @@
+domain module test {
+public fn text_length_with_type_arg(text: Text) -> Nat {
+    text_length<Int>(text)
+}
+
+public fn text_length_wrong_arg() -> Nat {
+    text_length(7)
+}
+
+public fn bytes_length_wrong_arg() -> Nat {
+    bytes_length(7)
+}
+}

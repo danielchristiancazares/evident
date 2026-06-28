@@ -1,0 +1,17 @@
+domain module test {
+public fn text_count(text: Text) -> Nat {
+    text_length(text)
+}
+
+public fn bytes_count(bytes: Bytes) -> Nat {
+    bytes_length(bytes)
+}
+
+public fn literal_text_count() -> Nat {
+    text_length("evident")
+}
+
+public fn literal_bytes_count() -> Nat {
+    bytes_length("bytes")
+}
+}

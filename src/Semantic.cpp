@@ -138,6 +138,8 @@ const std::unordered_set<std::string_view> kCompilerOwnedCollectionNames = {
     "nonempty_map_from_entries_using_first_bindings",
     "map_from_entries_using_last_bindings",
     "nonempty_map_from_entries_using_last_bindings",
+    "text_length",
+    "bytes_length",
 };
 
 const std::unordered_set<std::string_view> kCompilerOwnedCollectionCompanionRecordNames = {
@@ -159,6 +161,8 @@ enum class CollectionTypeTemplate {
     GenericK,
     GenericV,
     Nat,
+    Text,
+    Bytes,
     ListT,
     NonEmptyListT,
     ListFirstAndRestT,
@@ -238,6 +242,8 @@ const std::vector<CollectionFunctionSpec> kCompilerOwnedCollectionFunctionSpecs 
      {{"values", CollectionTypeTemplate::NonEmptyListT}},
      CollectionTypeTemplate::Nat,
      {}},
+    {"text_length", {}, {{"text", CollectionTypeTemplate::Text}}, CollectionTypeTemplate::Nat, {}},
+    {"bytes_length", {}, {{"bytes", CollectionTypeTemplate::Bytes}}, CollectionTypeTemplate::Nat, {}},
     {"nonempty_list_first_copy",
      {"T"},
      {{"values", CollectionTypeTemplate::NonEmptyListT}},
@@ -1091,6 +1097,10 @@ private:
             return named_type("V");
         case CollectionTypeTemplate::Nat:
             return named_type("Nat");
+        case CollectionTypeTemplate::Text:
+            return named_type("Text");
+        case CollectionTypeTemplate::Bytes:
+            return named_type("Bytes");
         case CollectionTypeTemplate::ListT:
             return list_arg_type("List");
         case CollectionTypeTemplate::NonEmptyListT:

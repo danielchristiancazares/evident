@@ -105,6 +105,8 @@ enum class CollectionTypeTemplate {
     GenericK,
     GenericV,
     Nat,
+    Text,
+    Bytes,
     ListT,
     NonEmptyListT,
     ListFirstAndRestT,
@@ -179,6 +181,8 @@ const std::vector<CollectionFunctionSpec> kCompilerOwnedCollectionFunctionSpecs 
      {{"values", CollectionTypeTemplate::NonEmptyListT}},
      CollectionTypeTemplate::Nat,
      {}},
+    {"text_length", {}, {{"text", CollectionTypeTemplate::Text}}, CollectionTypeTemplate::Nat, {}},
+    {"bytes_length", {}, {{"bytes", CollectionTypeTemplate::Bytes}}, CollectionTypeTemplate::Nat, {}},
     {"nonempty_list_first_copy",
      {"T"},
      {{"values", CollectionTypeTemplate::NonEmptyListT}},
@@ -888,6 +892,10 @@ ast::TypeRef Lowerer::collection_type_ref(CollectionTypeTemplate type_template) 
         return named_type("V");
     case CollectionTypeTemplate::Nat:
         return named_type("Nat");
+    case CollectionTypeTemplate::Text:
+        return named_type("Text");
+    case CollectionTypeTemplate::Bytes:
+        return named_type("Bytes");
     case CollectionTypeTemplate::ListT:
         return list_arg_type("List");
     case CollectionTypeTemplate::NonEmptyListT:

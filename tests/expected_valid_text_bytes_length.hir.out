@@ -1,0 +1,24 @@
+types:
+functions:
+  - public fn text_length(text: Text) -> Nat
+  - public fn bytes_length(bytes: Bytes) -> Nat
+  - public fn test::text_count(text: Text) -> Nat
+      block -> Nat
+        result
+          call text_length -> Nat
+            local text : Text
+  - public fn test::bytes_count(bytes: Bytes) -> Nat
+      block -> Nat
+        result
+          call bytes_length -> Nat
+            local bytes : Bytes
+  - public fn test::literal_text_count() -> Nat
+      block -> Nat
+        result
+          call text_length -> Nat
+            string "evident" : Text
+  - public fn test::literal_bytes_count() -> Nat
+      block -> Nat
+        result
+          call bytes_length -> Nat
+            string "bytes" : Bytes

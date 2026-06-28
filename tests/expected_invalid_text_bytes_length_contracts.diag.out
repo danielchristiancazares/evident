@@ -1,0 +1,9 @@
+<input>:3:5: error: function 'text_length' is not generic but was called with type arguments
+        text_length<Int>(text)
+        ^^^^^^^^^^^^^^^^^^^^^^
+<input>:7:17: error: argument 1 to 'text_length' has type 'Int', expected 'Text'
+        text_length(7)
+                    ^
+<input>:11:18: error: argument 1 to 'bytes_length' has type 'Int', expected 'Bytes'
+        bytes_length(7)
+                     ^

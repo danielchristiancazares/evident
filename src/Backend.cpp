@@ -436,6 +436,7 @@ enum class CompilerOwnedFunctionLowering {
     EmptyCollection,
     WidenCollection,
     CountCollection,
+    SequenceLength,
     RequireNonEmptyCollection,
     ListSingle,
     MapSingle,
@@ -496,6 +497,9 @@ CompilerOwnedFunctionLowering compiler_owned_function_lowering(std::string_view 
     if (base_name == "list_count_copy" || base_name == "nonempty_list_count_copy"
         || base_name == "map_count_copy" || base_name == "nonempty_map_count_copy") {
         return CompilerOwnedFunctionLowering::CountCollection;
+    }
+    if (base_name == "text_length" || base_name == "bytes_length") {
+        return CompilerOwnedFunctionLowering::SequenceLength;
     }
     if (base_name == "list_require_nonempty" || base_name == "map_require_nonempty") {
         return CompilerOwnedFunctionLowering::RequireNonEmptyCollection;
@@ -2742,6 +2746,34 @@ std::expected<std::string, std::string> FunctionEmitter::emit_compiler_owned_fun
         out << "  ret " << return_type.llvm_type() << " %count0\n";
         out << "}\n";
         return out.str();
+
+    case CompilerOwnedFunctionLowering::SequenceLength: {
+        if (param_types.size() != 1) {
+            return std::unexpected("internal backend error: sequence length function '"
+                                   + hir_function_.qualified_name + "' expected one parameter");
+        }
+        if (!has_builtin_kind(return_type, BuiltinKind::Nat)) {
+            return std::unexpected("internal backend error: sequence length function '"
+                                   + hir_function_.qualified_name + "' returns '"
+                                   + return_type.source_name() + "'");
+        }
+        const std::string_view base_name = function_base_name(hir_function_.qualified_name);
+        const BuiltinKind expected_kind = base_name == "text_length" ? BuiltinKind::Text : BuiltinKind::Bytes;
+        const std::string_view expected_name = base_name == "text_length" ? "Text" : "Bytes";
+        if (!has_builtin_kind(param_types[0], expected_kind)) {
+            return std::unexpected("internal backend error: sequence length function '"
+                                   + hir_function_.qualified_name + "' expected parameter type '"
+                                   + std::string(expected_name) + "', got '"
+                                   + param_types[0].source_name() + "'");
+        }
+        out << "define " << linkage << return_type.llvm_type() << " @"
+            << model_.function_symbol(hir_function_.id) << "(" << param_types[0].llvm_type() << " %arg0) {\n";
+        out << "entry:\n";
+        out << "  %count0 = extractvalue " << param_types[0].llvm_type() << " %arg0, 1\n";
+        out << "  ret " << return_type.llvm_type() << " %count0\n";
+        out << "}\n";
+        return out.str();
+    }
 
     case CompilerOwnedFunctionLowering::ListSingle: {
         if (param_types.size() != 1) {
