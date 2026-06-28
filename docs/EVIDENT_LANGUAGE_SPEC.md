@@ -333,12 +333,20 @@ statement          = let-statement ";"
                    | expression ";" ;
 let-statement      = "let" identifier "=" expression ;
 
-expression         = try-expr
+expression         = traverse-expr
+                   | try-expr
                    | match-expr
                    | grant-expr
                    | fail-expr
                    | prove-expr
                    | postfix-expr ;
+
+traverse-expr      = "traverse" traversal-mode expression
+                     "as" identifier ":" type
+                     "carrying" identifier ":" type "=" expression
+                     block ;
+
+traversal-mode     = "copying" | "consuming" ;
 
 try-expr           = "try" expression ;
 match-expr         = "match" expression "{"
@@ -441,8 +449,9 @@ value in the exact boundary, hazard, or operation that produces it. The IEEE 754
 overflow conditions therefore surface as explicit Evident consequences rather than as in-band `Float` values; an
 underflowed result collapses to the nearest admitted finite value, which may be `0`. A boundary or hazard adapter MUST
 reject or keep outside the strict Evident surface any foreign double that is NaN or infinite before admitting it as
-`Float`. The `Float` arithmetic and conversion operation surface is deferred under Section 18; the `Float` type, its
-finite value set, and float literals are normative in this draft.
+`Float`. `Float` transcendental operations, alternate rounding-mode selection, foreign ABI floating-point binding, and
+non-canonical `Float` formatting controls are deferred. Basic finite `Float` arithmetic, finite `Float` ordering, and
+canonical decimal `Float` parsing are normative under Sections 9.10, 9.11, and 9.13.
 
 A conforming implementation MUST also recognize these compiler-owned collection families:
 
@@ -898,8 +907,8 @@ function name. No unsuffixed `map_from_entries` operation exists in the core sur
 
 ### 9.7 Collection extensions
 
-Collection literals, comprehensions, higher-order traversal, borrowing iterators, index-based access, slicing, sorting,
-and specialized representation controls for the compiler-owned collection families are **[Deferred]**.
+Collection literals, comprehensions, higher-order traversal forms, borrowing iterators, index-based access, slicing,
+sorting, and specialized representation controls for the compiler-owned collection families are **[Deferred]**.
 
 `Text` and `Bytes` are not collection families. Their length, element-access, and slicing operations are defined in
 Section 9.8 and are not deferred.
@@ -2967,6 +2976,7 @@ The function-body language includes:
 * calls
 * named-field construction
 * `match`
+* `traverse`
 * `try`
 * `fail`
 * `grant`
@@ -3200,6 +3210,54 @@ public fn validate(config: AppConfig::Draft) -> ValidationResult
 }
 ```
 
+### 15.10 `traverse`
+
+A `traverse` expression visits every element of a finite `List<T>` or `NonEmptyList<T>` source in list order and threads
+an explicitly typed accumulator through the traversal body.
+
+The source expression MUST have type `List<T>` or `NonEmptyList<T>`.
+
+`Map<K, V>`, `NonEmptyMap<K, V>`, `Text`, `NonEmptyText`, `Bytes`, and `NonEmptyBytes` values MUST be explicitly
+converted to `List` or `NonEmptyList` values with the named compiler-owned conversion operations from Sections 9.6 and
+9.12 before traversal.
+
+The element binding type declared after `as` MUST be exactly `T`.
+
+The initial accumulator expression MUST have exactly the declared accumulator type.
+
+The traversal body MUST have a trailing result expression whose type is exactly the declared accumulator type, unless the
+body diverges with `Never`.
+
+A `traverse` expression has the declared accumulator type.
+
+The element binding and accumulator binding are ordinary value bindings scoped only to the traversal body. A traversal
+body MUST NOT mutate an accumulator in place.
+
+For `traverse copying`, `T` MUST be copyable. The traversal source remains usable after the traversal under ordinary
+copyable value semantics. The element binding receives a copy of the visited element.
+
+For `traverse consuming`, `T` MAY be copyable or affine-bearing. The traversal does not require element copying. For
+affine-bearing source values, the source is moved into the traversal and is unavailable after the traversal expression.
+Each affine-bearing element is moved into the traversal body exactly once.
+
+If the traversal source is an empty `List<T>`, the traversal body is not evaluated and the expression returns the initial
+accumulator value.
+
+If the traversal source is a `NonEmptyList<T>`, the traversal body is evaluated one or more times.
+
+A traversal body MAY be failing. If the body is failing with reason type `R`, the whole `traverse` expression is a
+failing expression with reason type `R`. A traversal expression whose body can fail MUST be handled with `try` or `match`
+under the ordinary exact failure rules.
+
+A traversal expression MUST NOT expose the current index, early termination, `break`, `continue`, cursor equality, end
+sentinels, hidden fallback values, boolean containment, optional elements, nullable elements, or provider-selected
+traversal policy.
+
+The language does not define `Iterable<T>`, `Iterator<T>`, cursor types, generator types, borrowing iterators,
+user-defined iteration protocols, open traversal traits, `next`, `has_next`, end sentinels, or cursor equality.
+
+Traversal over raw sequence-valued values remains subject to the raw-substrate restrictions in Section 10.6.
+
 ## 16. Generics and Parametricity
 
 User-defined generics are intentionally small and quarantined.
@@ -3312,6 +3370,8 @@ At minimum, a conforming implementation MUST reject violations in these families
   module`, direct `entry fn` calls, a package with more than one `entry fn`, native program emission without an `entry fn`,
   malformed `entry fn` signatures, forgeable host or receipt construction, unsuffixed file-write collision policy, and
   bare-`Unit` host effects (Sections 9.15 and 14.6)
+* structural traversal expression rules, including source type, element type, accumulator type, copy/consume discipline,
+  move discipline, failure typing, and deferred iterator-like machinery (Section 15.10)
 
 ## 18. Deferred Areas
 
@@ -3333,9 +3393,11 @@ The following areas are intentionally outside this draft:
   Section 9.11.
 * rotates, multi-byte endian packing helpers, signed integer bit operations, arbitrary-width fixed machine words, and C ABI
   bit reinterpretation are deferred. `Byte` and `Nat` bitset operations are normative under Section 9.14.
-* collection literals, comprehensions, higher-order traversal, borrowing iterators, index-based access, slicing, sorting,
-  and specialized representation controls for the compiler-owned collection families (`Text` and `Bytes` length,
-  element access, and slicing are defined in Section 9.8 and are not deferred)
+* collection literals, comprehensions, first-class iterators, user-defined iterable protocols, borrowing iterators,
+  index-based collection access, collection slicing, sorting, short-circuit traversal with unvisited-element recovery or
+  discard policy, and specialized representation controls for the compiler-owned collection families are deferred.
+  Structural `traverse` over `List<T>` and `NonEmptyList<T>` is normative under Section 15.10, and `Text`/`Bytes`
+  length, element access, and slicing remain defined in Section 9.8 and are not deferred.
 * source-level foreign substrate types for nullable raw pointers, mutable buffers, unchecked C string pointers,
   length-coupled buffers, out-parameters, caller-owned lifetime protocols, caller-managed release protocols, and other raw
   ABI shapes not admitted by Section 14.5
