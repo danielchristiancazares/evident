@@ -1,0 +1,47 @@
+boundary module foreign_integer_literals {
+public record CIntBox {
+    public value: CInt,
+}
+
+public record CSizeBox {
+    public value: CSize,
+}
+
+public fn cint_zero() -> CInt {
+    0
+}
+
+public fn cint_max() -> CInt {
+    2147483647
+}
+
+public fn csize_zero() -> CSize {
+    0
+}
+
+public fn csize_max() -> CSize {
+    18446744073709551615
+}
+
+public fn accept_cint(value: CInt) -> CInt {
+    value
+}
+
+public fn cint_argument() -> CInt {
+    accept_cint(12)
+}
+
+public fn csize_field() -> CSize {
+    CSizeBox { value: 42 }.value
+}
+}
+
+hazard module foreign_integer_hazard {
+public fn hazard_cint() -> CInt {
+    7
+}
+
+public fn hazard_csize() -> CSize {
+    8
+}
+}

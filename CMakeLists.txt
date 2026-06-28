@@ -118,7 +118,7 @@ if(BUILD_TESTING)
 
     add_dependencies(evidc bootstrap_compiler_generated_environment)
 
-set(EVIDENT_EXPECTED_CTEST_TOTAL 428)
+set(EVIDENT_EXPECTED_CTEST_TOTAL 432)
 
     add_test(NAME parse_valid_example
         COMMAND evidc --dump-hir ${CMAKE_CURRENT_SOURCE_DIR}/examples/feature_mode.evd)
@@ -699,6 +699,9 @@ set(EVIDENT_EXPECTED_CTEST_TOTAL 428)
     add_hir_compare_test(compare_hir_integer_literal_expected_types
         valid_integer_literal_expected_types.evd
         expected_valid_integer_literal_expected_types.hir.out)
+    add_hir_compare_test(compare_hir_foreign_integer_literals
+        valid_foreign_integer_literals.evd
+        expected_valid_foreign_integer_literals.hir.out)
     add_hir_compare_test(compare_hir_string_literal_escapes
         valid_string_literal_escapes.evd
         expected_valid_string_literal_escapes.hir.out)
@@ -850,6 +853,11 @@ set(EVIDENT_EXPECTED_CTEST_TOTAL 428)
         valid_integer_literal_expected_types.evd
         validate_integer_literal_expected_types.ll
         "store i8 255, ptr"
+        "")
+    add_emit_pattern_test(validate_llvm_foreign_integer_literals
+        valid_foreign_integer_literals.evd
+        validate_foreign_integer_literals.ll
+        "store i64 18446744073709551615, ptr"
         "")
     add_emit_pattern_test(validate_llvm_string_literal_unicode_escape
         valid_string_literal_escapes.evd
@@ -1212,6 +1220,9 @@ set(EVIDENT_EXPECTED_CTEST_TOTAL 428)
     add_diagnostic_compare_test(diag_semantic_integer_literal_expected_types
         invalid_integer_literal_expected_types.evd
         expected_invalid_integer_literal_expected_types.diag.out)
+    add_diagnostic_compare_test(diag_semantic_foreign_integer_literals
+        invalid_foreign_integer_literals.evd
+        expected_invalid_foreign_integer_literals.diag.out)
     add_diagnostic_compare_test(diag_semantic_text_bytes_length_contracts
         invalid_text_bytes_length_contracts.evd
         expected_invalid_text_bytes_length_contracts.diag.out)
@@ -1700,6 +1711,7 @@ set(EVIDENT_EXPECTED_CTEST_TOTAL 428)
     add_reject_test(reject_cstring_literal_nul invalid_cstring_literal_nul.evd)
     add_reject_test(reject_float_literal_range invalid_float_literal_range.evd)
     add_reject_test(reject_integer_literal_expected_types invalid_integer_literal_expected_types.evd)
+    add_reject_test(reject_foreign_integer_literals invalid_foreign_integer_literals.evd)
     add_reject_test(reject_text_bytes_length_contracts invalid_text_bytes_length_contracts.evd)
     add_reject_test(reject_field_access_private invalid_field_access_private.evd)
     add_reject_test(reject_construct_private_field invalid_construct_private_field.evd)

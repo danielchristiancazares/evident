@@ -1,0 +1,31 @@
+domain module domain_foreign_integer_literals {
+public fn domain_cint() -> CInt {
+    1
+}
+
+public fn domain_csize() -> CSize {
+    2
+}
+}
+
+foundation module foundation_foreign_integer_literals {
+public fn foundation_cint() -> CInt {
+    3
+}
+}
+
+boundary module boundary_foreign_integer_literals {
+public fn cint_too_large() -> CInt {
+    2147483648
+}
+
+public fn csize_too_large() -> CSize {
+    18446744073709551616
+}
+}
+
+hazard module hazard_foreign_integer_literals {
+public fn hazard_cint_too_large() -> CInt {
+    2147483648
+}
+}

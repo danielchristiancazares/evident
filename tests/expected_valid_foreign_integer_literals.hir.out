@@ -1,0 +1,46 @@
+types:
+  - public record foreign_integer_literals::CIntBox
+      field value: CInt
+  - public record foreign_integer_literals::CSizeBox
+      field value: CSize
+functions:
+  - public fn foreign_integer_literals::cint_zero() -> CInt
+      block -> CInt
+        result
+          number 0 : CInt
+  - public fn foreign_integer_literals::cint_max() -> CInt
+      block -> CInt
+        result
+          number 2147483647 : CInt
+  - public fn foreign_integer_literals::csize_zero() -> CSize
+      block -> CSize
+        result
+          number 0 : CSize
+  - public fn foreign_integer_literals::csize_max() -> CSize
+      block -> CSize
+        result
+          number 18446744073709551615 : CSize
+  - public fn foreign_integer_literals::accept_cint(value: CInt) -> CInt
+      block -> CInt
+        result
+          local value : CInt
+  - public fn foreign_integer_literals::cint_argument() -> CInt
+      block -> CInt
+        result
+          call foreign_integer_literals::accept_cint -> CInt
+            number 12 : CInt
+  - public fn foreign_integer_literals::csize_field() -> CSize
+      block -> CSize
+        result
+          field-access .value : CSize
+            construct foreign_integer_literals::CSizeBox : foreign_integer_literals::CSizeBox
+              init value
+                number 42 : CSize
+  - public fn foreign_integer_hazard::hazard_cint() -> CInt
+      block -> CInt
+        result
+          number 7 : CInt
+  - public fn foreign_integer_hazard::hazard_csize() -> CSize
+      block -> CSize
+        result
+          number 8 : CSize

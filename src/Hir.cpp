@@ -458,6 +458,8 @@ enum class IntegerLiteralTypingState {
     RequiresIntDefault,
     AcceptsNatLiteral,
     AcceptsByteLiteral,
+    AcceptsCIntLiteral,
+    AcceptsCSizeLiteral,
 };
 
 enum class NumberLiteralKind {
@@ -1799,6 +1801,12 @@ IntegerLiteralTypingState integer_literal_typing_state(const TypeRef& type) {
     if (type.text == "Byte") {
         return IntegerLiteralTypingState::AcceptsByteLiteral;
     }
+    if (type.text == "CInt") {
+        return IntegerLiteralTypingState::AcceptsCIntLiteral;
+    }
+    if (type.text == "CSize") {
+        return IntegerLiteralTypingState::AcceptsCSizeLiteral;
+    }
     return IntegerLiteralTypingState::RequiresIntDefault;
 }
 
@@ -2405,6 +2413,8 @@ std::unique_ptr<Expr> Lowerer::lower_expr(const ast::Expr& expr,
             switch (integer_literal_typing_state(*expected_type)) {
             case IntegerLiteralTypingState::AcceptsNatLiteral:
             case IntegerLiteralTypingState::AcceptsByteLiteral:
+            case IntegerLiteralTypingState::AcceptsCIntLiteral:
+            case IntegerLiteralTypingState::AcceptsCSizeLiteral:
                 return std::make_unique<NumberLiteralExpr>(literal_expr.lexeme, *expected_type);
             case IntegerLiteralTypingState::RequiresIntDefault:
                 break;

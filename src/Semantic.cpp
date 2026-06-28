@@ -605,6 +605,8 @@ enum class IntegerLiteralTypingState {
     RequiresIntDefault,
     AcceptsNatLiteral,
     AcceptsByteLiteral,
+    AcceptsCIntLiteral,
+    AcceptsCSizeLiteral,
 };
 
 enum class BuiltinTypeArgumentArity {
@@ -742,6 +744,36 @@ bool integer_literal_fits_byte(std::string_view lexeme) {
         }
     }
     return true;
+}
+
+bool decimal_integer_literal_at_most(std::string_view lexeme, std::string_view max) {
+    if (lexeme.empty()) {
+        return false;
+    }
+    for (const char ch : lexeme) {
+        if (ch < '0' || ch > '9') {
+            return false;
+        }
+    }
+    while (lexeme.size() > 1 && lexeme.front() == '0') {
+        lexeme.remove_prefix(1);
+    }
+    if (lexeme.size() != max.size()) {
+        return lexeme.size() < max.size();
+    }
+    return lexeme <= max;
+}
+
+bool integer_literal_fits_cint(std::string_view lexeme) {
+    return decimal_integer_literal_at_most(lexeme, "2147483647");
+}
+
+bool integer_literal_fits_csize(std::string_view lexeme) {
+    return decimal_integer_literal_at_most(lexeme, "18446744073709551615");
+}
+
+bool module_allows_foreign_abi_integer_literals(ast::ModuleKind module_kind) {
+    return module_kind == ast::ModuleKind::Boundary || module_kind == ast::ModuleKind::Hazard;
 }
 
 bool is_hex_digit(char ch) {
@@ -1024,6 +1056,7 @@ private:
     struct FunctionContext {
         const Scope& scope;
         const ast::FunctionDecl& function;
+        ast::ModuleKind module_kind = ast::ModuleKind::Domain;
         std::vector<std::string> generics;
         std::vector<std::pair<std::string, Type>> substitutions;
         Type return_type;
@@ -1071,6 +1104,7 @@ private:
     std::vector<std::unique_ptr<ast::FunctionDecl>> collection_function_decls_;
     std::unordered_map<const ast::Decl*, std::string> qualified_names_;
     std::unordered_map<const ast::Decl*, const Scope*> decl_scopes_;
+    std::unordered_map<const ast::Decl*, ast::ModuleKind> module_kinds_;
     std::unordered_map<std::string, std::vector<std::vector<std::string>>> imported_module_paths_by_file_;
     std::unordered_set<std::string> checked_generic_function_instantiations_;
     std::unordered_set<std::string> active_generic_function_instantiations_;
@@ -1079,9 +1113,15 @@ private:
     typesys::DisciplineClassifier discipline_classifier_;
     BindingId next_binding_id_ = 1;
 
-    void build_scope(const std::vector<std::unique_ptr<ast::Decl>>& decls, Scope& scope, const std::string& prefix) {
+    void build_scope(const std::vector<std::unique_ptr<ast::Decl>>& decls,
+                     Scope& scope,
+                     const std::string& prefix,
+                     ast::ModuleKind module_kind = ast::ModuleKind::Domain) {
         for (const auto& decl_ptr : decls) {
             const ast::Decl& decl = *decl_ptr;
+            if (decl.kind != ast::DeclKind::Module) {
+                module_kinds_[&decl] = module_kind;
+            }
             auto [it, inserted] = scope.symbols.try_emplace(decl.name, Symbol{&decl, decl.kind, decl.visibility, nullptr});
             if (!inserted) {
                 if (decl.kind == ast::DeclKind::Module && it->second.kind == ast::DeclKind::Module
@@ -1098,7 +1138,7 @@ private:
                     const std::string qualified = prefix.empty() ? decl.name : prefix + "::" + decl.name;
                     qualified_names_[&decl] = qualified;
                     decl_scopes_[&decl] = &scope;
-                    build_scope(module_decl.members, *it->second.child_scope, qualified);
+                    build_scope(module_decl.members, *it->second.child_scope, qualified, module_decl.module_kind);
                     continue;
                 }
                 diagnostics_.error(decl.span, "duplicate declaration for '" + decl.name + "'");
@@ -1113,7 +1153,7 @@ private:
                 it->second.child_scope = std::make_unique<Scope>();
                 it->second.child_scope->parent = &scope;
                 const auto& module_decl = static_cast<const ast::ModuleDecl&>(decl);
-                build_scope(module_decl.members, *it->second.child_scope, qualified);
+                build_scope(module_decl.members, *it->second.child_scope, qualified, module_decl.module_kind);
             }
         }
     }
@@ -1687,7 +1727,18 @@ private:
         if (type.name == "Byte") {
             return IntegerLiteralTypingState::AcceptsByteLiteral;
         }
+        if (type.name == "CInt") {
+            return IntegerLiteralTypingState::AcceptsCIntLiteral;
+        }
+        if (type.name == "CSize") {
+            return IntegerLiteralTypingState::AcceptsCSizeLiteral;
+        }
         return IntegerLiteralTypingState::RequiresIntDefault;
+    }
+
+    ast::ModuleKind declaration_module_kind(const ast::Decl& decl) const {
+        const auto it = module_kinds_.find(&decl);
+        return it != module_kinds_.end() ? it->second : ast::ModuleKind::Domain;
     }
 
     const ast::PathExpr* path_expr(const ast::Expr& expr) const {
@@ -3016,7 +3067,7 @@ private:
                     diagnostics_.error(function_decl.body->span, "foreign functions may not define a body");
                 }
                 if (function_decl.body != nullptr && implementation == ast::FunctionImplementation::EvidentBody) {
-                    analyze_function_body(function_decl, scope);
+                    analyze_function_body(function_decl, scope, declaration_module_kind(function_decl));
                 }
                 break;
             }
@@ -4068,6 +4119,32 @@ private:
                         return make_expr(error_type());
                     }
                     return make_expr(*expected_type);
+                case IntegerLiteralTypingState::AcceptsCIntLiteral:
+                    if (!module_allows_foreign_abi_integer_literals(context.module_kind)) {
+                        diagnostics_.error(expr.span,
+                                           "integer literal cannot type as CInt outside a boundary or hazard module");
+                        return make_expr(error_type());
+                    }
+                    if (!integer_literal_fits_cint(literal.lexeme)) {
+                        diagnostics_.error(expr.span,
+                                           "integer literal '" + literal.lexeme
+                                               + "' is outside the CInt range");
+                        return make_expr(error_type());
+                    }
+                    return make_expr(*expected_type);
+                case IntegerLiteralTypingState::AcceptsCSizeLiteral:
+                    if (!module_allows_foreign_abi_integer_literals(context.module_kind)) {
+                        diagnostics_.error(expr.span,
+                                           "integer literal cannot type as CSize outside a boundary or hazard module");
+                        return make_expr(error_type());
+                    }
+                    if (!integer_literal_fits_csize(literal.lexeme)) {
+                        diagnostics_.error(expr.span,
+                                           "integer literal '" + literal.lexeme
+                                               + "' is outside the CSize range");
+                        return make_expr(error_type());
+                    }
+                    return make_expr(*expected_type);
                 case IntegerLiteralTypingState::RequiresIntDefault:
                     break;
                 }
@@ -4128,7 +4205,7 @@ private:
         }
 
         active_generic_function_instantiations_.insert(key);
-        analyze_function_body(function_decl, scope, substitutions);
+        analyze_function_body(function_decl, scope, declaration_module_kind(function_decl), substitutions);
         active_generic_function_instantiations_.erase(key);
         checked_generic_function_instantiations_.insert(key);
     }
@@ -4136,8 +4213,9 @@ private:
     void analyze_function_body(
         const ast::FunctionDecl& function_decl,
         const Scope& scope,
+        ast::ModuleKind module_kind,
         std::vector<std::pair<std::string, Type>> substitutions = {}) {
-        FunctionContext context{scope, function_decl, {}, std::move(substitutions), error_type(), nullptr, {}};
+        FunctionContext context{scope, function_decl, module_kind, {}, std::move(substitutions), error_type(), nullptr, {}};
         for (const ast::GenericParam& generic : function_decl.signature.generic_params) {
             context.generics.push_back(generic.name);
         }
