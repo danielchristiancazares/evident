@@ -75,6 +75,22 @@ value, raw-adapter export, or raw-adapter-exposing value is not an inhabited int
 
 **Hazard module** means a module reserved for low-level system interaction, FFI, concurrency coordination, runtime orchestration, and other operations whose hazards are inherently runtime-visible.
 
+**Host operation** means a compiler-owned operation that observes or affects process state, terminal streams, files, or host-provided program invocation data.
+
+**Entry function** means the unique package function that the host runtime may invoke to start a native program. An entry function is not callable from Evident source.
+
+**Effect receipt** means a data value returned by a successful host operation to name the completed effect. A host operation whose only successful consequence is an external effect MUST return an effect receipt rather than bare `Unit`.
+
+**Classifier type** means a compiler-owned, closed, match-only control classifier. A classifier type is not a data type, not a contract type, and not storable program state.
+
+**Classifier expression** means an expression whose type is a classifier type. A classifier expression may appear only as the immediate subject of a `match` expression. It MUST NOT be bound with `let`, returned, stored, passed as an ordinary argument, placed in a record, state, proof, phase, collection, or generic argument, or exposed in any user-authored API surface.
+
+**Arithmetic operation** means a compiler-owned numeric operation from Section 9.10. Arithmetic operations are ordinary calls, never symbolic operators.
+
+**Relation operation** means a compiler-owned or user-authored operation whose result is a classifier expression used to classify value identity, order, prefix relation, bit presence, or other immediate branch-only fact.
+
+**Canonical decimal text** means ASCII decimal notation with no locale, no grouping separator, no leading plus sign, and no hidden formatting policy.
+
 ## 5. Module Model
 
 Declarations other than `module` declarations MUST appear inside a module.
@@ -173,6 +189,9 @@ A `hazard module` MAY declare:
 * `phase`
 * `fn`
 * `foreign fn`
+* `entry fn`
+
+A `hazard module` MAY declare the single package `entry fn` governed by Section 14.6. No other module kind may declare an `entry fn`.
 
 A `hazard module` MAY define hazard-local proofs, permits, reasons, states, and phases when those categories are genuine consequences of hazardous interaction.
 
@@ -226,6 +245,9 @@ The language core recognizes these declaration forms:
 * `phase`
 * `fn`
 * `foreign fn`
+* `entry fn`
+
+An `entry fn` is not an ordinary function declaration. It is a package-start declaration governed by Section 14.6.
 
 The language core does not define `trait`, `impl`, open method dispatch, or reflection-based typing features.
 
@@ -250,7 +272,16 @@ declaration        = [ "public" ] (
                      | phase-decl
                      | foreign-fn-decl
                      | fn-decl
-                     ) ;
+                     )
+                   | entry-fn-decl ;
+
+entry-fn-decl      = "entry" "fn" identifier entry-parameter-list "->" "ProcessExitCode"
+                     block ;
+
+entry-parameter-list
+                   = "(" "invocation" ":" "ProgramInvocation"
+                     { "," permit-parameter }
+                     [ "," ] ")" ;
 
 record-decl        = "record" identifier [ generic-params ] field-block ;
 state-decl         = "state" identifier variant-block ;
@@ -1140,6 +1171,750 @@ integerly typed enums, status codes, invalid-handle encodings, sentinels, policy
 runtime or foreign meanings carried by the source integer. Converted core integers remain subject to the ingress-derived
 looseness rule in Section 10.5.
 
+### 9.10 Arithmetic Operations
+
+Throughout Sections 9.10 through 9.15, the compiler-owned operations, classifier types, nominal types, permits, and
+reasons are not user-authored declarations. Their names are reserved; user code MUST NOT redeclare them. They are exempt
+from the user-authored producer, visible-consequence, and semantic-claim obligations of Section 10.6, because the compiler
+owns their construction and effects.
+
+Arithmetic syntax is deliberately absent. A conforming implementation MUST NOT define symbolic arithmetic operators such
+as `+`, `-`, `*`, `/`, `%`, unary numeric negation, increment, decrement, compound assignment, or precedence rules for
+arithmetic expressions.
+
+All arithmetic is performed through the compiler-owned monomorphic operations in this section.
+
+A conforming implementation MUST provide these arithmetic failure reasons:
+
+```evd
+public reason IntegerArithmeticFailure {
+    IntegerResultExceededIntRange,
+    NaturalDifferenceWouldBeNegative,
+    DivisorWasZero,
+    IntegerQuotientWouldExceedIntRange,
+}
+
+public reason ByteArithmeticFailure {
+    ByteResultExceededRange,
+    ByteDifferenceWouldBeNegative,
+    DivisorWasZero,
+}
+
+public reason FloatArithmeticFailure {
+    FloatOperationWouldProduceNan,
+    FloatOperationWouldProduceInfinity,
+    DivisorWasZero,
+}
+```
+
+For `Nat`, a conforming implementation MUST provide:
+
+```evd
+nat_sum(left: Nat, right: Nat) -> Nat
+
+nat_product(left: Nat, right: Nat) -> Nat
+
+nat_difference_rejecting_negative_result(left: Nat, right: Nat) -> Nat
+    fails IntegerArithmeticFailure
+
+nat_quotient_rejecting_zero_divisor(dividend: Nat, divisor: Nat) -> Nat
+    fails IntegerArithmeticFailure
+
+nat_remainder_rejecting_zero_divisor(dividend: Nat, divisor: Nat) -> Nat
+    fails IntegerArithmeticFailure
+```
+
+`nat_difference_rejecting_negative_result(left, right)` MUST fail with
+`IntegerArithmeticFailure::NaturalDifferenceWouldBeNegative` when `right` is greater than `left`. It MUST NOT clamp to
+zero, wrap, or return a sentinel.
+
+`nat_quotient_rejecting_zero_divisor` and `nat_remainder_rejecting_zero_divisor` use Euclidean natural-number division.
+Each MUST fail with `IntegerArithmeticFailure::DivisorWasZero` when `divisor` is zero.
+
+For `Int`, a conforming implementation MUST provide:
+
+```evd
+int_sum(left: Int, right: Int) -> Int
+    fails IntegerArithmeticFailure
+
+int_product(left: Int, right: Int) -> Int
+    fails IntegerArithmeticFailure
+
+int_difference(left: Int, right: Int) -> Int
+    fails IntegerArithmeticFailure
+
+int_negated(value: Int) -> Int
+    fails IntegerArithmeticFailure
+
+int_quotient_truncating_toward_zero_rejecting_zero_divisor(dividend: Int, divisor: Int) -> Int
+    fails IntegerArithmeticFailure
+
+int_remainder_after_truncating_toward_zero_quotient_rejecting_zero_divisor(dividend: Int, divisor: Int) -> Int
+    fails IntegerArithmeticFailure
+```
+
+Every `Int` operation MUST preserve the mathematical result exactly when that result is inside the admitted `Int` value
+set. If the mathematical result is outside the admitted `Int` value set, the operation MUST fail with
+`IntegerArithmeticFailure::IntegerResultExceededIntRange`, except that the target-specific minimum integer divided by
+`-1` MUST fail with `IntegerArithmeticFailure::IntegerQuotientWouldExceedIntRange`. Each zero-divisor operation MUST fail
+with `IntegerArithmeticFailure::DivisorWasZero` when `divisor` is zero.
+
+For `Byte`, a conforming implementation MUST provide:
+
+```evd
+byte_sum(left: Byte, right: Byte) -> Byte
+    fails ByteArithmeticFailure
+
+byte_product(left: Byte, right: Byte) -> Byte
+    fails ByteArithmeticFailure
+
+byte_difference_rejecting_negative_result(left: Byte, right: Byte) -> Byte
+    fails ByteArithmeticFailure
+
+byte_quotient_rejecting_zero_divisor(dividend: Byte, divisor: Byte) -> Byte
+    fails ByteArithmeticFailure
+
+byte_remainder_rejecting_zero_divisor(dividend: Byte, divisor: Byte) -> Byte
+    fails ByteArithmeticFailure
+```
+
+A `Byte` arithmetic operation MUST fail with `ByteArithmeticFailure::ByteResultExceededRange` when the exact mathematical
+result is greater than 255, MUST fail with `ByteArithmeticFailure::ByteDifferenceWouldBeNegative` when a difference would
+be negative, and MUST fail with `ByteArithmeticFailure::DivisorWasZero` when `divisor` is zero. It MUST NOT wrap or
+saturate.
+
+For `Float`, a conforming implementation MUST provide:
+
+```evd
+float_sum(left: Float, right: Float) -> Float
+    fails FloatArithmeticFailure
+
+float_product(left: Float, right: Float) -> Float
+    fails FloatArithmeticFailure
+
+float_difference(left: Float, right: Float) -> Float
+    fails FloatArithmeticFailure
+
+float_negated(value: Float) -> Float
+
+float_quotient_rejecting_zero_divisor(dividend: Float, divisor: Float) -> Float
+    fails FloatArithmeticFailure
+```
+
+Each `Float` arithmetic operation MUST round to the nearest representable admitted binary64 value using roundTiesToEven.
+Any operation that would produce NaN MUST fail with `FloatArithmeticFailure::FloatOperationWouldProduceNan`. Any operation
+that would produce positive or negative infinity MUST fail with `FloatArithmeticFailure::FloatOperationWouldProduceInfinity`.
+Division by zero MUST fail with `FloatArithmeticFailure::DivisorWasZero`. `float_negated(0)` MUST return the unique
+admitted zero.
+
+### 9.11 Relation Classifiers, Equality, and Ordering
+
+The language has no comparison operators and no equality operators. A conforming implementation MUST NOT define `==`,
+`!=`, `<`, `<=`, `>`, `>=`, `compare`, `cmp`, spaceship comparison, ordering predicates, truthiness, or any operation
+returning a boolean-equivalent data value.
+
+A comparison is an immediate classification event, not a value. Its result is a classifier expression and MUST be
+consumed directly by an exhaustive `match`.
+
+The compiler owns these classifier types:
+
+```evd
+classifier ValueIdentity {
+    ValuesCoincide,
+    ValuesDiverge,
+}
+
+classifier ValueOrder {
+    LeftValuePrecedesRightValue,
+    ValuesCoincide,
+    RightValuePrecedesLeftValue,
+}
+
+classifier TextLexicalOrder {
+    LeftTextPrecedesRightText { first_divergent_character_index: Nat },
+    TextsCoincide,
+    RightTextPrecedesLeftText { first_divergent_character_index: Nat },
+}
+
+classifier BytesLexicalOrder {
+    LeftBytesPrecedeRightBytes { first_divergent_byte_index: Nat },
+    BytesCoincide,
+    RightBytesPrecedeLeftBytes { first_divergent_byte_index: Nat },
+}
+
+classifier BitPresence {
+    BitWasCleared,
+    BitWasSet,
+}
+```
+
+The names of compiler-owned classifier types and classifier variants are reserved.
+
+A classifier declaration is not user-authored syntax in this draft. User code MAY define ordinary `state` types for
+domain-specific stable alternatives, but it MUST NOT define classifier types.
+
+A classifier expression may be the subject of `match`:
+
+```evd
+match nat_order(left, right) {
+    ValueOrder::LeftValuePrecedesRightValue => before,
+    ValueOrder::ValuesCoincide => same,
+    ValueOrder::RightValuePrecedesLeftValue => after,
+}
+```
+
+The `ValuesCoincide` arm is the equality case. There is no separate equality predicate.
+
+A classifier `match` MUST be exhaustive. Wildcard arms are forbidden. A classifier `match` consumes the classifier
+expression. Because a classifier expression cannot be named or stored, it cannot escape as a disguised boolean.
+
+A conforming implementation MUST provide these scalar relation operations:
+
+```evd
+int_order(left: Int, right: Int) -> ValueOrder
+
+nat_order(left: Nat, right: Nat) -> ValueOrder
+
+byte_order(left: Byte, right: Byte) -> ValueOrder
+
+float_order(left: Float, right: Float) -> ValueOrder
+
+char_order(left: Char, right: Char) -> ValueOrder
+
+int_identity(left: Int, right: Int) -> ValueIdentity
+
+nat_identity(left: Nat, right: Nat) -> ValueIdentity
+
+byte_identity(left: Byte, right: Byte) -> ValueIdentity
+
+float_identity(left: Float, right: Float) -> ValueIdentity
+
+char_identity(left: Char, right: Char) -> ValueIdentity
+```
+
+`float_order` MUST use the total order over admitted finite `Float` values. Because NaN and infinities are not admitted
+`Float` values, `float_order` is total.
+
+A conforming implementation MUST provide these sequence relation operations:
+
+```evd
+text_lexical_order(left: Text, right: Text) -> TextLexicalOrder
+
+bytes_lexical_order(left: Bytes, right: Bytes) -> BytesLexicalOrder
+
+text_identity(left: Text, right: Text) -> ValueIdentity
+
+bytes_identity(left: Bytes, right: Bytes) -> ValueIdentity
+
+nonempty_text_identity(left: NonEmptyText, right: NonEmptyText) -> ValueIdentity
+
+nonempty_bytes_identity(left: NonEmptyBytes, right: NonEmptyBytes) -> ValueIdentity
+```
+
+`text_lexical_order` MUST use Unicode scalar-value order. `bytes_lexical_order` MUST use byte order. When the first
+difference is caused by one sequence ending after a shared prefix, `first_divergent_character_index` or
+`first_divergent_byte_index` MUST be the length of the shorter sequence.
+
+A conforming implementation MUST NOT provide generic equality for records, states, proofs, concrete phase types,
+collections, or arbitrary instantiated generic records. User-authored domain identity is a domain claim. If a module
+needs identity for a domain type, that module MUST define a consequence-named operation returning either:
+
+* a same-module ordinary `state` when the relation is stable domain information, or
+* a compiler-owned classifier expression when the result is used only for immediate branching and the operation is
+  private same-module plumbing.
+
+A user-authored exported function MUST NOT return a classifier type. A user-authored function MUST NOT expose a classifier
+type in any parameter, return, field, payload, proof, phase, collection, generic, `fails`, `grants`, or `proves` position.
+
+### 9.12 Text and Bytes Construction
+
+String literals remain literal syntax. Dynamic construction of `Text` and `Bytes` is performed only through compiler-owned
+structural operations. These operations are substrate operations. They prove only exact sequence construction, not content
+validity, schema validity, protocol membership, syntax acceptance, or domain meaning. This preserves the existing rule
+that text and bytes operations by themselves do not collapse stringly or byte-carried semantics.
+
+A conforming implementation MUST provide these `Text` construction operations:
+
+```evd
+text_empty() -> Text
+
+text_single(character: Char) -> NonEmptyText
+
+text_prepend(character: Char, text: Text) -> NonEmptyText
+
+text_append(text: Text, character: Char) -> NonEmptyText
+
+text_concat(left: Text, right: Text) -> Text
+
+nonempty_text_concat_left(left: NonEmptyText, right: Text) -> NonEmptyText
+
+nonempty_text_concat_right(left: Text, right: NonEmptyText) -> NonEmptyText
+
+nonempty_text_concat(left: NonEmptyText, right: NonEmptyText) -> NonEmptyText
+
+text_from_characters(characters: List<Char>) -> Text
+
+nonempty_text_from_characters(characters: NonEmptyList<Char>) -> NonEmptyText
+
+text_characters_copy(text: Text) -> List<Char>
+
+nonempty_text_characters_copy(text: NonEmptyText) -> NonEmptyList<Char>
+```
+
+A conforming implementation MUST provide these `Bytes` construction operations:
+
+```evd
+bytes_empty() -> Bytes
+
+bytes_single(byte: Byte) -> NonEmptyBytes
+
+bytes_prepend(byte: Byte, bytes: Bytes) -> NonEmptyBytes
+
+bytes_append(bytes: Bytes, byte: Byte) -> NonEmptyBytes
+
+bytes_concat(left: Bytes, right: Bytes) -> Bytes
+
+nonempty_bytes_concat_left(left: NonEmptyBytes, right: Bytes) -> NonEmptyBytes
+
+nonempty_bytes_concat_right(left: Bytes, right: NonEmptyBytes) -> NonEmptyBytes
+
+nonempty_bytes_concat(left: NonEmptyBytes, right: NonEmptyBytes) -> NonEmptyBytes
+
+bytes_from_bytes(bytes: List<Byte>) -> Bytes
+
+nonempty_bytes_from_bytes(bytes: NonEmptyList<Byte>) -> NonEmptyBytes
+
+bytes_bytes_copy(bytes: Bytes) -> List<Byte>
+
+nonempty_bytes_bytes_copy(bytes: NonEmptyBytes) -> NonEmptyList<Byte>
+```
+
+Every construction operation MUST preserve element order exactly. No operation may insert a terminator, drop an element,
+normalize text, decode bytes, encode text, or infer content meaning unless that behavior is named by the operation.
+
+A conforming implementation MUST provide UTF-8 conversion reasons and operations:
+
+```evd
+public reason Utf8TextFailure {
+    BytesWereNotUtf8,
+}
+
+text_utf8_bytes(text: Text) -> Bytes
+
+nonempty_text_utf8_bytes(text: NonEmptyText) -> NonEmptyBytes
+
+bytes_parse_utf8_text(bytes: Bytes) -> Text
+    fails Utf8TextFailure
+
+nonempty_bytes_parse_utf8_text(bytes: NonEmptyBytes) -> NonEmptyText
+    fails Utf8TextFailure
+```
+
+`text_utf8_bytes` and `nonempty_text_utf8_bytes` MUST return exactly the UTF-8 encoding of the input Unicode scalar
+sequence. `bytes_parse_utf8_text` MUST fail with `Utf8TextFailure::BytesWereNotUtf8` unless the whole byte sequence is
+well-formed UTF-8. It MUST NOT replace invalid bytes, skip invalid bytes, apply locale conversion, normalize Unicode, or
+accept partial decoding.
+
+### 9.13 Scalar Conversion and Numeric Text
+
+A conforming implementation MUST provide these scalar conversion reasons:
+
+```evd
+public reason CoreIntegerConversionFailure {
+    IntegerWasNegative,
+    NaturalExceededIntRange,
+    NaturalExceededByteRange,
+}
+
+public reason UnicodeScalarConversionFailure {
+    NaturalExceededUnicodeScalarRange,
+    NaturalNamedSurrogateCodePoint,
+}
+
+public reason DecimalTextParseFailure {
+    TextHadNoDigits,
+    TextContainedNonDecimalDigit,
+    TextUsedSignWhereUnsignedDigitsWereRequired,
+    TextRepresentedValueOutsideTargetRange,
+    FloatTextDidNotNameFiniteDecimalValue,
+    FloatTextWouldRoundToInfinity,
+}
+```
+
+A conforming implementation MUST provide this compiler-owned nominal scalar type:
+
+```evd
+public record UnicodeScalarValue {
+    value: Nat,
+}
+```
+
+`UnicodeScalarValue` has private representation. It denotes exactly the natural numbers 0 through 1,114,111 inclusive
+except 55,296 through 57,343 inclusive. Direct external construction is blocked.
+
+A conforming implementation MUST provide these integer conversion operations:
+
+```evd
+int_require_nat(value: Int) -> Nat
+    fails CoreIntegerConversionFailure
+
+nat_require_int(value: Nat) -> Int
+    fails CoreIntegerConversionFailure
+
+byte_to_nat(value: Byte) -> Nat
+
+nat_require_byte(value: Nat) -> Byte
+    fails CoreIntegerConversionFailure
+```
+
+`int_require_nat` MUST fail with `CoreIntegerConversionFailure::IntegerWasNegative` when `value` is negative.
+`nat_require_int` MUST fail with `CoreIntegerConversionFailure::NaturalExceededIntRange` when the value cannot be
+represented exactly as `Int`. `nat_require_byte` MUST fail with `CoreIntegerConversionFailure::NaturalExceededByteRange`
+when the value is greater than 255.
+
+A conforming implementation MUST provide these Unicode scalar conversion operations:
+
+```evd
+char_unicode_scalar_value(character: Char) -> UnicodeScalarValue
+
+unicode_scalar_value_char(value: UnicodeScalarValue) -> Char
+
+unicode_scalar_value_nat(value: UnicodeScalarValue) -> Nat
+
+nat_require_unicode_scalar_value(value: Nat) -> UnicodeScalarValue
+    fails UnicodeScalarConversionFailure
+```
+
+`nat_require_unicode_scalar_value` MUST fail with `UnicodeScalarConversionFailure::NaturalExceededUnicodeScalarRange` when
+`value` is greater than U+10FFFF and MUST fail with `UnicodeScalarConversionFailure::NaturalNamedSurrogateCodePoint` when
+`value` is in U+D800 through U+DFFF.
+
+A conforming implementation MUST provide these canonical decimal formatting operations:
+
+```evd
+nat_format_decimal_text(value: Nat) -> NonEmptyText
+
+int_format_decimal_text(value: Int) -> NonEmptyText
+
+byte_format_decimal_text(value: Byte) -> NonEmptyText
+```
+
+Formatting MUST use ASCII digits only. `int_format_decimal_text` MUST use a leading `-` only for negative values.
+Formatting MUST NOT use a leading `+`, grouping separators, locale-specific digits, whitespace, padding, prefix strings,
+suffix strings, or hidden formatting policy.
+
+A conforming implementation MUST provide these canonical decimal parsing operations:
+
+```evd
+text_parse_nat_decimal(text: NonEmptyText) -> Nat
+    fails DecimalTextParseFailure
+
+text_parse_int_decimal(text: NonEmptyText) -> Int
+    fails DecimalTextParseFailure
+
+text_parse_byte_decimal(text: NonEmptyText) -> Byte
+    fails DecimalTextParseFailure
+
+text_parse_float_decimal(text: NonEmptyText) -> Float
+    fails DecimalTextParseFailure
+```
+
+`text_parse_nat_decimal` accepts one or more ASCII decimal digits and no sign. It MUST fail with
+`DecimalTextParseFailure::TextUsedSignWhereUnsignedDigitsWereRequired` if the text begins with `-` or `+`.
+
+`text_parse_int_decimal` accepts either one or more ASCII decimal digits or `-` followed by one or more ASCII decimal
+digits. It MUST NOT accept `+`. It MUST fail with `DecimalTextParseFailure::TextRepresentedValueOutsideTargetRange` when
+the parsed mathematical integer is outside the admitted `Int` range.
+
+`text_parse_byte_decimal` accepts the same syntax as `text_parse_nat_decimal` and MUST fail with
+`DecimalTextParseFailure::TextRepresentedValueOutsideTargetRange` when the parsed value is greater than 255.
+
+`text_parse_float_decimal` accepts the same finite decimal grammar as `Float` literals, plus an optional leading `-`. It
+MUST reject NaN, infinity spellings, locale syntax, hexadecimal float syntax, and any spelling that does not name a finite
+decimal value. If the decimal would round to infinity, it MUST fail with
+`DecimalTextParseFailure::FloatTextWouldRoundToInfinity`.
+
+Parsing MUST consume the entire input. It MUST NOT ignore leading whitespace, trailing whitespace, separators,
+underscores, comments, prefixes, suffixes, or partial parses.
+
+### 9.14 Bit Operations
+
+The language has no bitwise operators. A conforming implementation MUST NOT define symbolic or keyword operators for and,
+or, xor, not, shifts, rotates, masks, or truthiness.
+
+Bit operations are named finite-bitset operations. Their names MUST reveal whether bits are preserved, cleared,
+displaced, or rejected.
+
+A conforming implementation MUST provide these compiler-owned nominal types:
+
+```evd
+public record ByteBitIndex {
+    value: Nat,
+}
+
+public record ByteShiftDistance {
+    value: Nat,
+}
+```
+
+`ByteBitIndex` has exact values 0 through 7. `ByteShiftDistance` has exact values 0 through 8. Their representations are
+private and direct external construction is blocked.
+
+A conforming implementation MUST provide these failure reasons:
+
+```evd
+public reason BitPositionFailure {
+    NaturalExceededByteBitIndexRange,
+    NaturalExceededByteShiftDistanceRange,
+}
+
+public reason ByteShiftFailure {
+    ShiftWouldDiscardSetBits,
+}
+```
+
+A conforming implementation MUST provide these index and distance constructors:
+
+```evd
+nat_require_byte_bit_index(value: Nat) -> ByteBitIndex
+    fails BitPositionFailure
+
+byte_bit_index_nat(index: ByteBitIndex) -> Nat
+
+nat_require_byte_shift_distance(value: Nat) -> ByteShiftDistance
+    fails BitPositionFailure
+
+byte_shift_distance_nat(distance: ByteShiftDistance) -> Nat
+```
+
+A conforming implementation MUST provide these `Byte` bitset operations:
+
+```evd
+byte_bit_intersection(left: Byte, right: Byte) -> Byte
+
+byte_bit_union(left: Byte, right: Byte) -> Byte
+
+byte_bit_symmetric_difference(left: Byte, right: Byte) -> Byte
+
+byte_bit_complement(value: Byte) -> Byte
+
+byte_bit_presence(value: Byte, index: ByteBitIndex) -> BitPresence
+
+byte_with_bit_set(value: Byte, index: ByteBitIndex) -> Byte
+
+byte_with_bit_cleared(value: Byte, index: ByteBitIndex) -> Byte
+
+byte_with_bit_toggled(value: Byte, index: ByteBitIndex) -> Byte
+```
+
+`byte_bit_presence` returns a classifier expression and therefore may only be matched immediately:
+
+```evd
+match byte_bit_presence(value, index) {
+    BitPresence::BitWasCleared => cleared_case,
+    BitPresence::BitWasSet => set_case,
+}
+```
+
+A conforming implementation MUST provide both rejecting and truncating shift operations. The policy is part of the name:
+
+```evd
+byte_shift_left_rejecting_discarded_set_bits(value: Byte, distance: ByteShiftDistance) -> Byte
+    fails ByteShiftFailure
+
+byte_shift_right_rejecting_discarded_set_bits(value: Byte, distance: ByteShiftDistance) -> Byte
+    fails ByteShiftFailure
+
+byte_shift_left_truncating_to_byte(value: Byte, distance: ByteShiftDistance) -> Byte
+
+byte_shift_right_truncating_to_byte(value: Byte, distance: ByteShiftDistance) -> Byte
+```
+
+The rejecting operations MUST fail with `ByteShiftFailure::ShiftWouldDiscardSetBits` when any set bit would be shifted out
+of the byte. The truncating operations MUST return the low eight-bit or high eight-bit result named by the operation and
+MUST clear newly introduced bit positions. A distance of 8 is valid and produces zero for truncating shifts unless the
+rejecting operation fails first.
+
+A conforming implementation MUST provide these `Nat` bitset operations:
+
+```evd
+nat_bit_intersection(left: Nat, right: Nat) -> Nat
+
+nat_bit_union(left: Nat, right: Nat) -> Nat
+
+nat_bit_symmetric_difference(left: Nat, right: Nat) -> Nat
+
+nat_shift_left(value: Nat, distance: Nat) -> Nat
+
+nat_shift_right_dropping_low_bits(value: Nat, distance: Nat) -> Nat
+```
+
+`nat_shift_left(value, distance)` is exact multiplication by 2 raised to `distance`.
+`nat_shift_right_dropping_low_bits(value, distance)` is exact floor division by 2 raised to `distance`.
+
+No bit operation is defined for `Int`, `Float`, `Char`, `Text`, `Bytes`, `CString`, `CInt`, or `CSize` in this draft.
+Code that needs a byte-level representation MUST explicitly encode to `Bytes`, decompose to `Byte`, and use the byte
+operations above.
+
+### 9.15 Host Program Invocation, Exit, and I/O
+
+Host interaction is a runtime hazard. A host operation may appear only in a `hazard module`. A `domain`, `boundary`, or
+`foundation` module MUST NOT call a host operation directly.
+
+A conforming implementation MUST provide these compiler-owned host permits:
+
+```evd
+public permit ProgramInvocationPermit
+
+public permit TerminalOutputPermit
+
+public permit FileSystemReadPermit
+
+public permit FileSystemWritePermit
+```
+
+These permits are root permits. They may be introduced only as the permit parameters of an `entry fn` (Section 14.6). A
+user-authored function MUST NOT declare `grants` for a root host permit; a function obtains host authority only by
+receiving a root host permit as a permit parameter forwarded from the `entry fn`.
+
+A conforming implementation MUST provide these compiler-owned host types: `ProgramInvocation`, `ProgramArgument`,
+`ProcessExitCode`, `FilePath`, `FileReadReceipt`, `FileWriteReceipt`, and `TerminalWriteReceipt`. Each is a non-generic
+nominal type with private, compiler-owned representation. Direct construction is blocked: a host type value is produced
+only by the compiler-owned operations in this section. A host type therefore cannot be forged, and an effect receipt is
+evidence that the named effect completed. Each host type exposes its data only through the accessor operations below,
+never through public fields.
+
+A conforming implementation MUST provide these host reasons:
+
+```evd
+public reason ProgramInvocationFailure {
+    HostArgumentWasNotText,
+    HostArgumentCardinalityWasNotFinite,
+}
+
+public reason ProcessExitCodeFailure {
+    NaturalExceededProcessExitCodeRange,
+}
+
+public reason FilePathFailure {
+    FilePathTextWasRejectedByHost,
+    FilePathTextWasEmpty,
+}
+
+public reason FileReadFailure {
+    RequestedPathHadNoReadableFile,
+    ReadDeniedByHost,
+    HostReadFailed,
+    ReadBytesWereNotFinite,
+}
+
+public reason FileWriteFailure {
+    WriteDeniedByHost,
+    HostWriteFailed,
+}
+
+public reason TerminalWriteFailure {
+    TerminalWriteDeniedByHost,
+    HostTerminalWriteFailed,
+}
+```
+
+A conforming implementation MUST provide these program invocation operations:
+
+```evd
+program_arguments(invocation: ProgramInvocation, as permit: ProgramInvocationPermit) -> List<ProgramArgument>
+
+program_argument_text(argument: ProgramArgument, as permit: ProgramInvocationPermit) -> Text
+```
+
+A `ProgramArgument` denotes a provided argument slot. Its text MAY be empty. Empty argument text is not absence; the
+argument slot is the fact. `program_arguments` MUST preserve host argument order. It MUST NOT invent an executable path
+argument, drop arguments, apply shell splitting, expand wildcards, read environment variables, or inject defaults.
+
+A conforming implementation MUST provide these exit code operations:
+
+```evd
+process_exit_success() -> ProcessExitCode
+
+process_exit_unsuccessful_completion() -> ProcessExitCode
+
+nat_require_process_exit_code(value: Nat) -> ProcessExitCode
+    fails ProcessExitCodeFailure
+
+process_exit_code_nat(code: ProcessExitCode) -> Nat
+```
+
+For the supported `x86_64-pc-windows-msvc` target, `ProcessExitCode` denotes the target process exit-code value set 0
+through 4,294,967,295 inclusive. `process_exit_success()` MUST denote zero. `process_exit_unsuccessful_completion()` MUST
+denote one. `nat_require_process_exit_code` MUST fail with `ProcessExitCodeFailure::NaturalExceededProcessExitCodeRange`
+when the value is outside the target exit-code range.
+
+A conforming implementation MUST provide these file path operations:
+
+```evd
+text_require_file_path(text: NonEmptyText) -> FilePath
+    fails FilePathFailure
+
+file_path_text(path: FilePath) -> NonEmptyText
+```
+
+`text_require_file_path` performs only host path admissibility collapse. It MUST NOT check file existence, silently
+normalize to another path, choose a current-directory fallback, expand environment variables, expand shell
+metacharacters, or invent a filename.
+
+A conforming implementation MUST provide these file operations:
+
+```evd
+file_read_bytes(path: FilePath, as permit: FileSystemReadPermit) -> FileReadReceipt
+    fails FileReadFailure
+
+file_write_bytes_replacing_existing_file(path: FilePath, bytes: Bytes, as permit: FileSystemWritePermit) -> FileWriteReceipt
+    fails FileWriteFailure
+
+file_write_bytes_creating_new_file_rejecting_existing_path(path: FilePath, bytes: Bytes, as permit: FileSystemWritePermit) -> FileWriteReceipt
+    fails FileWriteFailure
+
+file_write_bytes_appending_to_existing_file_rejecting_missing_path(path: FilePath, bytes: Bytes, as permit: FileSystemWritePermit) -> FileWriteReceipt
+    fails FileWriteFailure
+```
+
+Each write operation names its collision and existence policy. There is no unsuffixed `file_write_bytes`. A successful
+write operation MUST return `FileWriteReceipt`. A successful read operation MUST return `FileReadReceipt`. Host operations
+MUST NOT return bare `Unit` when the success is an external effect.
+
+A conforming implementation MUST provide these receipt accessor operations:
+
+```evd
+file_read_receipt_path(receipt: FileReadReceipt) -> FilePath
+
+file_read_receipt_bytes(receipt: FileReadReceipt) -> Bytes
+
+file_write_receipt_path(receipt: FileWriteReceipt) -> FilePath
+```
+
+`file_read_receipt_bytes` returns raw `Bytes` and is therefore a hazard-confined host operation. A non-raw exported API
+that exposes file content to domain code MUST collapse those bytes into a domain type before export under Section 10.5.
+
+A conforming implementation MUST provide these terminal output operations:
+
+```evd
+terminal_write_text(text: Text, as permit: TerminalOutputPermit) -> TerminalWriteReceipt
+    fails TerminalWriteFailure
+
+terminal_write_error_text(text: Text, as permit: TerminalOutputPermit) -> TerminalWriteReceipt
+    fails TerminalWriteFailure
+
+terminal_write_bytes(bytes: Bytes, as permit: TerminalOutputPermit) -> TerminalWriteReceipt
+    fails TerminalWriteFailure
+
+terminal_write_error_bytes(bytes: Bytes, as permit: TerminalOutputPermit) -> TerminalWriteReceipt
+    fails TerminalWriteFailure
+```
+
+The distinction between normal terminal output and error terminal output is named in the operation. No operation may
+silently choose one. Terminal operations MUST write exactly the supplied sequence or fail. They MUST NOT append newlines,
+add prefixes, apply formatting, apply locale conversion, truncate, retry with hidden policy, or choose a fallback stream.
+
 ## 10. Modeling Rules and Boundary Discipline
 
 Modeled surfaces are governed by the closed, compiler-enforced rules in this section.
@@ -1955,6 +2730,11 @@ The following type-position rules are reserved by category:
 * A `proof` type is an ordinary data type, but it is affine.
 * A concrete `phase` type is an ordinary data type, but it is affine.
 * A phase family name is not a concrete type.
+* A classifier type (Section 9.11) is neither a data type nor a contract type. It is valid only as the result of a
+  compiler-owned or same-module relation operation and only as the immediate subject of a `match`. It MUST NOT appear as
+  an ordinary parameter type, a field, payload, proof, phase, collection-element, or generic-argument type, a `fails`,
+  `grants`, or `proves` target, or any return type other than that of a relation operation, and it MUST NOT be bound,
+  stored, or otherwise materialized as data.
 
 Inline by-value representation containment MUST be acyclic. The inline containment graph has an edge from a nominal data
 type to every data type stored directly in its concrete representation, including record fields, state payload fields,
@@ -2106,6 +2886,76 @@ A `foreign fn` MUST NOT declare:
 * `grants`
 * `proves`
 
+### 14.6 Entry Functions
+
+A package MAY declare zero or one `entry fn`. A package used for native program emission MUST declare exactly one
+`entry fn`. A package used only as a library MUST NOT be required to declare an entry function.
+
+An `entry fn` MUST appear only in a `hazard module`.
+
+An `entry fn` MUST have exactly one ordinary parameter:
+
+```evd
+invocation: ProgramInvocation
+```
+
+An `entry fn` MAY have zero or more permit parameters, but each permit parameter type MUST be one of the root host permit
+types from Section 9.15. The selected permit parameters are the complete source-visible host authority requested by the
+program.
+
+An `entry fn` MUST return `ProcessExitCode`.
+
+An `entry fn` MUST NOT declare `fails`, `grants`, or `proves`. An `entry fn` MUST NOT carry the `public` prefix.
+
+An `entry fn` MUST NOT be called from Evident source. The host runtime invokes it once to start the program.
+
+An `entry fn` body MUST collapse program invocation looseness into domain-specific values before passing them to
+non-hazard code. Program arguments are foreign/runtime ingress. A hazard entry module that obtains raw argument text MUST
+either reject it with an explicit caller-facing reason handled inside entry, or translate it into an inhabited
+command/configuration type before ordinary domain code can observe it.
+
+Because an `entry fn` cannot fail, every failure path inside entry MUST be handled and translated into explicit terminal
+output, a `ProcessExitCode`, or both.
+
+Example:
+
+```evd
+hazard module compiler_program {
+    entry fn main(
+        invocation: ProgramInvocation,
+        as arguments: ProgramInvocationPermit,
+        as terminal: TerminalOutputPermit,
+        as read_files: FileSystemReadPermit,
+        as write_files: FileSystemWritePermit,
+    ) -> ProcessExitCode
+    {
+        match parse_compiler_command(invocation, as arguments) {
+            succeeded(command) => {
+                match run_compiler(command, as read_files, as write_files) {
+                    succeeded(receipt) => process_exit_success(),
+                    failed(CompilerFailure::SourceRejected { report }) => {
+                        let _written = report_compiler_failure(report, as terminal);
+                        process_exit_unsuccessful_completion()
+                    },
+                    failed(CompilerFailure::OutputRejectedByHost { report }) => {
+                        let _written = report_compiler_failure(report, as terminal);
+                        process_exit_unsuccessful_completion()
+                    },
+                }
+            },
+
+            failed(CommandFailure::ArgumentsRejected { report }) => {
+                let _written = report_command_failure(report, as terminal);
+                process_exit_unsuccessful_completion()
+            },
+        }
+    }
+}
+```
+
+The example intentionally handles every failure inside entry. It does not allow the host to infer an exit code from an
+unhandled language failure.
+
 ## 15. Expressions and Statements
 
 The function-body language includes:
@@ -2178,12 +3028,17 @@ Passing a permit does not consume it.
 
 ### 15.4 `match` over a `state`
 
-A `match` subject in the core language MUST be either:
+A `match` subject in the core language MUST be one of:
 
-* a `state` value, or
-* a failing expression
+* a `state` value,
+* a failing expression, or
+* a classifier expression.
 
 No other `match` subject forms are defined by the core language.
+
+A `match` over a classifier expression MUST cover every classifier variant. Wildcard arms are forbidden. A classifier
+expression MUST appear only as the immediate subject of a `match`; it MUST NOT be bound, stored, returned, passed, or
+otherwise materialized as data.
 
 A `match` over a `state` value MUST cover all reachable variants.
 
@@ -2448,6 +3303,15 @@ At minimum, a conforming implementation MUST reject violations in these families
 * expression rules for calls, permit passing, construction, `match`, `try`, `fail`, `grant`, and `prove` (Section 15)
 * generic quarantine, allowed generic forms, structural blindness, generic parameter naming, and affine propagation through
   generic instantiation (Section 16)
+* named-arithmetic, forbidden symbolic-operator (arithmetic, comparison, equality, truthiness, bitwise), relation-classifier,
+  and classifier-expression escape rules, including non-exhaustive or wildcard classifier matches (Sections 9.10, 9.11,
+  9.14, and 15.4)
+* `Text`/`Bytes` construction, UTF-8 conversion, scalar and Unicode-scalar conversion, canonical decimal formatting and
+  parsing, and named bit-operation policy rules (Sections 9.12, 9.13, and 9.14)
+* host-operation, effect-receipt, root-host-permit gating, and `entry fn` rules, including host calls outside a `hazard
+  module`, direct `entry fn` calls, a package with more than one `entry fn`, native program emission without an `entry fn`,
+  malformed `entry fn` signatures, forgeable host or receipt construction, unsuffixed file-write collision policy, and
+  bare-`Unit` host effects (Sections 9.15 and 14.6)
 
 ## 18. Deferred Areas
 
@@ -2457,10 +3321,18 @@ The following areas are intentionally outside this draft:
 * mutation and assignment semantics beyond the immutable core defined here
 * trait declarations, trait bounds, and open polymorphism
 * explicit phase-family helper syntax for “any position of a family”
-* the `Float` arithmetic, comparison, and transcendental operation surface, alternate floating-point rounding-mode
-  selection, foreign ABI floating-point binding, and `Float`-to-`Text`/`Bytes` conversion (the `Float` type, its finite
-  IEEE 754 binary64 value set, float literals, roundTiesToEven rounding, and exceptional-result collapse are normative
-  under Section 9)
+* `Float` transcendental operations, alternate floating-point rounding-mode selection, foreign ABI floating-point binding,
+  and non-canonical `Float` formatting controls are deferred. Basic finite `Float` arithmetic, finite `Float` ordering, and
+  canonical decimal `Float` parsing are normative under Sections 9.10, 9.11, and 9.13.
+* streaming file handles, directory traversal, environment variables, current-directory mutation, process spawning, pipes,
+  sockets, terminal input, time, randomness, memory mapping, incremental I/O, file permissions, symbolic links, and
+  platform-specific path inspection are deferred. Whole-file read/write, terminal output, program invocation, and process
+  exit are normative under Sections 9.15 and 14.6.
+* generic user-defined equality, generic ordering, derived equality, derived ordering, user-defined classifier
+  declarations, and runtime type reflection are deferred. Immediate compiler-owned relation classifiers are normative under
+  Section 9.11.
+* rotates, multi-byte endian packing helpers, signed integer bit operations, arbitrary-width fixed machine words, and C ABI
+  bit reinterpretation are deferred. `Byte` and `Nat` bitset operations are normative under Section 9.14.
 * collection literals, comprehensions, higher-order traversal, borrowing iterators, index-based access, slicing, sorting,
   and specialized representation controls for the compiler-owned collection families (`Text` and `Bytes` length,
   element access, and slicing are defined in Section 9.8 and are not deferred)
