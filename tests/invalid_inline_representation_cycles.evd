@@ -1,0 +1,43 @@
+foundation module support {
+record Box<T> {
+    value: T,
+}
+
+record Loop<T> {
+    next: Loop<T>,
+}
+}
+
+domain module test {
+record DirectNode {
+    next: DirectNode,
+}
+
+record BoxedNode {
+    boxed: support::Box<BoxedNode>,
+}
+
+record CollectionRecursive {
+    children: List<CollectionRecursive>,
+    by_name: Map<Text, CollectionRecursive>,
+}
+
+state RecursiveState {
+    Wrapped { value: RecursiveState },
+    Done,
+}
+
+proof ReceiptLoop {
+    receipt: ReceiptLoop,
+}
+
+phase SessionLoop {
+    fields {
+        current: SessionLoop::Open,
+    }
+
+    positions {
+        Open,
+    }
+}
+}

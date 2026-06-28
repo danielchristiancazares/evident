@@ -118,7 +118,7 @@ if(BUILD_TESTING)
 
     add_dependencies(evidc bootstrap_compiler_generated_environment)
 
-set(EVIDENT_EXPECTED_CTEST_TOTAL 415)
+set(EVIDENT_EXPECTED_CTEST_TOTAL 417)
 
     add_test(NAME parse_valid_example
         COMMAND evidc --dump-hir ${CMAKE_CURRENT_SOURCE_DIR}/examples/feature_mode.evd)
@@ -1443,6 +1443,9 @@ set(EVIDENT_EXPECTED_CTEST_TOTAL 415)
     add_diagnostic_compare_test(diag_semantic_generic_structural_blindness
         invalid_generic_structural_blindness.evd
         expected_invalid_generic_structural_blindness.diag.out)
+    add_diagnostic_compare_test(diag_semantic_inline_representation_cycles
+        invalid_inline_representation_cycles.evd
+        expected_invalid_inline_representation_cycles.diag.out)
     add_diagnostic_compare_test(diag_semantic_generic_record_construct_missing_args
         invalid_generic_record_construct_missing_args.evd
         expected_invalid_generic_record_construct_missing_args.diag.out)
@@ -1660,6 +1663,7 @@ set(EVIDENT_EXPECTED_CTEST_TOTAL 415)
     add_reject_test(reject_foreign_generics invalid_foreign_generics.evd)
     add_reject_test(reject_generic_contract_type_arguments invalid_generic_contract_type_arguments.evd)
     add_reject_test(reject_generic_structural_blindness invalid_generic_structural_blindness.evd)
+    add_reject_test(reject_inline_representation_cycles invalid_inline_representation_cycles.evd)
     add_reject_test(reject_module_kind_generics invalid_module_kind_generics.evd)
     add_reject_test(reject_builtin_collection_arity invalid_builtin_collection_arity.evd)
     add_reject_test(reject_float_literal_range invalid_float_literal_range.evd)

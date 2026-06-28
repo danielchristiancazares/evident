@@ -1,0 +1,18 @@
+<input>:6:1: error: inline by-value representation cycle: support::Loop<T> -> support::Loop<T>
+    record Loop<T> {
+    ^^^^^^^^^^^^^^^^
+<input>:12:1: error: inline by-value representation cycle: test::DirectNode -> test::DirectNode
+    record DirectNode {
+    ^^^^^^^^^^^^^^^^^^^
+<input>:16:1: error: inline by-value representation cycle: test::BoxedNode -> support::Box<test::BoxedNode> -> test::BoxedNode
+    record BoxedNode {
+    ^^^^^^^^^^^^^^^^^^
+<input>:25:1: error: inline by-value representation cycle: test::RecursiveState -> test::RecursiveState
+    state RecursiveState {
+    ^^^^^^^^^^^^^^^^^^^^^^
+<input>:30:1: error: inline by-value representation cycle: test::ReceiptLoop -> test::ReceiptLoop
+    proof ReceiptLoop {
+    ^^^^^^^^^^^^^^^^^^^
+<input>:34:1: error: inline by-value representation cycle: test::SessionLoop::Open -> test::SessionLoop::Open
+    phase SessionLoop {
+    ^^^^^^^^^^^^^^^^^^^

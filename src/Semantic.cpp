@@ -833,6 +833,7 @@ public:
                       root_,
                       PublicReachability::ReachableThroughPublicParents,
                       PackageRootDeclarationContext{});
+        check_inline_containment_cycles(unit.decls);
     }
 
 private:
@@ -882,6 +883,17 @@ private:
         CollectionCompanionRecordFieldState state =
             CollectionCompanionRecordFieldState::NotCollectionCompanionRecord;
         Type type;
+    };
+
+    enum class InlineContainmentVisitState {
+        Visiting,
+        Visited,
+    };
+
+    struct InlineContainmentCheckState {
+        std::unordered_map<std::string, InlineContainmentVisitState> visits;
+        std::unordered_set<std::string> reported_cycles;
+        std::vector<Type> stack;
     };
 
     using BindingId = std::size_t;
@@ -1692,6 +1704,207 @@ private:
             }
         }
         return resolve_type(*decl_scopes_.at(owner_decl), generics, substitutions, type_ref);
+    }
+
+    static bool inline_containment_decl_kind(ast::DeclKind kind) {
+        switch (kind) {
+        case ast::DeclKind::Record:
+        case ast::DeclKind::State:
+        case ast::DeclKind::Proof:
+        case ast::DeclKind::Phase:
+            return true;
+        case ast::DeclKind::Module:
+        case ast::DeclKind::Reason:
+        case ast::DeclKind::Permit:
+        case ast::DeclKind::Function:
+        case ast::DeclKind::ForeignFunction:
+            return false;
+        }
+        return false;
+    }
+
+    bool inline_containment_node_type(const Type& type) const {
+        if (type_error_state(type) == typesys::TypeErrorState::SuppressesFollowupDiagnostics) {
+            return false;
+        }
+        if (type.flavor == typesys::TypeFlavor::Builtin) {
+            return kCompilerOwnedCollectionCompanionRecordNames.contains(std::string_view(type.name));
+        }
+        if (type.flavor != typesys::TypeFlavor::Named || type.decl == nullptr) {
+            return false;
+        }
+        return inline_containment_decl_kind(type.decl->kind);
+    }
+
+    std::vector<Type> inline_containment_child_types(const Type& type) const {
+        std::vector<Type> children;
+        auto add_inline_child = [&](Type child) {
+            if (inline_containment_node_type(child)) {
+                children.push_back(std::move(child));
+            }
+        };
+
+        if (type.flavor == typesys::TypeFlavor::Builtin) {
+            if (type.name == "ListFirstAndRest") {
+                if (type.args.size() == 1) {
+                    add_inline_child(type.args[0]);
+                }
+                return children;
+            }
+            if (type.name == "MapEntry") {
+                if (type.args.size() == 2) {
+                    add_inline_child(type.args[0]);
+                    add_inline_child(type.args[1]);
+                }
+                return children;
+            }
+            if (type.name == "MapFirstEntryAndRest") {
+                if (type.args.size() == 2) {
+                    std::vector<Type> entry_args;
+                    entry_args.push_back(type.args[0]);
+                    entry_args.push_back(type.args[1]);
+                    add_inline_child(builtin_type("MapEntry", std::move(entry_args)));
+                }
+                return children;
+            }
+            if (type.name == "MapBoundValueAndRest") {
+                if (type.args.size() == 2) {
+                    add_inline_child(type.args[1]);
+                }
+                return children;
+            }
+            return children;
+        }
+
+        if (type.flavor != typesys::TypeFlavor::Named || type.decl == nullptr) {
+            return children;
+        }
+
+        switch (type.decl->kind) {
+        case ast::DeclKind::Record: {
+            const auto* record_decl = static_cast<const ast::RecordDecl*>(type.decl);
+            for (const ast::Field& field : record_decl->fields) {
+                add_inline_child(resolve_member_type(type.decl, type.args, field.type));
+            }
+            break;
+        }
+        case ast::DeclKind::State: {
+            const auto* state_decl = static_cast<const ast::StateDecl*>(type.decl);
+            for (const ast::Variant& variant : state_decl->variants) {
+                for (const ast::Field& field : variant.fields) {
+                    add_inline_child(resolve_member_type(type.decl, type.args, field.type));
+                }
+            }
+            break;
+        }
+        case ast::DeclKind::Proof: {
+            const auto* proof_decl = static_cast<const ast::ProofDecl*>(type.decl);
+            for (const ast::Field& field : proof_decl->fields) {
+                add_inline_child(resolve_member_type(type.decl, type.args, field.type));
+            }
+            break;
+        }
+        case ast::DeclKind::Phase: {
+            const auto* phase_decl = static_cast<const ast::PhaseDecl*>(type.decl);
+            for (const ast::Field& field : phase_decl->fields) {
+                add_inline_child(resolve_member_type(type.decl, type.args, field.type));
+            }
+            break;
+        }
+        case ast::DeclKind::Module:
+        case ast::DeclKind::Reason:
+        case ast::DeclKind::Permit:
+        case ast::DeclKind::Function:
+        case ast::DeclKind::ForeignFunction:
+            break;
+        }
+        return children;
+    }
+
+    Type inline_containment_root_type(const ast::Decl& decl) const {
+        std::vector<Type> args;
+        if (decl.kind == ast::DeclKind::Record) {
+            const auto& record_decl = static_cast<const ast::RecordDecl&>(decl);
+            args.reserve(record_decl.generic_params.size());
+            for (const ast::GenericParam& generic : record_decl.generic_params) {
+                args.push_back(generic_type(generic.name));
+            }
+        }
+        return named_type(&decl, std::move(args));
+    }
+
+    void report_inline_containment_cycle(const Type& repeated, InlineContainmentCheckState& state) {
+        const std::string repeated_name = type_name(repeated);
+        const auto first = std::find_if(state.stack.begin(), state.stack.end(), [&](const Type& candidate) {
+            return type_name(candidate) == repeated_name;
+        });
+        if (first == state.stack.end()) {
+            return;
+        }
+
+        std::ostringstream cycle;
+        for (auto it = first; it != state.stack.end(); ++it) {
+            if (it != first) {
+                cycle << " -> ";
+            }
+            cycle << type_name(*it);
+        }
+        cycle << " -> " << repeated_name;
+
+        const std::string cycle_text = cycle.str();
+        if (!state.reported_cycles.insert(cycle_text).second) {
+            return;
+        }
+
+        SourceSpan span{};
+        if (repeated.decl != nullptr) {
+            span = repeated.decl->span;
+        } else if (first->decl != nullptr) {
+            span = first->decl->span;
+        }
+        diagnostics_.error(span, "inline by-value representation cycle: " + cycle_text);
+    }
+
+    void check_inline_containment_type(const Type& type, InlineContainmentCheckState& state) {
+        if (!inline_containment_node_type(type)) {
+            return;
+        }
+
+        const std::string key = type_name(type);
+        if (const auto visit = state.visits.find(key); visit != state.visits.end()) {
+            if (visit->second == InlineContainmentVisitState::Visiting) {
+                report_inline_containment_cycle(type, state);
+            }
+            return;
+        }
+
+        state.visits.emplace(key, InlineContainmentVisitState::Visiting);
+        state.stack.push_back(type);
+        for (const Type& child : inline_containment_child_types(type)) {
+            check_inline_containment_type(child, state);
+        }
+        state.stack.pop_back();
+        state.visits[key] = InlineContainmentVisitState::Visited;
+    }
+
+    void check_inline_containment_cycles(const std::vector<std::unique_ptr<ast::Decl>>& decls) {
+        InlineContainmentCheckState state;
+        check_inline_containment_cycles(decls, state);
+    }
+
+    void check_inline_containment_cycles(const std::vector<std::unique_ptr<ast::Decl>>& decls,
+                                         InlineContainmentCheckState& state) {
+        for (const auto& decl_ptr : decls) {
+            const ast::Decl& decl = *decl_ptr;
+            if (decl.kind == ast::DeclKind::Module) {
+                const auto& module_decl = static_cast<const ast::ModuleDecl&>(decl);
+                check_inline_containment_cycles(module_decl.members, state);
+                continue;
+            }
+            if (inline_containment_decl_kind(decl.kind)) {
+                check_inline_containment_type(inline_containment_root_type(decl), state);
+            }
+        }
     }
 
     std::vector<std::string> generic_names_for(const std::vector<ast::GenericParam>& generic_params) const {
