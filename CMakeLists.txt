@@ -118,7 +118,7 @@ if(BUILD_TESTING)
 
     add_dependencies(evidc bootstrap_compiler_generated_environment)
 
-set(EVIDENT_EXPECTED_CTEST_TOTAL 421)
+set(EVIDENT_EXPECTED_CTEST_TOTAL 425)
 
     add_test(NAME parse_valid_example
         COMMAND evidc --dump-hir ${CMAKE_CURRENT_SOURCE_DIR}/examples/feature_mode.evd)
@@ -699,6 +699,9 @@ set(EVIDENT_EXPECTED_CTEST_TOTAL 421)
     add_hir_compare_test(compare_hir_integer_literal_expected_types
         valid_integer_literal_expected_types.evd
         expected_valid_integer_literal_expected_types.hir.out)
+    add_hir_compare_test(compare_hir_string_literal_escapes
+        valid_string_literal_escapes.evd
+        expected_valid_string_literal_escapes.hir.out)
     add_hir_compare_test(compare_hir_text_bytes_length
         valid_text_bytes_length.evd
         expected_valid_text_bytes_length.hir.out)
@@ -847,6 +850,11 @@ set(EVIDENT_EXPECTED_CTEST_TOTAL 421)
         valid_integer_literal_expected_types.evd
         validate_integer_literal_expected_types.ll
         "store i8 255, ptr"
+        "")
+    add_emit_pattern_test(validate_llvm_string_literal_unicode_escape
+        valid_string_literal_escapes.evd
+        validate_string_literal_escapes.ll
+        "[5 x i8] c"
         "")
     add_emit_pattern_test(validate_llvm_text_bytes_length
         valid_text_bytes_length.evd
@@ -1085,6 +1093,9 @@ set(EVIDENT_EXPECTED_CTEST_TOTAL 421)
     add_diagnostic_compare_test(diag_lexer_unterminated_string
         invalid_lexer_unterminated_string.evd
         expected_invalid_lexer_unterminated_string.diag.out)
+    add_diagnostic_compare_test(diag_lexer_string_literal_contracts
+        invalid_lexer_string_literal_contracts.evd
+        expected_invalid_lexer_string_literal_contracts.diag.out)
     add_diagnostic_compare_test(diag_parse_missing_expression
         invalid_parse_missing_expression.evd
         expected_invalid_parse_missing_expression.diag.out)
@@ -1675,6 +1686,7 @@ set(EVIDENT_EXPECTED_CTEST_TOTAL 421)
     add_reject_test(reject_generic_contract_type_arguments invalid_generic_contract_type_arguments.evd)
     add_reject_test(reject_generic_structural_blindness invalid_generic_structural_blindness.evd)
     add_reject_test(reject_inline_representation_cycles invalid_inline_representation_cycles.evd)
+    add_reject_test(reject_lexer_string_literal_contracts invalid_lexer_string_literal_contracts.evd)
     add_reject_test(reject_module_kind_generics invalid_module_kind_generics.evd)
     add_reject_test(reject_builtin_collection_arity invalid_builtin_collection_arity.evd)
     add_reject_test(reject_float_literal_range invalid_float_literal_range.evd)

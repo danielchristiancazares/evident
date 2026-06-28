@@ -1,0 +1,15 @@
+<input>:3:9: error: invalid string escape '\q'
+        "bad\q"
+            ^^
+<input>:7:6: error: invalid Unicode escape in string literal
+        "\u{}"
+         ^^^^
+<input>:11:6: error: invalid Unicode escape in string literal
+        "\u{1234567}"
+         ^^^^^^^^^^^
+<input>:15:9: error: Unicode escape does not name a Unicode scalar value
+        "\u{D800}"
+            ^^^^
+<input>:19:9: error: Unicode escape does not name a Unicode scalar value
+        "\u{110000}"
+            ^^^^^^

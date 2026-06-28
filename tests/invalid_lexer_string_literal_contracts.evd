@@ -1,0 +1,21 @@
+domain module lexer_diagnostics {
+public fn bad_escape() -> Text {
+    "bad\q"
+}
+
+public fn empty_unicode_escape() -> Text {
+    "\u{}"
+}
+
+public fn long_unicode_escape() -> Text {
+    "\u{1234567}"
+}
+
+public fn surrogate_unicode_escape() -> Text {
+    "\u{D800}"
+}
+
+public fn too_large_unicode_escape() -> Text {
+    "\u{110000}"
+}
+}

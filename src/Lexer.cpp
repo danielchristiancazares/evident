@@ -1,6 +1,7 @@
 #include "evident/Lexer.hpp"
 
 #include <cctype>
+#include <string>
 #include <unordered_map>
 
 namespace evident {
@@ -67,6 +68,32 @@ IdentifierContinuationRole identifier_continuation_role(char ch) {
 
 bool is_decimal_digit(char ch) {
     return std::isdigit(static_cast<unsigned char>(ch)) != 0;
+}
+
+bool is_hex_digit(char ch) {
+    return (ch >= '0' && ch <= '9') || (ch >= 'A' && ch <= 'F') || (ch >= 'a' && ch <= 'f');
+}
+
+unsigned hex_digit_value(char ch) {
+    if (ch >= '0' && ch <= '9') {
+        return static_cast<unsigned>(ch - '0');
+    }
+    if (ch >= 'a' && ch <= 'f') {
+        return 10U + static_cast<unsigned>(ch - 'a');
+    }
+    return 10U + static_cast<unsigned>(ch - 'A');
+}
+
+bool is_surrogate_code_point(unsigned value) {
+    return value >= 0xD800U && value <= 0xDFFFU;
+}
+
+bool is_unicode_line_separator_at(std::string_view text, std::size_t offset) {
+    return offset + 2 < text.size()
+        && static_cast<unsigned char>(text[offset]) == 0xE2U
+        && static_cast<unsigned char>(text[offset + 1]) == 0x80U
+        && (static_cast<unsigned char>(text[offset + 2]) == 0xA8U
+            || static_cast<unsigned char>(text[offset + 2]) == 0xA9U);
 }
 
 } // namespace
@@ -257,16 +284,100 @@ Token Lexer::lex_number() {
 Token Lexer::lex_string() {
     const std::size_t begin = offset_;
     advance();
+    bool reported_error = false;
+    auto report_once = [&](SourceSpan span, const std::string& message) {
+        if (!reported_error) {
+            diagnostics_.error(span, message);
+            reported_error = true;
+        }
+    };
     while (source_cursor_state() == SourceCursorState::HasMoreSource) {
+        const std::size_t char_begin = offset_;
+        if (is_unicode_line_separator_at(source_.text(), char_begin)) {
+            offset_ += 3;
+            report_once(SourceSpan{char_begin, offset_}, "unescaped line terminator in string literal");
+            continue;
+        }
         const char ch = advance();
         if (ch == '"') {
             return make_token(TokenKind::String, begin, offset_);
         }
-        if (ch == '\\' && source_cursor_state() == SourceCursorState::HasMoreSource) {
+        if (ch == '\n' || ch == '\r') {
+            report_once(SourceSpan{char_begin, offset_}, "unescaped line terminator in string literal");
+            continue;
+        }
+        if (ch == '\0') {
+            report_once(SourceSpan{char_begin, offset_}, "unescaped NUL byte in string literal");
+            continue;
+        }
+        if (ch != '\\') {
+            continue;
+        }
+        if (source_cursor_state() == SourceCursorState::ReachedEnd) {
+            report_once(SourceSpan{char_begin, offset_}, "unterminated string escape");
+            break;
+        }
+        if (is_unicode_line_separator_at(source_.text(), offset_)) {
+            offset_ += 3;
+            report_once(SourceSpan{char_begin, offset_}, "unterminated string escape");
+            continue;
+        }
+
+        const char escaped = advance();
+        switch (escaped) {
+        case '"':
+        case '\\':
+        case 'n':
+        case 'r':
+        case 't':
+        case '0':
+            break;
+        case '\n':
+        case '\r':
+            report_once(SourceSpan{char_begin, offset_}, "unterminated string escape");
+            break;
+        case 'u': {
+            if (peek() != '{') {
+                report_once(SourceSpan{char_begin, offset_}, "invalid Unicode escape in string literal");
+                break;
+            }
             advance();
+            const std::size_t digits_begin = offset_;
+            unsigned value = 0;
+            std::size_t digit_count = 0;
+            bool too_many_digits = false;
+            while (source_cursor_state() == SourceCursorState::HasMoreSource && is_hex_digit(peek())) {
+                const char digit = advance();
+                if (digit_count < 6) {
+                    value = value * 16U + hex_digit_value(digit);
+                } else {
+                    too_many_digits = true;
+                }
+                ++digit_count;
+            }
+            const bool has_closing_brace = peek() == '}';
+            if (has_closing_brace) {
+                advance();
+            }
+            if (digit_count == 0 || too_many_digits || !has_closing_brace) {
+                report_once(SourceSpan{char_begin, offset_}, "invalid Unicode escape in string literal");
+                break;
+            }
+            if (value > 0x10FFFFU || is_surrogate_code_point(value)) {
+                report_once(SourceSpan{digits_begin, offset_ - 1},
+                            "Unicode escape does not name a Unicode scalar value");
+            }
+            break;
+        }
+        default:
+            report_once(SourceSpan{char_begin, offset_},
+                        std::string("invalid string escape '\\") + escaped + "'");
+            break;
         }
     }
-    diagnostics_.error(SourceSpan{begin, offset_}, "unterminated string literal");
+    if (!reported_error) {
+        diagnostics_.error(SourceSpan{begin, offset_}, "unterminated string literal");
+    }
     return make_token(TokenKind::String, begin, offset_);
 }
 

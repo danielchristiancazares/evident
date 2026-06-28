@@ -1,0 +1,10 @@
+types:
+functions:
+  - public fn test::simple_escapes() -> Text
+      block -> Text
+        result
+          string "quote:\" slash:\\ newline:\n carriage:\r tab:\t nul:\0" : Text
+  - public fn test::unicode_escape() -> Text
+      block -> Text
+        result
+          string "\u{1F600}" : Text

@@ -309,6 +309,46 @@ std::string mangle_yield_name(std::string_view qualified_name) {
     return "%evid.yield." + sanitize_llvm_name(qualified_name, '.');
 }
 
+bool is_hex_digit(char ch) {
+    return (ch >= '0' && ch <= '9') || (ch >= 'A' && ch <= 'F') || (ch >= 'a' && ch <= 'f');
+}
+
+unsigned hex_digit_value(char ch) {
+    if (ch >= '0' && ch <= '9') {
+        return static_cast<unsigned>(ch - '0');
+    }
+    if (ch >= 'a' && ch <= 'f') {
+        return 10U + static_cast<unsigned>(ch - 'a');
+    }
+    return 10U + static_cast<unsigned>(ch - 'A');
+}
+
+bool is_surrogate_code_point(unsigned value) {
+    return value >= 0xD800U && value <= 0xDFFFU;
+}
+
+void append_utf8_scalar(std::string& out, unsigned value) {
+    if (value <= 0x7FU) {
+        out.push_back(static_cast<char>(value));
+        return;
+    }
+    if (value <= 0x7FFU) {
+        out.push_back(static_cast<char>(0xC0U | (value >> 6U)));
+        out.push_back(static_cast<char>(0x80U | (value & 0x3FU)));
+        return;
+    }
+    if (value <= 0xFFFFU) {
+        out.push_back(static_cast<char>(0xE0U | (value >> 12U)));
+        out.push_back(static_cast<char>(0x80U | ((value >> 6U) & 0x3FU)));
+        out.push_back(static_cast<char>(0x80U | (value & 0x3FU)));
+        return;
+    }
+    out.push_back(static_cast<char>(0xF0U | (value >> 18U)));
+    out.push_back(static_cast<char>(0x80U | ((value >> 12U) & 0x3FU)));
+    out.push_back(static_cast<char>(0x80U | ((value >> 6U) & 0x3FU)));
+    out.push_back(static_cast<char>(0x80U | (value & 0x3FU)));
+}
+
 std::expected<std::string, std::string> decode_string_literal(const std::string& lexeme) {
     if (lexeme.size() < 2 || lexeme.front() != '"' || lexeme.back() != '"') {
         return std::unexpected("invalid string literal lexeme '" + lexeme + "'");
@@ -345,9 +385,35 @@ std::expected<std::string, std::string> decode_string_literal(const std::string&
         case '0':
             decoded.push_back('\0');
             break;
-        default:
-            decoded.push_back(escaped);
+        case 'u': {
+            if (index + 1 >= lexeme.size() - 1 || lexeme[index + 1] != '{') {
+                return std::unexpected("invalid Unicode escape in string literal '" + lexeme + "'");
+            }
+            index += 2;
+            unsigned value = 0;
+            std::size_t digit_count = 0;
+            bool too_many_digits = false;
+            while (index < lexeme.size() - 1 && is_hex_digit(lexeme[index])) {
+                if (digit_count < 6) {
+                    value = value * 16U + hex_digit_value(lexeme[index]);
+                } else {
+                    too_many_digits = true;
+                }
+                ++digit_count;
+                ++index;
+            }
+            if (digit_count == 0 || too_many_digits || index >= lexeme.size() - 1 || lexeme[index] != '}') {
+                return std::unexpected("invalid Unicode escape in string literal '" + lexeme + "'");
+            }
+            if (value > 0x10FFFFU || is_surrogate_code_point(value)) {
+                return std::unexpected("Unicode escape does not name a Unicode scalar value in string literal '"
+                                       + lexeme + "'");
+            }
+            append_utf8_scalar(decoded, value);
             break;
+        }
+        default:
+            return std::unexpected("invalid string escape in literal '" + lexeme + "'");
         }
     }
     return decoded;
