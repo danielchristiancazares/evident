@@ -482,7 +482,9 @@ enum class BuiltinKind {
     CSize,
     CString,
     Text,
+    NonEmptyText,
     Bytes,
+    NonEmptyBytes,
     List,
     NonEmptyList,
     Map,
@@ -1229,8 +1231,14 @@ std::expected<ResolvedType, std::string> BackendModel::resolve_type_name(const s
     if (name == "Text") {
         return runtime_builtin("{ ptr, i64 }", 16, 8, RuntimeStorageShape::Aggregate, BuiltinKind::Text);
     }
+    if (name == "NonEmptyText") {
+        return runtime_builtin("{ ptr, i64 }", 16, 8, RuntimeStorageShape::Aggregate, BuiltinKind::NonEmptyText);
+    }
     if (name == "Bytes") {
         return runtime_builtin("{ ptr, i64 }", 16, 8, RuntimeStorageShape::Aggregate, BuiltinKind::Bytes);
+    }
+    if (name == "NonEmptyBytes") {
+        return runtime_builtin("{ ptr, i64 }", 16, 8, RuntimeStorageShape::Aggregate, BuiltinKind::NonEmptyBytes);
     }
     if (type_base_name(name) == "List") {
         return runtime_builtin("{ ptr, i64 }", 16, 8, RuntimeStorageShape::Aggregate, BuiltinKind::List);
@@ -1889,9 +1897,12 @@ BackendStepResult validate_backend_package(BackendModel& model,
                 [&](mir::Operand::StringLiteralValue) -> BackendStepResult {
                     if (expected_type.identity().category() != ResolvedTypeCategory::BuiltinType
                         || (expected_type.identity().builtin_kind() != BuiltinKind::Text
+                            && expected_type.identity().builtin_kind() != BuiltinKind::NonEmptyText
                             && expected_type.identity().builtin_kind() != BuiltinKind::Bytes
+                            && expected_type.identity().builtin_kind() != BuiltinKind::NonEmptyBytes
                             && expected_type.identity().builtin_kind() != BuiltinKind::CString)) {
-                        return std::unexpected("backend only supports string literals for Text/Bytes/CString values in "
+                        return std::unexpected("backend only supports string literals for Text/NonEmptyText/Bytes/"
+                                               "NonEmptyBytes/CString values in "
                                                + context + ", got '" + expected_type.source_name() + "'");
                     }
                     return BackendStepSucceeded{};
@@ -2574,9 +2585,12 @@ std::expected<FunctionEmitter::TypedValue, std::string> FunctionEmitter::make_st
     const std::string& lexeme) {
     if (type.identity().category() != ResolvedTypeCategory::BuiltinType
         || (type.identity().builtin_kind() != BuiltinKind::Text
+            && type.identity().builtin_kind() != BuiltinKind::NonEmptyText
             && type.identity().builtin_kind() != BuiltinKind::Bytes
+            && type.identity().builtin_kind() != BuiltinKind::NonEmptyBytes
             && type.identity().builtin_kind() != BuiltinKind::CString)) {
-        return std::unexpected("backend expected Text/Bytes/CString storage for string literal, got '" + type.source_name() + "'");
+        return std::unexpected("backend expected Text/NonEmptyText/Bytes/NonEmptyBytes/CString storage for string "
+                               "literal, got '" + type.source_name() + "'");
     }
 
     const std::expected<StringGlobal, std::string> global = module_.intern_string(lexeme);
@@ -3034,6 +3048,8 @@ std::expected<std::string, std::string> FunctionEmitter::emit_compiler_owned_fun
         case BuiltinKind::CInt:
         case BuiltinKind::CSize:
         case BuiltinKind::CString:
+        case BuiltinKind::NonEmptyText:
+        case BuiltinKind::NonEmptyBytes:
         case BuiltinKind::List:
         case BuiltinKind::NonEmptyList:
         case BuiltinKind::Map:
@@ -3205,6 +3221,8 @@ std::expected<std::string, std::string> FunctionEmitter::emit_compiler_owned_fun
         case BuiltinKind::CInt:
         case BuiltinKind::CSize:
         case BuiltinKind::CString:
+        case BuiltinKind::NonEmptyText:
+        case BuiltinKind::NonEmptyBytes:
         case BuiltinKind::List:
         case BuiltinKind::NonEmptyList:
         case BuiltinKind::Map:
@@ -3292,6 +3310,8 @@ std::expected<std::string, std::string> FunctionEmitter::emit_compiler_owned_fun
         case BuiltinKind::CInt:
         case BuiltinKind::CSize:
         case BuiltinKind::CString:
+        case BuiltinKind::NonEmptyText:
+        case BuiltinKind::NonEmptyBytes:
         case BuiltinKind::List:
         case BuiltinKind::NonEmptyList:
         case BuiltinKind::Map:
@@ -3538,6 +3558,8 @@ std::expected<std::string, std::string> FunctionEmitter::emit_compiler_owned_fun
         case BuiltinKind::CInt:
         case BuiltinKind::CSize:
         case BuiltinKind::CString:
+        case BuiltinKind::NonEmptyText:
+        case BuiltinKind::NonEmptyBytes:
         case BuiltinKind::List:
         case BuiltinKind::NonEmptyList:
         case BuiltinKind::Map:
@@ -3684,6 +3706,8 @@ std::expected<std::string, std::string> FunctionEmitter::emit_compiler_owned_fun
         case BuiltinKind::CInt:
         case BuiltinKind::CSize:
         case BuiltinKind::CString:
+        case BuiltinKind::NonEmptyText:
+        case BuiltinKind::NonEmptyBytes:
         case BuiltinKind::List:
         case BuiltinKind::NonEmptyList:
         case BuiltinKind::Map:
@@ -3864,6 +3888,8 @@ std::expected<std::string, std::string> FunctionEmitter::emit_compiler_owned_fun
         case BuiltinKind::CInt:
         case BuiltinKind::CSize:
         case BuiltinKind::CString:
+        case BuiltinKind::NonEmptyText:
+        case BuiltinKind::NonEmptyBytes:
         case BuiltinKind::List:
         case BuiltinKind::NonEmptyList:
         case BuiltinKind::Map:
@@ -3962,6 +3988,8 @@ std::expected<std::string, std::string> FunctionEmitter::emit_compiler_owned_fun
         case BuiltinKind::CInt:
         case BuiltinKind::CSize:
         case BuiltinKind::CString:
+        case BuiltinKind::NonEmptyText:
+        case BuiltinKind::NonEmptyBytes:
         case BuiltinKind::List:
         case BuiltinKind::NonEmptyList:
         case BuiltinKind::Map:
@@ -4174,6 +4202,8 @@ std::expected<std::string, std::string> FunctionEmitter::emit_compiler_owned_fun
         case BuiltinKind::CInt:
         case BuiltinKind::CSize:
         case BuiltinKind::CString:
+        case BuiltinKind::NonEmptyText:
+        case BuiltinKind::NonEmptyBytes:
         case BuiltinKind::List:
         case BuiltinKind::NonEmptyList:
         case BuiltinKind::Map:
@@ -4311,6 +4341,8 @@ std::expected<std::string, std::string> FunctionEmitter::emit_compiler_owned_fun
         case BuiltinKind::CInt:
         case BuiltinKind::CSize:
         case BuiltinKind::CString:
+        case BuiltinKind::NonEmptyText:
+        case BuiltinKind::NonEmptyBytes:
         case BuiltinKind::List:
         case BuiltinKind::NonEmptyList:
         case BuiltinKind::Map:
@@ -4603,6 +4635,8 @@ std::expected<std::string, std::string> FunctionEmitter::emit_compiler_owned_fun
         case BuiltinKind::CInt:
         case BuiltinKind::CSize:
         case BuiltinKind::CString:
+        case BuiltinKind::NonEmptyText:
+        case BuiltinKind::NonEmptyBytes:
         case BuiltinKind::List:
         case BuiltinKind::NonEmptyList:
         case BuiltinKind::Map:
@@ -4735,6 +4769,8 @@ std::expected<std::string, std::string> FunctionEmitter::emit_compiler_owned_fun
         case BuiltinKind::CInt:
         case BuiltinKind::CSize:
         case BuiltinKind::CString:
+        case BuiltinKind::NonEmptyText:
+        case BuiltinKind::NonEmptyBytes:
         case BuiltinKind::List:
         case BuiltinKind::NonEmptyList:
         case BuiltinKind::Map:
@@ -4999,6 +5035,8 @@ std::expected<std::string, std::string> FunctionEmitter::emit_compiler_owned_fun
         case BuiltinKind::CInt:
         case BuiltinKind::CSize:
         case BuiltinKind::CString:
+        case BuiltinKind::NonEmptyText:
+        case BuiltinKind::NonEmptyBytes:
         case BuiltinKind::List:
         case BuiltinKind::NonEmptyList:
         case BuiltinKind::Map:
@@ -5594,9 +5632,12 @@ std::expected<FunctionEmitter::TypedValue, std::string> FunctionEmitter::materia
         [&](mir::Operand::StringLiteralValue literal) -> std::expected<TypedValue, std::string> {
             if (expected_type.identity().category() != ResolvedTypeCategory::BuiltinType
                 || (expected_type.identity().builtin_kind() != BuiltinKind::Text
+                    && expected_type.identity().builtin_kind() != BuiltinKind::NonEmptyText
                     && expected_type.identity().builtin_kind() != BuiltinKind::Bytes
+                    && expected_type.identity().builtin_kind() != BuiltinKind::NonEmptyBytes
                     && expected_type.identity().builtin_kind() != BuiltinKind::CString)) {
-                return std::unexpected("backend only supports string literals for Text/Bytes/CString values, got '"
+                return std::unexpected("backend only supports string literals for Text/NonEmptyText/Bytes/"
+                                       "NonEmptyBytes/CString values, got '"
                                        + expected_type.source_name() + "'");
             }
             return make_string_literal_value(expected_type, literal.text);

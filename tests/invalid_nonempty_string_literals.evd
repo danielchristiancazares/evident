@@ -1,0 +1,33 @@
+domain module invalid_nonempty_literals {
+public record NonEmptyBytesBox {
+    public value: NonEmptyBytes,
+}
+
+public fn accept_text(value: NonEmptyText) -> NonEmptyText {
+    value
+}
+
+public fn empty_text_return() -> NonEmptyText {
+    ""
+}
+
+public fn empty_bytes_return() -> NonEmptyBytes {
+    ""
+}
+
+public fn empty_text_argument() -> NonEmptyText {
+    accept_text("")
+}
+
+public fn empty_bytes_field() -> NonEmptyBytes {
+    NonEmptyBytesBox { value: "" }.value
+}
+
+public fn nonempty_text_map_key(values: Map<NonEmptyText, Int>) -> Int {
+    0
+}
+
+public fn nonempty_bytes_map_key(values: NonEmptyMap<NonEmptyBytes, Int>) -> Int {
+    0
+}
+}

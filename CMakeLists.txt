@@ -118,7 +118,7 @@ if(BUILD_TESTING)
 
     add_dependencies(evidc bootstrap_compiler_generated_environment)
 
-set(EVIDENT_EXPECTED_CTEST_TOTAL 435)
+set(EVIDENT_EXPECTED_CTEST_TOTAL 439)
 
     add_test(NAME parse_valid_example
         COMMAND evidc --dump-hir ${CMAKE_CURRENT_SOURCE_DIR}/examples/feature_mode.evd)
@@ -705,6 +705,9 @@ set(EVIDENT_EXPECTED_CTEST_TOTAL 435)
     add_hir_compare_test(compare_hir_string_literal_escapes
         valid_string_literal_escapes.evd
         expected_valid_string_literal_escapes.hir.out)
+    add_hir_compare_test(compare_hir_nonempty_string_literals
+        valid_nonempty_string_literals.evd
+        expected_valid_nonempty_string_literals.hir.out)
     add_hir_compare_test(compare_hir_text_bytes_length
         valid_text_bytes_length.evd
         expected_valid_text_bytes_length.hir.out)
@@ -863,6 +866,11 @@ set(EVIDENT_EXPECTED_CTEST_TOTAL 435)
         valid_string_literal_escapes.evd
         validate_string_literal_escapes.ll
         "[5 x i8] c"
+        "")
+    add_emit_pattern_test(validate_llvm_nonempty_string_literals
+        valid_nonempty_string_literals.evd
+        validate_nonempty_string_literals.ll
+        "define { ptr, i64 } @evid$nonempty_literals$nonempty_text_literal"
         "")
     add_emit_pattern_test(validate_llvm_text_bytes_length
         valid_text_bytes_length.evd
@@ -1231,6 +1239,9 @@ set(EVIDENT_EXPECTED_CTEST_TOTAL 435)
     add_diagnostic_compare_test(diag_semantic_foreign_link_names
         invalid_foreign_link_names.evd
         expected_invalid_foreign_link_names.diag.out)
+    add_diagnostic_compare_test(diag_semantic_nonempty_string_literals
+        invalid_nonempty_string_literals.evd
+        expected_invalid_nonempty_string_literals.diag.out)
     add_diagnostic_compare_test(diag_semantic_text_bytes_length_contracts
         invalid_text_bytes_length_contracts.evd
         expected_invalid_text_bytes_length_contracts.diag.out)
@@ -1721,6 +1732,7 @@ set(EVIDENT_EXPECTED_CTEST_TOTAL 435)
     add_reject_test(reject_integer_literal_expected_types invalid_integer_literal_expected_types.evd)
     add_reject_test(reject_foreign_integer_literals invalid_foreign_integer_literals.evd)
     add_reject_test(reject_foreign_link_names invalid_foreign_link_names.evd)
+    add_reject_test(reject_nonempty_string_literals invalid_nonempty_string_literals.evd)
     add_reject_test(reject_text_bytes_length_contracts invalid_text_bytes_length_contracts.evd)
     add_reject_test(reject_field_access_private invalid_field_access_private.evd)
     add_reject_test(reject_construct_private_field invalid_construct_private_field.evd)

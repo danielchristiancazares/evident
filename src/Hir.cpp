@@ -81,9 +81,11 @@ ConstructVariantTarget::ConstructVariantTarget(ConstructVariantTargetState state
 namespace {
 
 const std::unordered_set<std::string_view> kBuiltins = {
-    "Int",   "Nat",   "Float",  "Char",  "Text",    "Bytes",
-    "Never", "List",  "NonEmptyList",  "Map",   "NonEmptyMap",    "CString",
-    "CInt",  "CSize", "Byte",   "Unit",
+    "Int",         "Nat",           "Float",        "Char",
+    "Text",        "NonEmptyText",  "Bytes",        "NonEmptyBytes",
+    "Never",       "List",          "NonEmptyList", "Map",
+    "NonEmptyMap", "CString",       "CInt",         "CSize",
+    "Byte",        "Unit",
 };
 
 const std::unordered_set<std::string_view> kCompilerOwnedCollectionCompanionRecordNames = {
@@ -1783,7 +1785,8 @@ StringLiteralTypingState Lowerer::string_literal_typing_state(const TypeRef& typ
     if (type.flavor == typesys::TypeFlavor::Builtin
         && type.identity.source() == TypeIdentitySource::TypeFlavor
         && type.args.empty()
-        && (type.text == "Text" || type.text == "Bytes" || type.text == "CString")) {
+        && (type.text == "Text" || type.text == "NonEmptyText" || type.text == "Bytes"
+            || type.text == "NonEmptyBytes" || type.text == "CString")) {
         return StringLiteralTypingState::AcceptsStringLiteral;
     }
     return StringLiteralTypingState::RequiresTextDefault;

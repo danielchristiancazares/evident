@@ -1,0 +1,18 @@
+<input>:11:5: error: empty string literal cannot type as NonEmptyText
+        ""
+        ^^
+<input>:15:5: error: empty string literal cannot type as NonEmptyBytes
+        ""
+        ^^
+<input>:19:17: error: empty string literal cannot type as NonEmptyText
+        accept_text("")
+                    ^^
+<input>:23:31: error: empty string literal cannot type as NonEmptyBytes
+        NonEmptyBytesBox { value: "" }.value
+                                  ^^
+<input>:26:45: error: map key type 'NonEmptyText' must be one of Int, Nat, Float, Byte, Char, Text, or Bytes
+    public fn nonempty_text_map_key(values: Map<NonEmptyText, Int>) -> Int {
+                                                ^^^^^^^^^^^^
+<input>:30:54: error: map key type 'NonEmptyBytes' must be one of Int, Nat, Float, Byte, Char, Text, or Bytes
+    public fn nonempty_bytes_map_key(values: NonEmptyMap<NonEmptyBytes, Int>) -> Int {
+                                                         ^^^^^^^^^^^^^

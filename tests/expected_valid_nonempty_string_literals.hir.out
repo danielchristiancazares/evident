@@ -1,0 +1,45 @@
+types:
+  - public record nonempty_literals::NonEmptyTextBox
+      field value: NonEmptyText
+  - public record nonempty_literals::NonEmptyBytesBox
+      field value: NonEmptyBytes
+functions:
+  - public fn nonempty_literals::nonempty_text_literal() -> NonEmptyText
+      block -> NonEmptyText
+        result
+          string "text" : NonEmptyText
+  - public fn nonempty_literals::nonempty_text_nul_escape() -> NonEmptyText
+      block -> NonEmptyText
+        result
+          string "\0" : NonEmptyText
+  - public fn nonempty_literals::nonempty_bytes_literal() -> NonEmptyBytes
+      block -> NonEmptyBytes
+        result
+          string "bytes" : NonEmptyBytes
+  - public fn nonempty_literals::accept_text(value: NonEmptyText) -> NonEmptyText
+      block -> NonEmptyText
+        result
+          local value : NonEmptyText
+  - public fn nonempty_literals::nonempty_text_argument() -> NonEmptyText
+      block -> NonEmptyText
+        result
+          call nonempty_literals::accept_text -> NonEmptyText
+            string "argument" : NonEmptyText
+  - public fn nonempty_literals::nonempty_text_field() -> NonEmptyText
+      block -> NonEmptyText
+        result
+          field-access .value : NonEmptyText
+            construct nonempty_literals::NonEmptyTextBox : nonempty_literals::NonEmptyTextBox
+              init value
+                string "field" : NonEmptyText
+  - public fn nonempty_literals::nonempty_bytes_field() -> NonEmptyBytes
+      block -> NonEmptyBytes
+        result
+          field-access .value : NonEmptyBytes
+            construct nonempty_literals::NonEmptyBytesBox : nonempty_literals::NonEmptyBytesBox
+              init value
+                string "field" : NonEmptyBytes
+  - public fn nonempty_literals::default_text() -> Text
+      block -> Text
+        result
+          string "default" : Text

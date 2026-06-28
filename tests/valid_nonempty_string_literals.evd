@@ -1,0 +1,41 @@
+domain module nonempty_literals {
+public record NonEmptyTextBox {
+    public value: NonEmptyText,
+}
+
+public record NonEmptyBytesBox {
+    public value: NonEmptyBytes,
+}
+
+public fn nonempty_text_literal() -> NonEmptyText {
+    "text"
+}
+
+public fn nonempty_text_nul_escape() -> NonEmptyText {
+    "\0"
+}
+
+public fn nonempty_bytes_literal() -> NonEmptyBytes {
+    "bytes"
+}
+
+public fn accept_text(value: NonEmptyText) -> NonEmptyText {
+    value
+}
+
+public fn nonempty_text_argument() -> NonEmptyText {
+    accept_text("argument")
+}
+
+public fn nonempty_text_field() -> NonEmptyText {
+    NonEmptyTextBox { value: "field" }.value
+}
+
+public fn nonempty_bytes_field() -> NonEmptyBytes {
+    NonEmptyBytesBox { value: "field" }.value
+}
+
+public fn default_text() -> Text {
+    "default"
+}
+}

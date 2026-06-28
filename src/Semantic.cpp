@@ -53,9 +53,11 @@ const std::unordered_set<std::string_view> kSemanticGenericNames = {
 };
 
 const std::unordered_set<std::string_view> kBuiltins = {
-    "Int",   "Nat",   "Float",  "Char",  "Text",    "Bytes",
-    "Never", "List",  "NonEmptyList",  "Map",   "NonEmptyMap",    "CString",
-    "CInt",  "CSize", "Byte",   "Unit",
+    "Int",         "Nat",           "Float",        "Char",
+    "Text",        "NonEmptyText",  "Bytes",        "NonEmptyBytes",
+    "Never",       "List",          "NonEmptyList", "Map",
+    "NonEmptyMap", "CString",       "CInt",         "CSize",
+    "Byte",        "Unit",
 };
 
 const std::unordered_set<std::string_view> kCanonicalMapKeyBuiltins = {
@@ -822,6 +824,10 @@ bool string_literal_contains_nul_scalar(std::string_view lexeme) {
         }
     }
     return false;
+}
+
+bool string_literal_is_empty(std::string_view lexeme) {
+    return lexeme == "\"\"";
 }
 
 std::string format_path(const std::vector<std::string>& path) {
@@ -1712,7 +1718,8 @@ private:
     StringLiteralTypingState string_literal_typing_state(const Type& type) const {
         if (type.flavor == typesys::TypeFlavor::Builtin
             && type.args.empty()
-            && (type.name == "Text" || type.name == "Bytes" || type.name == "CString")) {
+            && (type.name == "Text" || type.name == "NonEmptyText" || type.name == "Bytes"
+                || type.name == "NonEmptyBytes" || type.name == "CString")) {
             return StringLiteralTypingState::AcceptsStringLiteral;
         }
         return StringLiteralTypingState::RequiresTextDefault;
@@ -4167,6 +4174,14 @@ private:
             if (expected_type != nullptr
                 && string_literal_typing_state(*expected_type) == StringLiteralTypingState::AcceptsStringLiteral) {
                 const auto& literal = static_cast<const ast::StringLiteralExpr&>(expr);
+                if (expected_type->flavor == typesys::TypeFlavor::Builtin
+                    && expected_type->args.empty()
+                    && (expected_type->name == "NonEmptyText" || expected_type->name == "NonEmptyBytes")
+                    && string_literal_is_empty(literal.lexeme)) {
+                    diagnostics_.error(expr.span,
+                                       "empty string literal cannot type as " + expected_type->name);
+                    return make_expr(error_type());
+                }
                 if (expected_type->flavor == typesys::TypeFlavor::Builtin
                     && expected_type->args.empty()
                     && expected_type->name == "CString"
