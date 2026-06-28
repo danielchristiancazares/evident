@@ -37,6 +37,7 @@ enum class ExprKind {
     Grant,
     Prove,
     FieldAccess,
+    Traverse,
 };
 
 enum class StatementKind {
@@ -418,6 +419,20 @@ struct ProveExpr final : Expr {
 
     explicit ProveExpr(TypeRef type = {})
         : Expr(ExprKind::Prove, std::move(type)) {}
+};
+
+struct TraverseExpr final : Expr {
+    ast::TraversalMode mode = ast::TraversalMode::Copying;
+    std::unique_ptr<Expr> source;
+    std::string element_name;
+    TypeRef element_type;
+    std::string accumulator_name;
+    TypeRef accumulator_type;
+    std::unique_ptr<Expr> initial_accumulator;
+    std::unique_ptr<BlockExpr> body;
+
+    explicit TraverseExpr(TypeRef type = {})
+        : Expr(ExprKind::Traverse, std::move(type)) {}
 };
 
 struct FunctionDecl {

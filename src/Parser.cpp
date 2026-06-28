@@ -139,6 +139,7 @@ ArgumentSeparatorRecovery argument_after_missing_separator(TokenKind first) {
     case TokenKind::KeywordTry:
     case TokenKind::KeywordFail:
     case TokenKind::KeywordProve:
+    case TokenKind::KeywordTraverse:
     case TokenKind::KeywordAs:
         return ArgumentSeparatorRecovery::ContinueWithNextArgument;
     default:
@@ -1116,6 +1117,9 @@ std::unique_ptr<ast::Stmt> Parser::parse_statement() {
 }
 
 std::unique_ptr<ast::Expr> Parser::parse_expr() {
+    if (token_check(TokenKind::KeywordTraverse) == TokenCheckState::Matches) {
+        return parse_traverse_expr();
+    }
     if (token_check(TokenKind::KeywordMatch) == TokenCheckState::Matches) {
         return parse_match_expr();
     }
@@ -1123,6 +1127,44 @@ std::unique_ptr<ast::Expr> Parser::parse_expr() {
         return parse_grant_expr();
     }
     return parse_try_expr();
+}
+
+std::unique_ptr<ast::Expr> Parser::parse_traverse_expr() {
+    const Token start = expect(TokenKind::KeywordTraverse, "expected 'traverse'");
+    auto expr = std::make_unique<ast::TraverseExpr>();
+    expr->span.begin = start.span().begin;
+
+    if (consume_if(TokenKind::KeywordCopying) == TokenConsumptionState::Consumed) {
+        expr->mode = ast::TraversalMode::Copying;
+    } else if (consume_if(TokenKind::KeywordConsuming) == TokenConsumptionState::Consumed) {
+        expr->mode = ast::TraversalMode::Consuming;
+    } else {
+        diagnostics_.error(peek().span(), "expected traversal mode 'copying' or 'consuming'");
+    }
+
+    expr->source = parse_expr();
+    expect(TokenKind::KeywordAs, "expected 'as' after traverse source");
+    const Token element_name = expect(TokenKind::Identifier, "expected element binding name");
+    expr->element_name = token_text(element_name);
+    expect(TokenKind::Colon, "expected ':' after traverse element binding");
+    expr->element_type = parse_type();
+    expect(TokenKind::KeywordCarrying, "expected 'carrying' after traverse element binding");
+    const Token accumulator_name = expect(TokenKind::Identifier, "expected accumulator binding name");
+    expr->accumulator_name = token_text(accumulator_name);
+    expect(TokenKind::Colon, "expected ':' after traverse accumulator binding");
+    expr->accumulator_type = parse_type();
+    expect(TokenKind::Equals, "expected '=' before traverse initial accumulator");
+    expr->initial_accumulator = parse_expr();
+    if (token_check(TokenKind::LeftBrace) == TokenCheckState::DifferentToken) {
+        diagnostics_.error(peek().span(), "expected traverse body block");
+        expr->span.end = expr->initial_accumulator != nullptr
+            ? expr->initial_accumulator->span.end
+            : accumulator_name.span().end;
+        return expr;
+    }
+    expr->body = parse_block_expr();
+    expr->span.end = expr->body != nullptr ? expr->body->span.end : accumulator_name.span().end;
+    return expr;
 }
 
 std::unique_ptr<ast::Expr> Parser::parse_match_expr() {
@@ -1493,6 +1535,7 @@ ExpressionStartState Parser::expression_start_state(TokenKind kind) const noexce
     case TokenKind::KeywordTry:
     case TokenKind::KeywordFail:
     case TokenKind::KeywordProve:
+    case TokenKind::KeywordTraverse:
         return ExpressionStartState::BeginsExpression;
     default:
         return ExpressionStartState::DoesNotBeginExpression;

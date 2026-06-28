@@ -935,6 +935,9 @@ public:
 
     void analyze(const ast::TranslationUnit& unit) {
         build_scope(unit.decls, root_, "");
+        if (diagnostics_.error_state() == DiagnosticErrorState::ContainsErrors) {
+            return;
+        }
         inject_collection_reason_decls();
         inject_collection_function_decls();
         validate_imports(unit.imports);
@@ -1052,6 +1055,11 @@ private:
     enum class MatchArmResultCoverage {
         NoArmResultAvailable,
         ArmResultAvailable,
+    };
+
+    enum class TraverseSourceKind {
+        NotTraversableList,
+        TraversableList,
     };
 
     enum class FailingMatchSuccessCoverage {
@@ -3652,6 +3660,102 @@ private:
         return make_expr(named_type(symbol->decl));
     }
 
+    ExprType type_traverse_source_expr(const ast::TraverseExpr& expr,
+                                       const FunctionContext& context,
+                                       ValueEnv& env) {
+        if (expr.mode != ast::TraversalMode::Copying) {
+            return type_expr(*expr.source, context, env);
+        }
+        if (expr.source != nullptr && expr.source->kind == ast::ExprKind::Path) {
+            const auto& path = static_cast<const ast::PathExpr&>(*expr.source);
+            if (path.path.size() == 1) {
+                if (const BindingState* binding = lookup_binding(env, path.path.front()); binding != nullptr) {
+                    if (permit_type_state(binding->type) == PermitTypeState::PermitValueType) {
+                        diagnostics_.error(path.span, "permit value may only be used as a direct function argument");
+                        return make_expr(error_type());
+                    }
+                    return make_expr(read_binding(env, path.path.front(), path.span));
+                }
+            }
+        }
+        return type_expr(*expr.source, context, env);
+    }
+
+    ExprType type_traverse_expr(const ast::TraverseExpr& expr,
+                                const FunctionContext& context,
+                                ValueEnv& env) {
+        if (expr.source == nullptr || expr.initial_accumulator == nullptr || expr.body == nullptr) {
+            return make_expr(error_type());
+        }
+
+        ExprType source = type_traverse_source_expr(expr, context, env);
+        if (source.yielded_reason != nullptr) {
+            diagnostics_.error(expr.source->span,
+                                "failing expression must be handled with `try` or `match`");
+        }
+
+        const TraverseSourceKind source_kind = source.value.flavor == typesys::TypeFlavor::Builtin
+            && source.value.args.size() == 1
+            && (source.value.name == "List" || source.value.name == "NonEmptyList")
+            ? TraverseSourceKind::TraversableList
+            : TraverseSourceKind::NotTraversableList;
+        Type element_type = source_kind == TraverseSourceKind::TraversableList ? source.value.args.front() : error_type();
+        if (source_kind == TraverseSourceKind::NotTraversableList
+            && type_error_state(source.value) != typesys::TypeErrorState::SuppressesFollowupDiagnostics) {
+            diagnostics_.error(expr.source->span,
+                               "traverse source must have type List<T> or NonEmptyList<T>, got '"
+                                   + type_name(source.value) + "'");
+        }
+
+        const Type declared_element_type =
+            resolve_type(context.scope, context.generics, context.substitutions, expr.element_type);
+        if (source_kind == TraverseSourceKind::TraversableList
+            && assignment_compatibility(declared_element_type, element_type)
+                == AssignmentCompatibility::TypeMismatch) {
+            diagnostics_.error(expr.element_type.span,
+                               "traverse element binding type must be exactly '"
+                                   + type_name(element_type) + "', got '"
+                                   + type_name(declared_element_type) + "'");
+        }
+
+        if (expr.mode == ast::TraversalMode::Copying
+            && source_kind == TraverseSourceKind::TraversableList
+            && typesys::discipline_movement(discipline(element_type))
+                == typesys::DisciplineMovement::Affine) {
+            diagnostics_.error(expr.element_type.span,
+                               "traverse copying requires copyable element type, got affine-bearing '"
+                                   + type_name(element_type) + "'");
+        }
+
+        const Type accumulator_type =
+            resolve_type(context.scope, context.generics, context.substitutions, expr.accumulator_type);
+        ExprType initial = type_expr(*expr.initial_accumulator, context, env, &accumulator_type);
+        if (initial.yielded_reason != nullptr) {
+            diagnostics_.error(expr.initial_accumulator->span,
+                                "failing expression must be handled with `try` or `match`");
+        }
+        if (assignment_compatibility(accumulator_type, initial.value) == AssignmentCompatibility::TypeMismatch) {
+            diagnostics_.error(expr.initial_accumulator->span,
+                               "traverse initial accumulator must have type '"
+                                   + type_name(accumulator_type) + "', got '"
+                                   + type_name(initial.value) + "'");
+        }
+
+        ValueEnv body_env = push_scope(env);
+        bind_value(body_env, expr.element_name, declared_element_type, expr.span);
+        bind_value(body_env, expr.accumulator_name, accumulator_type, expr.span);
+        ExprType body = type_block(*expr.body, context, body_env, &accumulator_type);
+        if (never_type_state(body.value) != typesys::NeverTypeState::DivergesBeforeFollowingCode
+            && assignment_compatibility(accumulator_type, body.value) == AssignmentCompatibility::TypeMismatch) {
+            diagnostics_.error(expr.body->span,
+                               "traverse body result must have type '"
+                                   + type_name(accumulator_type) + "', got '"
+                                   + type_name(body.value) + "'");
+        }
+
+        return make_expr(accumulator_type, body.yielded_reason);
+    }
+
     ExprType type_try_expr(const ast::TryExpr& expr, const FunctionContext& context, ValueEnv& env) {
         ExprType operand = type_expr(*expr.operand, context, env);
         if (operand.yielded_reason == nullptr) {
@@ -4213,6 +4317,8 @@ private:
             return type_prove_expr(static_cast<const ast::ProveExpr&>(expr), context, env);
         case ast::ExprKind::FieldAccess:
             return type_field_access_expr(static_cast<const ast::FieldAccessExpr&>(expr), context, env);
+        case ast::ExprKind::Traverse:
+            return type_traverse_expr(static_cast<const ast::TraverseExpr&>(expr), context, env);
         }
         return make_expr(error_type());
     }

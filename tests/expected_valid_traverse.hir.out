@@ -1,0 +1,33 @@
+types:
+functions:
+  - public fn list_single<T>(value: T) -> NonEmptyList<T>
+  - public fn test::first_or_initial(values: List<Int>) -> Int
+      block -> Int
+        result
+          traverse copying as item: Int carrying total: Int -> Int
+            source
+              local values : List<Int>
+            initial
+              number 5 : Int
+            body
+              block -> Int
+                result
+                  local item : Int
+  - public fn test::first_nonempty(values: NonEmptyList<Int>) -> Int
+      block -> Int
+        result
+          traverse copying as item: Int carrying total: Int -> Int
+            source
+              local values : NonEmptyList<Int>
+            initial
+              number 0 : Int
+            body
+              block -> Int
+                result
+                  local item : Int
+  - public fn test::main() -> Int
+      block -> Int
+        result
+          call test::first_nonempty -> Int
+            call list_single<Int> -> NonEmptyList<Int>
+              number 7 : Int

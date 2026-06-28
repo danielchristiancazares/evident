@@ -105,6 +105,8 @@ private:
         ConstructNamedVariant,
         ProjectNamedTypeField,
         ProjectNamedVariantPayloadField,
+        ProjectListElement,
+        AddNat,
     };
 
 public:
@@ -143,6 +145,16 @@ public:
         const std::string& field_name;
     };
 
+    struct ProjectListElementValue final {
+        LocalId list_local;
+        LocalId index_local;
+    };
+
+    struct AddNatValue final {
+        const Operand& lhs;
+        const Operand& rhs;
+    };
+
     [[nodiscard]] static Rvalue uses(Operand operand);
     [[nodiscard]] static Rvalue calls(hir::FunctionId function_id,
                                       std::string callee_name,
@@ -160,19 +172,25 @@ public:
                                                                      hir::TypeId projection_owner_type_id,
                                                                      hir::VariantId variant_id,
                                                                      std::string field_name);
+    [[nodiscard]] static Rvalue projects_list_element(LocalId list_local, LocalId index_local);
+    [[nodiscard]] static Rvalue adds_nat(Operand lhs, Operand rhs);
 
     template <typename UseFn,
               typename CallFn,
               typename ConstructNamedTypeFn,
               typename ConstructNamedVariantFn,
               typename ProjectNamedTypeFieldFn,
-              typename ProjectNamedVariantPayloadFieldFn>
+              typename ProjectNamedVariantPayloadFieldFn,
+              typename ProjectListElementFn,
+              typename AddNatFn>
     decltype(auto) match(UseFn&& on_use,
                          CallFn&& on_call,
                          ConstructNamedTypeFn&& on_construct_named_type,
                          ConstructNamedVariantFn&& on_construct_named_variant,
                          ProjectNamedTypeFieldFn&& on_project_named_type_field,
-                         ProjectNamedVariantPayloadFieldFn&& on_project_named_variant_payload_field) const {
+                         ProjectNamedVariantPayloadFieldFn&& on_project_named_variant_payload_field,
+                         ProjectListElementFn&& on_project_list_element,
+                         AddNatFn&& on_add_nat) const {
         switch (kind_) {
         case Kind::Use:
             return std::forward<UseFn>(on_use)(UseValue{operand_});
@@ -195,6 +213,11 @@ public:
                     variant_id_,
                     field_name_,
                 });
+        case Kind::ProjectListElement:
+            return std::forward<ProjectListElementFn>(on_project_list_element)(
+                ProjectListElementValue{base_local_, projection_owner_type_id_});
+        case Kind::AddNat:
+            return std::forward<AddNatFn>(on_add_nat)(AddNatValue{operand_, secondary_operand_});
         }
         return std::forward<UseFn>(on_use)(UseValue{operand_});
     }
@@ -212,6 +235,7 @@ private:
     LocalId base_local_;
     hir::TypeId projection_owner_type_id_;
     std::string field_name_;
+    Operand secondary_operand_;
 
     Rvalue(Kind kind,
            Operand operand,
@@ -224,7 +248,8 @@ private:
            std::vector<FieldValue> fields,
            LocalId base_local,
            hir::TypeId projection_owner_type_id,
-           std::string field_name);
+           std::string field_name,
+           Operand secondary_operand);
 };
 
 class Statement final {
@@ -266,6 +291,7 @@ private:
         Fail,
         Goto,
         SwitchVariant,
+        BranchListElement,
         Invoke,
         Unreachable,
     };
@@ -288,6 +314,13 @@ public:
         const std::vector<SwitchEdge>& edges;
     };
 
+    struct BranchListElementValue final {
+        LocalId list_local;
+        LocalId index_local;
+        BlockId element_block;
+        BlockId empty_block;
+    };
+
     struct InvokeValue final {
         hir::FunctionId function_id;
         const std::string& callee_name;
@@ -305,6 +338,10 @@ public:
     [[nodiscard]] static Terminator jumps_to(BlockId target_block);
     [[nodiscard]] static Terminator switches_on_variant(LocalId scrutinee_local,
                                                         std::vector<SwitchEdge> edges);
+    [[nodiscard]] static Terminator branches_on_list_element(LocalId list_local,
+                                                            LocalId index_local,
+                                                            BlockId element_block,
+                                                            BlockId empty_block);
     [[nodiscard]] static Terminator invokes(hir::FunctionId function_id,
                                             std::string callee_name,
                                             std::vector<Operand> args,
@@ -318,12 +355,14 @@ public:
               typename FailFn,
               typename GotoFn,
               typename SwitchVariantFn,
+              typename BranchListElementFn,
               typename InvokeFn,
               typename UnreachableFn>
     decltype(auto) match(ReturnFn&& on_return,
                          FailFn&& on_fail,
                          GotoFn&& on_goto,
                          SwitchVariantFn&& on_switch_variant,
+                         BranchListElementFn&& on_branch_list_element,
                          InvokeFn&& on_invoke,
                          UnreachableFn&& on_unreachable) const {
         switch (kind_) {
@@ -336,6 +375,9 @@ public:
         case Kind::SwitchVariant:
             return std::forward<SwitchVariantFn>(on_switch_variant)(
                 SwitchVariantValue{scrutinee_local_, edges_});
+        case Kind::BranchListElement:
+            return std::forward<BranchListElementFn>(on_branch_list_element)(
+                BranchListElementValue{scrutinee_local_, success_local_, success_block_, failure_block_});
         case Kind::Invoke:
             return std::forward<InvokeFn>(on_invoke)(InvokeValue{
                 function_id_,

@@ -88,6 +88,14 @@ std::string_view token_kind_name(TokenKind kind) {
         return "as";
     case TokenKind::KeywordProve:
         return "prove";
+    case TokenKind::KeywordTraverse:
+        return "traverse";
+    case TokenKind::KeywordCopying:
+        return "copying";
+    case TokenKind::KeywordConsuming:
+        return "consuming";
+    case TokenKind::KeywordCarrying:
+        return "carrying";
     case TokenKind::KeywordDomain:
         return "domain";
     case TokenKind::KeywordBoundary:

@@ -83,6 +83,10 @@ std::size_t align_up(std::size_t value, std::size_t alignment) {
     return remainder == 0 ? value : value + (alignment - remainder);
 }
 
+std::size_t element_storage_stride_for(std::size_t size, std::size_t align) {
+    return std::max<std::size_t>(align_up(size, align), 1);
+}
+
 std::expected<TextFileWriteSucceeded, std::string> write_text_file(const std::string& path,
                                                                    const std::string& text) {
     std::ofstream out(path, std::ios::binary);
@@ -920,8 +924,14 @@ private:
     [[nodiscard]] BackendStepResult emit_assign_project_field(
         mir::LocalId dest,
         mir::Rvalue::ProjectNamedVariantPayloadFieldValue value);
+    [[nodiscard]] BackendStepResult emit_assign_project_list_element(
+        mir::LocalId dest,
+        mir::Rvalue::ProjectListElementValue value);
+    [[nodiscard]] BackendStepResult emit_assign_add_nat(mir::LocalId dest,
+                                                        mir::Rvalue::AddNatValue value);
     [[nodiscard]] BackendStepResult emit_terminator(const mir::Terminator& terminator);
     [[nodiscard]] BackendStepResult emit_switch_variant(mir::Terminator::SwitchVariantValue terminator);
+    [[nodiscard]] BackendStepResult emit_branch_list_element(mir::Terminator::BranchListElementValue terminator);
     [[nodiscard]] BackendStepResult emit_invoke(mir::Terminator::InvokeValue terminator);
     [[nodiscard]] BackendStepResult emit_function_return(const mir::Operand& operand);
     [[nodiscard]] BackendStepResult emit_function_fail(const mir::Operand& operand);
@@ -2160,6 +2170,55 @@ BackendStepResult validate_backend_package(BackendModel& model,
                                                + field_type.source_name() + "'");
                     }
                     return BackendStepSucceeded{};
+                    },
+                    [&](mir::Rvalue::ProjectListElementValue value) -> BackendStepResult {
+                    const std::expected<const ResolvedType*, std::string> list_type
+                        = local_type(value.list_local, statement_context);
+                    if (!list_type.has_value()) {
+                        return std::unexpected(list_type.error());
+                    }
+                    if ((*list_type)->identity().category() != ResolvedTypeCategory::BuiltinType
+                        || ((*list_type)->identity().builtin_kind() != BuiltinKind::List
+                            && (*list_type)->identity().builtin_kind() != BuiltinKind::NonEmptyList)) {
+                        return std::unexpected("backend expected List<T> or NonEmptyList<T> for traversal in function '"
+                                               + hir_function.qualified_name + "', got '"
+                                               + (*list_type)->source_name() + "'");
+                    }
+                    const std::expected<const ResolvedType*, std::string> index_type
+                        = local_type(value.index_local, statement_context);
+                    if (!index_type.has_value()) {
+                        return std::unexpected(index_type.error());
+                    }
+                    if ((*index_type)->identity().category() != ResolvedTypeCategory::BuiltinType
+                        || (*index_type)->identity().builtin_kind() != BuiltinKind::Nat) {
+                        return std::unexpected("backend expected Nat traversal index in function '"
+                                               + hir_function.qualified_name + "', got '"
+                                               + (*index_type)->source_name() + "'");
+                    }
+                    return BackendStepSucceeded{};
+                    },
+                    [&](mir::Rvalue::AddNatValue value) -> BackendStepResult {
+                    if ((*dest_type)->identity().category() != ResolvedTypeCategory::BuiltinType
+                        || (*dest_type)->identity().builtin_kind() != BuiltinKind::Nat) {
+                        return std::unexpected("backend expected Nat destination for addition in function '"
+                                               + hir_function.qualified_name + "', got '"
+                                               + (*dest_type)->source_name() + "'");
+                    }
+                    if (const BackendStepResult valid = validate_operand(
+                            value.lhs,
+                            *(*dest_type),
+                            "left operand of Nat addition in function '" + hir_function.qualified_name + "'");
+                        !valid.has_value()) {
+                        return std::unexpected(valid.error());
+                    }
+                    if (const BackendStepResult valid = validate_operand(
+                            value.rhs,
+                            *(*dest_type),
+                            "right operand of Nat addition in function '" + hir_function.qualified_name + "'");
+                        !valid.has_value()) {
+                        return std::unexpected(valid.error());
+                    }
+                    return BackendStepSucceeded{};
                     });
                 if (!statement_valid.has_value()) {
                     return std::unexpected(statement_valid.error());
@@ -2241,6 +2300,44 @@ BackendStepResult validate_backend_package(BackendModel& model,
                     if (!valid.has_value()) {
                         return std::unexpected(valid.error());
                     }
+                }
+                return BackendStepSucceeded{};
+                },
+                [&](mir::Terminator::BranchListElementValue terminator) -> BackendStepResult {
+                const std::expected<const ResolvedType*, std::string> list_type
+                    = local_type(terminator.list_local, "traverse source in function '" + hir_function.qualified_name + "'");
+                if (!list_type.has_value()) {
+                    return std::unexpected(list_type.error());
+                }
+                if ((*list_type)->identity().category() != ResolvedTypeCategory::BuiltinType
+                    || ((*list_type)->identity().builtin_kind() != BuiltinKind::List
+                        && (*list_type)->identity().builtin_kind() != BuiltinKind::NonEmptyList)) {
+                    return std::unexpected("backend expected List<T> or NonEmptyList<T> for traversal branch in function '"
+                                           + hir_function.qualified_name + "', got '"
+                                           + (*list_type)->source_name() + "'");
+                }
+                const std::expected<const ResolvedType*, std::string> index_type
+                    = local_type(terminator.index_local, "traverse index in function '" + hir_function.qualified_name + "'");
+                if (!index_type.has_value()) {
+                    return std::unexpected(index_type.error());
+                }
+                if ((*index_type)->identity().category() != ResolvedTypeCategory::BuiltinType
+                    || (*index_type)->identity().builtin_kind() != BuiltinKind::Nat) {
+                    return std::unexpected("backend expected Nat traversal index in function '"
+                                           + hir_function.qualified_name + "', got '"
+                                           + (*index_type)->source_name() + "'");
+                }
+                if (const BackendStepResult valid = validate_block_target(
+                        terminator.element_block,
+                        "traverse element in function '" + hir_function.qualified_name + "'");
+                    !valid.has_value()) {
+                    return std::unexpected(valid.error());
+                }
+                if (const BackendStepResult valid = validate_block_target(
+                        terminator.empty_block,
+                        "traverse done in function '" + hir_function.qualified_name + "'");
+                    !valid.has_value()) {
+                    return std::unexpected(valid.error());
                 }
                 return BackendStepSucceeded{};
                 },
@@ -6058,6 +6155,97 @@ BackendStepResult FunctionEmitter::emit_assign_project_field(
     return store_typed_value(*dest_slot, *(*dest_type), *field_value);
 }
 
+BackendStepResult FunctionEmitter::emit_assign_project_list_element(
+    mir::LocalId dest,
+    mir::Rvalue::ProjectListElementValue value) {
+    const std::expected<const ResolvedType*, std::string> dest_type = local_type(dest);
+    if (!dest_type.has_value()) {
+        return std::unexpected(dest_type.error());
+    }
+    const std::expected<std::string, std::string> dest_slot = local_slot(dest);
+    if (!dest_slot.has_value()) {
+        return std::unexpected(dest_slot.error());
+    }
+    const std::expected<const ResolvedType*, std::string> list_type = local_type(value.list_local);
+    if (!list_type.has_value()) {
+        return std::unexpected(list_type.error());
+    }
+    if ((*list_type)->identity().category() != ResolvedTypeCategory::BuiltinType
+        || ((*list_type)->identity().builtin_kind() != BuiltinKind::List
+            && (*list_type)->identity().builtin_kind() != BuiltinKind::NonEmptyList)) {
+        return std::unexpected("internal backend error: list element projection expected List<T> or NonEmptyList<T>, got '"
+                               + (*list_type)->source_name() + "'");
+    }
+    const std::expected<const ResolvedType*, std::string> index_type = local_type(value.index_local);
+    if (!index_type.has_value()) {
+        return std::unexpected(index_type.error());
+    }
+    if ((*index_type)->identity().category() != ResolvedTypeCategory::BuiltinType
+        || (*index_type)->identity().builtin_kind() != BuiltinKind::Nat) {
+        return std::unexpected("internal backend error: list element projection index expected Nat, got '"
+                               + (*index_type)->source_name() + "'");
+    }
+    const std::expected<std::string, std::string> list_slot = local_slot(value.list_local);
+    if (!list_slot.has_value()) {
+        return std::unexpected(list_slot.error());
+    }
+    const std::expected<std::string, std::string> index_slot = local_slot(value.index_local);
+    if (!index_slot.has_value()) {
+        return std::unexpected(index_slot.error());
+    }
+
+    const std::expected<std::string, std::string> list_value = load_from_slot(*list_slot, *(*list_type));
+    if (!list_value.has_value()) {
+        return std::unexpected(list_value.error());
+    }
+    const std::expected<std::string, std::string> index_value = load_from_slot(*index_slot, *(*index_type));
+    if (!index_value.has_value()) {
+        return std::unexpected(index_value.error());
+    }
+    const std::expected<std::string, std::string> data_value =
+        extract_value((*list_type)->llvm_type(), *list_value, 0);
+    if (!data_value.has_value()) {
+        return std::unexpected(data_value.error());
+    }
+
+    const std::size_t stride = element_storage_stride_for((*dest_type)->size(), (*dest_type)->align());
+    const std::string offset = next_temp("list.offset");
+    append_line(offset + " = mul i64 " + *index_value + ", " + std::to_string(stride));
+    const std::string element_ptr = next_temp("list.element");
+    append_line(element_ptr + " = getelementptr i8, ptr " + *data_value + ", i64 " + offset);
+    const std::string element_value = next_temp("list.load");
+    append_line(element_value + " = load " + (*dest_type)->llvm_type() + ", ptr " + element_ptr);
+    return store_typed_value(*dest_slot, *(*dest_type), element_value);
+}
+
+BackendStepResult FunctionEmitter::emit_assign_add_nat(mir::LocalId dest,
+                                                       mir::Rvalue::AddNatValue value) {
+    const std::expected<const ResolvedType*, std::string> dest_type = local_type(dest);
+    if (!dest_type.has_value()) {
+        return std::unexpected(dest_type.error());
+    }
+    if ((*dest_type)->identity().category() != ResolvedTypeCategory::BuiltinType
+        || (*dest_type)->identity().builtin_kind() != BuiltinKind::Nat) {
+        return std::unexpected("internal backend error: Nat addition destination expected Nat, got '"
+                               + (*dest_type)->source_name() + "'");
+    }
+    const std::expected<std::string, std::string> dest_slot = local_slot(dest);
+    if (!dest_slot.has_value()) {
+        return std::unexpected(dest_slot.error());
+    }
+    const std::expected<TypedValue, std::string> lhs = materialize_operand(value.lhs, *(*dest_type));
+    if (!lhs.has_value()) {
+        return std::unexpected(lhs.error());
+    }
+    const std::expected<TypedValue, std::string> rhs = materialize_operand(value.rhs, *(*dest_type));
+    if (!rhs.has_value()) {
+        return std::unexpected(rhs.error());
+    }
+    const std::string sum = next_temp("nat.add");
+    append_line(sum + " = add i64 " + lhs->value + ", " + rhs->value);
+    return store_typed_value(*dest_slot, *(*dest_type), sum);
+}
+
 BackendStepResult FunctionEmitter::emit_statement(const mir::Statement& statement) {
     const mir::LocalId statement_dest = statement.dest_local();
     const mir::Rvalue& statement_value = statement.rvalue();
@@ -6080,6 +6268,12 @@ BackendStepResult FunctionEmitter::emit_statement(const mir::Statement& statemen
         },
         [&](mir::Rvalue::ProjectNamedVariantPayloadFieldValue value) -> BackendStepResult {
             return emit_assign_project_field(statement_dest, value);
+        },
+        [&](mir::Rvalue::ProjectListElementValue value) -> BackendStepResult {
+            return emit_assign_project_list_element(statement_dest, value);
+        },
+        [&](mir::Rvalue::AddNatValue value) -> BackendStepResult {
+            return emit_assign_add_nat(statement_dest, value);
         });
 }
 
@@ -6200,6 +6394,56 @@ BackendStepResult FunctionEmitter::emit_switch_variant(mir::Terminator::SwitchVa
     unreachable_block << default_block << ":\n";
     unreachable_block << "  unreachable\n";
     extra_blocks_.push_back(unreachable_block.str());
+    return BackendStepSucceeded{};
+}
+
+BackendStepResult FunctionEmitter::emit_branch_list_element(
+    mir::Terminator::BranchListElementValue terminator) {
+    const std::expected<const ResolvedType*, std::string> list_type = local_type(terminator.list_local);
+    if (!list_type.has_value()) {
+        return std::unexpected(list_type.error());
+    }
+    if ((*list_type)->identity().category() != ResolvedTypeCategory::BuiltinType
+        || ((*list_type)->identity().builtin_kind() != BuiltinKind::List
+            && (*list_type)->identity().builtin_kind() != BuiltinKind::NonEmptyList)) {
+        return std::unexpected("internal backend error: list branch expected List<T> or NonEmptyList<T>, got '"
+                               + (*list_type)->source_name() + "'");
+    }
+    const std::expected<const ResolvedType*, std::string> index_type = local_type(terminator.index_local);
+    if (!index_type.has_value()) {
+        return std::unexpected(index_type.error());
+    }
+    if ((*index_type)->identity().category() != ResolvedTypeCategory::BuiltinType
+        || (*index_type)->identity().builtin_kind() != BuiltinKind::Nat) {
+        return std::unexpected("internal backend error: list branch index expected Nat, got '"
+                               + (*index_type)->source_name() + "'");
+    }
+    const std::expected<std::string, std::string> list_slot = local_slot(terminator.list_local);
+    if (!list_slot.has_value()) {
+        return std::unexpected(list_slot.error());
+    }
+    const std::expected<std::string, std::string> index_slot = local_slot(terminator.index_local);
+    if (!index_slot.has_value()) {
+        return std::unexpected(index_slot.error());
+    }
+    const std::expected<std::string, std::string> list_value = load_from_slot(*list_slot, *(*list_type));
+    if (!list_value.has_value()) {
+        return std::unexpected(list_value.error());
+    }
+    const std::expected<std::string, std::string> index_value = load_from_slot(*index_slot, *(*index_type));
+    if (!index_value.has_value()) {
+        return std::unexpected(index_value.error());
+    }
+    const std::expected<std::string, std::string> count_value =
+        extract_value((*list_type)->llvm_type(), *list_value, 1);
+    if (!count_value.has_value()) {
+        return std::unexpected(count_value.error());
+    }
+    const std::string has_element = next_temp("list.has");
+    append_line(has_element + " = icmp ult i64 " + *index_value + ", " + *count_value);
+    append_line("br i1 " + has_element
+                + ", label %" + block_name(terminator.element_block)
+                + ", label %" + block_name(terminator.empty_block));
     return BackendStepSucceeded{};
 }
 
@@ -6336,6 +6580,9 @@ BackendStepResult FunctionEmitter::emit_terminator(const mir::Terminator& termin
         },
         [&](mir::Terminator::SwitchVariantValue terminator) -> BackendStepResult {
             return emit_switch_variant(terminator);
+        },
+        [&](mir::Terminator::BranchListElementValue terminator) -> BackendStepResult {
+            return emit_branch_list_element(terminator);
         },
         [&](mir::Terminator::InvokeValue terminator) -> BackendStepResult {
             return emit_invoke(terminator);

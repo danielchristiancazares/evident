@@ -1,0 +1,15 @@
+<input>:7:22: error: traverse source must have type List<T> or NonEmptyList<T>, got 'Int'
+        traverse copying value as item: Int carrying total: Int = 0 {
+                         ^^^^^
+<input>:13:38: error: traverse element binding type must be exactly 'Int', got 'Nat'
+        traverse copying values as item: Nat carrying total: Int = 0 {
+                                         ^^^
+<input>:19:64: error: traverse initial accumulator must have type 'Int', got 'Text'
+        traverse copying values as item: Int carrying total: Int = "bad" {
+                                                                   ^^^^^
+<input>:25:66: error: traverse body result must have type 'Int', got 'Text'
+        traverse copying values as item: Int carrying total: Int = 0 {
+                                                                     ^^^^^^^^^^^^^^^^^^^^^
+<input>:31:41: error: traverse copying requires copyable element type, got affine-bearing 'test::Receipt'
+        traverse copying values as receipt: Receipt carrying total: Int = 0 {
+                                            ^^^^^^^

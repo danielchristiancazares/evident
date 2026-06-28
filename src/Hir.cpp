@@ -749,6 +749,9 @@ private:
     [[nodiscard]] std::unique_ptr<Expr> lower_prove_expr(const ast::ProveExpr& expr,
                                                          const FunctionContext& context,
                                                          ValueEnv& env);
+    [[nodiscard]] std::unique_ptr<Expr> lower_traverse_expr(const ast::TraverseExpr& expr,
+                                                            const FunctionContext& context,
+                                                            ValueEnv& env);
     [[nodiscard]] std::unique_ptr<Expr> lower_expr(const ast::Expr& expr,
                                                    const FunctionContext& context,
                                                    ValueEnv& env,
@@ -1129,6 +1132,19 @@ void Lowerer::declare_referenced_collection_functions(const ast::Expr& expr) {
         const auto& field_access = static_cast<const ast::FieldAccessExpr&>(expr);
         if (field_access.object != nullptr) {
             declare_referenced_collection_functions(*field_access.object);
+        }
+        break;
+    }
+    case ast::ExprKind::Traverse: {
+        const auto& traverse = static_cast<const ast::TraverseExpr&>(expr);
+        if (traverse.source != nullptr) {
+            declare_referenced_collection_functions(*traverse.source);
+        }
+        if (traverse.initial_accumulator != nullptr) {
+            declare_referenced_collection_functions(*traverse.initial_accumulator);
+        }
+        if (traverse.body != nullptr) {
+            declare_referenced_collection_functions(*traverse.body);
         }
         break;
     }
@@ -2402,6 +2418,36 @@ std::unique_ptr<Expr> Lowerer::lower_prove_expr(const ast::ProveExpr& expr,
     return lowered;
 }
 
+std::unique_ptr<Expr> Lowerer::lower_traverse_expr(const ast::TraverseExpr& expr,
+                                                   const FunctionContext& context,
+                                                   ValueEnv& env) {
+    auto lowered = std::make_unique<TraverseExpr>();
+    lowered->mode = expr.mode;
+    lowered->source = lower_expr(*expr.source, context, env);
+    lowered->element_name = expr.element_name;
+    lowered->element_type = lower_resolved_type(resolve_type(context.scope,
+                                                            context.generics,
+                                                            {},
+                                                            expr.element_type));
+    lowered->accumulator_name = expr.accumulator_name;
+    lowered->accumulator_type = lower_resolved_type(resolve_type(context.scope,
+                                                                 context.generics,
+                                                                 {},
+                                                                 expr.accumulator_type));
+    lowered->initial_accumulator = lower_expr(*expr.initial_accumulator,
+                                              context,
+                                              env,
+                                              &lowered->accumulator_type);
+
+    ValueEnv body_env{&env, {}};
+    bind_value(body_env, lowered->element_name, lowered->element_type);
+    bind_value(body_env, lowered->accumulator_name, lowered->accumulator_type);
+    lowered->body = lower_block_expr(*expr.body, context, body_env, &lowered->accumulator_type);
+    lowered->result_type = lowered->accumulator_type;
+    lowered->failure = lowered->body->failure;
+    return lowered;
+}
+
 std::unique_ptr<Expr> Lowerer::lower_expr(const ast::Expr& expr,
                                           const FunctionContext& context,
                                           ValueEnv& env,
@@ -2458,6 +2504,8 @@ std::unique_ptr<Expr> Lowerer::lower_expr(const ast::Expr& expr,
         return lower_field_access_expr(static_cast<const ast::FieldAccessExpr&>(expr), context, env);
     case ast::ExprKind::Prove:
         return lower_prove_expr(static_cast<const ast::ProveExpr&>(expr), context, env);
+    case ast::ExprKind::Traverse:
+        return lower_traverse_expr(static_cast<const ast::TraverseExpr&>(expr), context, env);
     }
     return std::make_unique<UnitExpr>(builtin_type("Unit"));
 }
@@ -3086,6 +3134,20 @@ private:
             cloned->field_name = field.field_name;
             return cloned;
         }
+        case ExprKind::Traverse: {
+            const auto& traverse = static_cast<const TraverseExpr&>(expr);
+            auto cloned = std::make_unique<TraverseExpr>(substitute_type(expr.result_type, substitutions));
+            cloned->failure = map_expr_failure(expr.failure, substitutions);
+            cloned->mode = traverse.mode;
+            cloned->source = clone_expr(*traverse.source, substitutions);
+            cloned->element_name = traverse.element_name;
+            cloned->element_type = substitute_type(traverse.element_type, substitutions);
+            cloned->accumulator_name = traverse.accumulator_name;
+            cloned->accumulator_type = substitute_type(traverse.accumulator_type, substitutions);
+            cloned->initial_accumulator = clone_expr(*traverse.initial_accumulator, substitutions);
+            cloned->body = clone_block(*traverse.body, substitutions);
+            return cloned;
+        }
         }
         return std::make_unique<UnitExpr>(TypeRef{});
     }
@@ -3233,6 +3295,27 @@ void dump_expr(std::ostream& out, const Expr& expr, std::size_t depth) {
         const auto& prove = static_cast<const ProveExpr&>(expr);
         out << "prove " << prove.qualified_name << " : " << dump_type_ref(expr.result_type) << '\n';
         dump_field_inits(out, prove.fields, depth + 1);
+        break;
+    }
+    case ExprKind::Traverse: {
+        const auto& traverse = static_cast<const TraverseExpr&>(expr);
+        out << "traverse " << (traverse.mode == ast::TraversalMode::Copying ? "copying" : "consuming")
+            << " as " << traverse.element_name << ": " << dump_type_ref(traverse.element_type)
+            << " carrying " << traverse.accumulator_name << ": " << dump_type_ref(traverse.accumulator_type)
+            << " -> " << dump_type_ref(expr.result_type);
+        if (expr.failure.effect() == ExprFailureEffect::YieldsReason) {
+            out << " fails";
+        }
+        out << '\n';
+        indent(out, depth + 1);
+        out << "source\n";
+        dump_expr(out, *traverse.source, depth + 2);
+        indent(out, depth + 1);
+        out << "initial\n";
+        dump_expr(out, *traverse.initial_accumulator, depth + 2);
+        indent(out, depth + 1);
+        out << "body\n";
+        dump_expr(out, *traverse.body, depth + 2);
         break;
     }
     }

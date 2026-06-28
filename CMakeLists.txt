@@ -118,7 +118,7 @@ if(BUILD_TESTING)
 
     add_dependencies(evidc bootstrap_compiler_generated_environment)
 
-set(EVIDENT_EXPECTED_CTEST_TOTAL 439)
+set(EVIDENT_EXPECTED_CTEST_TOTAL 445)
 
     add_test(NAME parse_valid_example
         COMMAND evidc --dump-hir ${CMAKE_CURRENT_SOURCE_DIR}/examples/feature_mode.evd)
@@ -226,6 +226,11 @@ set(EVIDENT_EXPECTED_CTEST_TOTAL 439)
             -DBUILD_DIR=${CMAKE_CURRENT_BINARY_DIR}
             -DSOURCE_DIR=${CMAKE_CURRENT_SOURCE_DIR}
             -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/RunCppDesignEscapeHatchesAndAssert.cmake)
+
+    add_test(NAME validate_clang_tidy_bare_booleans
+        COMMAND ${CMAKE_COMMAND}
+            -DBUILD_DIR=${CMAKE_CURRENT_BINARY_DIR}
+            -P ${CMAKE_CURRENT_SOURCE_DIR}/cmake/RunClangTidyBareBooleansAndAssert.cmake)
 
     add_test(NAME validate_invalid_corpus_registered
         COMMAND ${CMAKE_COMMAND}
@@ -676,6 +681,9 @@ set(EVIDENT_EXPECTED_CTEST_TOTAL 439)
     add_mir_compare_test(compare_mir_builtin_list_values
         valid_builtin_list_values.evd
         expected_valid_builtin_list_values.mir.out)
+    add_mir_compare_test(compare_mir_traverse
+        valid_traverse.evd
+        expected_valid_traverse.mir.out)
     add_hir_compare_test(compare_hir_affine_wrapper valid_affine_wrapper.evd expected_valid_affine_wrapper.hir.out)
     add_hir_compare_test(compare_hir_affine_generic_wrapper valid_affine_generic_wrapper.evd expected_valid_affine_generic_wrapper.hir.out)
     add_hir_compare_test(compare_hir_generic_function_call
@@ -693,6 +701,9 @@ set(EVIDENT_EXPECTED_CTEST_TOTAL 439)
     add_hir_compare_test(compare_hir_builtin_list_values
         valid_builtin_list_values.evd
         expected_valid_builtin_list_values.hir.out)
+    add_hir_compare_test(compare_hir_traverse
+        valid_traverse.evd
+        expected_valid_traverse.hir.out)
     add_hir_compare_test(compare_hir_float_literals
         valid_float_literals.evd
         expected_valid_float_literals.hir.out)
@@ -900,6 +911,7 @@ set(EVIDENT_EXPECTED_CTEST_TOTAL 439)
     add_emit_exe_test(run_native_nested_generic_record_construct valid_nested_generic_record_construct.evd 7 native_nested_generic_record_construct.exe)
     add_emit_exe_test(run_native_multiple_generic_instantiations valid_multiple_generic_instantiations.evd 7 native_multiple_generic_instantiations.exe)
     add_emit_exe_test(run_native_builtin_list_values valid_builtin_list_values.evd 7 native_builtin_list_values.exe)
+    add_emit_exe_test(run_native_traverse valid_traverse.evd 7 native_traverse.exe)
     add_multi_emit_exe_test(run_native_package_generic_import
         7
         native_package_generic_import.exe
@@ -1245,6 +1257,9 @@ set(EVIDENT_EXPECTED_CTEST_TOTAL 439)
     add_diagnostic_compare_test(diag_semantic_text_bytes_length_contracts
         invalid_text_bytes_length_contracts.evd
         expected_invalid_text_bytes_length_contracts.diag.out)
+    add_diagnostic_compare_test(diag_semantic_traverse_contracts
+        invalid_traverse_contracts.evd
+        expected_invalid_traverse_contracts.diag.out)
     add_diagnostic_compare_test(diag_semantic_duplicate_phase_position
         invalid_duplicate_phase_position.evd
         expected_invalid_duplicate_phase_position.diag.out)
@@ -1734,6 +1749,7 @@ set(EVIDENT_EXPECTED_CTEST_TOTAL 439)
     add_reject_test(reject_foreign_link_names invalid_foreign_link_names.evd)
     add_reject_test(reject_nonempty_string_literals invalid_nonempty_string_literals.evd)
     add_reject_test(reject_text_bytes_length_contracts invalid_text_bytes_length_contracts.evd)
+    add_reject_test(reject_traverse_contracts invalid_traverse_contracts.evd)
     add_reject_test(reject_field_access_private invalid_field_access_private.evd)
     add_reject_test(reject_construct_private_field invalid_construct_private_field.evd)
     add_reject_test(reject_grant_direct_call invalid_grant_direct_call.evd)

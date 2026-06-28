@@ -1,0 +1,17 @@
+domain module test {
+public fn first_or_initial(values: List<Int>) -> Int {
+    traverse copying values as item: Int carrying total: Int = 5 {
+        item
+    }
+}
+
+public fn first_nonempty(values: NonEmptyList<Int>) -> Int {
+    traverse copying values as item: Int carrying total: Int = 0 {
+        item
+    }
+}
+
+public fn main() -> Int {
+    first_nonempty(list_single<Int>(7))
+}
+}

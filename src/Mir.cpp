@@ -74,7 +74,8 @@ Rvalue Rvalue::uses(Operand operand) {
                   {},
                   LocalId{},
                   hir::TypeId{},
-                  "use rvalue");
+                  "use rvalue",
+                  Operand::unit());
 }
 
 Rvalue Rvalue::calls(hir::FunctionId function_id,
@@ -91,7 +92,8 @@ Rvalue Rvalue::calls(hir::FunctionId function_id,
                   {},
                   LocalId{},
                   hir::TypeId{},
-                  "call rvalue");
+                  "call rvalue",
+                  Operand::unit());
 }
 
 Rvalue Rvalue::constructs_named_type(hir::TypeId owner_type_id,
@@ -108,7 +110,8 @@ Rvalue Rvalue::constructs_named_type(hir::TypeId owner_type_id,
                   std::move(fields),
                   LocalId{},
                   hir::TypeId{},
-                  "construct named type rvalue");
+                  "construct named type rvalue",
+                  Operand::unit());
 }
 
 Rvalue Rvalue::constructs_named_variant(hir::TypeId owner_type_id,
@@ -126,7 +129,8 @@ Rvalue Rvalue::constructs_named_variant(hir::TypeId owner_type_id,
                   std::move(fields),
                   LocalId{},
                   hir::TypeId{},
-                  "construct named variant rvalue");
+                  "construct named variant rvalue",
+                  Operand::unit());
 }
 
 Rvalue Rvalue::projects_named_type_field(LocalId base_local, std::string field_name) {
@@ -141,7 +145,8 @@ Rvalue Rvalue::projects_named_type_field(LocalId base_local, std::string field_n
                   {},
                   base_local,
                   hir::TypeId{},
-                  std::move(field_name));
+                  std::move(field_name),
+                  Operand::unit());
 }
 
 Rvalue Rvalue::projects_named_variant_payload_field(LocalId base_local,
@@ -159,7 +164,40 @@ Rvalue Rvalue::projects_named_variant_payload_field(LocalId base_local,
                   {},
                   base_local,
                   projection_owner_type_id,
-                  std::move(field_name));
+                  std::move(field_name),
+                  Operand::unit());
+}
+
+Rvalue Rvalue::projects_list_element(LocalId list_local, LocalId index_local) {
+    return Rvalue(Kind::ProjectListElement,
+                  Operand::unit(),
+                  hir::FunctionId{},
+                  "project list element rvalue",
+                  {},
+                  hir::TypeId{},
+                  hir::VariantId{},
+                  "project list element rvalue",
+                  {},
+                  list_local,
+                  index_local,
+                  "project list element rvalue",
+                  Operand::unit());
+}
+
+Rvalue Rvalue::adds_nat(Operand lhs, Operand rhs) {
+    return Rvalue(Kind::AddNat,
+                  std::move(lhs),
+                  hir::FunctionId{},
+                  "add nat rvalue",
+                  {},
+                  hir::TypeId{},
+                  hir::VariantId{},
+                  "add nat rvalue",
+                  {},
+                  LocalId{},
+                  hir::TypeId{},
+                  "add nat rvalue",
+                  std::move(rhs));
 }
 
 Rvalue::Rvalue(Kind kind,
@@ -173,7 +211,8 @@ Rvalue::Rvalue(Kind kind,
                std::vector<FieldValue> fields,
                LocalId base_local,
                hir::TypeId projection_owner_type_id,
-               std::string field_name)
+               std::string field_name,
+               Operand secondary_operand)
     : kind_(kind),
       operand_(std::move(operand)),
       function_id_(function_id),
@@ -185,7 +224,8 @@ Rvalue::Rvalue(Kind kind,
       fields_(std::move(fields)),
       base_local_(base_local),
       projection_owner_type_id_(projection_owner_type_id),
-      field_name_(std::move(field_name)) {}
+      field_name_(std::move(field_name)),
+      secondary_operand_(std::move(secondary_operand)) {}
 
 SwitchEdge SwitchEdge::to_variant(hir::VariantId variant_id,
                                   std::string variant_name,
@@ -255,6 +295,24 @@ Terminator Terminator::switches_on_variant(LocalId scrutinee_local,
                       LocalId{},
                       BlockId{},
                       BlockId{});
+}
+
+Terminator Terminator::branches_on_list_element(LocalId list_local,
+                                                LocalId index_local,
+                                                BlockId element_block,
+                                                BlockId empty_block) {
+    return Terminator(Kind::BranchListElement,
+                      Operand::unit(),
+                      BlockId{},
+                      list_local,
+                      {},
+                      hir::FunctionId{},
+                      "branch list element terminator",
+                      {},
+                      index_local,
+                      LocalId{},
+                      element_block,
+                      empty_block);
 }
 
 Terminator Terminator::invokes(hir::FunctionId function_id,
@@ -622,6 +680,13 @@ private:
                                                                 BlockId failure_block,
                                                                 BlockId current,
                                                                 Env& env);
+    [[nodiscard]] BlockCursor lower_traverse_to_success_or_failure(const hir::TraverseExpr& expr,
+                                                                   LocalId success_dest,
+                                                                   LocalId failure_dest,
+                                                                   BlockId success_block,
+                                                                   BlockId failure_block,
+                                                                   BlockId current,
+                                                                   Env& env);
     [[nodiscard]] BlockCursor lower_failing_expr_to_propagation(const hir::Expr& expr,
                                                                 LocalId dest,
                                                                 BlockId current,
@@ -633,6 +698,7 @@ private:
     [[nodiscard]] BlockCursor lower_grant_expr(const hir::GrantExpr& expr, LocalId dest, BlockId current, Env& env);
     [[nodiscard]] BlockCursor lower_field_access_expr(const hir::FieldAccessExpr& expr, LocalId dest, BlockId current, Env& env);
     [[nodiscard]] BlockCursor lower_prove_expr(const hir::ProveExpr& expr, LocalId dest, BlockId current, Env& env);
+    [[nodiscard]] BlockCursor lower_traverse_expr(const hir::TraverseExpr& expr, LocalId dest, BlockId current, Env& env);
     [[nodiscard]] BlockCursor ensure_local_operand(Operand operand,
                                                    std::string type,
                                                    typesys::UseDiscipline discipline,
@@ -718,6 +784,15 @@ std::string format_rvalue(const Rvalue& value, const Function& function) {
         },
         [&](Rvalue::ProjectNamedVariantPayloadFieldValue value) {
             out << format_local_name(function.local_at(value.base_local)) << '.' << value.field_name;
+            return out.str();
+        },
+        [&](Rvalue::ProjectListElementValue value) {
+            out << format_local_name(function.local_at(value.list_local)) << '['
+                << format_local_name(function.local_at(value.index_local)) << ']';
+            return out.str();
+        },
+        [&](Rvalue::AddNatValue value) {
+            out << format_operand(value.lhs, function) << " + " << format_operand(value.rhs, function);
             return out.str();
         });
 }
@@ -1089,6 +1164,9 @@ BlockCursor Builder::lower_grant_to_success_or_failure(const hir::GrantExpr& exp
             [&](Terminator::SwitchVariantValue) -> BlockCursor {
                 return grant_tail;
             },
+            [&](Terminator::BranchListElementValue) -> BlockCursor {
+                return grant_tail;
+            },
             [&](Terminator::InvokeValue) -> BlockCursor {
                 return BlockCursor::continues_at(grant_success_block);
             },
@@ -1154,6 +1232,14 @@ BlockCursor Builder::lower_expr_to_success_or_failure(const hir::Expr& expr,
                                                      failure_block,
                                                      current,
                                                      env);
+        case hir::ExprKind::Traverse:
+            return lower_traverse_to_success_or_failure(static_cast<const hir::TraverseExpr&>(expr),
+                                                        success_dest,
+                                                        failure_dest,
+                                                        success_block,
+                                                        failure_block,
+                                                        current,
+                                                        env);
         default:
             break;
         }
@@ -1449,13 +1535,129 @@ BlockCursor Builder::lower_prove_expr(const hir::ProveExpr& expr,
     return cursor;
 }
 
+BlockCursor Builder::lower_traverse_expr(const hir::TraverseExpr& expr,
+                                         LocalId dest,
+                                         BlockId current,
+                                         Env& env) {
+    Operand source_operand = unit_operand();
+    BlockCursor cursor = lower_value(*expr.source, current, env, source_operand);
+    if (cursor.state() == BlockCursorState::TerminatesControlFlow) {
+        return BlockCursor::terminates_control_flow();
+    }
+
+    LocalId source_local = 0;
+    cursor = ensure_local_operand(std::move(source_operand),
+                                  expr.source->result_type.text,
+                                  expr.source->result_type.discipline,
+                                  cursor.block_id(),
+                                  source_local);
+    if (cursor.state() == BlockCursorState::TerminatesControlFlow) {
+        return BlockCursor::terminates_control_flow();
+    }
+
+    cursor = lower_expr_to(*expr.initial_accumulator, dest, cursor.block_id(), env);
+    if (cursor.state() == BlockCursorState::TerminatesControlFlow) {
+        return BlockCursor::terminates_control_flow();
+    }
+
+    LocalId index = make_temp("Nat", typesys::UseDiscipline::Copyable, "traverse_index");
+    append_statement(cursor.block_id(), Statement::assign(index, use_rvalue(Operand::int_literal("0"))));
+
+    const BlockId header_block = add_block();
+    const BlockId element_block = add_block();
+    const BlockId done_block = add_block();
+    set_terminator(cursor.block_id(), Terminator::jumps_to(header_block));
+    set_terminator(header_block, Terminator::branches_on_list_element(source_local, index, element_block, done_block));
+
+    LocalId element = add_local(expr.element_name,
+                                expr.element_type.text,
+                                LocalKind::Let,
+                                expr.element_type.discipline);
+    append_statement(element_block, Statement::assign(element, Rvalue::projects_list_element(source_local, index)));
+
+    Env body_env{&env, {}};
+    body_env.locals.emplace(expr.element_name, element);
+    body_env.locals.emplace(expr.accumulator_name, dest);
+    BlockCursor body_tail = lower_block_expr(*expr.body, dest, element_block, body_env);
+    if (body_tail.state() == BlockCursorState::ContinuesAtBlock) {
+        append_statement(body_tail.block_id(),
+                         Statement::assign(index,
+                                           Rvalue::adds_nat(local_operand(index), Operand::int_literal("1"))));
+        set_terminator(body_tail.block_id(), Terminator::jumps_to(header_block));
+    }
+    return BlockCursor::continues_at(done_block);
+}
+
+BlockCursor Builder::lower_traverse_to_success_or_failure(const hir::TraverseExpr& expr,
+                                                          LocalId success_dest,
+                                                          LocalId failure_dest,
+                                                          BlockId success_block,
+                                                          BlockId failure_block,
+                                                          BlockId current,
+                                                          Env& env) {
+    Operand source_operand = unit_operand();
+    BlockCursor cursor = lower_value(*expr.source, current, env, source_operand);
+    if (cursor.state() == BlockCursorState::TerminatesControlFlow) {
+        return BlockCursor::terminates_control_flow();
+    }
+
+    LocalId source_local = 0;
+    cursor = ensure_local_operand(std::move(source_operand),
+                                  expr.source->result_type.text,
+                                  expr.source->result_type.discipline,
+                                  cursor.block_id(),
+                                  source_local);
+    if (cursor.state() == BlockCursorState::TerminatesControlFlow) {
+        return BlockCursor::terminates_control_flow();
+    }
+
+    cursor = lower_expr_to(*expr.initial_accumulator, success_dest, cursor.block_id(), env);
+    if (cursor.state() == BlockCursorState::TerminatesControlFlow) {
+        return BlockCursor::terminates_control_flow();
+    }
+
+    LocalId index = make_temp("Nat", typesys::UseDiscipline::Copyable, "traverse_index");
+    append_statement(cursor.block_id(), Statement::assign(index, use_rvalue(Operand::int_literal("0"))));
+
+    const BlockId header_block = add_block();
+    const BlockId element_block = add_block();
+    const BlockId next_block = add_block();
+    set_terminator(cursor.block_id(), Terminator::jumps_to(header_block));
+    set_terminator(header_block, Terminator::branches_on_list_element(source_local, index, element_block, success_block));
+
+    LocalId element = add_local(expr.element_name,
+                                expr.element_type.text,
+                                LocalKind::Let,
+                                expr.element_type.discipline);
+    append_statement(element_block, Statement::assign(element, Rvalue::projects_list_element(source_local, index)));
+
+    Env body_env{&env, {}};
+    body_env.locals.emplace(expr.element_name, element);
+    body_env.locals.emplace(expr.accumulator_name, success_dest);
+    const BlockCursor body_tail = lower_block_to_success_or_failure(*expr.body,
+                                                                    success_dest,
+                                                                    failure_dest,
+                                                                    next_block,
+                                                                    failure_block,
+                                                                    element_block,
+                                                                    body_env);
+    if (body_tail.state() == BlockCursorState::ContinuesAtBlock) {
+        return body_tail;
+    }
+    append_statement(next_block,
+                     Statement::assign(index,
+                                       Rvalue::adds_nat(local_operand(index), Operand::int_literal("1"))));
+    set_terminator(next_block, Terminator::jumps_to(header_block));
+    return BlockCursor::terminates_control_flow();
+}
+
 BlockCursor Builder::lower_expr_to(const hir::Expr& expr,
                                    LocalId dest,
                                    BlockId current,
                                    Env& env) {
     if (expr.failure.effect() == hir::ExprFailureEffect::YieldsReason
         && (expr.kind == hir::ExprKind::Call || expr.kind == hir::ExprKind::Grant
-            || expr.kind == hir::ExprKind::Block)) {
+            || expr.kind == hir::ExprKind::Block || expr.kind == hir::ExprKind::Traverse)) {
         return lower_failing_expr_to_propagation(expr, dest, current, env);
     }
 
@@ -1528,6 +1730,8 @@ BlockCursor Builder::lower_expr_to(const hir::Expr& expr,
         return lower_field_access_expr(static_cast<const hir::FieldAccessExpr&>(expr), dest, current, env);
     case hir::ExprKind::Prove:
         return lower_prove_expr(static_cast<const hir::ProveExpr&>(expr), dest, current, env);
+    case hir::ExprKind::Traverse:
+        return lower_traverse_expr(static_cast<const hir::TraverseExpr&>(expr), dest, current, env);
     }
     return BlockCursor::continues_at(current);
 }
@@ -1601,6 +1805,13 @@ std::string dump(const Package& package) {
                     for (const SwitchEdge& edge : terminator.edges) {
                         out << "          arm " << edge.variant_name() << " -> %" << edge.target_block() << '\n';
                     }
+                },
+                [&](Terminator::BranchListElementValue terminator) {
+                    out << "        branch-list "
+                        << format_local_name(function.local_at(terminator.list_local))
+                        << '[' << format_local_name(function.local_at(terminator.index_local)) << ']'
+                        << " element -> %" << terminator.element_block
+                        << " done -> %" << terminator.empty_block << '\n';
                 },
                 [&](Terminator::InvokeValue terminator) {
                     out << "        invoke " << terminator.callee_name << '(';

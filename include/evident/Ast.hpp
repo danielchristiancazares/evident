@@ -58,6 +58,7 @@ enum class ExprKind {
     Grant,
     Prove,
     FieldAccess,
+    Traverse,
 };
 
 enum class StmtKind {
@@ -158,6 +159,11 @@ enum class FieldInitSpelling {
 enum class SuccessPatternBinding {
     NamedBinding,
     DiscardedValue,
+};
+
+enum class TraversalMode {
+    Copying,
+    Consuming,
 };
 
 struct Parameter {
@@ -364,6 +370,20 @@ struct ProveExpr final : Expr {
 
     ProveExpr()
         : Expr(ExprKind::Prove) {}
+};
+
+struct TraverseExpr final : Expr {
+    TraversalMode mode = TraversalMode::Copying;
+    std::unique_ptr<Expr> source;
+    std::string element_name;
+    TypeRef element_type;
+    std::string accumulator_name;
+    TypeRef accumulator_type;
+    std::unique_ptr<Expr> initial_accumulator;
+    std::unique_ptr<BlockExpr> body;
+
+    TraverseExpr()
+        : Expr(ExprKind::Traverse) {}
 };
 
 struct Decl : Node {

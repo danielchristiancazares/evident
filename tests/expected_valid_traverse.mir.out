@@ -1,0 +1,51 @@
+functions:
+  - public fn test::first_or_initial -> Int
+      locals:
+        %0[values] : List<Int>
+        %1[$return] : Int
+        %2[traverse_index] : Nat
+        %3[item] : Int
+      block %0
+        %1[$return] = 5
+        %2[traverse_index] = 0
+        goto %1
+      block %1
+        branch-list %0[values][%2[traverse_index]] element -> %2 done -> %3
+      block %2
+        %3[item] = %0[values][%2[traverse_index]]
+        %1[$return] = %3[item]
+        %2[traverse_index] = %2[traverse_index] + 1
+        goto %1
+      block %3
+        return %1[$return]
+  - public fn test::first_nonempty -> Int
+      locals:
+        %0[values] : NonEmptyList<Int>
+        %1[$return] : Int
+        %2[traverse_index] : Nat
+        %3[item] : Int
+      block %0
+        %1[$return] = 0
+        %2[traverse_index] = 0
+        goto %1
+      block %1
+        branch-list %0[values][%2[traverse_index]] element -> %2 done -> %3
+      block %2
+        %3[item] = %0[values][%2[traverse_index]]
+        %1[$return] = %3[item]
+        %2[traverse_index] = %2[traverse_index] + 1
+        goto %1
+      block %3
+        return %1[$return]
+  - public fn test::main -> Int
+      locals:
+        %0[$return] : Int
+        %1[tmp] : NonEmptyList<Int>
+      block %0
+        %1[tmp] = call list_single$Int(7)
+        %0[$return] = call test::first_nonempty(%1[tmp])
+        return %0[$return]
+  - public fn list_single$Int -> NonEmptyList<Int>
+      locals:
+        %0[value] : Int
+      blocks: <none>

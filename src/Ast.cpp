@@ -246,6 +246,30 @@ void dump_expr(std::ostream& out, const Expr& expr, std::size_t depth) {
         }
         break;
     }
+    case ExprKind::Traverse: {
+        const auto& traverse = static_cast<const TraverseExpr&>(expr);
+        out << "traverse "
+            << (traverse.mode == TraversalMode::Copying ? "copying" : "consuming")
+            << " as " << traverse.element_name << ": " << format_type(traverse.element_type)
+            << " carrying " << traverse.accumulator_name << ": "
+            << format_type(traverse.accumulator_type) << '\n';
+        if (traverse.source != nullptr) {
+            indent(out, depth + 1);
+            out << "source\n";
+            dump_expr(out, *traverse.source, depth + 2);
+        }
+        if (traverse.initial_accumulator != nullptr) {
+            indent(out, depth + 1);
+            out << "initial\n";
+            dump_expr(out, *traverse.initial_accumulator, depth + 2);
+        }
+        if (traverse.body != nullptr) {
+            indent(out, depth + 1);
+            out << "body\n";
+            dump_expr(out, *traverse.body, depth + 2);
+        }
+        break;
+    }
     }
 }
 

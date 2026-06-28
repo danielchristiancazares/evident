@@ -1,0 +1,35 @@
+domain module test {
+public proof Receipt {
+    count: Int,
+}
+
+public fn non_list_source(value: Int) -> Int {
+    traverse copying value as item: Int carrying total: Int = 0 {
+        total
+    }
+}
+
+public fn wrong_element_type(values: List<Int>) -> Int {
+    traverse copying values as item: Nat carrying total: Int = 0 {
+        total
+    }
+}
+
+public fn wrong_initial(values: List<Int>) -> Int {
+    traverse copying values as item: Int carrying total: Int = "bad" {
+        total
+    }
+}
+
+public fn wrong_body(values: List<Int>) -> Int {
+    traverse copying values as item: Int carrying total: Int = 0 {
+        "bad"
+    }
+}
+
+public fn affine_copy(values: List<Receipt>) -> Int {
+    traverse copying values as receipt: Receipt carrying total: Int = 0 {
+        total
+    }
+}
+}

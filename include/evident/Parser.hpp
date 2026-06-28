@@ -92,6 +92,7 @@ private:
     std::unique_ptr<ast::BlockExpr> parse_block_expr();
     std::unique_ptr<ast::Stmt> parse_statement();
     std::unique_ptr<ast::Expr> parse_expr();
+    std::unique_ptr<ast::Expr> parse_traverse_expr();
     std::unique_ptr<ast::Expr> parse_match_expr();
     std::unique_ptr<ast::Expr> parse_grant_expr();
     std::unique_ptr<ast::Expr> parse_try_expr();
