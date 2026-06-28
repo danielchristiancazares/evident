@@ -7,6 +7,73 @@
 
 namespace evident {
 
+namespace {
+
+struct Utf8ValidationResult {
+    bool well_formed = true;
+    std::size_t error_offset = 0;
+};
+
+bool is_utf8_continuation(unsigned char byte) {
+    return byte >= 0x80U && byte <= 0xBFU;
+}
+
+Utf8ValidationResult validate_utf8(std::string_view text) {
+    std::size_t index = 0;
+    while (index < text.size()) {
+        const unsigned char lead = static_cast<unsigned char>(text[index]);
+        if (lead <= 0x7FU) {
+            ++index;
+            continue;
+        }
+
+        std::size_t continuation_count = 0;
+        unsigned char min_second = 0x80U;
+        unsigned char max_second = 0xBFU;
+        if (lead >= 0xC2U && lead <= 0xDFU) {
+            continuation_count = 1;
+        } else if (lead == 0xE0U) {
+            continuation_count = 2;
+            min_second = 0xA0U;
+        } else if (lead >= 0xE1U && lead <= 0xECU) {
+            continuation_count = 2;
+        } else if (lead == 0xEDU) {
+            continuation_count = 2;
+            max_second = 0x9FU;
+        } else if (lead >= 0xEEU && lead <= 0xEFU) {
+            continuation_count = 2;
+        } else if (lead == 0xF0U) {
+            continuation_count = 3;
+            min_second = 0x90U;
+        } else if (lead >= 0xF1U && lead <= 0xF3U) {
+            continuation_count = 3;
+        } else if (lead == 0xF4U) {
+            continuation_count = 3;
+            max_second = 0x8FU;
+        } else {
+            return Utf8ValidationResult{false, index};
+        }
+
+        if (index + continuation_count >= text.size()) {
+            return Utf8ValidationResult{false, index};
+        }
+
+        const unsigned char second = static_cast<unsigned char>(text[index + 1]);
+        if (second < min_second || second > max_second) {
+            return Utf8ValidationResult{false, index + 1};
+        }
+        for (std::size_t offset = 2; offset <= continuation_count; ++offset) {
+            if (!is_utf8_continuation(static_cast<unsigned char>(text[index + offset]))) {
+                return Utf8ValidationResult{false, index + offset};
+            }
+        }
+        index += continuation_count + 1;
+    }
+    return Utf8ValidationResult{};
+}
+
+} // namespace
+
 std::expected<SourceFile, std::string> SourceFile::load(std::string path) {
     std::ifstream input(path, std::ios::binary);
     if (!input) {
@@ -15,7 +82,13 @@ std::expected<SourceFile, std::string> SourceFile::load(std::string path) {
 
     std::ostringstream buffer;
     buffer << input.rdbuf();
-    return SourceFile(std::move(path), buffer.str());
+    std::string text = buffer.str();
+    const Utf8ValidationResult utf8 = validate_utf8(text);
+    if (!utf8.well_formed) {
+        return std::unexpected("source file is not well-formed UTF-8 at byte offset "
+                               + std::to_string(utf8.error_offset) + ": " + path);
+    }
+    return SourceFile(std::move(path), std::move(text));
 }
 
 SourceFile::SourceFile(std::string path, std::string text)
