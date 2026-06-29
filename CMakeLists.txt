@@ -7,20 +7,15 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
 
-add_library(evident_frontend
-    src/Source.cpp
-    src/Diagnostic.cpp
-    src/Token.cpp
-    src/Lexer.cpp
-    src/Ast.cpp
-    src/Parser.cpp
-    src/ResolvedType.cpp
-    src/Semantic.cpp
-    src/Hir.cpp
-    src/Mir.cpp
-    src/Backend.cpp
-    src/Driver.cpp
+file(GLOB EVIDENT_FRONTEND_SOURCES CONFIGURE_DEPENDS
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/*.cpp"
 )
+list(REMOVE_ITEM EVIDENT_FRONTEND_SOURCES
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/main.cpp"
+    "${CMAKE_CURRENT_SOURCE_DIR}/src/bootstrap_runtime.cpp"
+)
+
+add_library(evident_frontend ${EVIDENT_FRONTEND_SOURCES})
 
 target_include_directories(evident_frontend PUBLIC include)
 
