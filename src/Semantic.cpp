@@ -152,6 +152,61 @@ const std::unordered_set<std::string_view> kSemanticClaimMarkerWords = {
     "loaded",
 };
 
+// Maps every semantic-claim marker word to its marker family (Section 10.6). Coverage is
+// computed by family, not by claim category: words sharing a family cover one another, while
+// every word outside a non-exact family is its own singleton family.
+const std::unordered_map<std::string_view, std::string_view> kSemanticClaimMarkerFamilies = {
+    {"valid", "valid"},          {"validated", "valid"},
+    {"validate", "valid"},       {"validation", "valid"},
+    {"validity", "valid"},       {"validator", "valid"},
+    {"verify", "verify"},        {"verification", "verify"},
+    {"verified", "verify"},      {"curated", "curate"},
+    {"curate", "curate"},        {"curation", "curate"},
+    {"accepted", "accept"},      {"acceptance", "accept"},
+    {"canonical", "canonical"},  {"canonicalized", "canonical"},
+    {"canonicalize", "canonical"}, {"canonicalization", "canonical"},
+    {"syntax", "syntax"},        {"syntactic", "syntax"},
+    {"safe", "safe"},            {"safety", "safe"},
+    {"secure", "secure"},        {"security", "secure"},
+    {"trusted", "trust"},        {"trust", "trust"},
+    {"sanitized", "sanitize"},   {"sanitize", "sanitize"},
+    {"escaped", "escape"},       {"escape", "escape"},
+    {"encoded", "encode"},       {"encode", "encode"},
+    {"decoded", "decode"},       {"decode", "decode"},
+    {"normalized", "normalize"}, {"normalize", "normalize"},
+    {"authenticated", "authenticate"}, {"authenticate", "authenticate"},
+    {"attested", "attest"},      {"attest", "attest"},
+    {"signed", "sign"},          {"signature", "sign"},
+    {"protocol", "protocol"},    {"schema", "schema"},
+    {"status", "status"},        {"state", "state"},
+    {"mode", "mode"},            {"tag", "tag"},
+    {"discriminator", "discriminator"}, {"sentinel", "sentinel"},
+    {"code", "code"},            {"reported", "reported"},
+    {"unavailable", "unavailable"}, {"policy", "policy"},
+    {"authority", "authority"},  {"authorized", "authorize"},
+    {"authorize", "authorize"},  {"authorization", "authorize"},
+    {"grant", "grant"},          {"granted", "grant"},
+    {"token", "token"},          {"capability", "capability"},
+    {"credential", "credential"}, {"permit", "permit"},
+    {"permitted", "permit"},     {"permission", "permit"},
+    {"access", "access"},        {"id", "id"},
+    {"identifier", "id"},        {"identity", "id"},
+    {"role", "role"},            {"ticket", "ticket"},
+    {"receipt", "receipt"},      {"proof", "proof"},
+    {"proven", "proof"},         {"witness", "witness"},
+    {"handle", "handle"},        {"resident", "resident"},
+    {"residency", "resident"},   {"open", "open"},
+    {"opened", "open"},          {"closed", "closed"},
+    {"released", "released"},     {"connected", "connected"},
+    {"disconnected", "disconnected"}, {"lifecycle", "lifecycle"},
+    {"phase", "lifecycle"},      {"transition", "lifecycle"},
+    {"draft", "draft"},          {"submitted", "submitted"},
+    {"sealed", "submitted"},     {"ready", "submitted"},
+    {"live", "submitted"},       {"initialized", "initialize"},
+    {"initialize", "initialize"}, {"load", "load"},
+    {"loaded", "load"},
+};
+
 const std::unordered_set<std::string_view> kBuiltins = {
     "Int",         "Nat",           "Float",        "Char",
     "Text",        "NonEmptyText",  "Bytes",        "NonEmptyBytes",
@@ -1031,14 +1086,38 @@ bool contains_foundation_semantic_claim_marker(std::string_view name) {
     return false;
 }
 
-bool contains_validation_claim_marker(std::string_view name) {
+std::string_view semantic_claim_marker_family(std::string_view word) {
+    const auto it = kSemanticClaimMarkerFamilies.find(word);
+    return it != kSemanticClaimMarkerFamilies.end() ? it->second : std::string_view{};
+}
+
+void collect_name_marker_families(std::string_view name,
+                                  std::unordered_set<std::string_view>& families) {
     for (const std::string& word : normalized_identifier_words(name)) {
-        if (word == "valid" || word == "validated" || word == "validate"
-            || word == "validation" || word == "validity" || word == "validator") {
-            return true;
+        const std::string_view family = semantic_claim_marker_family(word);
+        if (!family.empty()) {
+            families.insert(family);
         }
     }
-    return false;
+}
+
+std::unordered_set<std::string_view> name_marker_families(std::string_view name) {
+    std::unordered_set<std::string_view> families;
+    collect_name_marker_families(name, families);
+    return families;
+}
+
+// Returns the first normalized marker word in `name` whose family is not present in `covered`,
+// or an empty string when every marker family in `name` is covered.
+std::string first_uncovered_marker_word(std::string_view name,
+                                        const std::unordered_set<std::string_view>& covered) {
+    for (const std::string& word : normalized_identifier_words(name)) {
+        const std::string_view family = semantic_claim_marker_family(word);
+        if (!family.empty() && covered.find(family) == covered.end()) {
+            return word;
+        }
+    }
+    return std::string();
 }
 
 PublicNameReservation public_name_reservation(std::string_view name) {
@@ -3003,77 +3082,61 @@ private:
             || name == "MapFirstEntryAndRest" || name == "MapBoundValueAndRest";
     }
 
-    bool consequence_surface_contains_validation_claim_marker(const Type& type) const {
-        if (contains_validation_claim_marker(type.name)) {
-            return true;
-        }
+    // Collects the semantic-claim marker families exposed by a type's consequence surface
+    // (Section 10.6): the type name, the declaration name, and the kind-specific surface names.
+    std::unordered_set<std::string_view> consequence_surface_marker_families(const Type& type) const {
+        std::unordered_set<std::string_view> families;
+        collect_name_marker_families(type.name, families);
         if (type.decl == nullptr) {
-            return false;
+            return families;
         }
-        if (contains_validation_claim_marker(type.decl->name)) {
-            return true;
-        }
+        collect_name_marker_families(type.decl->name, families);
         switch (type.decl->kind) {
         case ast::DeclKind::State: {
             const auto& state_decl = static_cast<const ast::StateDecl&>(*type.decl);
             for (const ast::Variant& variant : state_decl.variants) {
-                if (contains_validation_claim_marker(variant.name)) {
-                    return true;
-                }
+                collect_name_marker_families(variant.name, families);
                 for (const ast::Field& field : variant.fields) {
-                    if (contains_validation_claim_marker(field.name)) {
-                        return true;
-                    }
+                    collect_name_marker_families(field.name, families);
                 }
             }
-            return false;
+            break;
         }
         case ast::DeclKind::Reason: {
             const auto& reason_decl = static_cast<const ast::ReasonDecl&>(*type.decl);
             for (const ast::Variant& variant : reason_decl.variants) {
-                if (contains_validation_claim_marker(variant.name)) {
-                    return true;
-                }
+                collect_name_marker_families(variant.name, families);
                 for (const ast::Field& field : variant.fields) {
-                    if (contains_validation_claim_marker(field.name)) {
-                        return true;
-                    }
+                    collect_name_marker_families(field.name, families);
                 }
             }
-            return false;
+            break;
         }
         case ast::DeclKind::Proof: {
             const auto& proof_decl = static_cast<const ast::ProofDecl&>(*type.decl);
             for (const ast::Field& field : proof_decl.fields) {
-                if (contains_validation_claim_marker(field.name)) {
-                    return true;
-                }
+                collect_name_marker_families(field.name, families);
             }
-            return false;
+            break;
         }
-        case ast::DeclKind::Permit:
-            return false;
         case ast::DeclKind::Phase: {
             const auto& phase_decl = static_cast<const ast::PhaseDecl&>(*type.decl);
             for (const std::string& position : phase_decl.positions) {
-                if (contains_validation_claim_marker(position)) {
-                    return true;
-                }
+                collect_name_marker_families(position, families);
             }
             for (const ast::Field& field : phase_decl.fields) {
-                if (contains_validation_claim_marker(field.name)) {
-                    return true;
-                }
+                collect_name_marker_families(field.name, families);
             }
-            return false;
+            break;
         }
+        case ast::DeclKind::Permit:
         case ast::DeclKind::Record:
         case ast::DeclKind::Module:
         case ast::DeclKind::Function:
         case ast::DeclKind::ForeignFunction:
-            return false;
+            break;
         }
-        return false;
+        return families;
     }
 
     void check_exported_function_semantic_claim_surface(const ast::FunctionDecl& function,
@@ -3085,44 +3148,103 @@ private:
             return;
         }
 
+        const std::vector<std::string> generics =
+            generic_names_for(function.signature.generic_params);
+
+        // Claim-participating ordinary parameters must carry a consequence type whose surface
+        // covers every marker family in the parameter name.
         for (const ast::Parameter& param : function.signature.params) {
-            if (module_kind == ast::ModuleKind::Domain
-                && param.authority == ast::ParameterAuthority::OrdinaryValue
-                && contains_validation_claim_marker(param.name)
-                && is_direct_core_primitive_or_sequence_type_ref(param.type)) {
+            if (module_kind != ast::ModuleKind::Domain
+                || param.authority != ast::ParameterAuthority::OrdinaryValue) {
+                continue;
+            }
+            if (name_marker_families(param.name).empty()) {
+                continue;
+            }
+            if (is_direct_core_primitive_or_sequence_type_ref(param.type)) {
                 diagnostics_.error(param.type.span,
                                    "semantic-claim parameter '" + param.name
                                        + "' must use a consequence-carrying type");
+                continue;
+            }
+            const Type param_type = resolve_type(scope, generics, {}, param.type);
+            if (type_error_state(param_type) == typesys::TypeErrorState::SuppressesFollowupDiagnostics) {
+                continue;
+            }
+            const std::string uncovered =
+                first_uncovered_marker_word(param.name, consequence_surface_marker_families(param_type));
+            if (!uncovered.empty()) {
+                diagnostics_.error(param.type.span,
+                                   "semantic-claim parameter '" + param.name
+                                       + "' must expose a consequence surface covering '" + uncovered
+                                       + "'");
             }
         }
 
-        if (!contains_validation_claim_marker(function.name)) {
+        if (name_marker_families(function.name).empty()) {
             return;
         }
+
+        // Gather the marker families covered by the function's success surfaces: the return type,
+        // any `proves` proof, and a `grants` clause (which covers the grant/authorize/permit
+        // markers plus the permit declaration's own surface).
+        std::unordered_set<std::string_view> covered;
+
         if (function.signature.authority.effect()
             == ast::FunctionAuthorityEffect::GrantsScopedPermit) {
+            covered.insert("grant");
+            covered.insert("authorize");
+            covered.insert("permit");
+            const Type permit_type =
+                resolve_type(scope, generics, {}, function.signature.authority.permit_type());
+            if (type_error_state(permit_type)
+                != typesys::TypeErrorState::SuppressesFollowupDiagnostics) {
+                collect_name_marker_families(permit_type.name, covered);
+                if (permit_type.decl != nullptr) {
+                    collect_name_marker_families(permit_type.decl->name, covered);
+                }
+            }
+        }
+
+        for (const ast::TypeRef& proves_type : function.signature.proves_types) {
+            const Type proof_type = resolve_type(scope, generics, {}, proves_type);
+            if (type_error_state(proof_type) == typesys::TypeErrorState::SuppressesFollowupDiagnostics) {
+                continue;
+            }
+            const std::unordered_set<std::string_view> proof_families =
+                consequence_surface_marker_families(proof_type);
+            covered.insert(proof_families.begin(), proof_families.end());
+        }
+
+        const bool return_is_bare =
+            is_direct_core_primitive_or_sequence_type_ref(function.signature.return_type);
+        if (!return_is_bare) {
+            const Type return_type = resolve_type(scope, generics, {}, function.signature.return_type);
+            if (type_error_state(return_type)
+                == typesys::TypeErrorState::SuppressesFollowupDiagnostics) {
+                return;
+            }
+            const std::unordered_set<std::string_view> return_families =
+                consequence_surface_marker_families(return_type);
+            covered.insert(return_families.begin(), return_families.end());
+        }
+
+        const std::string uncovered = first_uncovered_marker_word(function.name, covered);
+        if (return_is_bare) {
+            // A bare core primitive/sequence/Unit success surface cannot carry any uncovered
+            // claim; it is permitted only when a grants clause (or proof) already covers every
+            // marker in the function name.
+            if (!uncovered.empty()) {
+                diagnostics_.error(function.signature.return_type.span,
+                                   "exported semantic-claim function '" + function.name
+                                       + "' must expose a consequence-carrying success surface");
+            }
             return;
         }
-        if (!function.signature.proves_types.empty()) {
-            return;
-        }
-        if (is_direct_core_primitive_or_sequence_type_ref(function.signature.return_type)) {
+        if (!uncovered.empty()) {
             diagnostics_.error(function.signature.return_type.span,
                                "exported semantic-claim function '" + function.name
-                                   + "' must expose a consequence-carrying success surface");
-            return;
-        }
-        const Type return_type = resolve_type(scope,
-                                             generic_names_for(function.signature.generic_params),
-                                             {},
-                                             function.signature.return_type);
-        if (type_error_state(return_type) == typesys::TypeErrorState::SuppressesFollowupDiagnostics) {
-            return;
-        }
-        if (!consequence_surface_contains_validation_claim_marker(return_type)) {
-            diagnostics_.error(function.signature.return_type.span,
-                               "exported semantic-claim function '" + function.name
-                                   + "' must expose validation-family coverage in its success surface");
+                                   + "' must expose a success surface covering '" + uncovered + "'");
         }
     }
 

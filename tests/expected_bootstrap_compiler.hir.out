@@ -471,7 +471,7 @@ functions:
           construct bootstrap_lexing::TokenStream : bootstrap_lexing::TokenStream
             init tokens
               local compiler : NonEmptyList<bootstrap_lexing::Token>
-  - public fn bootstrap_lexing::seed_token_stream_size() -> Int
+  - public fn bootstrap_lexing::seed_stream_size() -> Int
       block -> Int
         let stream: bootstrap_lexing::TokenStream
           call bootstrap_lexing::seed_token_stream -> bootstrap_lexing::TokenStream
@@ -663,7 +663,7 @@ functions:
           construct bootstrap_parsing::PackageSyntax : bootstrap_parsing::PackageSyntax
             init modules
               local compiler : NonEmptyList<bootstrap_parsing::SyntaxModule>
-  - public fn bootstrap_parsing::seed_package_syntax_module_count() -> Int
+  - public fn bootstrap_parsing::seed_package_module_count() -> Int
       block -> Int
         let syntax: bootstrap_parsing::PackageSyntax
           call bootstrap_parsing::seed_package_syntax -> bootstrap_parsing::PackageSyntax
@@ -2071,9 +2071,9 @@ functions:
           call bootstrap_source::compiler_package_file_count -> Nat
             local package : bootstrap_source::PackageSource
         let token_stream_size: Int
-          call bootstrap_lexing::seed_token_stream_size -> Int
+          call bootstrap_lexing::seed_stream_size -> Int
         let syntax_module_count: Int
-          call bootstrap_parsing::seed_package_syntax_module_count -> Int
+          call bootstrap_parsing::seed_package_module_count -> Int
         let symbol_entry_count: Nat
           call bootstrap_semantics::seed_symbol_catalog_entry_count -> Nat
         let module_count: Nat

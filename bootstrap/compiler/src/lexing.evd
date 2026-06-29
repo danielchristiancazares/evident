@@ -98,7 +98,7 @@ public fn seed_token_stream() -> TokenStream {
     }
 }
 
-public fn seed_token_stream_size() -> Int {
+public fn seed_stream_size() -> Int {
     let stream = seed_token_stream();
     13
 }

@@ -11,8 +11,8 @@
         takes_one("seven")
                   ^^^^^^^
 <input>:37:15: error: failing expression must be handled with `try` or `match`
-        takes_one(load())
-                  ^^^^^^
+        takes_one(fetch())
+                  ^^^^^^^
 <input>:41:5: error: callee must be a named function
         takes_one.value()
         ^^^^^^^^^^^^^^^^^
@@ -25,9 +25,15 @@
 <input>:53:33: error: collection operation 'map_replace_bound' requires copyable map value type 'V', got affine-bearing 'test::Receipt'
         try map_replace_bound<Text, Receipt>(entries, key, value)
                                     ^^^^^^^
+<input>:56:88: error: exported semantic-claim function 'bad_map_merge_policy' must expose a consequence-carrying success surface
+    public fn bad_map_merge_policy(left: Map<Text, Receipt>, right: Map<Text, Receipt>) -> Map<Text, Receipt> {
+                                                                                           ^^^^^^^^^^^^^^^^^^
 <input>:57:57: error: collection operation 'map_merge_using_left_bindings_for_shared_keys' requires copyable map value type 'V', got affine-bearing 'test::Receipt'
         map_merge_using_left_bindings_for_shared_keys<Text, Receipt>(left, right)
                                                             ^^^^^^^
+<input>:60:82: error: exported semantic-claim function 'bad_map_from_entries_policy' must expose a consequence-carrying success surface
+    public fn bad_map_from_entries_policy(entries: List<MapEntry<Text, Receipt>>) -> Map<Text, Receipt> {
+                                                                                     ^^^^^^^^^^^^^^^^^^
 <input>:61:49: error: collection operation 'map_from_entries_using_first_bindings' requires copyable map value type 'V', got affine-bearing 'test::Receipt'
         map_from_entries_using_first_bindings<Text, Receipt>(entries)
                                                     ^^^^^^^

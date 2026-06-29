@@ -1,6 +1,12 @@
+<input>:21:34: error: exported semantic-claim function 'bad_unknown_proof' must expose a success surface covering 'proof'
+    public fn bad_unknown_proof() -> Receipt proves Receipt {
+                                     ^^^^^^^
 <input>:22:5: error: unknown proof type 'Missing'
         prove Missing { count: 1, label: "ok" }
         ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+<input>:25:37: error: exported semantic-claim function 'bad_non_proof_target' must expose a success surface covering 'proof'
+    public fn bad_non_proof_target() -> Receipt proves Receipt {
+                                        ^^^^^^^
 <input>:26:5: error: 'prove' expects a proof type, found 'record'
         prove Marker { x: 1 }
         ^^^^^^^^^^^^^^^^^^^^^

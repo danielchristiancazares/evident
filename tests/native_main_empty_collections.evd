@@ -440,7 +440,7 @@ public fn merge_nonempty_reject_shared_value() -> Int {
     }
 }
 
-public fn merge_left_policy_duplicate_value() -> Int {
+public fn merge_left_rule_duplicate_value() -> Int {
     let entries = map_merge_using_left_bindings_for_shared_keys<Text, Int>(widened_map(single_map()), widened_map(replacement_map()))
     match map_lookup_copy<Text, Int>(entries, "one") {
         succeeded(value) => value,
@@ -449,7 +449,7 @@ public fn merge_left_policy_duplicate_value() -> Int {
     }
 }
 
-public fn merge_left_nonempty_policy_value() -> Int {
+public fn merge_left_nonempty_rule_value() -> Int {
     let entries = map_merge_left_nonempty_using_left_bindings_for_shared_keys<Text, Int>(single_map(), widened_map(replacement_map()))
     match nonempty_map_lookup_copy<Text, Int>(entries, "one") {
         succeeded(value) => value,
@@ -458,7 +458,7 @@ public fn merge_left_nonempty_policy_value() -> Int {
     }
 }
 
-public fn merge_right_nonempty_left_policy_value() -> Int {
+public fn merge_right_nonempty_left_rule_value() -> Int {
     let entries = map_merge_right_nonempty_using_left_bindings_for_shared_keys<Text, Int>(widened_map(single_map()), replacement_map())
     match nonempty_map_lookup_copy<Text, Int>(entries, "one") {
         succeeded(value) => value,
@@ -467,7 +467,7 @@ public fn merge_right_nonempty_left_policy_value() -> Int {
     }
 }
 
-public fn merge_nonempty_left_policy_value() -> Int {
+public fn merge_nonempty_left_rule_value() -> Int {
     let entries = nonempty_map_merge_using_left_bindings_for_shared_keys<Text, Int>(single_map(), replacement_map())
     match nonempty_map_lookup_copy<Text, Int>(entries, "one") {
         succeeded(value) => value,
@@ -476,7 +476,7 @@ public fn merge_nonempty_left_policy_value() -> Int {
     }
 }
 
-public fn merge_right_policy_duplicate_value() -> Int {
+public fn merge_right_rule_duplicate_value() -> Int {
     let entries = map_merge_using_right_bindings_for_shared_keys<Text, Int>(widened_map(replacement_map()), widened_map(single_map()))
     match map_lookup_copy<Text, Int>(entries, "one") {
         succeeded(value) => value,
@@ -485,7 +485,7 @@ public fn merge_right_policy_duplicate_value() -> Int {
     }
 }
 
-public fn merge_left_nonempty_right_policy_value() -> Int {
+public fn merge_left_nonempty_right_rule_value() -> Int {
     let entries = map_merge_left_nonempty_using_right_bindings_for_shared_keys<Text, Int>(replacement_map(), widened_map(single_map()))
     match nonempty_map_lookup_copy<Text, Int>(entries, "one") {
         succeeded(value) => value,
@@ -494,7 +494,7 @@ public fn merge_left_nonempty_right_policy_value() -> Int {
     }
 }
 
-public fn merge_right_nonempty_right_policy_value() -> Int {
+public fn merge_right_nonempty_right_rule_value() -> Int {
     let entries = map_merge_right_nonempty_using_right_bindings_for_shared_keys<Text, Int>(widened_map(replacement_map()), single_map())
     match nonempty_map_lookup_copy<Text, Int>(entries, "one") {
         succeeded(value) => value,
@@ -503,7 +503,7 @@ public fn merge_right_nonempty_right_policy_value() -> Int {
     }
 }
 
-public fn merge_nonempty_right_policy_value() -> Int {
+public fn merge_nonempty_right_rule_value() -> Int {
     let entries = nonempty_map_merge_using_right_bindings_for_shared_keys<Text, Int>(replacement_map(), single_map())
     match nonempty_map_lookup_copy<Text, Int>(entries, "one") {
         succeeded(value) => value,
@@ -512,7 +512,7 @@ public fn merge_nonempty_right_policy_value() -> Int {
     }
 }
 
-public fn merge_int_right_policy_value() -> Int {
+public fn merge_int_right_rule_value() -> Int {
     let entries = map_merge_using_right_bindings_for_shared_keys<Int, Int>(widened_int_map(replacement_int_map()), widened_int_map(single_int_map()))
     match map_lookup_copy<Int, Int>(entries, 4) {
         succeeded(value) => value,
@@ -562,7 +562,7 @@ public fn from_entries_reject_duplicate_value() -> Int {
     }
 }
 
-public fn from_entries_first_policy_value() -> Int {
+public fn from_entries_first_rule_value() -> Int {
     let entries = map_from_entries_using_first_bindings<Text, Int>(nonempty_list_widen<MapEntry<Text, Int>>(duplicate_text_entries()))
     match map_lookup_copy<Text, Int>(entries, "one") {
         succeeded(value) => value,
@@ -571,7 +571,7 @@ public fn from_entries_first_policy_value() -> Int {
     }
 }
 
-public fn from_entries_nonempty_first_policy_value() -> Int {
+public fn from_entries_nonempty_first_rule_value() -> Int {
     let entries = nonempty_map_from_entries_using_first_bindings<Text, Int>(duplicate_text_entries())
     match nonempty_map_lookup_copy<Text, Int>(entries, "one") {
         succeeded(value) => value,
@@ -580,7 +580,7 @@ public fn from_entries_nonempty_first_policy_value() -> Int {
     }
 }
 
-public fn from_entries_last_policy_value() -> Int {
+public fn from_entries_last_rule_value() -> Int {
     let entries = map_from_entries_using_last_bindings<Text, Int>(nonempty_list_widen<MapEntry<Text, Int>>(duplicate_text_entries()))
     match map_lookup_copy<Text, Int>(entries, "one") {
         succeeded(value) => value,
@@ -589,7 +589,7 @@ public fn from_entries_last_policy_value() -> Int {
     }
 }
 
-public fn from_entries_nonempty_last_policy_value() -> Int {
+public fn from_entries_nonempty_last_rule_value() -> Int {
     let entries = nonempty_map_from_entries_using_last_bindings<Text, Int>(duplicate_text_entries())
     match nonempty_map_lookup_copy<Text, Int>(entries, "one") {
         succeeded(value) => value,
@@ -598,7 +598,7 @@ public fn from_entries_nonempty_last_policy_value() -> Int {
     }
 }
 
-public fn from_entries_int_last_policy_value() -> Int {
+public fn from_entries_int_last_rule_value() -> Int {
     let entries = map_from_entries_using_last_bindings<Int, Int>(nonempty_list_widen<MapEntry<Int, Int>>(duplicate_int_entries()))
     match map_lookup_copy<Int, Int>(entries, 4) {
         succeeded(value) => value,
@@ -711,22 +711,22 @@ public fn main() -> Int {
     let merged_left_nonempty_reject_result = merge_left_nonempty_reject_disjoint_value()
     let merged_right_nonempty_reject_result = merge_right_nonempty_reject_disjoint_value()
     let merged_nonempty_reject_result = merge_nonempty_reject_shared_value()
-    let merged_left_policy_result = merge_left_policy_duplicate_value()
-    let merged_left_nonempty_policy_result = merge_left_nonempty_policy_value()
-    let merged_right_nonempty_left_policy_result = merge_right_nonempty_left_policy_value()
-    let merged_nonempty_left_policy_result = merge_nonempty_left_policy_value()
-    let merged_right_policy_result = merge_right_policy_duplicate_value()
-    let merged_left_nonempty_right_policy_result = merge_left_nonempty_right_policy_value()
-    let merged_right_nonempty_right_policy_result = merge_right_nonempty_right_policy_value()
-    let merged_nonempty_right_policy_result = merge_nonempty_right_policy_value()
-    let merged_int_right_policy_result = merge_int_right_policy_value()
+    let merged_left_rule_result = merge_left_rule_duplicate_value()
+    let merged_left_nonempty_rule_result = merge_left_nonempty_rule_value()
+    let merged_right_nonempty_left_rule_result = merge_right_nonempty_left_rule_value()
+    let merged_nonempty_left_rule_result = merge_nonempty_left_rule_value()
+    let merged_right_rule_result = merge_right_rule_duplicate_value()
+    let merged_left_nonempty_right_rule_result = merge_left_nonempty_right_rule_value()
+    let merged_right_nonempty_right_rule_result = merge_right_nonempty_right_rule_value()
+    let merged_nonempty_right_rule_result = merge_nonempty_right_rule_value()
+    let merged_int_right_rule_result = merge_int_right_rule_value()
     let from_empty_count = from_empty_entries_count()
     let from_entries_reject_result = from_entries_reject_disjoint_first_value()
     let from_entries_reject_duplicate_result = from_entries_reject_duplicate_value()
-    let from_entries_first_policy_result = from_entries_first_policy_value()
-    let from_entries_nonempty_first_policy_result = from_entries_nonempty_first_policy_value()
-    let from_entries_last_policy_result = from_entries_last_policy_value()
-    let from_entries_nonempty_last_policy_result = from_entries_nonempty_last_policy_value()
-    from_entries_int_last_policy_value()
+    let from_entries_first_rule_result = from_entries_first_rule_value()
+    let from_entries_nonempty_first_rule_result = from_entries_nonempty_first_rule_value()
+    let from_entries_last_rule_result = from_entries_last_rule_value()
+    let from_entries_nonempty_last_rule_result = from_entries_nonempty_last_rule_value()
+    from_entries_int_last_rule_value()
 }
 }

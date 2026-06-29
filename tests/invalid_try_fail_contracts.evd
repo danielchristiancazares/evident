@@ -7,7 +7,7 @@ public reason ParseFailure {
     Bad,
 }
 
-public fn open() -> Int fails OpenFailure {
+public fn acquire() -> Int fails OpenFailure {
     fail Denied
 }
 
@@ -16,7 +16,7 @@ public fn value() -> Int {
 }
 
 public fn bad_try_reason() -> Int fails ParseFailure {
-    try open()
+    try acquire()
 }
 
 public fn bad_try_non_failing() -> Int fails ParseFailure {

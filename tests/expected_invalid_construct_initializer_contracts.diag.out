@@ -16,9 +16,15 @@
 <input>:54:5: error: missing initializer for field 'label'
         Wrapped { id: 1 }
         ^^^^^^^^^^^^^^^^^
+<input>:57:32: error: exported semantic-claim function 'duplicate_phase' must expose a success surface covering 'phase'
+    public fn duplicate_phase() -> Config::Draft {
+                                   ^^^^^^^^^^^^^
 <input>:58:28: error: duplicate initializer for field 'id'
         Config::Draft { id: 1, id: 2, payload: 3 }
                                ^^^^^
+<input>:61:30: error: exported semantic-claim function 'missing_phase' must expose a success surface covering 'phase'
+    public fn missing_phase() -> Config::Draft {
+                                 ^^^^^^^^^^^^^
 <input>:62:5: error: missing initializer for field 'payload'
         Config::Draft { id: 1 }
         ^^^^^^^^^^^^^^^^^^^^^^^

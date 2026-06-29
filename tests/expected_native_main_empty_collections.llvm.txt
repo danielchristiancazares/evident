@@ -3679,7 +3679,7 @@ bb.trap.3:
 
 }
 
-define i64 @evid$test$merge_left_policy_duplicate_value() {
+define i64 @evid$test$merge_left_rule_duplicate_value() {
 entry:
   %slot0 = alloca i64
   %slot1 = alloca { ptr, i64 }
@@ -3765,7 +3765,7 @@ bb.trap.3:
 
 }
 
-define i64 @evid$test$merge_left_nonempty_policy_value() {
+define i64 @evid$test$merge_left_nonempty_rule_value() {
 entry:
   %slot0 = alloca i64
   %slot1 = alloca { ptr, i64 }
@@ -3847,7 +3847,7 @@ bb.trap.3:
 
 }
 
-define i64 @evid$test$merge_right_nonempty_left_policy_value() {
+define i64 @evid$test$merge_right_nonempty_left_rule_value() {
 entry:
   %slot0 = alloca i64
   %slot1 = alloca { ptr, i64 }
@@ -3929,7 +3929,7 @@ bb.trap.3:
 
 }
 
-define i64 @evid$test$merge_nonempty_left_policy_value() {
+define i64 @evid$test$merge_nonempty_left_rule_value() {
 entry:
   %slot0 = alloca i64
   %slot1 = alloca { ptr, i64 }
@@ -4007,7 +4007,7 @@ bb.trap.3:
 
 }
 
-define i64 @evid$test$merge_right_policy_duplicate_value() {
+define i64 @evid$test$merge_right_rule_duplicate_value() {
 entry:
   %slot0 = alloca i64
   %slot1 = alloca { ptr, i64 }
@@ -4093,7 +4093,7 @@ bb.trap.3:
 
 }
 
-define i64 @evid$test$merge_left_nonempty_right_policy_value() {
+define i64 @evid$test$merge_left_nonempty_right_rule_value() {
 entry:
   %slot0 = alloca i64
   %slot1 = alloca { ptr, i64 }
@@ -4175,7 +4175,7 @@ bb.trap.3:
 
 }
 
-define i64 @evid$test$merge_right_nonempty_right_policy_value() {
+define i64 @evid$test$merge_right_nonempty_right_rule_value() {
 entry:
   %slot0 = alloca i64
   %slot1 = alloca { ptr, i64 }
@@ -4257,7 +4257,7 @@ bb.trap.3:
 
 }
 
-define i64 @evid$test$merge_nonempty_right_policy_value() {
+define i64 @evid$test$merge_nonempty_right_rule_value() {
 entry:
   %slot0 = alloca i64
   %slot1 = alloca { ptr, i64 }
@@ -4335,7 +4335,7 @@ bb.trap.3:
 
 }
 
-define i64 @evid$test$merge_int_right_policy_value() {
+define i64 @evid$test$merge_int_right_rule_value() {
 entry:
   %slot0 = alloca i64
   %slot1 = alloca { ptr, i64 }
@@ -4723,7 +4723,7 @@ bb.trap.3:
 
 }
 
-define i64 @evid$test$from_entries_first_policy_value() {
+define i64 @evid$test$from_entries_first_rule_value() {
 entry:
   %slot0 = alloca i64
   %slot1 = alloca { ptr, i64 }
@@ -4801,7 +4801,7 @@ bb.trap.3:
 
 }
 
-define i64 @evid$test$from_entries_nonempty_first_policy_value() {
+define i64 @evid$test$from_entries_nonempty_first_rule_value() {
 entry:
   %slot0 = alloca i64
   %slot1 = alloca { ptr, i64 }
@@ -4875,7 +4875,7 @@ bb.trap.3:
 
 }
 
-define i64 @evid$test$from_entries_last_policy_value() {
+define i64 @evid$test$from_entries_last_rule_value() {
 entry:
   %slot0 = alloca i64
   %slot1 = alloca { ptr, i64 }
@@ -4953,7 +4953,7 @@ bb.trap.3:
 
 }
 
-define i64 @evid$test$from_entries_nonempty_last_policy_value() {
+define i64 @evid$test$from_entries_nonempty_last_rule_value() {
 entry:
   %slot0 = alloca i64
   %slot1 = alloca { ptr, i64 }
@@ -5027,7 +5027,7 @@ bb.trap.3:
 
 }
 
-define i64 @evid$test$from_entries_int_last_policy_value() {
+define i64 @evid$test$from_entries_int_last_rule_value() {
 entry:
   %slot0 = alloca i64
   %slot1 = alloca { ptr, i64 }
@@ -5717,23 +5717,23 @@ bb0:
   store i64 %call34, ptr %slot35
   %call35 = call i64 @evid$test$merge_nonempty_reject_shared_value()
   store i64 %call35, ptr %slot36
-  %call36 = call i64 @evid$test$merge_left_policy_duplicate_value()
+  %call36 = call i64 @evid$test$merge_left_rule_duplicate_value()
   store i64 %call36, ptr %slot37
-  %call37 = call i64 @evid$test$merge_left_nonempty_policy_value()
+  %call37 = call i64 @evid$test$merge_left_nonempty_rule_value()
   store i64 %call37, ptr %slot38
-  %call38 = call i64 @evid$test$merge_right_nonempty_left_policy_value()
+  %call38 = call i64 @evid$test$merge_right_nonempty_left_rule_value()
   store i64 %call38, ptr %slot39
-  %call39 = call i64 @evid$test$merge_nonempty_left_policy_value()
+  %call39 = call i64 @evid$test$merge_nonempty_left_rule_value()
   store i64 %call39, ptr %slot40
-  %call40 = call i64 @evid$test$merge_right_policy_duplicate_value()
+  %call40 = call i64 @evid$test$merge_right_rule_duplicate_value()
   store i64 %call40, ptr %slot41
-  %call41 = call i64 @evid$test$merge_left_nonempty_right_policy_value()
+  %call41 = call i64 @evid$test$merge_left_nonempty_right_rule_value()
   store i64 %call41, ptr %slot42
-  %call42 = call i64 @evid$test$merge_right_nonempty_right_policy_value()
+  %call42 = call i64 @evid$test$merge_right_nonempty_right_rule_value()
   store i64 %call42, ptr %slot43
-  %call43 = call i64 @evid$test$merge_nonempty_right_policy_value()
+  %call43 = call i64 @evid$test$merge_nonempty_right_rule_value()
   store i64 %call43, ptr %slot44
-  %call44 = call i64 @evid$test$merge_int_right_policy_value()
+  %call44 = call i64 @evid$test$merge_int_right_rule_value()
   store i64 %call44, ptr %slot45
   %call45 = call { ptr, i64 } @evid$test$from_empty_entries_count()
   store { ptr, i64 } %call45, ptr %slot46
@@ -5741,15 +5741,15 @@ bb0:
   store i64 %call46, ptr %slot47
   %call47 = call i64 @evid$test$from_entries_reject_duplicate_value()
   store i64 %call47, ptr %slot48
-  %call48 = call i64 @evid$test$from_entries_first_policy_value()
+  %call48 = call i64 @evid$test$from_entries_first_rule_value()
   store i64 %call48, ptr %slot49
-  %call49 = call i64 @evid$test$from_entries_nonempty_first_policy_value()
+  %call49 = call i64 @evid$test$from_entries_nonempty_first_rule_value()
   store i64 %call49, ptr %slot50
-  %call50 = call i64 @evid$test$from_entries_last_policy_value()
+  %call50 = call i64 @evid$test$from_entries_last_rule_value()
   store i64 %call50, ptr %slot51
-  %call51 = call i64 @evid$test$from_entries_nonempty_last_policy_value()
+  %call51 = call i64 @evid$test$from_entries_nonempty_last_rule_value()
   store i64 %call51, ptr %slot52
-  %call52 = call i64 @evid$test$from_entries_int_last_policy_value()
+  %call52 = call i64 @evid$test$from_entries_int_last_rule_value()
   store i64 %call52, ptr %slot0
   %load53 = load i64, ptr %slot0
   ret i64 %load53

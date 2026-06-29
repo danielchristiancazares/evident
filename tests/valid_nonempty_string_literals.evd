@@ -11,11 +11,11 @@ public fn nonempty_text_literal() -> NonEmptyText {
     "text"
 }
 
-public fn nonempty_text_nul_escape() -> NonEmptyText {
+public fn nonempty_text_nul() -> NonEmptyText {
     "\0"
 }
 
-public fn nonempty_text_unicode_escape() -> NonEmptyText {
+public fn nonempty_text_unicode() -> NonEmptyText {
     "\u{1F600}"
 }
 
@@ -23,7 +23,7 @@ public fn nonempty_bytes_literal() -> NonEmptyBytes {
     "bytes"
 }
 
-public fn nonempty_bytes_unicode_escape() -> NonEmptyBytes {
+public fn nonempty_bytes_unicode() -> NonEmptyBytes {
     "\u{E9}"
 }
 

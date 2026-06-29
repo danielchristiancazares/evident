@@ -8,11 +8,11 @@ functions:
       block -> NonEmptyText
         result
           string "text" : NonEmptyText
-  - public fn nonempty_literals::nonempty_text_nul_escape() -> NonEmptyText
+  - public fn nonempty_literals::nonempty_text_nul() -> NonEmptyText
       block -> NonEmptyText
         result
           string "\0" : NonEmptyText
-  - public fn nonempty_literals::nonempty_text_unicode_escape() -> NonEmptyText
+  - public fn nonempty_literals::nonempty_text_unicode() -> NonEmptyText
       block -> NonEmptyText
         result
           string "\u{1F600}" : NonEmptyText
@@ -20,7 +20,7 @@ functions:
       block -> NonEmptyBytes
         result
           string "bytes" : NonEmptyBytes
-  - public fn nonempty_literals::nonempty_bytes_unicode_escape() -> NonEmptyBytes
+  - public fn nonempty_literals::nonempty_bytes_unicode() -> NonEmptyBytes
       block -> NonEmptyBytes
         result
           string "\u{E9}" : NonEmptyBytes

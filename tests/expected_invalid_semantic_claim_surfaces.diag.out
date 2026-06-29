@@ -4,6 +4,21 @@
 <input>:6:34: error: semantic-claim parameter 'validatedText' must use a consequence-carrying type
     public fn forward(validatedText: Text) -> Text {
                                      ^^^^
-<input>:23:40: error: exported semantic-claim function 'validate_token' must expose validation-family coverage in its success surface
-    public fn validate_token(text: Text) -> TokenResult {
+<input>:15:41: error: exported semantic-claim function 'validate_state' must expose a success surface covering 'state'
+    public fn validate_state(text: Text) -> ValidationResult {
+                                            ^^^^^^^^^^^^^^^^
+<input>:23:40: error: semantic-claim parameter 'validatedToken' must expose a consequence surface covering 'validated'
+    public fn accept_token(validatedToken: TokenResult) -> TokenResult {
                                            ^^^^^^^^^^^
+<input>:27:41: error: exported semantic-claim function 'validate_token' must expose a success surface covering 'validate'
+    public fn validate_token(text: Text) -> TokenResult {
+                                            ^^^^^^^^^^^
+<input>:36:31: error: exported semantic-claim function 'encode_payload' must expose a consequence-carrying success surface
+    public fn encode_payload() -> Text {
+                                  ^^^^
+<input>:40:35: error: semantic-claim parameter 'authorizedCaller' must use a consequence-carrying type
+    public fn relay(authorizedCaller: Text) -> HandleState {
+                                      ^^^^
+<input>:44:28: error: exported semantic-claim function 'open_handle' must expose a success surface covering 'open'
+    public fn open_handle() -> HandleState {
+                               ^^^^^^^^^^^

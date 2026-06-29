@@ -1,6 +1,6 @@
-<input>:2:20: error: `domain` modules must not declare user-defined generics
-    public fn identity<T>(value: T) -> T {
-                       ^
+<input>:2:16: error: `domain` modules must not declare user-defined generics
+    public fn echo<T>(value: T) -> T {
+                   ^
 <input>:8:19: error: this module kind must not declare user-defined generics on `record`
     public record Box<T> {
                       ^

@@ -37,6 +37,9 @@
 <input>:59:45: error: map key type 'KeyMode' must be one of Int, Nat, Float, Byte, Char, Text, or Bytes
     public fn state_map_key(values: NonEmptyMap<KeyMode, Int>) -> Int {
                                                 ^^^^^^^
+<input>:59:63: error: exported semantic-claim function 'state_map_key' must expose a consequence-carrying success surface
+    public fn state_map_key(values: NonEmptyMap<KeyMode, Int>) -> Int {
+                                                                  ^^^
 <input>:63:42: error: map key type 'List<Int>' must be one of Int, Nat, Float, Byte, Char, Text, or Bytes
     public fn collection_map_key(values: Map<List<Int>, Int>) -> Int {
                                              ^^^^^^^^^
@@ -73,3 +76,6 @@
 <input>:99:56: error: permit type 'Access' may not appear in function parameter
     public fn permit_companion_value(value: MapEntry<Text, Access>) -> Int {
                                                            ^^^^^^
+<input>:99:68: error: exported semantic-claim function 'permit_companion_value' must expose a consequence-carrying success surface
+    public fn permit_companion_value(value: MapEntry<Text, Access>) -> Int {
+                                                                       ^^^

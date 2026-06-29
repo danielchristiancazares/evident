@@ -4,6 +4,9 @@
 <input>:15:36: error: 'fails' must reference a reason type, not 'state'
     public fn bad_state() -> Int fails NotAReason { 0 }
                                        ^^^^^^^^^^
+<input>:15:26: error: exported semantic-claim function 'bad_state' must expose a consequence-carrying success surface
+    public fn bad_state() -> Int fails NotAReason { 0 }
+                             ^^^
 <input>:17:38: error: 'fails' must reference a reason type, not builtin type 'Int'
     public fn bad_builtin() -> Int fails Int { 0 }
                                          ^^^

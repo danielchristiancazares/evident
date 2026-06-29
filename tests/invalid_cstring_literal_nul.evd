@@ -7,7 +7,7 @@ public fn accept(value: CString) -> CString {
     value
 }
 
-public fn return_nul_escape() -> CString {
+public fn return_nul_literal() -> CString {
     "\0"
 }
 
@@ -15,7 +15,7 @@ public fn argument_unicode_nul() -> CString {
     accept("\u{0}")
 }
 
-public fn field_nul_escape() -> CString {
+public fn field_nul_literal() -> CString {
     CStringBox { value: "\0" }.value
 }
 }

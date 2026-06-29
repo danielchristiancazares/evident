@@ -1,5 +1,5 @@
 functions:
-  - public fn test::open -> test::FileHandle fails test::OpenFailure
+  - public fn test::acquire -> test::FileHandle fails test::OpenFailure
       locals:
         %0[raw] : Int
         %1[$return] : test::FileHandle
@@ -12,7 +12,7 @@ functions:
         %1[$return] : test::FileHandle
         %2[failure] : test::OpenFailure
       block %0
-        invoke test::open(%0[raw]) ok %1[$return] -> %1 fail %2[failure] -> %2
+        invoke test::acquire(%0[raw]) ok %1[$return] -> %1 fail %2[failure] -> %2
       block %1
         return %1[$return]
       block %2

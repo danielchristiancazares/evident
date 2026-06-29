@@ -10,18 +10,30 @@
 <input>:42:40: error: proof type 'Receipt' may not have generic arguments
     public fn bad_non_generic_proof(value: Receipt<Int>) -> Int { 0 }
                                            ^^^^^^^^^^^^
+<input>:42:57: error: exported semantic-claim function 'bad_non_generic_proof' must expose a consequence-carrying success surface
+    public fn bad_non_generic_proof(value: Receipt<Int>) -> Int { 0 }
+                                                            ^^^
 <input>:44:42: error: permit type 'Access' may not have generic arguments
     public fn bad_permit_type_arg(as access: Access<Int>) -> Int { 0 }
                                              ^^^^^^^^^^^
+<input>:44:58: error: exported semantic-claim function 'bad_permit_type_arg' must expose a consequence-carrying success surface
+    public fn bad_permit_type_arg(as access: Access<Int>) -> Int { 0 }
+                                                             ^^^
 <input>:46:49: error: generic record 'support::Pair' expects 2 type argument(s), got 1
     public fn bad_generic_record_wrong_arity(value: support::Pair<Int>) -> Int { 0 }
                                                     ^^^^^^^^^^^^^^^^^^
 <input>:48:46: error: phase type 'Config::Draft<Int>' may not have generic arguments
     public fn bad_phase_position_type_arg(value: Config::Draft<Int>) -> Int { 0 }
                                                  ^^^^^^^^^^^^^^^^^^
+<input>:48:69: error: exported semantic-claim function 'bad_phase_position_type_arg' must expose a consequence-carrying success surface
+    public fn bad_phase_position_type_arg(value: Config::Draft<Int>) -> Int { 0 }
+                                                                        ^^^
 <input>:50:44: error: phase type 'Config' may not have generic arguments
     public fn bad_phase_family_type_arg(value: Config<Int>) -> Int { 0 }
                                                ^^^^^^^^^^^
 <input>:50:44: error: phase family name 'Config' is not a concrete type; use a concrete position such as 'Config::Draft'
     public fn bad_phase_family_type_arg(value: Config<Int>) -> Int { 0 }
                                                ^^^^^^^^^^^
+<input>:50:60: error: exported semantic-claim function 'bad_phase_family_type_arg' must expose a consequence-carrying success surface
+    public fn bad_phase_family_type_arg(value: Config<Int>) -> Int { 0 }
+                                                               ^^^

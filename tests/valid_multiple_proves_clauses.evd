@@ -5,6 +5,6 @@ public proof FirstReceipt {
 public proof SecondReceipt {
 }
 
-public fn authorize() -> Unit proves FirstReceipt proves SecondReceipt {
+public fn mint() -> Unit proves FirstReceipt proves SecondReceipt {
 }
 }

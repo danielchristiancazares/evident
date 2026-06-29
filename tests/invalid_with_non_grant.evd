@@ -1,9 +1,9 @@
 domain module test {
-public fn open() -> Unit {
+public fn acquire() -> Unit {
 }
 
 public fn boot() -> Unit {
-    grant open() as pass {
+    grant acquire() as pass {
     }
 }
 }

@@ -169,7 +169,7 @@ public fn seed_package_syntax(tokens: bootstrap_lexing::TokenStream) -> PackageS
     }
 }
 
-public fn seed_package_syntax_module_count() -> Int {
+public fn seed_package_module_count() -> Int {
     let syntax = seed_package_syntax(bootstrap_lexing::seed_token_stream());
     13
 }

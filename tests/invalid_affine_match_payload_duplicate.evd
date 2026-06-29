@@ -16,7 +16,7 @@ public fn combine(first: Receipt, second: Receipt) -> Int {
     first.count
 }
 
-public fn from_ticket(ticket: TicketState) -> Int {
+public fn duplicate_payload(ticket: TicketState) -> Int {
     match ticket {
         Issued { receipt } => combine(receipt, receipt),
         Archived => 0,

@@ -20,7 +20,28 @@ public state TokenResult {
     Carried,
 }
 
+public fn accept_token(validatedToken: TokenResult) -> TokenResult {
+    validatedToken
+}
+
 public fn validate_token(text: Text) -> TokenResult {
     Carried
+}
+
+public state HandleState {
+    Live,
+    Closed,
+}
+
+public fn encode_payload() -> Text {
+    "payload"
+}
+
+public fn relay(authorizedCaller: Text) -> HandleState {
+    Live
+}
+
+public fn open_handle() -> HandleState {
+    Live
 }
 }

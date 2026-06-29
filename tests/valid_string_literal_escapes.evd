@@ -1,9 +1,9 @@
 domain module test {
-public fn simple_escapes() -> Text {
+public fn simple_sequences() -> Text {
     "quote:\" slash:\\ newline:\n carriage:\r tab:\t nul:\0"
 }
 
-public fn unicode_escape() -> Text {
+public fn unicode_scalar() -> Text {
     "\u{1F600}"
 }
 }

@@ -25,9 +25,15 @@
 <input>:47:45: error: 'grants' must reference a permit type, not concrete phase type 'Task::Draft'
     public fn bad_phase_grants() -> Unit grants Task::Draft {
                                                 ^^^^^^^^^^^
+<input>:47:33: error: exported semantic-claim function 'bad_phase_grants' must expose a consequence-carrying success surface
+    public fn bad_phase_grants() -> Unit grants Task::Draft {
+                                    ^^^^
 <input>:50:45: error: 'proves' must reference a proof type, not concrete phase type 'Task::Draft'
     public fn bad_phase_proves() -> Unit proves Task::Draft {
                                                 ^^^^^^^^^^^
+<input>:50:33: error: exported semantic-claim function 'bad_phase_proves' must expose a consequence-carrying success surface
+    public fn bad_phase_proves() -> Unit proves Task::Draft {
+                                    ^^^^
 <input>:53:33: error: granting functions must return 'Unit'
     public fn bad_grant_return() -> Int grants Access {
                                     ^^^

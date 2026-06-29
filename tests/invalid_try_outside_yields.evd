@@ -7,9 +7,9 @@ public record FileHandle {
     raw: Int,
 }
 
-public fn open() -> FileHandle fails OpenFailure { fail FileNotFound }
+public fn acquire() -> FileHandle fails OpenFailure { fail FileNotFound }
 
 public fn boot() -> FileHandle {
-    try open()
+    try acquire()
 }
 }

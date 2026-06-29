@@ -2,7 +2,7 @@ domain module test {
 public proof Receipt {
 }
 
-public fn validate() -> Receipt proves Receipt proves Receipt {
+public fn check() -> Receipt proves Receipt proves Receipt {
     prove Receipt {}
 }
 }

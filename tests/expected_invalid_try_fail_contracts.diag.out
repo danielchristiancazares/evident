@@ -1,6 +1,6 @@
 <input>:19:5: error: 'try' expects failure reason 'ParseFailure', got 'OpenFailure'
-        try open()
-        ^^^^^^^^^^
+        try acquire()
+        ^^^^^^^^^^^^^
 <input>:23:5: error: `try` requires an operand that may fail (a call to a function with `fails`)
         try value()
         ^^^^^^^^^^^

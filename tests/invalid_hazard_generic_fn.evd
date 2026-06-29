@@ -1,5 +1,5 @@
 hazard module sys {
-public fn identity<T>(value: T) -> T {
+public fn echo<T>(value: T) -> T {
     value
 }
 }

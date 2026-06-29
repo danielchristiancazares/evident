@@ -7,7 +7,7 @@ public proof Receipt {
     count: Int,
 }
 
-public fn load() -> Int
+public fn fetch() -> Int
     fails LoadFailure
 {
     fail Bad
@@ -34,7 +34,7 @@ public fn bad_type_mismatch() -> Int {
 }
 
 public fn bad_failing_argument() -> Int {
-    takes_one(load())
+    takes_one(fetch())
 }
 
 public fn bad_non_path_callee() -> Int {

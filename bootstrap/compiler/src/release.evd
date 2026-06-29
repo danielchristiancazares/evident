@@ -56,8 +56,8 @@ public fn bootstrap_package_validation(package: bootstrap_source::PackageSource,
     let compiler_manifest_entry = try bootstrap_manifest::bootstrap_package_manifest_entry_by_name(manifest, "bootstrap_compiler");
     let discovered_source_count = discovery.source_count;
     let source_file_count = bootstrap_source::compiler_package_file_count(package);
-    let token_stream_size = bootstrap_lexing::seed_token_stream_size();
-    let syntax_module_count = bootstrap_parsing::seed_package_syntax_module_count();
+    let token_stream_size = bootstrap_lexing::seed_stream_size();
+    let syntax_module_count = bootstrap_parsing::seed_package_module_count();
     let symbol_entry_count = bootstrap_semantics::seed_symbol_catalog_entry_count();
     let module_count = bootstrap_layout::bootstrap_package_module_count(layout);
     let manifest_entry_count = bootstrap_manifest::bootstrap_package_manifest_entry_count(manifest);

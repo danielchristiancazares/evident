@@ -28,7 +28,7 @@ public fn choose_mode(config: FeatureConfig) -> FeatureMode {
     ProviderBacked { config }
 }
 
-public fn open_mode(mode: FeatureMode) -> FileHandle fails OpenFailure {
+public fn acquire_handle(mode: FeatureMode) -> FileHandle fails OpenFailure {
     match mode {
         OfflineOnly => fail FileNotFound { path: "offline" },
         ProviderBacked { config } => FileHandle { raw: 1 },

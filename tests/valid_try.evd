@@ -7,11 +7,11 @@ public record FileHandle {
     raw: Int,
 }
 
-public fn open(raw: Int) -> FileHandle fails OpenFailure {
+public fn acquire(raw: Int) -> FileHandle fails OpenFailure {
     FileHandle { raw }
 }
 
 public fn boot(raw: Int) -> FileHandle fails OpenFailure {
-    try open(raw)
+    try acquire(raw)
 }
 }

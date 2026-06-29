@@ -160,7 +160,7 @@ functions:
         %26[compiler] = call bootstrap_lexing::append_token(%24[release], %25[compiler_token])
         %0[$return] = construct bootstrap_lexing::TokenStream {tokens: %26[compiler]}
         return %0[$return]
-  - public fn bootstrap_lexing::seed_token_stream_size -> Int
+  - public fn bootstrap_lexing::seed_stream_size -> Int
       locals:
         %0[$return] : Int
         %1[stream] : bootstrap_lexing::TokenStream
@@ -317,7 +317,7 @@ functions:
         %40[compiler] = call bootstrap_parsing::append_syntax_module(%37[release], %38[compiler_module])
         %1[$return] = construct bootstrap_parsing::PackageSyntax {modules: %40[compiler]}
         return %1[$return]
-  - public fn bootstrap_parsing::seed_package_syntax_module_count -> Int
+  - public fn bootstrap_parsing::seed_package_module_count -> Int
       locals:
         %0[$return] : Int
         %1[syntax] : bootstrap_parsing::PackageSyntax
@@ -1415,8 +1415,8 @@ functions:
       block %3
         %9[discovered_source_count] = %3[discovery].source_count
         %10[source_file_count] = call bootstrap_source::compiler_package_file_count(%0[package])
-        %11[token_stream_size] = call bootstrap_lexing::seed_token_stream_size()
-        %12[syntax_module_count] = call bootstrap_parsing::seed_package_syntax_module_count()
+        %11[token_stream_size] = call bootstrap_lexing::seed_stream_size()
+        %12[syntax_module_count] = call bootstrap_parsing::seed_package_module_count()
         %13[symbol_entry_count] = call bootstrap_semantics::seed_symbol_catalog_entry_count()
         %14[module_count] = call bootstrap_layout::bootstrap_package_module_count(%1[layout])
         %15[manifest_entry_count] = call bootstrap_manifest::bootstrap_package_manifest_entry_count(%2[manifest])

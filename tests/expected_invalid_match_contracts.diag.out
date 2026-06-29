@@ -1,9 +1,15 @@
 <input>:18:9: error: duplicate match arm for variant 'ModeEnabled'
             ModeEnabled => 2,
             ^^^^^^^^^^^
+<input>:23:50: error: exported semantic-claim function 'bad_wrong_state_variant' must expose a consequence-carrying success surface
+    public fn bad_wrong_state_variant(mode: Mode) -> Int {
+                                                     ^^^
 <input>:26:9: error: pattern must match a variant of state 'Mode'
             OtherOnly => 2,
             ^^^^^^^^^
+<input>:31:59: error: exported semantic-claim function 'bad_fails_pattern_in_state_match' must expose a consequence-carrying success surface
+    public fn bad_fails_pattern_in_state_match(mode: Mode) -> Int {
+                                                              ^^^
 <input>:33:9: error: match over a state requires variant patterns
             succeeded(value) => value,
             ^^^^^^^^^^^^^^^^

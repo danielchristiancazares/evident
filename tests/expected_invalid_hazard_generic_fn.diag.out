@@ -1,3 +1,3 @@
-<input>:2:20: error: this module kind must not declare user-defined generics on `fn`
-    public fn identity<T>(value: T) -> T {
-                       ^
+<input>:2:16: error: this module kind must not declare user-defined generics on `fn`
+    public fn echo<T>(value: T) -> T {
+                   ^

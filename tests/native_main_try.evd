@@ -3,12 +3,12 @@ public reason OpenFailure {
     FileNotFound { path: Text },
 }
 
-public fn open(raw: Int) -> Int fails OpenFailure {
+public fn acquire(raw: Int) -> Int fails OpenFailure {
     raw
 }
 
 public fn boot() -> Int fails OpenFailure {
-    try open(11)
+    try acquire(11)
 }
 
 public fn main() -> Int {

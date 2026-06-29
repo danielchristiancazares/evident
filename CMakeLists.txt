@@ -841,7 +841,7 @@ set(EVIDENT_EXPECTED_CTEST_TOTAL 462)
     add_emit_pattern_test(hygiene_llvm_try_invoke_extractvalue
         valid_try.evd
         hygiene_valid_try.ll
-        "extractvalue %evid.yield.test.open %invoke1, 0"
+        "extractvalue %evid.yield.test.acquire %invoke1, 0"
         "invoke.slot")
     add_emit_pattern_test(hygiene_llvm_direct_fail_text_value
         valid_direct_fail.evd
