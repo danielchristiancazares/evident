@@ -33,6 +33,10 @@ public fn boundary_raw_box(value: raw_bridge::RawCStringBox) -> Int {
     0
 }
 
+record PrivateRawBridgeBox {
+    value: raw_bridge::RawCStringBox,
+}
+
 public fn call_boundary_raw_export() -> Int {
     let raw = raw_bridge::raw_cstring();
     0
@@ -48,6 +52,14 @@ fn private_cstring_literal() -> CString {
 }
 
 foundation module raw_foundation {
+record PrivateCSizeBox {
+    value: CSize,
+}
+
+fn private_cint(value: CInt) -> Int {
+    0
+}
+
 public fn bytes_map(values: Map<Bytes, Int>) -> Int {
     0
 }

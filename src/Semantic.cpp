@@ -1456,6 +1456,7 @@ struct TypeUseRules {
     RawAbiTypePolicy raw_abi = RawAbiTypePolicy::AllowRawAbiTypes;
     AdapterLocalReasonPolicy adapter_local_reason =
         AdapterLocalReasonPolicy::AllowAdapterLocalReasons;
+    ast::ModuleKind module_kind = ast::ModuleKind::Domain;
 };
 
 TypePrivacyPolicy type_privacy_policy(ast::Visibility visibility) {
@@ -1481,6 +1482,10 @@ RawAbiTypePolicy raw_abi_type_policy(ast::ModuleKind module_kind, TypePrivacyPol
 
 bool is_foreign_abi_substrate_type_name(std::string_view name) {
     return name == "CString" || name == "CInt" || name == "CSize";
+}
+
+bool permits_foreign_abi_substrate_types(ast::ModuleKind module_kind) {
+    return module_kind == ast::ModuleKind::Boundary || module_kind == ast::ModuleKind::Hazard;
 }
 
 bool is_foreign_abi_reason_name(std::string_view name) {
@@ -2789,7 +2794,10 @@ private:
                                      TypePrivacyPolicy::PrivateReferencesAllowed,
                                      ReasonTypePolicy::RejectReasonTypes,
                                      PermitTypePolicy::RejectPermitTypes,
-                                     "generic function type argument"});
+                                     "generic function type argument",
+                                     RawAbiTypePolicy::AllowRawAbiTypes,
+                                     AdapterLocalReasonPolicy::AllowAdapterLocalReasons,
+                                     context.module_kind});
             substitutions.emplace_back(function.signature.generic_params[index].name,
                                        resolve_type(context.scope, context.generics, context.substitutions, type_arg));
         }
@@ -2897,7 +2905,10 @@ private:
                                      TypePrivacyPolicy::PrivateReferencesAllowed,
                                      ReasonTypePolicy::RejectReasonTypes,
                                      PermitTypePolicy::RejectPermitTypes,
-                                     "generic record constructor type argument"});
+                                     "generic record constructor type argument",
+                                     RawAbiTypePolicy::AllowRawAbiTypes,
+                                     AdapterLocalReasonPolicy::AllowAdapterLocalReasons,
+                                     context.module_kind});
             type_args.push_back(resolve_type(context.scope, context.generics, context.substitutions, type_arg));
         }
         return TypeArgumentPreparation::ReadyForInstantiation;
@@ -3693,6 +3704,16 @@ private:
                               const TypeUseRules& rules) {
         const TypeReferencePathRole path_role = type_reference_path_role(type.path, generics);
 
+        if (rules.raw_abi == RawAbiTypePolicy::AllowRawAbiTypes
+            && !permits_foreign_abi_substrate_types(rules.module_kind)
+            && type.path.size() == 1
+            && type.args.empty()
+            && is_foreign_abi_substrate_type_name(type.path.front())) {
+            diagnostics_.error(type.span,
+                               "foreign ABI type '" + ast::format_type(type)
+                                   + "' may only be mentioned inside a boundary or hazard module");
+        }
+
         if (rules.raw_abi == RawAbiTypePolicy::RejectRawAdapterTypesInPublicApi) {
             std::unordered_set<const ast::Decl*> active_exports;
             if (direct_raw_adapter_exposure_state(scope, generics, type, active_exports)
@@ -3753,6 +3774,7 @@ private:
                                   "unknown type '" + ast::format_type(type) + "' in " + std::string(rules.context));
             } else {
                 check_import_access(scope, type.path, type.span);
+                check_raw_adapter_export_reference(*symbol->decl, type.span, rules.module_kind);
                 if (declaration_type_role(symbol->kind) == TypeDeclarationRole::DoesNotIntroduceType) {
                     diagnostics_.error(type.span,
                                       "expected a type in " + std::string(rules.context) + ", found '"
@@ -3859,7 +3881,8 @@ private:
                                      permit_type_policy_for_parameter(param.authority, parameter_type),
                                      "function parameter",
                                      raw_abi_policy,
-                                     adapter_reason_policy});
+                                     adapter_reason_policy,
+                                     module_kind});
             if (implementation == ast::FunctionImplementation::ForeignImport) {
                 if (param.authority != ast::ParameterAuthority::OrdinaryValue) {
                     diagnostics_.error(param.span, "foreign function parameters must be ordinary value parameters");
@@ -3892,7 +3915,8 @@ private:
                                  PermitTypePolicy::RejectPermitTypes,
                                  "function return type",
                                  raw_abi_policy,
-                                 adapter_reason_policy});
+                                 adapter_reason_policy,
+                                 module_kind});
         if (implementation == ast::FunctionImplementation::ForeignImport) {
             const Type return_type = resolve_type(scope, generics, signature.return_type);
             if (foreign_fn_return_type_admission(return_type) == ForeignFnTypeAdmission::Rejected) {
@@ -3912,7 +3936,8 @@ private:
                                      PermitTypePolicy::RejectPermitTypes,
                                      "fails clause",
                                      raw_abi_policy,
-                                     adapter_reason_policy});
+                                     adapter_reason_policy,
+                                     module_kind});
             check_fails_clause_reason_type(scope, generics, signature.failure.reason_type());
             if (implementation == ast::FunctionImplementation::ForeignImport) {
                 diagnostics_.error(signature.failure.reason_type().span, "foreign functions may not use 'fails'");
@@ -3929,7 +3954,8 @@ private:
                                      PermitTypePolicy::AllowPermitTypes,
                                      "grant permit",
                                      raw_abi_policy,
-                                     adapter_reason_policy});
+                                     adapter_reason_policy,
+                                     module_kind});
             check_grants_clause_permit_type(scope, generics, signature.authority.permit_type());
             const Type return_type = resolve_type(scope, generics, signature.return_type);
             if (type_equivalence(return_type, builtin_type("Unit")) == typesys::TypeEquivalence::Different) {
@@ -3951,7 +3977,8 @@ private:
                                      PermitTypePolicy::RejectPermitTypes,
                                      "proof authorization",
                                      raw_abi_policy,
-                                     adapter_reason_policy});
+                                     adapter_reason_policy,
+                                     module_kind});
             check_proves_clause_proof_type(scope, generics, proves_type, seen_proves);
             if (implementation == ast::FunctionImplementation::ForeignImport) {
                 diagnostics_.error(proves_type.span, "foreign functions may not use 'proves'");
@@ -4101,7 +4128,8 @@ private:
                                             raw_abi_type_policy(
                                                 current_module_kind,
                                                 field_type_privacy_policy(record_decl.visibility, field.visibility)),
-                                            adapter_local_reason_policy(current_module_kind)});
+                                            adapter_local_reason_policy(current_module_kind),
+                                            current_module_kind});
                 }
                 break;
             }
@@ -4141,7 +4169,8 @@ private:
                                                 "state variant payload",
                                                 raw_abi_type_policy(current_module_kind,
                                                                     type_privacy_policy(state_decl.visibility)),
-                                                adapter_local_reason_policy(current_module_kind)});
+                                                adapter_local_reason_policy(current_module_kind),
+                                                current_module_kind});
                     }
                 }
                 break;
@@ -4173,7 +4202,8 @@ private:
                                                 "reason payload",
                                                 raw_abi_type_policy(current_module_kind,
                                                                     type_privacy_policy(reason_decl.visibility)),
-                                                adapter_local_reason_policy(current_module_kind)});
+                                                adapter_local_reason_policy(current_module_kind),
+                                                current_module_kind});
                     }
                 }
                 break;
@@ -4197,7 +4227,8 @@ private:
                                             raw_abi_type_policy(
                                                 current_module_kind,
                                                 field_type_privacy_policy(proof_decl.visibility, field.visibility)),
-                                            adapter_local_reason_policy(current_module_kind)});
+                                            adapter_local_reason_policy(current_module_kind),
+                                            current_module_kind});
                 }
                 break;
             }
@@ -4238,7 +4269,8 @@ private:
                                             raw_abi_type_policy(
                                                 current_module_kind,
                                                 field_type_privacy_policy(phase_decl.visibility, field.visibility)),
-                                            adapter_local_reason_policy(current_module_kind)});
+                                            adapter_local_reason_policy(current_module_kind),
+                                            current_module_kind});
                 }
                 break;
             }

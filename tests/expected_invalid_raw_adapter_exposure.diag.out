@@ -16,12 +16,30 @@
 <input>:32:35: error: public domain/foundation API cannot expose raw adapter type expression 'raw_bridge::RawCStringBox'
     public fn boundary_raw_box(value: raw_bridge::RawCStringBox) -> Int {
                                       ^^^^^^^^^^^^^^^^^^^^^^^^^
-<input>:37:15: error: domain module may not reference raw-adapter export 'raw_cstring'
+<input>:32:35: error: domain module may not reference raw-adapter export 'RawCStringBox'
+    public fn boundary_raw_box(value: raw_bridge::RawCStringBox) -> Int {
+                                      ^^^^^^^^^^^^^^^^^^^^^^^^^
+<input>:37:12: error: domain module may not reference raw-adapter export 'RawCStringBox'
+        value: raw_bridge::RawCStringBox,
+               ^^^^^^^^^^^^^^^^^^^^^^^^^
+<input>:41:15: error: domain module may not reference raw-adapter export 'raw_cstring'
         let raw = raw_bridge::raw_cstring();
                   ^^^^^^^^^^^^^^^^^^^^^^^
-<input>:46:5: error: string literal cannot type as CString outside a boundary or hazard module
+<input>:46:12: error: foreign ABI type 'CString' may only be mentioned inside a boundary or hazard module
+        value: CString,
+               ^^^^^^^
+<input>:49:33: error: foreign ABI type 'CString' may only be mentioned inside a boundary or hazard module
+    fn private_cstring_literal() -> CString {
+                                    ^^^^^^^
+<input>:50:5: error: string literal cannot type as CString outside a boundary or hazard module
         "domain literal"
         ^^^^^^^^^^^^^^^^
-<input>:51:29: error: public domain/foundation API cannot expose raw adapter type expression 'Map<Bytes, Int>'
+<input>:56:12: error: foreign ABI type 'CSize' may only be mentioned inside a boundary or hazard module
+        value: CSize,
+               ^^^^^
+<input>:59:24: error: foreign ABI type 'CInt' may only be mentioned inside a boundary or hazard module
+    fn private_cint(value: CInt) -> Int {
+                           ^^^^
+<input>:63:29: error: public domain/foundation API cannot expose raw adapter type expression 'Map<Bytes, Int>'
     public fn bytes_map(values: Map<Bytes, Int>) -> Int {
                                 ^^^^^^^^^^^^^^^
