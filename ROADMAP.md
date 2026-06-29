@@ -37,22 +37,29 @@ isProject: false
 
 # Missing Features Roadmap
 
+`ROADMAP.md` is the source of truth for current compiler finish status, phase ordering, and known roadmap limitations.
+
 ## Scope
-This plan treats `docs/EVIDENT_LANGUAGE_SPEC.md` as the language-design authority and `docs/COMPILER_FINISH_PLAN.md` / `docs/BOOTSTRAP_PLAN.md` as the current implementation-status anchors. The roadmap is ordered by dependency rather than by feature bucket: finish the language surface before release polish, put package and backend infrastructure after core semantics, and keep self-hosting last.
+Authorities:
+- `docs/EVIDENT_LANGUAGE_SPEC.md` is the language-design authority.
+- `ROADMAP.md` is the current compiler finish-status source of truth.
+- `docs/BOOTSTRAP_PLAN.md` is the bootstrap-specific status anchor.
+
+The roadmap is ordered by dependency rather than by feature bucket: finish the language surface before release polish, put package and backend infrastructure after core semantics, and keep self-hosting last.
 
 ## Phase 0: Continuous Truth And Green Gate
 This is a standing discipline, not a heavy one-time phase.
 
-- Keep `docs/COMPILER_FINISH_PLAN.md`, release docs, CTest totals, and roadmap status aligned whenever a feature slice lands.
+- Keep `ROADMAP.md`, release docs, CTest totals, and roadmap status aligned whenever a feature slice lands.
 - Keep the supported validation path green after each slice: configure/build, focused tests, release contracts, and full CTest when behavior changes broadly.
 - Treat completed work as completed slices, not as completed future milestones when documented gaps remain.
 
 Current status:
 - `traverse`, Text/Bytes bounds/slicing, non-empty Text/Bytes operations, clang AST bare-bool validation, partial raw-adapter checks, and non-truncating frontend `Nat` literal handling are in the tree.
-- The current broader release/package/design validation has been kept green, but that does not make the later language-completion phases done.
+- The release docs, CMake test-total contract, and CI workflow contract are aligned on the configured Windows x64 suite's current 462 CTest registrations, but that does not make the later language-completion phases done.
 
 Key files:
-- `docs/COMPILER_FINISH_PLAN.md`
+- `ROADMAP.md`
 - `docs/EVIDENT_LANGUAGE_SPEC.md`
 - `docs/RELEASE_CHECKLIST.md`
 - `cmake/AssertReleaseDocs.cmake`
@@ -67,8 +74,8 @@ Finish the core value substrate before layering additional language abstractions
 - Preserve completed `Text`/`Bytes` and `NonEmptyText`/`NonEmptyBytes` operation behavior while extending regression coverage for remaining edge cases.
 
 Current status:
-- Non-empty Text/Bytes operations and front-end non-truncating `Nat` literal transport have landed.
-- `Nat` is not substrate-complete until arbitrary-precision runtime/ABI and exact cardinality behavior are implemented.
+- Text/Bytes bounds/slicing, non-empty Text/Bytes operations, UTF-8 scalar handling, scalar-count-aware text length, non-truncating frontend `Nat` literal transport, arbitrary-precision `Nat` runtime storage, and exact compiler-owned cardinality behavior have landed.
+- Built-in substrate is complete for the current polished subset. Additional normative arithmetic, formatting, parsing, or conversion surfaces are new roadmap work.
 
 Key files:
 - `src/Semantic.cpp`
@@ -90,8 +97,10 @@ Finish the adapter discipline after the raw substrate value sets and conversions
 - Add semantic-claim anti-laundering checks from Section 10.6: identifier word normalization, marker-family coverage, consequence-carrying type classification, definite consequence containment, exported producer checks, primitive/sequence-backed nominal checks, permit type-only authority coverage, and foundation semantic-blindness.
 
 Current status:
-- The compiler has substantial partial coverage: foreign conversion declarations, boundary/hazard-only conversion calls, adapter-local foreign reason restrictions, raw ABI public-surface rejections, raw map/sequence substitute rejections, direct source `CString` literal restrictions, and duplicate foreign link-name rejection.
-- The documented gaps in `docs/COMPILER_FINISH_PLAN.md` remain open and are the actual completion criteria for this phase.
+- The compiler has substantial partial coverage: foreign conversion declarations, boundary/hazard-only conversion calls, adapter-local foreign reason restrictions, foreign ABI substrate type confinement outside adapters, raw ABI public-surface rejections, raw map/sequence substitute rejections, direct source `CString` literal restrictions, and duplicate foreign link-name rejection.
+- Exported function-level semantic-claim coverage is now computed over the full closed marker table by marker family (Section 10.6), not only the validation family: a claim-participating ordinary parameter must carry a consequence type whose surface covers every marker family in the parameter name, and a marked function name must expose a consequence-carrying success surface (return type, `proves` proof, or `grants` clause) covering every marker family. Identifier word normalization and foundation semantic-blindness remain enforced.
+- Still open in this phase: full Section 10.5 egress/collapse dataflow, plain raw `Text`/`Bytes` exported-surface rejection, the producer and primitive/sequence-backed nominal anti-laundering checks, and foreign-symbol/ABI prototype matching.
+- The remaining bullets in this phase are the completion criteria for the active raw/foreign work.
 
 Key files:
 - `docs/EVIDENT_LANGUAGE_SPEC.md` Sections 10.5 and 10.6

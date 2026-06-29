@@ -90,7 +90,7 @@ This version does **not** yet implement:
 ## Planning
 
 - Language spec: `docs/EVIDENT_LANGUAGE_SPEC.md`
-- Finish plan: `docs/COMPILER_FINISH_PLAN.md`
+- Roadmap source of truth: `ROADMAP.md`
 - Bootstrap plan: `docs/BOOTSTRAP_PLAN.md`
 - Native backend roadmap: `docs/NATIVE_BACKEND_PLAN.md`
 - Release checklist: `docs/RELEASE_CHECKLIST.md`

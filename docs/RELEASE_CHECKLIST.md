@@ -1,6 +1,6 @@
 # Evident Release Checklist
 
-This checklist defines the repeatable validation path for the current polished-subset release. It is intentionally scoped to the supported Windows x64 target described in `README.md`, `docs/COMPILER_FINISH_PLAN.md`, and `docs/NATIVE_BACKEND_PLAN.md`.
+This checklist defines the repeatable validation path for the current polished-subset release. It is intentionally scoped to the supported Windows x64 target described in `README.md`, `ROADMAP.md`, and `docs/NATIVE_BACKEND_PLAN.md`.
 
 See `docs/TOOLCHAIN_REPRODUCIBILITY.md` for the exact reproducibility promise. The current release path is evidence-bound and rebuildable under the recorded environment; it is not yet a hermetic bit-for-bit reproducible build.
 
@@ -15,6 +15,8 @@ See `docs/TOOLCHAIN_REPRODUCIBILITY.md` for the exact reproducibility promise. T
 Anything outside this matrix is development work unless the supported validation matrix is updated first.
 
 This scope is still a seed-compiler release. Do not describe a release as self-hosted or fully production-ready until the bootstrap evidence defined in `docs/BOOTSTRAP_PLAN.md` exists for the same source commit.
+
+`ROADMAP.md` is the source of truth for current compiler finish status, release-facing roadmap limitations, and phase ordering.
 
 ## Before Tagging
 
@@ -124,6 +126,6 @@ Do not describe a release as production-ready unless:
 - the attestation job rechecks the downloaded ZIP and `.sha256` sidecar with the shared package checksum validator before provenance attestation generation and verification
 - the attestation job revalidates the downloaded release evidence file against the downloaded ZIP filename, byte size, SHA256, and `GITHUB_SHA` before provenance attestation generation and verification
 - public GitHub Actions push or manual `workflow_dispatch` release-validation builds generate and verify artifact attestations for the ZIP, checksum sidecar, and evidence file
-- current known limitations are documented in `README.md` and `docs/COMPILER_FINISH_PLAN.md`
+- current known limitations are documented in `README.md` and `ROADMAP.md`
 
 Do not describe a release as self-hosted or bootstrap-capable unless the additional gate in `docs/BOOTSTRAP_PLAN.md` passes for that same source commit: the C++ seed compiler builds stage 1 from an Evident compiler package, stage 1 builds stage 2 from the same package, and stage 2 passes the required conformance, diagnostics, native emission, package, and release-contract checks.

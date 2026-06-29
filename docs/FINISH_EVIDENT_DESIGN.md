@@ -2,7 +2,7 @@
 
 **Author:** Systems Architecture (design session)  
 **Date:** 2026-06-27 (revised post-review)  
-**Status:** Draft  
+**Status:** Background design note. `ROADMAP.md` is the source of truth for accepted compiler finish status and phase ordering.
 **Repository:** `C:\Users\Daniel\evident`
 
 ---
@@ -11,18 +11,18 @@
 
 Evident is a proof-oriented programming language with an explicit permit model, affine value discipline, and consequence-first naming. The checked-in tree is a **working C++23 seed compiler** for a **polished subset** of the normative language in `docs/EVIDENT_LANGUAGE_SPEC.md`, not a broken prototype. The eight-stage pipeline (`Source → Lexer → Parser → Semantic → HIR → MIR → LLVM IR → Native Emit`) is implemented in `src/` with public interfaces in `include/evident/`, orchestrated by `Driver.cpp`, and regression-tested through a large CTest corpus.
 
-**CTest truth-sync is a three-way mismatch today** (verified in tree):
+**CTest truth-sync is currently aligned in the release docs and CI contracts** (verified in tree):
 
 | Source | Value | Location |
 |--------|-------|----------|
-| CMake expectation | **407** | `CMakeLists.txt:121` (`EVIDENT_EXPECTED_CTEST_TOTAL`) |
-| CI / workflow contract | **404** | `.github/workflows/ci.yml:246,376`; `cmake/AssertCiWorkflow.cmake:41` |
-| Planning / release docs | **404/404** | `docs/COMPILER_FINISH_PLAN.md`, `docs/RELEASE_CHECKLIST.md`, `cmake/AssertReleaseDocs.cmake` |
-| Stale local configure | **405** | Prior `build/windows-x64-ninja` tree registered fewer tests than current `CMakeLists.txt` |
+| CMake expectation | **462** | `CMakeLists.txt:121` (`EVIDENT_EXPECTED_CTEST_TOTAL`) |
+| CI / workflow contract | **462** | `.github/workflows/ci.yml:246,376`; `cmake/AssertCiWorkflow.cmake:41` |
+| Planning / release docs | **462/462** | `ROADMAP.md`, `docs/RELEASE_CHECKLIST.md`, `cmake/AssertReleaseDocs.cmake` |
+| Stale local configure | N/A | Reconfigure `build/windows-x64-ninja` before using local CTest totals as evidence |
 
-Until PR-01 lands, treat the CTest named **`validate_ctest_total_contract`** as the authoritative pass/fail signal for count alignment — not ad-hoc `LastTest.log` excerpts (stale configures report `NOT_AVAILABLE` tests as "Passed").
+Treat the CTest named **`validate_ctest_total_contract`** as the authoritative pass/fail signal for count alignment, and reconfigure before trusting local `LastTest.log` excerpts.
 
-“Finish” has three legitimate definitions from `docs/COMPILER_FINISH_PLAN.md`:
+“Finish” has three legitimate definitions from `ROADMAP.md`:
 
 1. **Polished subset compiler** — ship the current implemented surface with reliable Windows x64 native emission, golden diagnostics, and evidence-bound release workflow.
 2. **Larger language compiler** — close remaining normative gaps (generics rejection-surface narrowing, optional phase-transition spec extension, package durability) while honoring spec deferrals (notably **no traits** until the spec is amended).
@@ -55,7 +55,7 @@ This design recommends a **three-wave staged path** that does not block correctn
 
 ### Pain points
 
-1. **Definition drift** — CTest count diverges across CMake (407), CI (404), docs (404), and stale build trees (405); `COMPILER_FINISH_PLAN.md` still lists active Milestone 4 (traits) despite spec deferral.
+1. **Definition drift risk** — CTest totals, CI evidence validation, release docs, and `ROADMAP.md` must stay aligned as the suite changes; the current release path is aligned on 462 tests.
 2. **IR instability risk** — backend SSA/portability work before generics rejection surfaces and optional phase rules settle may require rework.
 3. **Phase/typestate scope creep** — treating consume-on-transition as a spec bug misreads §12.6/§15; it is a **proposed extension** requiring spec amendment before compiler enforcement.
 4. **Bootstrap cliff** — scaffold models pipeline as data; `seed_*` functions must become real implementations; host runtime lacks directory enumeration needed for slice 1.
@@ -66,7 +66,7 @@ This design recommends a **three-wave staged path** that does not block correctn
 1. `docs/EVIDENT_LANGUAGE_SPEC.md` — normative language contract (permit model: **not** `opens`/ambient authority).
 2. `docs/EVIDENT_NORTH_STAR.md` — aspirational readability; preserve spirit, not specimen keywords.
 3. `docs/RUST_DESIGN.md` / `docs/CPP_DESIGN.md` — modeling discipline for Evident programs **and** compiler repo-defined surfaces.
-4. `docs/COMPILER_FINISH_PLAN.md`, `BOOTSTRAP_PLAN.md`, `NATIVE_BACKEND_PLAN.md`, `RELEASE_CHECKLIST.md` — execution plans (updated as milestones land).
+4. `ROADMAP.md`, `BOOTSTRAP_PLAN.md`, `NATIVE_BACKEND_PLAN.md`, `RELEASE_CHECKLIST.md` — execution plans (updated as milestones land).
 
 ---
 
@@ -87,7 +87,7 @@ This design recommends a **three-wave staged path** that does not block correctn
 ### Non-Goals (this finish plan)
 
 - **Generic type inference** — explicitly forbidden by spec §16.1.
-- **Trait / impl / open polymorphism** — spec §16 and §18 **[Deferred]**; `COMPILER_FINISH_PLAN.md` Milestone 4 marked **deferred pending spec amendment** in PR-01/PR-02.
+- **Trait / impl / open polymorphism** — spec §16 and §18 **[Deferred]**; `ROADMAP.md` keeps traits pending until generic instantiation converges and the spec is amended.
 - **C as production backend** — `NATIVE_BACKEND_PLAN.md` rejects transpilation as final proof.
 - **Hermetic bit-for-bit reproducible releases** — current promise is evidence-bound rebuildability.
 - **North-star specimen syntax wholesale** — `book`/`law`/`theorem` blocks are future surface.
@@ -172,11 +172,11 @@ flowchart LR
 3. **Count method:** Prefer counting `add_test` registrations during configure (reliable on first configure). Use post-configure `ctest -N` only as a cross-check, not the primary source on cold configure.
 4. **Conditional tests:** Platform-gated or `if()`-wrapped registrations MUST increment the same counter (or register into a tracked list) so the total matches the enabled matrix on Windows x64 CI.
 5. Generate `cmake/generated/CiWorkflowCTestTotal.cmake` fragment consumed by `AssertCiWorkflow.cmake` and release-evidence writers.
-6. Update **all** consumers in one PR: `CMakeLists.txt`, `.github/workflows/ci.yml`, `cmake/AssertReleaseDocs.cmake`, `cmake/RunReleaseDocsAndAssert.cmake`, `docs/COMPILER_FINISH_PLAN.md`, `docs/RELEASE_CHECKLIST.md`, `README.md`, `AGENTS.md`.
+6. Update **all** consumers in one PR: `CMakeLists.txt`, `.github/workflows/ci.yml`, `cmake/AssertReleaseDocs.cmake`, `cmake/RunReleaseDocsAndAssert.cmake`, `ROADMAP.md`, `docs/RELEASE_CHECKLIST.md`, `README.md`, `AGENTS.md`.
 7. Require fresh `windows-x64-ninja` reconfigure; delete stale `build/windows-x64-ninja` or re-run configure before claiming sync.
-8. Mark `COMPILER_FINISH_PLAN.md` Milestone 4 (traits) **Deferred — pending spec amendment**; rewrite Near-Term Priority to match three-wave plan.
+8. Keep `ROADMAP.md` aligned with spec deferrals; traits remain pending until generic instantiation converges and the spec is amended.
 
-**M0 exit criteria:** `validate_ctest_total_contract` passes; `validate_ci_workflow_contract` passes; `validate_release_docs_contract` passes; no manual `404` fragments remain.
+**M0 exit criteria:** `validate_ctest_total_contract` passes; `validate_ci_workflow_contract` passes; `validate_release_docs_contract` passes; no stale CTest-total fragments remain.
 
 #### M1 — Subset release bar
 
@@ -242,7 +242,7 @@ identifier    = lowercase { lowercase | digit | "." | "_" } ;
 | 2226 | HIR function lowering | PR-12 |
 | 5528 | Call callee | PR-12 |
 
-**Target:** Guards fire only for **uninstantiated** generic decls that reach backend without monomorphization — not for monomorphized `qualified_name` instances. Extend Monomorphizer coverage for edge cases (foreign/boundary paths, multi-arity nesting) per `COMPILER_FINISH_PLAN.md` Milestone 3.
+**Target:** Guards fire only for **uninstantiated** generic decls that reach backend without monomorphization — not for monomorphized `qualified_name` instances. Extend Monomorphizer coverage for edge cases (foreign/boundary paths, multi-arity nesting) per the generics completion phase in `ROADMAP.md`.
 
 **Mangling:** Existing scheme is `evid$` + sanitized `qualified_name` (`Backend.cpp:292–305`). Monomorphizer encodes type args in `qualified_name`. **No new `module__fn__Int` scheme** unless collision reproducer found. PR-16 verifies link uniqueness under existing mangling.
 
@@ -283,7 +283,7 @@ Until PR-17 merges spec text, M5 compiler enforcement is **blocked**; status-quo
 
 - Checkpoint PR between Wave 2 and Wave 3 backend SSA work.
 - **Hard dependencies (default Phase track):** **PR-15** (generic affine) + **PR-16** (mangling uniqueness) + **PR-19** (phase transition tests) merged. **PR-11** (package manifest validation) recommended for package IR stability. **A6 alternative:** PR-19 not required — soak may proceed after PR-15 + PR-16 only.
-- **Gate criteria:** two consecutive calendar weeks on `main` with (a) zero HIR/MIR golden churn PRs unrelated to merged Wave 2 generics/package/phase work, (b) green `ctest --preset windows-x64-ninja`, (c) signed checklist in `docs/COMPILER_FINISH_PLAN.md` by compiler maintainer. Phase-track soak includes phase golden stability; A6 waiver documented on checklist if PR-17–20 skipped.
+- **Gate criteria:** two consecutive calendar weeks on `main` with (a) zero HIR/MIR golden churn PRs unrelated to merged Wave 2 generics/package/phase work, (b) green `ctest --preset windows-x64-ninja`, (c) signed checklist linked from `ROADMAP.md` by compiler maintainer. Phase-track soak includes phase golden stability; A6 waiver documented on checklist if PR-17–20 skipped.
 - PR-26+ (SSA) **blocked** on PR-25 merge.
 
 #### M6 — Backend maturity
@@ -501,7 +501,7 @@ Unchanged (path traversal, `CreateProcessW`, ZIP validation, offline compiler).
 3. ~~**Linux as second target vs WSL-only dev**~~ — **Resolved (2026-06-27):** WSL/dev-only validation (PR-32/33); Windows x64 sole release target; release checklist unchanged.
 4. ~~**Formatter scope**~~ — **Resolved (2026-06-27):** PR-22 includes `match`/arm reflow and broader structural pretty-print.
 5. ~~**Stage equivalence tolerance**~~ — **Resolved (2026-06-27):** Normalized LLVM IR textual diff at T2/T3; byte-identical LLVM IR / artifacts required only at T4.
-6. ~~**`EVIDENT_EXPECTED_CTEST_TOTAL` automation**~~ — **Resolved:** configure-time `ctest -N` capture in PR-01.
+6. ~~**`EVIDENT_EXPECTED_CTEST_TOTAL` automation**~~ — **Current status:** the live contract is synchronized on 462; configure-time count automation remains the preferred hardening path when that slice lands.
 
 ---
 
@@ -526,7 +526,7 @@ Unchanged (path traversal, `CreateProcessW`, ZIP validation, offline compiler).
 | KD9 | **PR-25 soak gate** after PR-15+PR-16+**PR-19** on default Phase track | A6 alternative unblocks Wave 3 without PR-17–20 (PR-19 waived) |
 | KD10 | Tiered equivalence → T4 full corpus | Practical incremental bootstrap |
 | KD11 | Keep `evid$` mangling; test uniqueness only | Avoid link/test churn |
-| KD12 | Configure-time CTest total **after ordinary test registrations; contract tests after CountCtest** | Ends 404/405/407 drift; avoids stale `-DEXPECTED_CTEST_TOTAL` in contract `add_test` |
+| KD12 | Configure-time CTest total **after ordinary test registrations; contract tests after CountCtest** | Prevents count drift; avoids stale `-DEXPECTED_CTEST_TOTAL` in contract `add_test` |
 | KD13 | PR-46 seed removal post-1.0 only | Bisection/onboarding safety |
 
 ---
@@ -538,9 +538,9 @@ Unchanged (path traversal, `CreateProcessW`, ZIP validation, offline compiler).
 ### Wave 1 — Truth sync & subset release
 
 **PR-01: Configure-time CTest total + full consumer sync**  
-- *Files:* `CMakeLists.txt` (remove line-121 manual total; register ordinary tests first; `include(cmake/CountCtest.cmake)`; **then** relocate `validate_release_evidence_contract`, `validate_ctest_total_contract`, `validate_ctest_total_rejects_stale_count` blocks to immediately after the include), `cmake/CountCtest.cmake`, `cmake/generated/CiWorkflowCTestTotal.cmake`, `.github/workflows/ci.yml`, `cmake/AssertCiWorkflow.cmake`, `cmake/AssertReleaseDocs.cmake`, `cmake/RunReleaseDocsAndAssert.cmake`, `docs/COMPILER_FINISH_PLAN.md` (Milestone 4 → deferred, Near-Term Priority), `docs/RELEASE_CHECKLIST.md`, `README.md`, `AGENTS.md`  
+- *Files:* `CMakeLists.txt` (remove line-121 manual total; register ordinary tests first; `include(cmake/CountCtest.cmake)`; **then** relocate `validate_release_evidence_contract`, `validate_ctest_total_contract`, `validate_ctest_total_rejects_stale_count` blocks to immediately after the include), `cmake/CountCtest.cmake`, `cmake/generated/CiWorkflowCTestTotal.cmake`, `.github/workflows/ci.yml`, `cmake/AssertCiWorkflow.cmake`, `cmake/AssertReleaseDocs.cmake`, `cmake/RunReleaseDocsAndAssert.cmake`, `ROADMAP.md`, `docs/RELEASE_CHECKLIST.md`, `README.md`, `AGENTS.md`
 - *Deps:* none  
-- *Summary:* Count all ordinary `add_test` registrations; set `EVIDENT_EXPECTED_CTEST_TOTAL` via `CountCtest.cmake`; register CTest-total contract tests **after** the variable is set (CMake expands `-DEXPECTED_CTEST_TOTAL=${EVIDENT_EXPECTED_CTEST_TOTAL}` at configure time); cross-check with `ctest -N`; propagate to CI fragment; eliminate 404/405/407 drift.
+- *Summary:* Count all ordinary `add_test` registrations; set `EVIDENT_EXPECTED_CTEST_TOTAL` via `CountCtest.cmake`; register CTest-total contract tests **after** the variable is set (CMake expands `-DEXPECTED_CTEST_TOTAL=${EVIDENT_EXPECTED_CTEST_TOTAL}` at configure time); cross-check with `ctest -N`; propagate to CI fragment; prevent CTest-total drift.
 
 **PR-02: Implemented-vs-Spec matrix in README**  
 - *Files:* `README.md`  
@@ -614,7 +614,7 @@ Unchanged (path traversal, `CreateProcessW`, ZIP validation, offline compiler).
 - *Summary:* Document existing `mangle_symbol_name`; add collision regression tests only.
 
 **PR-17: Spec amendment — phase family transition rules (default path)**  
-- *Files:* `docs/EVIDENT_LANGUAGE_SPEC.md` (§12.7 or §14.6, §15 example), `docs/COMPILER_FINISH_PLAN.md`  
+- *Files:* `docs/EVIDENT_LANGUAGE_SPEC.md` (§12.7 or §14.6, §15 example), `ROADMAP.md`
 - *Deps:* none  
 - *Summary:* **Spec text before compiler enforcement**; includes consumption-point rules from M5. **Default critical path** — skip only on explicit A6 alternative selection.
 
@@ -652,7 +652,7 @@ Unchanged (path traversal, `CreateProcessW`, ZIP validation, offline compiler).
 - *Deps:* PR-23  
 
 **PR-25: MIR/HIR stability soak checkpoint**  
-- *Files:* `docs/COMPILER_FINISH_PLAN.md`, checklist template (`docs/MIR_STABILITY_SOAK.md`), optional CI calendar guard  
+- *Files:* `ROADMAP.md`, checklist template (`docs/MIR_STABILITY_SOAK.md`), optional CI calendar guard
 - *Deps:* **PR-15, PR-16, PR-19** (required on default Phase track); **PR-11** (recommended). **A6 alternative:** PR-19 waived; PR-17–20 skipped.  
 - *Summary:* **Blocks PR-26+**; documents two green weeks; checklist records A6 waiver if phase work deferred.
 

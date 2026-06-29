@@ -45,6 +45,7 @@ endfunction()
 function(copy_release_docs_fixture fixture_dir)
     file(MAKE_DIRECTORY "${fixture_dir}")
     file(COPY "${SOURCE_DIR}/README.md" DESTINATION "${fixture_dir}")
+    file(COPY "${SOURCE_DIR}/ROADMAP.md" DESTINATION "${fixture_dir}")
     file(COPY "${SOURCE_DIR}/.gitignore" DESTINATION "${fixture_dir}")
     file(COPY "${SOURCE_DIR}/CMakePresets.json" DESTINATION "${fixture_dir}")
     file(COPY "${SOURCE_DIR}/docs" DESTINATION "${fixture_dir}" FILES_MATCHING PATTERN "*.md")
@@ -121,7 +122,7 @@ run_release_docs_validation(
 )
 
 copy_release_docs_fixture("${stale_test_count_fixture_dir}")
-set(stale_test_count_finish_plan "${stale_test_count_fixture_dir}/docs/COMPILER_FINISH_PLAN.md")
+set(stale_test_count_finish_plan "${stale_test_count_fixture_dir}/ROADMAP.md")
 file(READ "${stale_test_count_finish_plan}" finish_plan_text)
 string(REPLACE "462 CTest registrations" "360 CTest registrations" finish_plan_text "${finish_plan_text}")
 file(WRITE "${stale_test_count_finish_plan}" "${finish_plan_text}")
@@ -129,7 +130,7 @@ run_release_docs_validation(
     "stale test count"
     "${stale_test_count_fixture_dir}"
     FALSE
-    "release document docs/COMPILER_FINISH_PLAN.md is missing expected text"
+    "release document ROADMAP.md is missing expected text"
     "462 CTest registrations"
 )
 
@@ -387,12 +388,12 @@ run_release_docs_validation(
 )
 
 copy_release_docs_fixture("${stale_roadmap_fixture_dir}")
-set(stale_finish_plan "${stale_roadmap_fixture_dir}/docs/COMPILER_FINISH_PLAN.md")
+set(stale_finish_plan "${stale_roadmap_fixture_dir}/ROADMAP.md")
 file(APPEND "${stale_finish_plan}" "\n- Decide and document the supported host/target matrix for the subset release.\n")
 run_release_docs_validation(
     "stale roadmap"
     "${stale_roadmap_fixture_dir}"
     FALSE
-    "release document docs/COMPILER_FINISH_PLAN.md still contains stale text"
-    "Decide and document the supported host/target matrix"
+    "release document ROADMAP.md still contains stale text"
+    "supported host/target matrix"
 )
